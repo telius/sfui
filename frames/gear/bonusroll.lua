@@ -38,44 +38,44 @@ local MAX_ATTEMPTS   = 10
 -- ─── Reward Chest Item Database (KeystoneLoot / Voidcore / YetRolled Mappings) ─
 local CHEST_DATABASE = {
     -- Dungeons (challengeModeId & instanceID)
-    [268470] = { challengeModeId = 161, instanceID = 476 },  -- Skyreach
-    [268469] = { challengeModeId = 239, instanceID = 945 },  -- Seat of the Triumvirate
     [268465] = { challengeModeId = 402, instanceID = 1201 }, -- Algeth'ar Academy
-    [268468] = { challengeModeId = 556, instanceID = 278 },  -- Pit of Saron
-    [268471] = { challengeModeId = 557, instanceID = 1299 }, -- Windrunner Spire
-    [268466] = { challengeModeId = 558, instanceID = 249 },  -- Magisters' Terrace
+    [268466] = { challengeModeId = 558, instanceID = 1300 }, -- Magisters' Terrace
     [268467] = { challengeModeId = 559, instanceID = 1316 }, -- Nexus-Point Xenas
+    [268468] = { challengeModeId = 556, instanceID = 278 }, -- Pit of Saron
+    [268469] = { challengeModeId = 239, instanceID = 945 }, -- Seat of the Triumvirate
+    [268470] = { challengeModeId = 161, instanceID = 476 }, -- Skyreach
+    [268471] = { challengeModeId = 557, instanceID = 1299 }, -- Windrunner Spire
     [268473] = { challengeModeId = 560, instanceID = 1315 }, -- Maisara Caverns
+    [279618] = { challengeModeId = 588, instanceID = 1322 }, -- Altar of Fangs
+    [279619] = { challengeModeId = 584, instanceID = 1309 }, -- The Blinding Vale
+    [279620] = { challengeModeId = 586, instanceID = 1311 }, -- Den of Nalorakk
     [279621] = { challengeModeId = 249, instanceID = 1041 }, -- Kings' Rest
-    [279624] = { challengeModeId = 250, instanceID = 1030 }, -- Temple of Sethraliss
     [279622] = { challengeModeId = 399, instanceID = 1202 }, -- Ruby Life Pools
-    [279619] = { challengeModeId = 584, instanceID = 1309 }, -- The Dazzling Valley / The Blinding Vale
-    [279625] = { challengeModeId = 585, instanceID = 1313 }, -- Voidscar Arena
-    [279620] = { challengeModeId = 586, instanceID = 1311 }, -- Nalorakk's Den
     [279623] = { challengeModeId = 587, instanceID = 1304 }, -- Murder Row
-    [279618] = { challengeModeId = 588, instanceID = 1322 }, -- Altar of the Fangs
+    [279624] = { challengeModeId = 250, instanceID = 1030 }, -- Temple of Sethraliss
+    [279625] = { challengeModeId = 585, instanceID = 1313 }, -- Voidscar Arena
 
     -- Raid Bosses (encounterID / bossId & instanceID)
+    [262658] = { bossId = 2740, instanceID = 1308 }, -- Midnight Falls
+    [267488] = { bossId = 2738, instanceID = 1307 }, -- Crown of the Cosmos
+    [268458] = { bossId = 2739, instanceID = 1308 }, -- Belo'ren, Child of Al'ar
     [268459] = { bossId = 2733, instanceID = 1307 }, -- Imperator Averzian
     [268460] = { bossId = 2734, instanceID = 1307 }, -- Vorasius
+    [268461] = { bossId = 2736, instanceID = 1307 }, -- Fallen-King Salhadaar
     [268462] = { bossId = 2735, instanceID = 1307 }, -- Vaelgor & Ezzorak
-    [268461] = { bossId = 2736, instanceID = 1307 }, -- Fallen King Salhadaar
-    [268463] = { bossId = 2737, instanceID = 1307 }, -- Lightblind Vanguard
-    [268458] = { bossId = 2739, instanceID = 1308 }, -- Belo'ren, Child of Al'ar
-    [268464] = { bossId = 2795, instanceID = 1314 }, -- Chimaerus, the Undreamt God
-    [267488] = { bossId = 2738, instanceID = 1307 }, -- Crown of the Cosmos
-    [262658] = { bossId = 2740, instanceID = 1308 }, -- Midnight Falls
-    [275228] = { bossId = 2711, instanceID = 1305 }, -- Rottmoor
-    [274708] = { bossId = 2849, instanceID = 1317 }, -- Nymrissa Wavespeaker
-    [278285] = { bossId = 2888, instanceID = 1320 }, -- Nek'zali the Soulwinder
-    [278283] = { bossId = 2874, instanceID = 1320 }, -- Trapped Sentinels
+    [268463] = { bossId = 2737, instanceID = 1307 }, -- Lightblinded Vanguard
+    [268464] = { bossId = 2795, instanceID = 1314 }, -- Chimaerus the Undreamt God
+    [274708] = { bossId = 2849, instanceID = 1317 }, -- Nymrissa Wavecaller
+    [275228] = { bossId = 2711, instanceID = 1305 }, -- Rotmire
+    [278283] = { bossId = 2874, instanceID = 1320 }, -- Entombed Sentinels
+    [278284] = { bossId = 2895, instanceID = 1320 }, -- Ula'tek
+    [278285] = { bossId = 2888, instanceID = 1320 }, -- Nek'zali the Soulcoiler
     [278286] = { bossId = 2894, instanceID = 1320 }, -- The Lost Explorers
-    [278287] = { bossId = 2882, instanceID = 1320 }, -- Vashnik the Vicious
+    [278287] = { bossId = 2882, instanceID = 1320 }, -- Vashnik the Malignant
     [278288] = { bossId = 2871, instanceID = 1320 }, -- Sszorak
     [278289] = { bossId = 2887, instanceID = 1320 }, -- The Twin Fangs
-    [278290] = { bossId = 2883, instanceID = 1320 }, -- The Winding Altar
-    [278284] = { bossId = 2895, instanceID = 1320 }, -- Ula'tek
-    [286019] = { bossId = 2896, instanceID = 1324 }, -- Kith'ix (The Unbinding of Kith'ix)
+    [278290] = { bossId = 2883, instanceID = 1320 }, -- The Coiled Altar
+    [286019] = { bossId = 2896, instanceID = 1324 }, -- Kith'ix
 }
 
 local MIRROR_ITEMS = {
@@ -955,24 +955,71 @@ function sfui.bonusroll.SetUsed(itemID, value, itemLink, specID, isManual, isDir
 end
 
 -- ─── Source Candidate Extraction ──────────────────────────────────────────────
-local function GetChestSource(chestItemId)
-    return CHEST_DATABASE[chestItemId]
+local rawEntriesCache = {}
+local failedNameLookups = {}
+
+local SOURCE_STOPWORDS = {
+    ["the"] = true, ["of"] = true, ["and"] = true,
+    ["in"] = true, ["on"] = true, ["at"] = true,
+}
+
+local function NormalizeSourceName(s)
+    if not IsPublicValue(s) or type(s) ~= "string" then return nil end
+    local norm = s:lower():gsub("^the%s+", ""):gsub("[^%w]+", "")
+    return norm ~= "" and norm or nil
 end
 
-local function LearnChestSource(cacheID, instanceID, encounterID, difficultyID)
+local function ExtractSourceTokens(s)
+    if not IsPublicValue(s) or type(s) ~= "string" then return nil end
+    local tokens = {}
+    local count = 0
+    for word in s:lower():gmatch("%w+") do
+        if #word >= 4 and not SOURCE_STOPWORDS[word] then
+            tokens[word] = true
+            count = count + 1
+        end
+    end
+    return count > 0 and tokens or nil
+end
+
+local function CountTokenOverlap(tokensA, tokensB)
+    if not tokensA or not tokensB then return 0 end
+    local overlap = 0
+    for w in pairs(tokensA) do
+        if tokensB[w] then
+            overlap = overlap + 1
+        end
+    end
+    return overlap
+end
+
+local function LearnChestSource(cacheID, instanceID, encounterID, difficultyID, challengeModeId)
     cacheID = tonumber(cacheID)
     if not cacheID or cacheID <= 0 then return nil end
     instanceID = tonumber(instanceID)
     encounterID = tonumber(encounterID)
     difficultyID = tonumber(difficultyID)
+    challengeModeId = tonumber(challengeModeId)
 
     local existing = CHEST_DATABASE[cacheID]
     if existing and (existing.bossId or existing.challengeModeId or existing.instanceID) then
+        local updated = false
         if instanceID and instanceID > 0 and not existing.instanceID then
             existing.instanceID = instanceID
+            updated = true
         end
         if encounterID and encounterID > 0 and not existing.bossId then
             existing.bossId = encounterID
+            updated = true
+        end
+        if challengeModeId and challengeModeId > 0 and not existing.challengeModeId then
+            existing.challengeModeId = challengeModeId
+            updated = true
+        end
+        if updated then
+            rawEntriesCache[cacheID] = nil
+            local db = DB()
+            db.learnedChests[cacheID] = existing
         end
         return existing
     end
@@ -983,14 +1030,16 @@ local function LearnChestSource(cacheID, instanceID, encounterID, difficultyID)
             bossId     = encounterID,
             instanceID = (instanceID and instanceID > 0 and instanceID) or nil,
         }
-    elseif instanceID and instanceID > 0 and (difficultyID == 8 or difficultyID == 23) then
+    elseif (challengeModeId and challengeModeId > 0) or (instanceID and instanceID > 0 and (difficultyID == 8 or difficultyID == 23 or not difficultyID)) then
         learned = {
-            instanceID = instanceID,
+            challengeModeId = (challengeModeId and challengeModeId > 0 and challengeModeId) or nil,
+            instanceID      = (instanceID and instanceID > 0 and instanceID) or nil,
         }
     end
 
     if learned then
         CHEST_DATABASE[cacheID] = learned
+        rawEntriesCache[cacheID] = nil
         local db = DB()
         db.learnedChests[cacheID] = learned
         return learned
@@ -998,7 +1047,138 @@ local function LearnChestSource(cacheID, instanceID, encounterID, difficultyID)
     return existing
 end
 
+local function InferChestSourceFromName(chestItemId)
+    if failedNameLookups[chestItemId] then return nil end
+
+    local itemName = CleanTooltipText(select(1, sfui.common.get_item_info(chestItemId)))
+    if not itemName or itemName == "" then
+        sfui.common.request_item_load(chestItemId)
+        return nil
+    end
+
+    local suffix = itemName:match(":%s*(.+)$")
+    local targetNorm = NormalizeSourceName(suffix)
+    if not targetNorm then
+        failedNameLookups[chestItemId] = true
+        return nil
+    end
+
+    local targetTokens = ExtractSourceTokens(suffix)
+    local bestTokenMatch = nil
+    local bestTokenScore = 0
+    local tokenTied = false
+
+    local function ConsiderTokenMatch(name, candidate)
+        local score = CountTokenOverlap(targetTokens, ExtractSourceTokens(name))
+        if score > bestTokenScore then
+            bestTokenScore = score
+            bestTokenMatch = candidate
+            tokenTied = false
+        elseif score > 0 and score == bestTokenScore then
+            tokenTied = true
+        end
+    end
+
+    if sfui.lootviewer and sfui.lootviewer.GetRaidData then
+        local raids = sfui.lootviewer.GetRaidData()
+        for _, r in ipairs(raids or {}) do
+            for _, b in ipairs(r.bosses or {}) do
+                local bNorm = NormalizeSourceName(b.name)
+                if bNorm and (bNorm == targetNorm or bNorm:find(targetNorm, 1, true) or targetNorm:find(bNorm, 1, true)) then
+                    return LearnChestSource(chestItemId, r.instanceID, b.encounterID, nil, nil)
+                end
+                ConsiderTokenMatch(b.name, { instanceID = r.instanceID, bossId = b.encounterID })
+            end
+        end
+    end
+
+    if sfui.lootviewer and sfui.lootviewer.GetDungeonData then
+        local dungeons = sfui.lootviewer.GetDungeonData()
+        for _, d in ipairs(dungeons or {}) do
+            local dNorm = NormalizeSourceName(d.name)
+            if dNorm and (dNorm == targetNorm or dNorm:find(targetNorm, 1, true) or targetNorm:find(dNorm, 1, true)) then
+                return LearnChestSource(chestItemId, d.instanceID, nil, 8, d.mapID)
+            end
+            ConsiderTokenMatch(d.name, { instanceID = d.instanceID, challengeModeId = d.mapID, diff = 8 })
+        end
+    end
+
+    if bestTokenMatch and bestTokenScore > 0 and not tokenTied then
+        return LearnChestSource(
+            chestItemId,
+            bestTokenMatch.instanceID,
+            bestTokenMatch.bossId,
+            bestTokenMatch.diff,
+            bestTokenMatch.challengeModeId
+        )
+    end
+
+    failedNameLookups[chestItemId] = true
+    return nil
+end
+
+local function InferChestSourceFromTooltip(chestItemId, remainingNames, remainingIDs)
+    if not chestItemId or chestItemId <= 0 then return nil end
+    local hasNames = remainingNames and next(remainingNames) ~= nil
+    local hasIDs = remainingIDs and next(remainingIDs) ~= nil
+    if not hasNames and not hasIDs then return nil end
+
+    local bestSource = nil
+    local bestScore = 0
+    local tied = false
+
+    local function ScoreLootTable(loot, candidateSource)
+        local score = 0
+        for _, it in ipairs(loot or {}) do
+            if type(it) == "table" and it.id then
+                local numID = tonumber(it.id)
+                local itName = CleanTooltipText(it.name) or CleanTooltipText(select(1, sfui.common.get_item_info(numID)))
+                if (numID and remainingIDs and remainingIDs[numID]) or (itName and remainingNames and remainingNames[itName]) then
+                    score = score + 1
+                end
+            end
+        end
+        if score > bestScore then
+            bestScore = score
+            bestSource = candidateSource
+            tied = false
+        elseif score > 0 and score == bestScore then
+            tied = true
+        end
+    end
+
+    if sfui.lootviewer and sfui.lootviewer.GetRaidData then
+        local raids = sfui.lootviewer.GetRaidData()
+        for _, r in ipairs(raids or {}) do
+            for _, b in ipairs(r.bosses or {}) do
+                ScoreLootTable(b.loot, { bossId = b.encounterID, instanceID = r.instanceID })
+            end
+        end
+    end
+
+    if sfui.lootviewer and sfui.lootviewer.GetDungeonData then
+        local dungeons = sfui.lootviewer.GetDungeonData()
+        for _, d in ipairs(dungeons or {}) do
+            ScoreLootTable(d.loot, { challengeModeId = d.mapID, instanceID = d.instanceID })
+        end
+    end
+
+    if bestSource and bestScore > 0 and not tied then
+        return LearnChestSource(chestItemId, bestSource.instanceID, bestSource.bossId, nil, bestSource.challengeModeId)
+    end
+    return nil
+end
+
+local function GetChestSource(chestItemId)
+    local src = CHEST_DATABASE[chestItemId]
+    if src then return src end
+    return InferChestSourceFromName(chestItemId)
+end
+
 local function GetRawChestEntries(chestItemId)
+    local cached = rawEntriesCache[chestItemId]
+    if cached then return cached end
+
     local source = GetChestSource(chestItemId)
     if not source then return {} end
 
@@ -1050,6 +1230,9 @@ local function GetRawChestEntries(chestItemId)
         end
     end
 
+    if #entries > 0 then
+        rawEntriesCache[chestItemId] = entries
+    end
     return entries
 end
 
@@ -1343,10 +1526,6 @@ function sfui.bonusroll.CheckSupply(chestItemId, onDone, itemContext, level, isL
     end
 
     local entries = GetRawChestEntries(chestItemId)
-    if #entries == 0 then
-        if onDone then onDone(0) end
-        return
-    end
 
     local activeSpecID = GetActiveLootSpecID()
     local attempts   = 0
@@ -1381,6 +1560,19 @@ function sfui.bonusroll.CheckSupply(chestItemId, onDone, itemContext, level, isL
                 C_Timer.After(POLL_INTERVAL, Poll)
             end
             return
+        end
+
+        if #entries == 0 then
+            InferChestSourceFromTooltip(chestItemId, remainingNames, remainingIDs)
+            entries = GetRawChestEntries(chestItemId)
+            if #entries == 0 then
+                if attempts >= MAX_ATTEMPTS then
+                    if onDone then onDone(0) end
+                else
+                    C_Timer.After(POLL_INTERVAL, Poll)
+                end
+                return
+            end
         end
 
         if count == prevCount then
@@ -1482,8 +1674,33 @@ local function OnBonusRollPrompt(spellID, duration, cacheID, itemContext, level,
         if inst and inst > 0 then instanceID = inst end
     end
 
+    local challengeModeId = nil
+    if not encounterID or encounterID <= 0 then
+        local cm = _G.C_ChallengeMode
+        if cm then
+            if cm.GetCompletionInfo then
+                challengeModeId = SafeNum(select(1, cm.GetCompletionInfo()))
+            end
+            if (not challengeModeId or challengeModeId <= 0) and cm.GetActiveChallengeMapID then
+                challengeModeId = SafeNum(cm.GetActiveChallengeMapID())
+            end
+        end
+        if (not instanceID or instanceID <= 0) and _G.C_Map and _G.C_Map.GetBestMapForUnit and _G.EJ_GetInstanceForMap then
+            local uiMapID = SafeNum(_G.C_Map.GetBestMapForUnit("player"))
+            if uiMapID and uiMapID > 0 then
+                local ejInst = SafeNum(_G.EJ_GetInstanceForMap(uiMapID))
+                if ejInst and ejInst > 0 then
+                    instanceID = ejInst
+                end
+            end
+        end
+    end
+
     if cacheID and cacheID > 0 then
-        LearnChestSource(cacheID, instanceID, encounterID, difficultyID)
+        LearnChestSource(cacheID, instanceID, encounterID, difficultyID, challengeModeId)
+        if not CHEST_DATABASE[cacheID] then
+            InferChestSourceFromName(cacheID)
+        end
     end
 
     if not spellID or not cacheID or cacheID <= 0 or not itemContext or itemContext <= 0 then

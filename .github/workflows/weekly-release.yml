@@ -50,6 +50,11 @@ jobs:
           sudo apt-get install -y lua5.1 luarocks
           sudo luarocks install luacheck
 
+      - name: Sync Retail Bonus Roll Chest Database
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          python3 scripts/sync-bonusroll.py --auto-commit || true
+
       - name: Pre-flight Syntax & Static Analysis
         run: |
           echo "=== validating lua syntax ==="

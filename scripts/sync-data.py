@@ -2,13 +2,14 @@
 """
 SFUI Unified Data Synchronizer (Camelot / Classic Forever)
 Single authoritative runner that orchestrates all SFUI data pipelines using the shared `sync_core` engine:
-  1. zones   — Auto-discovers new Forever open-world zones, dungeons & raids -> data/forever_zones.json
-  2. dj      — Synchronizes Dungeon Journal boss loot, drop rates & quests    -> data/dj_camelot.lua
-  3. recipes — Synchronizes all 11 professions, recipes, reagents & sources   -> data/recipes_camelot.lua
-  4. fishing — Synchronizes Fishing Atlas species, waters, pools & habitats   -> data/fishing_camelot.lua
+  1. zones     — Auto-discovers new Forever open-world zones, dungeons & raids -> data/forever_zones.json
+  2. dj        — Synchronizes Dungeon Journal boss loot, drop rates & quests    -> data/dj_camelot.lua
+  3. recipes   — Synchronizes all 11 professions, recipes, reagents & sources   -> data/recipes_camelot.lua
+  4. fishing   — Synchronizes Fishing Atlas species, waters, pools & habitats   -> data/fishing_camelot.lua
+  5. bonusroll — Synchronizes Retail Bonus Roll chest database (DB2 & Wowhead)  -> frames/gear/bonusroll.lua
 
 Usage:
-    python3 scripts/sync-data.py [--only zones,dj,recipes,fishing] [--refresh] [--dry-run] [--verbose]
+    python3 scripts/sync-data.py [--only zones,dj,recipes,fishing,bonusroll] [--refresh] [--dry-run] [--verbose]
 """
 
 import argparse
@@ -41,7 +42,7 @@ def run_unified_sync(
     check_only: bool = False,
     verbose: bool = False,
 ):
-    valid_targets = ("zones", "dj", "recipes", "fishing")
+    valid_targets = ("zones", "dj", "recipes", "fishing", "bonusroll")
     if not targets or "all" in targets:
         active_targets = list(valid_targets)
     else:
@@ -53,17 +54,18 @@ def run_unified_sync(
     print("=================================================================")
 
     # 1. Zone / Dungeon / Raid Discovery (always loaded so downstream modules have latest forever_zones.json)
-    refresh_zones = refresh or ("zones" in active_targets and refresh)
-    zones = load_forever_zones(refresh=refresh_zones, verbose=verbose)
-    if "zones" in active_targets:
-        open_zones = sum(1 for z in zones.values() if z.get("category") in (0, 1))
-        instances = sum(1 for z in zones.values() if z.get("category") in (2, 3))
-        print(f"[1/4 Zones] Verified {len(zones)} Forever zones ({open_zones} open-world, {instances} dungeons/raids).")
+    if any(t in active_targets for t in ("zones", "dj", "recipes", "fishing")):
+        refresh_zones = refresh or ("zones" in active_targets and refresh)
+        zones = load_forever_zones(refresh=refresh_zones, verbose=verbose)
+        if "zones" in active_targets:
+            open_zones = sum(1 for z in zones.values() if z.get("category") in (0, 1))
+            instances = sum(1 for z in zones.values() if z.get("category") in (2, 3))
+            print(f"[1/5 Zones] Verified {len(zones)} Forever zones ({open_zones} open-world, {instances} dungeons/raids).")
 
     # 2. Dungeon Journal Loot, Drop Rates & Quests
     if "dj" in active_targets:
         print("\n-----------------------------------------------------------------")
-        print(" [2/4 Dungeon Journal] Synchronizing boss loot, drop rates & quests")
+        print(" [2/5 Dungeon Journal] Synchronizing boss loot, drop rates & quests")
         print("-----------------------------------------------------------------")
         dj_mod = _load_script_module("sync_dj_loot", "sync-dj-loot.py")
         dj_mod.sync_dj(
@@ -78,7 +80,7 @@ def run_unified_sync(
     # 3. Professions & Recipes
     if "recipes" in active_targets:
         print("\n-----------------------------------------------------------------")
-        print(" [3/4 Recipes] Synchronizing profession crafts, reagents & sources")
+        print(" [3/5 Recipes] Synchronizing profession crafts, reagents & sources")
         print("-----------------------------------------------------------------")
         recipes_mod = _load_script_module("sync_recipes", "sync-recipes.py")
         recipes_mod.sync(
@@ -94,12 +96,23 @@ def run_unified_sync(
     # 4. Fishing Atlas & Waters
     if "fishing" in active_targets:
         print("\n-----------------------------------------------------------------")
-        print(" [4/4 Fishing] Synchronizing fish species, waters, pools & habitats")
+        print(" [4/5 Fishing] Synchronizing fish species, waters, pools & habitats")
         print("-----------------------------------------------------------------")
         fishing_mod = _load_script_module("sync_fishing", "sync-fishing.py")
         fishing_mod.sync_fishing(
             refresh=refresh,
             dry_run=dry_run,
+            verbose=verbose,
+        )
+
+    # 5. Retail Bonus Roll Chest Database
+    if "bonusroll" in active_targets:
+        print("\n-----------------------------------------------------------------")
+        print(" [5/5 Bonus Roll] Synchronizing Retail chest database (DB2 & Wowhead)")
+        print("-----------------------------------------------------------------")
+        br_mod = _load_script_module("sync_bonusroll", "sync-bonusroll.py")
+        br_mod.sync_bonusroll(
+            dry_run=dry_run or check_only,
             verbose=verbose,
         )
 
