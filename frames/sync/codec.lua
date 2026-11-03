@@ -223,6 +223,75 @@ function codec.CancelWhispersToTarget(target)
     end
 end
 
+local IsInGroup = _G.IsInGroup
+local IsInRaid = _G.IsInRaid
+local IsInGuild = _G.IsInGuild
+local GetNumGroupMembers = _G.GetNumGroupMembers
+local UnitExists = _G.UnitExists
+local UnitIsPlayer = _G.UnitIsPlayer
+local UnitIsUnit = _G.UnitIsUnit
+local LE_PARTY_CATEGORY_HOME = _G.LE_PARTY_CATEGORY_HOME or 1
+local LE_PARTY_CATEGORY_INSTANCE = _G.LE_PARTY_CATEGORY_INSTANCE or 2
+
+local function has_other_human_member(prefix, maxIdx)
+    for i = 1, maxIdx do
+        local u = prefix .. i
+        if UnitExists and UnitExists(u)
+            and (not UnitIsPlayer or UnitIsPlayer(u))
+            and not (UnitIsUnit and UnitIsUnit(u, "player")) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Returns the active valid group addon chat channel ("RAID", "PARTY", or "INSTANCE_CHAT"),
+-- or nil when solo, in a pending invite, or in a companion/NPC-only scenario (Delve/Follower).
+function codec.ResolveGroupChannel()
+    if not IsInGroup or not IsInGroup() then return nil end
+
+    -- 1. Home Raid
+    if IsInRaid and IsInRaid(LE_PARTY_CATEGORY_HOME) then
+        local n = (GetNumGroupMembers and GetNumGroupMembers(LE_PARTY_CATEGORY_HOME)) or 0
+        if n > 1 and has_other_human_member("raid", n) then
+            return "RAID"
+        end
+    end
+
+    -- 2. Home Party
+    if IsInGroup(LE_PARTY_CATEGORY_HOME) then
+        local n = (GetNumGroupMembers and GetNumGroupMembers(LE_PARTY_CATEGORY_HOME)) or 0
+        if n > 1 and has_other_human_member("party", math_min(4, n)) then
+            return "PARTY"
+        end
+    end
+
+    -- 3. Instance Group (LFD / LFR / Battleground / Brawl)
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        local n = (GetNumGroupMembers and GetNumGroupMembers(LE_PARTY_CATEGORY_INSTANCE)) or 0
+        if n > 1 then
+            local inInstRaid = IsInRaid and IsInRaid(LE_PARTY_CATEGORY_INSTANCE)
+            local prefix = inInstRaid and "raid" or "party"
+            local maxIdx = inInstRaid and n or math_min(4, n)
+            if has_other_human_member(prefix, maxIdx) then
+                return "INSTANCE_CHAT"
+            end
+        end
+    end
+
+    return nil
+end
+
+function codec.PurgeGroupQueue()
+    for i = #sendQueue, 1, -1 do
+        local pkt = sendQueue[i]
+        if pkt and (pkt.channel == "PARTY" or pkt.channel == "RAID" or pkt.channel == "INSTANCE_CHAT") then
+            table_remove(sendQueue, i)
+            release_tbl(pkt)
+        end
+    end
+end
+
 local function dispatch_raw_packet(pkt)
     if pkt.channel == "BNET" and pkt.bnetIDAccount then
         if BNSendGameData then
@@ -232,7 +301,18 @@ local function dispatch_raw_packet(pkt)
         return false
     end
 
-    if pkt.channel == "WHISPER" and pkt.target then
+    if pkt.channel == "PARTY" or pkt.channel == "RAID" or pkt.channel == "INSTANCE_CHAT" then
+        local liveCh = codec.ResolveGroupChannel()
+        if not liveCh then
+            codec.PurgeGroupQueue()
+            return false
+        end
+        pkt.channel = liveCh
+    elseif pkt.channel == "GUILD" then
+        if not (IsInGuild and IsInGuild()) then
+            return false
+        end
+    elseif pkt.channel == "WHISPER" and pkt.target then
         codec.RecordWhisperTarget(pkt.target)
     end
 

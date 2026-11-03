@@ -191,11 +191,14 @@ function multibox.HasSyncedPartyMember()
     if not (IsInGroup and IsInGroup()) then return false end
     local isRaid = IsInRaid and IsInRaid()
     local count = (GetNumGroupMembers and GetNumGroupMembers()) or 0
+    if count <= 1 then return false end
     local prefix = isRaid and "raid" or "party"
     local maxIdx = isRaid and count or math.min(4, count)
     for i = 1, maxIdx do
         local u = prefix .. i
-        if UnitExists and UnitExists(u) and not (UnitIsUnit and UnitIsUnit(u, "player")) then
+        if UnitExists and UnitExists(u)
+            and (not _G.UnitIsPlayer or _G.UnitIsPlayer(u))
+            and not (UnitIsUnit and UnitIsUnit(u, "player")) then
             local g = UnitGUID and UnitGUID(u)
             local n = full_name(u)
             if (g and multibox.IsSyncedCharacter(g)) or (n and multibox.IsSyncedCharacter(n)) then

@@ -645,6 +645,29 @@ function sync.ImportPeerRoster(roster, peerAccountLabel, peerAccountID, activeSe
 end
 
 -- ── Transport Helpers ─────────────────────────────────────────────────────────
+local pendingOutgoingPairs = {}
+local PENDING_PAIR_TTL = 180
+
+local function get_active_group_channel(allowDiscovery)
+    local ch = codec and codec.ResolveGroupChannel and codec.ResolveGroupChannel()
+    if not ch then return nil end
+    local mb = sync.multibox
+    if mb and mb.HasSyncedPartyMember and mb.HasSyncedPartyMember() then
+        return ch
+    end
+    if allowDiscovery then
+        return ch
+    end
+    local partyTs = pendingOutgoingPairs["*party*"]
+    if partyTs then
+        local now = (GetServerTime and GetServerTime()) or time()
+        if (now - partyTs) <= PENDING_PAIR_TTL then
+            return ch
+        end
+    end
+    return nil
+end
+
 local function send_to_peer(peerName, msgType, dataTable, replyChannel, bnetIDAccount)
     local s = sync.GetSettings()
     if not s.enabled then return false end
@@ -652,9 +675,11 @@ local function send_to_peer(peerName, msgType, dataTable, replyChannel, bnetIDAc
     if replyChannel == "BNET" and bnetIDAccount then
         return codec.SendMessage(PREFIX, msgType, dataTable, "BNET", nil, bnetIDAccount)
     end
-    if (replyChannel == "PARTY" or replyChannel == "RAID") and s.useParty and IsInGroup and IsInGroup() then
-        local ch = (IsInRaid and IsInRaid()) and "RAID" or "PARTY"
-        return codec.SendMessage(PREFIX, msgType, dataTable, ch)
+    if (replyChannel == "PARTY" or replyChannel == "RAID" or replyChannel == "INSTANCE_CHAT") and s.useParty then
+        local ch = get_active_group_channel(msgType == "PAIR_ACK" or msgType == "HELLO")
+        if ch then
+            return codec.SendMessage(PREFIX, msgType, dataTable, ch)
+        end
     end
     if replyChannel == "GUILD" and s.useGuild and IsInGuild and IsInGuild() then
         return codec.SendMessage(PREFIX, msgType, dataTable, "GUILD")
@@ -676,10 +701,13 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
     if not s.enabled then return end
 
     local sentGroup = false
-    if s.useParty and IsInGroup and IsInGroup() then
-        local ch = (IsInRaid and IsInRaid()) and "RAID" or "PARTY"
-        codec.SendMessage(PREFIX, msgType, dataTable, ch)
-        sentGroup = true
+    if s.useParty then
+        local allowDiscovery = (msgType == "HELLO") and (s.passcode and s.passcode ~= "")
+        local ch = get_active_group_channel(allowDiscovery)
+        if ch then
+            codec.SendMessage(PREFIX, msgType, dataTable, ch)
+            sentGroup = true
+        end
     end
 
     local sentGuild = false
@@ -979,9 +1007,11 @@ function sync.ReloadAllClients()
             t    = (GetServerTime and GetServerTime()) or time(),
         }
         sync.Broadcast("CMD_RELOAD", payload, true, true)
-        if not s.useParty and IsInGroup and IsInGroup() then
-            local ch = (IsInRaid and IsInRaid()) and "RAID" or "PARTY"
-            codec.SendMessage(PREFIX, "CMD_RELOAD", payload, ch)
+        if not s.useParty then
+            local ch = get_active_group_channel(false)
+            if ch then
+                codec.SendMessage(PREFIX, "CMD_RELOAD", payload, ch)
+            end
         end
         if codec and codec.FlushQueue then
             codec.FlushQueue()
@@ -989,9 +1019,6 @@ function sync.ReloadAllClients()
     end
     execute_local_reload(false)
 end
-
-local pendingOutgoingPairs = {}
-local PENDING_PAIR_TTL = 180
 
 local function mark_pending_outgoing_pair(nameOrKey)
     local now = (GetServerTime and GetServerTime()) or time()
@@ -1074,7 +1101,8 @@ function sync.PairWithTarget()
 end
 
 function sync.PairWithParty()
-    if not (IsInGroup and IsInGroup()) then
+    local ch = get_active_group_channel(true)
+    if not ch then
         sfui.common.print("sync: you are not in a party or raid.")
         return false
     end
@@ -1103,7 +1131,6 @@ function sync.PairWithParty()
     end
 
     local manifest = merge.BuildManifest(s)
-    local ch = (IsInRaid and IsInRaid()) and "RAID" or "PARTY"
     codec.SendMessage(PREFIX, "PAIR_REQ", {
         passcode     = s.passcode or "",
         accountID    = s.accountID or "",
@@ -1883,17 +1910,21 @@ local function on_local_quests_updated(event, arg1)
             end
             local myGUID = UnitGUID and UnitGUID("player")
             if not myGUID then return end
+            local anyChanged = false
             if merge.ScanLocalQuestsAndDJ then
                 local scanned = false
                 for qid in pairs(pendingTurnedInQuests) do
-                    merge.ScanLocalQuestsAndDJ(qid)
+                    local _, chg = merge.ScanLocalQuestsAndDJ(qid)
+                    if chg then anyChanged = true end
                     pendingTurnedInQuests[qid] = nil
                     scanned = true
                 end
                 if not scanned then
-                    merge.ScanLocalQuestsAndDJ()
+                    local _, chg = merge.ScanLocalQuestsAndDJ()
+                    if chg then anyChanged = true end
                 end
             end
+            if not anyChanged then return end
             local payload = merge.BuildQuestsPayload and merge.BuildQuestsPayload(myGUID)
             if payload then
                 sync.Broadcast("DATA_QUESTS", payload, true, false)
@@ -2174,19 +2205,27 @@ local groupRosterPending = false
 local function on_group_roster_update()
     partyMapCacheTime = 0
     liveOnlineCacheTime = 0
+    if not (codec and codec.ResolveGroupChannel and codec.ResolveGroupChannel()) then
+        if codec and codec.PurgeGroupQueue then
+            codec.PurgeGroupQueue()
+        end
+        return
+    end
     if groupRosterPending then return end
     local s = sync.GetSettings()
-    if not s.enabled or not s.useParty or not (IsInGroup and IsInGroup()) then return end
+    if not s.enabled or not s.useParty then return end
+    local allowDiscovery = (s.passcode and s.passcode ~= "")
+    if not get_active_group_channel(allowDiscovery) then return end
     groupRosterPending = true
     if C_Timer and C_Timer.After then
         C_Timer.After(3.0, function()
             groupRosterPending = false
-            if IsInGroup and IsInGroup() then
+            local ch = get_active_group_channel(allowDiscovery)
+            if ch then
                 if s.syncQuests ~= false and merge.ScanLocalQuestsAndDJ then
                     merge.ScanLocalQuestsAndDJ()
                 end
                 local manifest = merge.BuildManifest(s)
-                local ch = (IsInRaid and IsInRaid()) and "RAID" or "PARTY"
                 codec.SendMessage(PREFIX, "HELLO", manifest, ch)
             end
             if sfui.tracker and sfui.tracker.RequestRefresh then

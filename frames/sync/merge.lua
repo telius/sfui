@@ -787,10 +787,32 @@ local function get_dj_quest_id_set()
     return djQuestIDSet
 end
 
+local function active_quests_equal(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    for qID, qa in pairs(a) do
+        local qb = b[qID]
+        if type(qb) ~= "table" or qa.t ~= qb.t or qa.c ~= qb.c or qa.p ~= qb.p then
+            return false
+        end
+        local oa, ob = qa.o, qb.o
+        if (oa == nil) ~= (ob == nil) then return false end
+        if type(oa) == "table" and type(ob) == "table" then
+            if #oa ~= #ob then return false end
+            for i = 1, #oa do
+                if oa[i] ~= ob[i] then return false end
+            end
+        end
+    end
+    for qID in pairs(b) do
+        if a[qID] == nil then return false end
+    end
+    return true
+end
+
 function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
     local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
         or (UnitGUID and UnitGUID("player"))
-    if not myGUID then return nil end
+    if not myGUID then return nil, false end
 
     SfuiDB = SfuiDB or {}
     SfuiDB.alts = SfuiDB.alts or {}
@@ -805,9 +827,14 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
         SfuiDB.alts[myGUID] = alt
     end
 
+    local changed = false
     alt.completedQuests = alt.completedQuests or {}
     if justCompletedQuestID and tonumber(justCompletedQuestID) then
-        alt.completedQuests[tonumber(justCompletedQuestID)] = 1
+        local cID = tonumber(justCompletedQuestID)
+        if alt.completedQuests[cID] ~= 1 then
+            alt.completedQuests[cID] = 1
+            changed = true
+        end
     end
 
     local activeQuests = {}
@@ -886,6 +913,14 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
         or (C_QuestLog and C_QuestLog.GetMaxNumQuests and C_QuestLog.GetMaxNumQuests())
         or 20
 
+    local prevCap = alt.questCap
+    if type(prevCap) ~= "table" or prevCap.n ~= numQuests or prevCap.m ~= maxQuests then
+        changed = true
+    end
+    if not changed and not active_quests_equal(alt.activeQuests, activeQuests) then
+        changed = true
+    end
+
     alt.activeQuests = activeQuests
     alt.questCap = { n = numQuests, m = maxQuests }
 
@@ -896,21 +931,29 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
         local isDoneFn = (sfui.dungeonjournal and sfui.dungeonjournal.IsQuestCompleted)
             or (sfui.common and sfui.common.is_quest_completed)
         for qID in pairs(djSet) do
+            local newState = nil
             if activeQuests[qID] then
-                djQuests[qID] = 1
+                newState = 1
             elseif (isDoneFn and isDoneFn(qID)) or alt.completedQuests[qID] then
-                djQuests[qID] = 2
-                alt.completedQuests[qID] = 1
-            else
-                djQuests[qID] = nil
+                newState = 2
+                if alt.completedQuests[qID] ~= 1 then
+                    alt.completedQuests[qID] = 1
+                    changed = true
+                end
+            end
+            if djQuests[qID] ~= newState then
+                djQuests[qID] = newState
+                changed = true
             end
         end
         alt.djQuests = djQuests
     end
 
-    local now = (GetServerTime and GetServerTime()) or time()
-    alt.questsRev = now
-    return myGUID
+    if changed or not alt.questsRev then
+        local now = (GetServerTime and GetServerTime()) or time()
+        alt.questsRev = now
+    end
+    return myGUID, changed
 end
 
 function merge.BuildQuestsPayload(guid)
