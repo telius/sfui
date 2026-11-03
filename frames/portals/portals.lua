@@ -1222,11 +1222,11 @@ function sfui.portals.initialize()
     end)
 end
 
+local _portalsDebug = {}
 function sfui.portals_debug_info()
-    return {
-        frameCreated = portalFrame ~= nil,
-        frameShown = portalFrame and portalFrame:IsShown() or false,
-    }
+    _portalsDebug.frameCreated = portalFrame ~= nil
+    _portalsDebug.frameShown   = portalFrame and portalFrame:IsShown() or false
+    return _portalsDebug
 end
 
 if sfui.RegisterModule then

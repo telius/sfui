@@ -2251,6 +2251,7 @@ function sync.GetContentCounts()
 end
 
 -- ── Telemetry & Module Lifecycle (`core/module.lua` & `frames/mem.lua`) ──────
+local _syncDebug = {}
 function sfui.sync_debug_info()
     local s = sync.GetSettings()
     local counts = sync.GetContentCounts()
@@ -2267,26 +2268,25 @@ function sfui.sync_debug_info()
         onlineCount = onlineCount + 1
     end
 
-    return {
-        enabled         = s.enabled == true,
-        accountLabel    = s.accountLabel or "",
-        peersCount      = counts.peers or 0,
-        onlinePeers     = onlineCount,
-        altsCount       = counts.alts or 0,
-        remoteAltsCount = counts.remoteAlts or 0,
-        recipesCount    = counts.recipes or 0,
-        contactsCount   = counts.contacts or 0,
-        fishCount       = counts.fish or 0,
-        queueSize       = qLen,
-        tickerActive    = tickerActive,
-        reassemblyCount = reassemblyCount,
-        packetsSent     = (sync.stats and sync.stats.packetsSent) or 0,
-        packetsReceived = (sync.stats and sync.stats.packetsReceived) or 0,
-        bytesSent       = (sync.stats and sync.stats.bytesSent) or 0,
-        bytesReceived   = (sync.stats and sync.stats.bytesReceived) or 0,
-        lastSyncTime    = (sync.stats and sync.stats.lastSyncTime) or 0,
-        lastPeer        = (sync.stats and sync.stats.lastPeer) or nil,
-    }
+    _syncDebug.enabled         = s.enabled == true
+    _syncDebug.accountLabel    = s.accountLabel or ""
+    _syncDebug.peersCount      = counts.peers or 0
+    _syncDebug.onlinePeers     = onlineCount
+    _syncDebug.altsCount       = counts.alts or 0
+    _syncDebug.remoteAltsCount = counts.remoteAlts or 0
+    _syncDebug.recipesCount    = counts.recipes or 0
+    _syncDebug.contactsCount   = counts.contacts or 0
+    _syncDebug.fishCount       = counts.fish or 0
+    _syncDebug.queueSize       = qLen
+    _syncDebug.tickerActive    = tickerActive
+    _syncDebug.reassemblyCount = reassemblyCount
+    _syncDebug.packetsSent     = (sync.stats and sync.stats.packetsSent) or 0
+    _syncDebug.packetsReceived = (sync.stats and sync.stats.packetsReceived) or 0
+    _syncDebug.bytesSent       = (sync.stats and sync.stats.bytesSent) or 0
+    _syncDebug.bytesReceived   = (sync.stats and sync.stats.bytesReceived) or 0
+    _syncDebug.lastSyncTime    = (sync.stats and sync.stats.lastSyncTime) or 0
+    _syncDebug.lastPeer        = (sync.stats and sync.stats.lastPeer) or nil
+    return _syncDebug
 end
 
 function sync:OnInit()

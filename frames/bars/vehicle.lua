@@ -956,16 +956,16 @@ sfui.events.RegisterEvent("UPDATE_POSSESS_BAR",       on_vehicle_global)
 sfui.events.RegisterEvent("ACTIONBAR_UPDATE_STATE",   on_vehicle_global)
 sfui.events.RegisterEvent("UPDATE_BINDINGS",          on_vehicle_global)
 
+local _vehDebug = {}
 function sfui.vehicle_debug_info()
-    return {
-        frameCreated = frame ~= nil,
-        frameShown = frame and frame:IsShown() or false,
-        healthShown = healthBackdrop and healthBackdrop:IsShown() or false,
-        powerShown = powerBackdrop and powerBackdrop:IsShown() or false,
-        castShown = castBackdrop and castBackdrop:IsShown() or false,
-        visibleButtons = _lastVisibleButtons or 0,
-        currentUnit = _lastUnit or "none",
-    }
+    _vehDebug.frameCreated   = frame ~= nil
+    _vehDebug.frameShown     = frame and frame:IsShown() or false
+    _vehDebug.healthShown    = healthBackdrop and healthBackdrop:IsShown() or false
+    _vehDebug.powerShown     = powerBackdrop and powerBackdrop:IsShown() or false
+    _vehDebug.castShown      = castBackdrop and castBackdrop:IsShown() or false
+    _vehDebug.visibleButtons = _lastVisibleButtons or 0
+    _vehDebug.currentUnit    = _lastUnit or "none"
+    return _vehDebug
 end
 
 if sfui.RegisterModule then

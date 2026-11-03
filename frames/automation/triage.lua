@@ -1790,18 +1790,26 @@ end
 
 local _debugInfo = {}
 function triage.GetDebugInfo()
-    _debugInfo.enabled = isEnabled
-    _debugInfo.freeRegularSlots = lastFreeSlots
-    _debugInfo.threshold = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "threshold", (sfui.config.triage and sfui.config.triage.threshold) or 1)) or 1
-    _debugInfo.candidateCount = #currentCandidates
-    _debugInfo.isPromptShown = promptFrame and promptFrame:IsShown() or false
-    _debugInfo.deleteSoulShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", false))
-    _debugInfo.maxSoulShards = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "maxSoulShards", 20))
-    _debugInfo.preserveSoulBag = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "preserveSoulBag", true))
-    _debugInfo.soulShardMode = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardMode", "auto"))
-    _debugInfo.soulShardChat = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardChat", true))
+    local freeSlots = (lastFreeSlots ~= nil) and lastFreeSlots or get_free_regular_slots()
+    local threshold = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "threshold", (sfui.config.triage and sfui.config.triage.threshold) or 1)) or 1
+    local promptShown = (promptFrame and promptFrame:IsShown()) and true or false
+    _debugInfo.enabled           = isEnabled
+    _debugInfo.freeRegularSlots  = freeSlots
+    _debugInfo.freeSlots         = freeSlots
+    _debugInfo.threshold         = threshold
+    _debugInfo.candidateCount    = #currentCandidates
+    _debugInfo.candidates        = #currentCandidates
+    _debugInfo.isPromptShown     = promptShown
+    _debugInfo.promptShown       = promptShown
+    _debugInfo.isWarlock         = isWarlock
+    _debugInfo.deleteSoulShards  = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "deleteSoulShards", false))
+    _debugInfo.maxSoulShards     = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "maxSoulShards", 20))
+    _debugInfo.preserveSoulBag   = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "preserveSoulBag", true))
+    _debugInfo.soulShardMode     = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardMode", "auto"))
+    _debugInfo.soulShardChat     = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "soulShardChat", true))
     return _debugInfo
 end
+sfui.triage_debug_info = triage.GetDebugInfo
 
 local TriageModule = sfui.RegisterModule("triage", {
     OnInit = function(self)

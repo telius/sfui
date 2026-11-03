@@ -514,11 +514,13 @@ function AbundanceModule:BuildBlocks(container)
 end
 
 -- ─── Module Registration & Profiler Support ─────────────────────────────────
+local _abDebug = {}
+sfui.abundance.hidden = true
 sfui.abundance.GetDebugInfo = function()
-    return {
-        isActive = sfui.abundance.IsActive(),
-    }
+    _abDebug.isActive = sfui.abundance.IsActive()
+    return _abDebug
 end
+sfui.abundance_debug_info = sfui.abundance.GetDebugInfo
 
 sfui.RegisterModule("abundance", sfui.abundance)
 sfui.tracker.RegisterModule(AbundanceModule)

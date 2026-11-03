@@ -549,11 +549,18 @@ function sfui.gear.GetStatPool(specID, isTank, role)
     return { "SP", "AP", "Hit", "Crit", "Str", "Agi", "Int", "Stam", "Arm", "H" }
 end
 
+local _statsDebug = {}
 function sfui.stats_debug_info()
-    local cCount, rCount = 0, 0
+    local cCount, rCount, bCount = 0, 0, 0
     for _ in pairs(CAMELOT_TO_RETAIL) do cCount = cCount + 1 end
     for _ in pairs(RETAIL_TO_CAMELOT) do rCount = rCount + 1 end
-    return string.format("Camelot->Retail mapped: %d, Retail->Camelot mapped: %d", cCount, rCount)
+    for _ in pairs(SPEC_BRIDGE) do bCount = bCount + 1 end
+    _statsDebug.camelotMapped    = cCount
+    _statsDebug.retailMapped     = rCount
+    _statsDebug.specBridges      = bCount
+    _statsDebug.cachedSpecOrders = bCount
+    _statsDebug.pawnOrders       = 0
+    return _statsDebug
 end
 
 sfui.stats = sfui.stats or {}

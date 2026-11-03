@@ -280,10 +280,10 @@ function sfui.glows.set_glow_alpha(icon, alpha)
     end
 end
 
+local _glowsDebug = {}
 function sfui.glows_debug_info()
-    return {
-        lcgAvailable = LCG ~= nil,
-    }
+    _glowsDebug.lcgAvailable = LCG ~= nil
+    return _glowsDebug
 end
 
 if sfui.RegisterModule then

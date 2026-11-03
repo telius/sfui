@@ -603,16 +603,15 @@ sfui.hide.OnSettingsChanged = function(self, key, value)
     sfui.hide.ApplyErrorFilters()
 end
 
-sfui.hide.GetDebugInfo = function(self)
-    local _ = self
+local _hideDebug = {}
+sfui.hide.GetDebugInfo = function()
     local hiddenUnits = 0
     for _, u in ipairs(HIDE_FRAMES) do
         if SfuiDB and SfuiDB[u.key] then hiddenUnits = hiddenUnits + 1 end
     end
-    return {
-        hiddenUnitFrames = hiddenUnits,
-        errorFilter      = SfuiDB and (SfuiDB.hide_cooldown_errors ~= false),
-    }
+    _hideDebug.hiddenUnitFrames = hiddenUnits
+    _hideDebug.errorFilter      = SfuiDB and (SfuiDB.hide_cooldown_errors ~= false)
+    return _hideDebug
 end
 function sfui.hide_debug_info()
     return sfui.hide:GetDebugInfo()

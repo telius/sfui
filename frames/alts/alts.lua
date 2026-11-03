@@ -1205,20 +1205,20 @@ function sfui.alts.initialize()
     end
 end
 
+local _altsDebug = {}
 function sfui.alts_debug_info()
     local altCount = 0
     if SfuiDB and SfuiDB.alts then
         for _ in pairs(SfuiDB.alts) do altCount = altCount + 1 end
     end
-    return {
-        columnPool = #columnPool,
-        cellPool = #cellPool,
-        tablePool = #tablePool,
-        trackedAlts = altCount,
-        frameCreated = frame ~= nil,
-        frameShown = frame and frame:IsShown() or false,
-        provider = sfui.alts.provider and sfui.alts.provider.name or "none",
-    }
+    _altsDebug.columnPool   = #columnPool
+    _altsDebug.cellPool     = #cellPool
+    _altsDebug.tablePool    = #tablePool
+    _altsDebug.trackedAlts  = altCount
+    _altsDebug.frameCreated = frame ~= nil
+    _altsDebug.frameShown   = frame and frame:IsShown() or false
+    _altsDebug.provider     = sfui.alts.provider and sfui.alts.provider.name or "none"
+    return _altsDebug
 end
 
 -- Stable alias: external code (db.lua, slash commands) may call SaveCurrentCharacter

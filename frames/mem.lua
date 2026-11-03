@@ -194,13 +194,13 @@ function sfui.mem.GetModuleStats()
         name = "world events",
         status = "|cff888888idle|r",
         line1 = "events: 0 active • reminders: 0",
-        line2 = "pois: 0 on map • engine: unified",
+        line2 = "pois: 0 on map • abundance: idle",
     }
     local w = GetDebug("worldevents_debug_info", "worldevents")
     if w then
-        weStats.status = (w.activeEvents or 0) > 0 and "|cff00ff88active|r" or "|cff888888idle|r"
+        weStats.status = ((w.activeEvents or 0) > 0 or w.abundanceActive) and "|cff00ff88active|r" or "|cff888888idle|r"
         weStats.line1 = string_format("events: %d active • reminders: %d", w.activeEvents or 0, w.reminders or 0)
-        weStats.line2 = string_format("pois: %d on map • engine: unified", w.poiCount or 0)
+        weStats.line2 = string_format("pois: %d on map • abundance: %s", w.poiCount or 0, w.abundanceActive and "|cff00ff88active|r" or "idle")
     end
     stats["worldevents"] = weStats
 
@@ -238,12 +238,12 @@ function sfui.mem.GetModuleStats()
         name = "stat summary",
         status = "|cff00ff88ready|r",
         line1 = "spec priority caches: 0",
-        line2 = "pawn stat strings: 0",
+        line2 = "stat bridge: 0 mapped",
     }
     local s = GetDebug("stats_debug_info", "stats")
     if s then
         statsMod.line1 = string_format("spec priority caches: %d", tonumber(s.cachedSpecOrders) or 0)
-        statsMod.line2 = string_format("pawn stat strings: %d", tonumber(s.pawnOrders) or 0)
+        statsMod.line2 = string_format("camelot->retail: %d • retail->camelot: %d", tonumber(s.camelotMapped) or 0, tonumber(s.retailMapped) or 0)
     end
     stats["stats"] = statsMod
 
@@ -299,7 +299,7 @@ function sfui.mem.GetModuleStats()
         line1 = "player: idle • target: idle",
         line2 = "engine: curve animation",
     }
-    local cb = GetDebug("castbar_debug_info", "castbar")
+    local cb = GetDebug("castbars_debug_info", "castbars") or GetDebug("castbar_debug_info", "castbar")
     if cb then
         cbMod.line1 = string_format("player: %s • target: %s", cb.playerBarShown and "|cff00ff88casting|r" or "idle", cb.targetBarShown and "|cff00ff88casting|r" or "idle")
         cbMod.line2 = "haste cache: secret-safe"
@@ -790,6 +790,27 @@ function sfui.mem.GetModuleStats()
         end
         stats["target"] = targetMod
 
+        -- Pet Bar Module (Camelot / Classic)
+        local petMod = {
+            name = "pet health & power",
+            status = "|cff888888no pet|r",
+            line1 = "frame: none",
+            line2 = "pet: none",
+        }
+        local pt = GetDebug("pet_debug_info", "pet")
+        if pt then
+            if not pt.supportedClass then
+                petMod.status = "|cff888888inactive (class)|r"
+                petMod.line1 = "frame: hunter / warlock only"
+                petMod.line2 = "status: bypassed"
+            else
+                petMod.status = pt.hasPet and "|cff00ff88pet active|r" or "|cff888888no pet|r"
+                petMod.line1 = string_format("frame: %s • shown: %s", pt.created and "ready" or "none", pt.shown and "yes" or "no")
+                petMod.line2 = string_format("pet exists: %s • state: %s", pt.hasPet and "yes" or "no", pt.isDead and "dead" or "alive")
+            end
+        end
+        stats["pet"] = petMod
+
         -- Totem Bar Module (Camelot / Classic)
         local totemMod = {
             name = "totem bar",
@@ -846,7 +867,12 @@ function sfui.mem.GetModuleStats()
         line1 = "active pins: 0",
         line2 = "engine: pooled allocator",
     }
-    if sfui.pins and sfui.pins.GetActiveCount then
+    local pInfo = GetDebug("pins_debug_info", "pins")
+    if pInfo then
+        pinMod.status = pInfo.mapShown and "|cff00ff88map open|r" or "|cff888888idle|r"
+        pinMod.line1 = string_format("canvas: %d active (%d pool) • minimap: %d", tonumber(pInfo.activeCount) or 0, tonumber(pInfo.poolSize) or 0, tonumber(pInfo.minimapActive) or 0)
+        pinMod.line2 = string_format("providers: %d registered • pooled frames", tonumber(pInfo.providersCount) or 0)
+    elseif sfui.pins and sfui.pins.GetActiveCount then
         local count = sfui.pins.GetActiveCount()
         local wmf = _G.WorldMapFrame
         local mapShown = wmf and wmf:IsShown()
@@ -863,7 +889,20 @@ function sfui.mem.GetModuleStats()
         line1 = "dispatch: idle",
         line2 = "inbox open-all: idle",
     }
-    if sfui.alts and sfui.alts.mail then
+    local mInfo = GetDebug("mail_debug_info", "mail")
+    if mInfo then
+        local isDisp = mInfo.isDispatching
+        local isColl = mInfo.isCollectingInbox
+        if isDisp then
+            mailMod.status = "|cff00ff88dispatching|r"
+        elseif isColl then
+            mailMod.status = "|cff00ff88collecting|r"
+        else
+            mailMod.status = "|cff888888idle|r"
+        end
+        mailMod.line1 = string_format("dispatch engine: %s • queue: %d", isDisp and "running" or "idle", tonumber(mInfo.queueCount) or 0)
+        mailMod.line2 = string_format("inbox collector: %s", isColl and "running" or "idle")
+    elseif sfui.alts and sfui.alts.mail then
         local isDisp = sfui.alts.mail.IsDispatching and sfui.alts.mail.IsDispatching()
         local isColl = sfui.alts.mail.IsCollectingInbox and sfui.alts.mail.IsCollectingInbox()
         if isDisp then
@@ -1963,8 +2002,19 @@ function sfui.mem.HandleSlash(msg)
     end
 end
 
+local _memDebug = {}
+function sfui.mem_debug_info()
+    _memDebug.guiCreated    = sfui.mem.gui ~= nil
+    _memDebug.guiShown      = (sfui.mem.gui and sfui.mem.gui:IsShown()) and true or false
+    _memDebug.watcherActive = watcherActive
+    _memDebug.cachedMemKB   = cachedAddonMem
+    return _memDebug
+end
+sfui.mem.GetDebugInfo = sfui.mem_debug_info
+sfui.mem.hidden = true
+
 if sfui.RegisterModule then
-    sfui.mem.OnSettingsChanged = function(self, k, v)
+    sfui.mem.OnSettingsChanged = function()
         if sfui.mem.gui and sfui.mem.gui:IsShown() then
             sfui.mem.UpdateGUI()
         end

@@ -861,25 +861,23 @@ end
 
 -- event registration
 local function RegisterEvents()
-    local eventFrame = CreateFrame("Frame")
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterUnitEvent("UNIT_AURA", "player")
-    eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")
-    eventFrame:RegisterEvent("SPELLS_CHANGED")
-    eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    eventFrame:RegisterEvent("UPDATE_BONUS_ACTIONBAR")
-    eventFrame:RegisterEvent("UNIT_ENTERED_VEHICLE")
-    eventFrame:RegisterEvent("UNIT_EXITED_VEHICLE")
-    eventFrame:RegisterEvent("ADDON_LOADED")
-
-    eventFrame:SetScript("OnEvent", function(self, event, arg1, ...)
-        if event == "ADDON_LOADED" and arg1 == "Blizzard_CooldownViewer" then
+    local function onSyncEvent()
+        SyncWithBlizzard()
+    end
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", onSyncEvent)
+    sfui.events.RegisterUnitEvent("UNIT_AURA", "player", onSyncEvent)
+    sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN", onSyncEvent)
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", onSyncEvent)
+    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", onSyncEvent)
+    sfui.events.RegisterEvent("SPELLS_CHANGED", onSyncEvent)
+    sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", onSyncEvent)
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", onSyncEvent)
+    sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", onSyncEvent)
+    sfui.events.RegisterEvent("UNIT_ENTERED_VEHICLE", onSyncEvent)
+    sfui.events.RegisterEvent("UNIT_EXITED_VEHICLE", onSyncEvent)
+    sfui.events.RegisterEvent("ADDON_LOADED", function(_, arg1)
+        if arg1 == "Blizzard_CooldownViewer" then
             HookBlizzardViewer()
-            SyncWithBlizzard()
-        else
             SyncWithBlizzard()
         end
     end)
@@ -903,17 +901,17 @@ function sfui.trackedbuffs.OnEnable()
 end
 
 -- telemetry & debug for mem.lua
+local _tbuffDebug = {}
 function sfui.trackedbuffs_debug_info()
     local db = SfuiDB and SfuiDB.trackedBuffs
-    return {
-        enabled = not db or db.enabled ~= false,
-        activeCount = #activeFrames,
-        slotCount = #slots,
-        previewActive = previewActive,
-        containerShown = (socketContainer and socketContainer:IsShown()) == true,
-        isHooked = isHooked,
-        isMoverShown = (mover and mover:IsShown()) == true,
-    }
+    _tbuffDebug.enabled        = not db or db.enabled ~= false
+    _tbuffDebug.activeCount    = #activeFrames
+    _tbuffDebug.slotCount      = #slots
+    _tbuffDebug.previewActive  = previewActive
+    _tbuffDebug.containerShown = (socketContainer and socketContainer:IsShown()) == true
+    _tbuffDebug.isHooked       = isHooked
+    _tbuffDebug.isMoverShown   = (mover and mover:IsShown()) == true
+    return _tbuffDebug
 end
 sfui.trackedbuffs.GetDebugInfo = sfui.trackedbuffs_debug_info
 

@@ -169,13 +169,13 @@ function sfui.cursor.toggle(enabled)
     end
 end
 
+local _cursorDebug = {}
 function sfui.cursor_debug_info()
-    return {
-        enabled = not SfuiDB or (SfuiDB.enableCursorRing ~= false),
-        highRefresh = (SfuiDB and SfuiDB.cursorRing144hz) or false,
-        frameCreated = f ~= nil,
-        frameShown = f and f:IsShown() or false,
-    }
+    _cursorDebug.enabled      = not SfuiDB or (SfuiDB.enableCursorRing ~= false)
+    _cursorDebug.highRefresh  = (SfuiDB and SfuiDB.cursorRing144hz) or false
+    _cursorDebug.frameCreated = f ~= nil
+    _cursorDebug.frameShown   = f and f:IsShown() or false
+    return _cursorDebug
 end
 
 sfui.cursor.OnInit = function(self)

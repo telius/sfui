@@ -2003,6 +2003,7 @@ function sfui.trackedicons.initialize()
     sfui.trackedicons.Update()
 end
 
+local _tiDebug = {}
 function sfui.trackedicons_debug_info()
     local pCount = 0
     local iCount = 0
@@ -2012,14 +2013,13 @@ function sfui.trackedicons_debug_info()
             for _ in pairs(p.icons) do iCount = iCount + 1 end
         end
     end
-    return {
-        panels = pCount,
-        icons = iCount,
-        activeGlows = _activeGlowCount,
-        cdCache = _cdInfoCacheCount,
-        needsState = _needsStateUpdate,
-        needsLayout = _needsLayoutUpdate,
-    }
+    _tiDebug.panels      = pCount
+    _tiDebug.icons       = iCount
+    _tiDebug.activeGlows = _activeGlowCount
+    _tiDebug.cdCache     = _cdInfoCacheCount
+    _tiDebug.needsState  = _needsStateUpdate
+    _tiDebug.needsLayout = _needsLayoutUpdate
+    return _tiDebug
 end
 
 sfui.trackedicons.OnEnable = function(self) self.initialize() end

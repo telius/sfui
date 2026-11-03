@@ -1848,34 +1848,34 @@ sfui.RegisterModule("fishing", {
 
 _G["SFUI_FISHING_RUN"] = sfui.fishing.RunKeybind
 
+local _fishDebug = {}
 function sfui.fishing_debug_info()
     local hud = sfui.fishing.hud
     local atlas = sfui.fishing.atlas
     local s = sfui.fishing.session
-    return {
-        enabled = get_setting("enabled", true),
-        hasSkill = get_known_fishing_id() ~= nil,
-        knownSpellID = get_known_fishing_id(),
-        boundKeys = get_all_bound_keys(),
-        autoLoot = get_setting("autoLoot", true),
-        enhanceSounds = get_setting("enhanceSounds", true),
-        softTarget = get_setting("softTarget", true),
-        isFishing = _state.isFishing or false,
-        sessionActive = _state.sessionActive or false,
-        poleEquipped = is_fishing_pole_equipped(),
-        soundsEnhanced = _state.soundsEnhanced,
-        pendingCount = #_state.pendingTasks,
-        hudCreated = (hud and hud.GetFrame and hud.GetFrame() ~= nil) or false,
-        hudShown = (hud and hud.GetFrame and hud.GetFrame() and hud.GetFrame():IsShown()) or false,
-        hudLocked = (hud and hud.IsLocked and hud.IsLocked()) or false,
-        atlasCreated = (atlas and atlas.GetFrame and atlas.GetFrame() ~= nil) or false,
-        atlasShown = (atlas and atlas.GetFrame and atlas.GetFrame() and atlas.GetFrame():IsShown()) or false,
-        atlasPools = (atlas and atlas.GetPoolStats and atlas.GetPoolStats()) or nil,
-        sessionCatches = (s and s.catches) or 0,
-        sessionCasts = (s and s.casts) or 0,
-        sessionStreak = (s and s.streak) or 0,
-        sessionGetaways = (s and s.getaways) or 0,
-    }
+    _fishDebug.enabled         = get_setting("enabled", true)
+    _fishDebug.hasSkill        = get_known_fishing_id() ~= nil
+    _fishDebug.knownSpellID    = get_known_fishing_id()
+    _fishDebug.boundKeys       = get_all_bound_keys()
+    _fishDebug.autoLoot        = get_setting("autoLoot", true)
+    _fishDebug.enhanceSounds   = get_setting("enhanceSounds", true)
+    _fishDebug.softTarget      = get_setting("softTarget", true)
+    _fishDebug.isFishing       = _state.isFishing or false
+    _fishDebug.sessionActive   = _state.sessionActive or false
+    _fishDebug.poleEquipped    = is_fishing_pole_equipped()
+    _fishDebug.soundsEnhanced  = _state.soundsEnhanced
+    _fishDebug.pendingCount    = #_state.pendingTasks
+    _fishDebug.hudCreated      = (hud and hud.GetFrame and hud.GetFrame() ~= nil) or false
+    _fishDebug.hudShown        = (hud and hud.GetFrame and hud.GetFrame() and hud.GetFrame():IsShown()) or false
+    _fishDebug.hudLocked       = (hud and hud.IsLocked and hud.IsLocked()) or false
+    _fishDebug.atlasCreated    = (atlas and atlas.GetFrame and atlas.GetFrame() ~= nil) or false
+    _fishDebug.atlasShown      = (atlas and atlas.GetFrame and atlas.GetFrame() and atlas.GetFrame():IsShown()) or false
+    _fishDebug.atlasPools      = (atlas and atlas.GetPoolStats and atlas.GetPoolStats()) or nil
+    _fishDebug.sessionCatches  = (s and s.catches) or 0
+    _fishDebug.sessionCasts    = (s and s.casts) or 0
+    _fishDebug.sessionStreak   = (s and s.streak) or 0
+    _fishDebug.sessionGetaways = (s and s.getaways) or 0
+    return _fishDebug
 end
 
 sfui.fishing.GetDebugInfo = sfui.fishing_debug_info

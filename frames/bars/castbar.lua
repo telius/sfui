@@ -1204,6 +1204,7 @@ function sfui.castbar_debug_info()
 end
 
 sfui.castbar.get_debug_info = sfui.castbar_debug_info
+sfui.castbars_debug_info = sfui.castbar_debug_info
 
 if sfui.RegisterModule then
     sfui.castbar.OnEnable = function(self) self.initialize() end
@@ -1214,8 +1215,9 @@ if sfui.RegisterModule then
             self.update_settings()
         end
     end
-    sfui.castbar.OnSpecChanged = function(self, specID) self.update_settings() end
+    sfui.castbar.OnSpecChanged = function(self) self.update_settings() end
     sfui.castbar.GetDebugInfo = sfui.castbar_debug_info
-    sfui.RegisterModule("castbar", sfui.castbar)
+    sfui.RegisterModule("castbars", sfui.castbar)
+    sfui.castbar = sfui.castbars
 end
 

@@ -3483,22 +3483,22 @@ do
     sfui.events.RegisterThrottledEvent("UPDATE_UI_WIDGET", 0.2, _on_widget_update)
 end
 
+local _mythicDebug = {}
 function sfui.mythic_debug_info()
     local deathCount = 0
     for _ in pairs(_playerDeaths) do deathCount = deathCount + 1 end
     local tooltipCount = 0
     for _ in pairs(spellTooltipCache) do tooltipCount = tooltipCount + 1 end
 
-    return {
-        spellPool     = #spellPool,
-        currencyPool  = #currencyPool,
-        deathPool     = #deathBreakdownPool,
-        playerList    = #_playerList,
-        playerDeaths  = deathCount,
-        spellTooltips = tooltipCount,
-        badgePool     = (MF and MF.delveBadges and #MF.delveBadges) or 0,
-        bossRowPool   = (MF and MF.bossRows and #MF.bossRows) or 0,
-    }
+    _mythicDebug.spellPool     = #spellPool
+    _mythicDebug.currencyPool  = #currencyPool
+    _mythicDebug.deathPool     = #deathBreakdownPool
+    _mythicDebug.playerList    = #_playerList
+    _mythicDebug.playerDeaths  = deathCount
+    _mythicDebug.spellTooltips = tooltipCount
+    _mythicDebug.badgePool     = (MF and MF.delveBadges and #MF.delveBadges) or 0
+    _mythicDebug.bossRowPool   = (MF and MF.bossRows and #MF.bossRows) or 0
+    return _mythicDebug
 end
 
 if sfui.RegisterModule then

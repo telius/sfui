@@ -1155,8 +1155,8 @@ end
 sfui.recipes.GetDebugInfo = sfui.recipes_debug_info
 
 local modDef = {
-    name = "recipe_catalog",
-    OnInit = function(self)
+    name = "recipes",
+    OnInit = function()
         -- Sanitize any legacy config keys from alt database table SfuiDB.recipes
         if SfuiDB and SfuiDB.recipes then
             for k in pairs(SfuiDB.recipes) do
@@ -1174,10 +1174,10 @@ local modDef = {
             })
         end
     end,
-    OnEnable = function(self)
+    OnEnable = function()
         HookBlizzardFrames()
     end,
-    OnSettingsChanged = function(self, key, value)
+    OnSettingsChanged = function(_, key)
         if key == "showMapPins" then
             if sfui.recipes.pins and sfui.recipes.pins.UpdatePins then
                 sfui.recipes.pins.UpdatePins(true)
@@ -1188,10 +1188,6 @@ local modDef = {
 }
 
 if sfui.RegisterModule then
-    sfui.RegisterModule("recipe_catalog", modDef)
-    sfui.recipes = sfui.recipes or {}
+    sfui.RegisterModule("recipes", modDef)
     sfui.recipe_catalog = sfui.recipes
-    if sfui.modules then
-        sfui.modules["recipes"] = modDef
-    end
 end

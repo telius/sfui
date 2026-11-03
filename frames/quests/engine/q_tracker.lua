@@ -61,6 +61,21 @@ local function SortSectionsComparator(a, b)
 end
 
 -- ─── Throttled Update Loop ──────────────────────────────────────────────────
+local _activeTrackerErrorLabel = "ExecuteLayout"
+local function _tracker_err_handler(err)
+    local stack = debugstack and debugstack(2) or ""
+    if _G.sfuibug and _G.sfuibug.RecordError then
+        _G.sfuibug.RecordError({
+            module = "quests",
+            file = "frames/quests/engine/q_tracker.lua",
+            label = _activeTrackerErrorLabel,
+        }, err, stack)
+    elseif _G.geterrorhandler then
+        _G.geterrorhandler()(err)
+    end
+    return err
+end
+
 local function ExecuteLayout()
     refreshTimer = nil
     if not container or not container:IsShown() then return end
@@ -76,7 +91,8 @@ local function ExecuteLayout()
     if isRefreshing then return end
     isRefreshing = true
 
-    local ok, err = pcall(function()
+    _activeTrackerErrorLabel = "ExecuteLayout"
+    xpcall(function()
         -- Collect sections from all enabled modules and merge sections with the same ID
         local allSections = allSectionsCache
         local sectionMap = sectionMapCache
@@ -84,7 +100,11 @@ local function ExecuteLayout()
         wipe(sectionMap)
         for _, mod in ipairs(Tracker.modules or {}) do
             if mod:IsEnabled() and mod.BuildBlocks then
-                local modOk, modSections = pcall(mod.BuildBlocks, mod, container)
+                _activeTrackerErrorLabel = "BuildBlocks:" .. tostring(mod.name or "module")
+                local modOk, modSections = xpcall(function()
+                    return mod:BuildBlocks(container)
+                end, _tracker_err_handler)
+                _activeTrackerErrorLabel = "ExecuteLayout"
                 if modOk and modSections then
                     for _, s in ipairs(modSections) do
                         if s.id and sectionMap[s.id] then
@@ -104,8 +124,6 @@ local function ExecuteLayout()
                             end
                         end
                     end
-                elseif not modOk and _G.geterrorhandler then
-                    _G.geterrorhandler()(modSections)
                 end
                 mod:ClearDirty()
             end
@@ -119,12 +137,9 @@ local function ExecuteLayout()
 
         -- Run vertical stack layout
         Layout.BuildLayout(container, allSections)
-    end)
+    end, _tracker_err_handler)
 
     isRefreshing = false
-    if not ok and _G.geterrorhandler then
-        _G.geterrorhandler()(err)
-    end
 end
 
 function Tracker.RequestRefresh(delay)
@@ -785,6 +800,7 @@ function sfui.questlog.on_mythic_end()
     end
 end
 
+local _qlDebug = {}
 function sfui.questlog_debug_info()
     local poolStats = Blocks.GetPoolStats()
     local itemsHelper = sfui.tracker.helpers and sfui.tracker.helpers.items
@@ -799,33 +815,33 @@ function sfui.questlog_debug_info()
         end
     end
 
-    return {
-        enabled        = sfui.questlog.is_enabled(),
-        modules        = #(Tracker.modules or {}),
-        activeModules  = activeMods,
-        headersActive  = poolStats.headersActive,
-        headersPooled  = poolStats.headersPooled,
-        blocksActive   = poolStats.blocksActive,
-        blocksPooled   = poolStats.blocksPooled,
-        linesActive    = poolStats.linesActive,
-        linesPooled    = poolStats.linesPooled,
-        barsActive     = poolStats.barsActive,
-        barsPooled     = poolStats.barsPooled,
-        itemsActive    = itemsStats and itemsStats.activeButtons or 0,
-        timersActive   = timerStats and timerStats.activeBars or 0,
-        isSuppressed   = isRaidSuppressed or isPetBattleSuppressed or isMythicSuppressed,
-        isRefreshing   = isRefreshing,
-        -- Backward-compatibility fields
-        activeRows     = poolStats.blocksActive,
-        rowPool        = poolStats.blocksPooled,
-        activeObjs     = poolStats.linesActive,
-        objPool        = poolStats.linesPooled,
-    }
+    _qlDebug.enabled       = sfui.questlog.is_enabled()
+    _qlDebug.modules       = #(Tracker.modules or {})
+    _qlDebug.activeModules = activeMods
+    _qlDebug.headersActive = poolStats.headersActive
+    _qlDebug.headersPooled = poolStats.headersPooled
+    _qlDebug.blocksActive  = poolStats.blocksActive
+    _qlDebug.blocksPooled  = poolStats.blocksPooled
+    _qlDebug.linesActive   = poolStats.linesActive
+    _qlDebug.linesPooled   = poolStats.linesPooled
+    _qlDebug.barsActive    = poolStats.barsActive
+    _qlDebug.barsPooled    = poolStats.barsPooled
+    _qlDebug.itemsActive   = itemsStats and itemsStats.activeButtons or 0
+    _qlDebug.timersActive  = timerStats and timerStats.activeBars or 0
+    _qlDebug.isSuppressed  = isRaidSuppressed or isPetBattleSuppressed or isMythicSuppressed
+    _qlDebug.isRefreshing  = isRefreshing
+    _qlDebug.activeRows    = poolStats.blocksActive
+    _qlDebug.rowPool       = poolStats.blocksPooled
+    _qlDebug.activeObjs    = poolStats.linesActive
+    _qlDebug.objPool       = poolStats.linesPooled
+    return _qlDebug
 end
+sfui.quests_debug_info = sfui.questlog_debug_info
 
-    sfui.questlog.OnEnable = function(self) Tracker.Initialize() end
-    sfui.questlog.OnSpecChanged = function(self, specID)
-        sfui.tracker.RequestRefresh(0.01)
-    end
-    sfui.questlog.GetDebugInfo = sfui.questlog_debug_info
-    sfui.RegisterModule("questlog", sfui.questlog)
+sfui.questlog.OnEnable = function() Tracker.Initialize() end
+sfui.questlog.OnSpecChanged = function()
+    sfui.tracker.RequestRefresh(0.01)
+end
+sfui.questlog.GetDebugInfo = sfui.questlog_debug_info
+sfui.RegisterModule("quests", sfui.questlog)
+sfui.questlog = sfui.quests

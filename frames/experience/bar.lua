@@ -17,6 +17,7 @@ local math_min = math.min
 local math_max = math.max
 local math_floor = math.floor
 local string_format = string.format
+local tostring = _G.tostring
 local IsShiftKeyDown = _G.IsShiftKeyDown
 
 local container = nil
@@ -28,6 +29,7 @@ local ticks = {}
 local textLeft = nil
 local textCenter = nil
 local textRight = nil
+local challengePointsText = nil
 local currentMode = "XP" -- "XP" or "REP"
 
 --- Set status bar texture directly
@@ -150,6 +152,16 @@ function barModule.ApplyTheme()
         container:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
     end
 
+    if challengePointsText then
+        local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
+            or (sfui.config and sfui.config.fontFile)
+            or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
+            or "Fonts\\FRIZQT__.TTF"
+        challengePointsText:SetFont(fontFile, 10, "")
+        challengePointsText:SetShadowOffset(0, 0)
+        challengePointsText:SetShadowColor(0, 0, 0, 0)
+    end
+
     barModule.SetBarTexture()
 end
 
@@ -251,7 +263,11 @@ local function UpdateTextVisibility(isHovering)
     local data = sfui.experience.data
     local alpha = data and data.GetTextAlpha and data.GetTextAlpha(isHovering) or (isHovering and 1.0 or 0.0)
     textLeft:SetAlpha(alpha)
-    textCenter:SetAlpha(alpha)
+    if challengePointsText and challengePointsText:IsShown() then
+        textCenter:SetAlpha(0)
+    else
+        textCenter:SetAlpha(alpha)
+    end
     textRight:SetAlpha(alpha)
 end
 
@@ -478,7 +494,21 @@ function barModule.UpdateValues()
         textRight:SetText(rightStr)
     end
 
-    UpdateTextVisibility(false)
+    if challengePointsText then
+        local unspent = 0
+        if sfui.isCamelot and sfui.experience.challenges and sfui.experience.challenges.GetUnspentPoints then
+            unspent = sfui.experience.challenges.GetUnspentPoints() or 0
+        end
+        if unspent > 0 then
+            challengePointsText:SetText(tostring(unspent))
+            challengePointsText:Show()
+        else
+            challengePointsText:SetText("")
+            challengePointsText:Hide()
+        end
+    end
+
+    UpdateTextVisibility(container:IsMouseOver())
 
     if sfui.experience.reputation and sfui.experience.reputation.UpdateValues then
         sfui.experience.reputation.UpdateValues()
@@ -547,6 +577,20 @@ function barModule.Create()
     textRight:SetTextColor(0.85, 0.85, 0.85, 1.0)
     textRight:SetShadowOffset(1, -1)
     textRight:SetShadowColor(0, 0, 0, 1)
+
+    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
+        or (sfui.config and sfui.config.fontFile)
+        or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
+        or "Fonts\\FRIZQT__.TTF"
+
+    challengePointsText = textFrame:CreateFontString(nil, "OVERLAY")
+    challengePointsText:SetFont(fontFile, 10, "")
+    challengePointsText:SetPoint("CENTER", textFrame, "CENTER", 0, 0)
+    challengePointsText:SetJustifyH("CENTER")
+    challengePointsText:SetTextColor(1.0, 1.0, 1.0, 1.0)
+    challengePointsText:SetShadowOffset(0, 0)
+    challengePointsText:SetShadowColor(0, 0, 0, 0)
+    challengePointsText:Hide()
 
     -- Mouse Interactions & Tooltip
     container:SetScript("OnEnter", function(self)

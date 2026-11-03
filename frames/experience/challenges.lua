@@ -69,6 +69,32 @@ function challenges.IsAvailable()
     return true
 end
 
+--- Query unspent legacy challenge points available to spend
+--- @return number
+function challenges.GetUnspentPoints()
+    if not challenges.IsSupported() then return 0 end
+
+    if C_Traits and C_Traits.GetConfigIDByTreeID and C_Traits.GetTreeCurrencyInfo then
+        local treeID = (Constants and Constants.LegacyConsts and Constants.LegacyConsts.LEGACY_TREE_PROFESSIONS_ID) or 1187
+        local okConf, configID = pcall(C_Traits.GetConfigIDByTreeID, treeID)
+        if okConf and configID then
+            local okTree, treeInfo = pcall(C_Traits.GetTreeCurrencyInfo, configID, treeID, false)
+            if okTree and treeInfo and treeInfo[1] and treeInfo[1].quantity then
+                return treeInfo[1].quantity
+            end
+        end
+    end
+
+    if _G.LegacySystem and _G.LegacySystem.GetCurrencyInfo then
+        local ok, cInfo = pcall(_G.LegacySystem.GetCurrencyInfo)
+        if ok and cInfo and cInfo.quantity then
+            return cInfo.quantity
+        end
+    end
+
+    return 0
+end
+
 --- Query active legacy challenge points progress
 --- @return table
 function challenges.GetData()
@@ -119,27 +145,38 @@ function challenges.GetData()
         end
     end
 
-    -- 3. Query unspent legacy trait points and verify earned points via LegacySystem
+    -- 3. Query unspent legacy trait points and seasonal cap directly from C_Traits (live C API)
     local unspent = 0
-    if _G.LegacySystem and _G.LegacySystem.GetCurrencyInfo then
+    local hasLiveTraitInfo = false
+    if C_Traits and C_Traits.GetConfigIDByTreeID and C_Traits.GetTreeCurrencyInfo then
+        local treeID = (Constants and Constants.LegacyConsts and Constants.LegacyConsts.LEGACY_TREE_PROFESSIONS_ID) or 1187
+        local okConf, configID = pcall(C_Traits.GetConfigIDByTreeID, treeID)
+        if okConf and configID then
+            local okTree, treeInfo = pcall(C_Traits.GetTreeCurrencyInfo, configID, treeID, false)
+            if okTree and treeInfo and treeInfo[1] then
+                hasLiveTraitInfo = true
+                if treeInfo[1].quantity then
+                    unspent = treeInfo[1].quantity
+                end
+                if totalAvailable <= 0 and treeInfo[1].maxQuantity and treeInfo[1].maxQuantity > 0 then
+                    totalAvailable = treeInfo[1].maxQuantity
+                end
+            end
+        end
+    end
+
+    -- Fallback to LegacySystem currency info if C_Traits tree config isn't ready yet
+    if not hasLiveTraitInfo and _G.LegacySystem and _G.LegacySystem.GetCurrencyInfo then
         local ok, cInfo = pcall(_G.LegacySystem.GetCurrencyInfo)
         if ok and cInfo then
-            if cInfo.renownCurrency and cInfo.renownCurrency > 0 then
+            if earned <= 0 and cInfo.renownCurrency and cInfo.renownCurrency > 0 then
                 earned = cInfo.renownCurrency
             end
             if cInfo.quantity then
                 unspent = cInfo.quantity
             end
-        end
-    end
-
-    if unspent == 0 and C_Traits and C_Traits.GetConfigIDByTreeID and C_Traits.GetTreeCurrencyInfo then
-        local treeID = (Constants and Constants.LegacyConsts and Constants.LegacyConsts.LEGACY_TREE_PROFESSIONS_ID) or 1187
-        local okConf, configID = pcall(C_Traits.GetConfigIDByTreeID, treeID)
-        if okConf and configID then
-            local okTree, treeInfo = pcall(C_Traits.GetTreeCurrencyInfo, configID, treeID, false)
-            if okTree and treeInfo and treeInfo[1] and treeInfo[1].quantity then
-                unspent = treeInfo[1].quantity
+            if totalAvailable <= 0 and cInfo.maxQuantity and cInfo.maxQuantity > 0 then
+                totalAvailable = cInfo.maxQuantity
             end
         end
     end

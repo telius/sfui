@@ -633,13 +633,13 @@ function sfui.gear.initialize()
     lastSpecID = common.get_current_spec_id()
 end
 
+local _gearDebug = {}
 function sfui.gear_debug_info()
     local eqCount = 0
     for _ in pairs(lastEquippedItems) do eqCount = eqCount + 1 end
-    return {
-        equippedCache = eqCount,
-        lastEquipped  = eqCount,
-    }
+    _gearDebug.equippedCache = eqCount
+    _gearDebug.lastEquipped  = eqCount
+    return _gearDebug
 end
 
 sfui.gear.OnEnable = function(self) self.initialize() end

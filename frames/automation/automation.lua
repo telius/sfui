@@ -922,15 +922,15 @@ sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
     end
 end)
 
+local _autoDebug = {}
 function sfui.automation_debug_info()
-    return {
-        autoRoleCheck = SfuiDB and SfuiDB.auto_role_check or false,
-        autoSignLfg = SfuiDB and SfuiDB.auto_sign_lfg or false,
-        autoRepair = SfuiDB and SfuiDB.autoRepair or false,
-        autoSellGreys = SfuiDB and SfuiDB.autoSellGreys or false,
-        autoLfgDungeonDefaults = SfuiDB and SfuiDB.autoLfgDungeonDefaults ~= false,
-        tooltipAltIDs = SfuiDB and SfuiDB.tooltipAltIDs ~= false,
-    }
+    _autoDebug.autoRoleCheck          = SfuiDB and SfuiDB.auto_role_check or false
+    _autoDebug.autoSignLfg            = SfuiDB and SfuiDB.auto_sign_lfg or false
+    _autoDebug.autoRepair             = SfuiDB and SfuiDB.autoRepair or false
+    _autoDebug.autoSellGreys          = SfuiDB and SfuiDB.autoSellGreys or false
+    _autoDebug.autoLfgDungeonDefaults = SfuiDB and SfuiDB.autoLfgDungeonDefaults ~= false
+    _autoDebug.tooltipAltIDs          = SfuiDB and SfuiDB.tooltipAltIDs ~= false
+    return _autoDebug
 end
 
 sfui.automation.OnInit = sfui.automation.initialize

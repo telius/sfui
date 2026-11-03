@@ -1019,17 +1019,18 @@ sfui.events.RegisterEvent("ENCOUNTER_END",   onEncounterBoundary)
 sfui.events.RegisterEvent("AURA_DATA_PROVIDER_SWITCH", onAuraDataProviderSwitch)
 
 -- Diagnostics & Memory Profiling Integration
+local _sfDebug = {}
 function sfui.soulfragments_debug_info()
-    return {
-        frameCreated = container ~= nil,
-        frameShown   = container and container:IsShown() or false,
-        metaShown    = metaContainer and metaContainer:IsShown() or false,
-        engineBound  = isBoundToEngine,
-        cdmCached    = sfCDMFrame ~= nil,
-        lastStacks   = lastKnownStacks,
-        maxCap       = currentSpecConfig and currentSpecConfig.cap or 0,
-        active       = currentSpecConfig ~= nil,
-    }
+    _sfDebug.frameCreated = container ~= nil
+    _sfDebug.frameShown   = container and container:IsShown() or false
+    _sfDebug.metaShown    = metaContainer and metaContainer:IsShown() or false
+    _sfDebug.engineBound  = isBoundToEngine
+    _sfDebug.cdmCached    = sfCDMFrame ~= nil
+    _sfDebug.lastStacks   = lastKnownStacks
+    _sfDebug.maxCap       = currentSpecConfig and currentSpecConfig.cap or 0
+    _sfDebug.dividers     = (thresholdTick and thresholdTick:IsShown()) and 1 or 0
+    _sfDebug.active       = currentSpecConfig ~= nil
+    return _sfDebug
 end
 
 function sfui.soulfragments.SetBarTexture(texturePath)

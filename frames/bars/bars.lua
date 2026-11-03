@@ -1709,18 +1709,18 @@ do
     sfui.events.RegisterEvent("UPDATE_POSSESS_BAR", on_event)
     sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", on_event)
 
+    local _barsDebug = {}
     function sfui.bars_debug_info()
-        return {
-            bar0Created = bar0 ~= nil,
-            bar0Shown = bar0 and bar0:IsShown() or false,
-            bar1Created = bar1 ~= nil,
-            bar1Shown = bar1 and bar1:IsShown() or false,
-            barMinus1Created = bar_minus_1 ~= nil,
-            barMinus1Shown = bar_minus_1 and bar_minus_1:IsShown() or false,
-            vigorCreated = vigor_bar ~= nil,
-            mountSpeedActive = mount_speed_bar and mount_speed_bar:GetScript("OnUpdate") ~= nil or false,
-            runeBarCreated = rune_bar ~= nil,
-        }
+        _barsDebug.bar0Created      = bar0 ~= nil
+        _barsDebug.bar0Shown        = bar0 and bar0:IsShown() or false
+        _barsDebug.bar1Created      = bar1 ~= nil
+        _barsDebug.bar1Shown        = bar1 and bar1:IsShown() or false
+        _barsDebug.barMinus1Created = bar_minus_1 ~= nil
+        _barsDebug.barMinus1Shown   = bar_minus_1 and bar_minus_1:IsShown() or false
+        _barsDebug.vigorCreated     = vigor_bar ~= nil
+        _barsDebug.mountSpeedActive = mount_speed_bar and mount_speed_bar:GetScript("OnUpdate") ~= nil or false
+        _barsDebug.runeBarCreated   = rune_bar ~= nil
+        return _barsDebug
     end
 
     sfui.bars.OnEnable = function(self) self:on_state_changed() end

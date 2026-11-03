@@ -1041,3 +1041,20 @@ if sfui.events and sfui.events.RegisterEvent then
     end)
 end
 
+local _mailDebug = {}
+function sfui.mail_debug_info()
+    _mailDebug.isDispatching     = _isDispatching
+    _mailDebug.isCollectingInbox = _isCollectingInbox
+    _mailDebug.queueCount        = #_dispatchQueue
+    _mailDebug.currentLetter     = _currentLetterIndex
+    _mailDebug.totalLetters      = _totalLetters
+    _mailDebug.inboxTotal        = _inboxTotalMail
+    return _mailDebug
+end
+mail.GetDebugInfo = sfui.mail_debug_info
+sfui.mail = mail
+
+if sfui.RegisterModule then
+    sfui.RegisterModule("mail", mail)
+end
+

@@ -82,14 +82,40 @@ function sfui.options.GetFrame()
     return frame
 end
 
+local _activeOptErrLabel = "options"
+local _activeOptErrTab   = "options"
+local function _options_err_handler(err)
+    local stack = debugstack and debugstack(2) or ""
+    if _G.sfuibug and _G.sfuibug.RecordError then
+        _G.sfuibug.RecordError({
+            module = "options",
+            file = "frames/options/options.lua",
+            label = _activeOptErrLabel .. ":" .. tostring(_activeOptErrTab),
+        }, err, stack)
+    elseif _G.geterrorhandler then
+        _G.geterrorhandler()(err)
+    end
+    return err
+end
+
+local function _safe_tab_call(tabDef, method, a1, a2, a3)
+    if not tabDef or type(tabDef[method]) ~= "function" then return true end
+    _activeOptErrLabel = method
+    _activeOptErrTab   = tabDef.id or "tab"
+    local ok, err = xpcall(function()
+        return tabDef[method](a1, a2, a3)
+    end, _options_err_handler)
+    return ok, err
+end
+
 function sfui.options.ResetTab(tabID)
     if not tabID then return false end
     for _, tabDef in ipairs(registered_tabs) do
         if tabDef.id == tabID and type(tabDef.resetDefaults) == "function" then
-            pcall(tabDef.resetDefaults)
+            _safe_tab_call(tabDef, "resetDefaults")
             if frame and frame.selected_tab and frame.selected_tab.tabDef and frame.selected_tab.tabDef.id == tabID then
                 if tabDef.onShow and frame.selected_tab.panel then
-                    pcall(tabDef.onShow, frame.selected_tab.panel, frame.selected_tab, frame)
+                    _safe_tab_call(tabDef, "onShow", frame.selected_tab.panel, frame.selected_tab, frame)
                 end
             end
             return true
@@ -131,7 +157,7 @@ local function ensure_tab_built(tabDef, content_panel, tab_button)
     if not tabDef or tabDef._built then return end
     tabDef._built = true
     if tabDef.build and content_panel then
-        local ok, err = pcall(tabDef.build, content_panel, tab_button, frame)
+        local ok, err = _safe_tab_call(tabDef, "build", content_panel, tab_button, frame)
         if not ok then
             sfui.print("|cffff0000options tab build error:|r", tabDef.id or "tab", err)
         end
@@ -167,7 +193,7 @@ local function select_tab(selected_tab_button)
         end
         tab_data.panel:Hide()
         if tab_data.button.tabDef and tab_data.button.tabDef.onHide then
-            pcall(tab_data.button.tabDef.onHide, tab_data.panel, tab_data.button, frame)
+            _safe_tab_call(tab_data.button.tabDef, "onHide", tab_data.panel, tab_data.button, frame)
         end
     end
 
@@ -190,7 +216,7 @@ local function select_tab(selected_tab_button)
     end
 
     if tabDef and tabDef.onShow then
-        pcall(tabDef.onShow, selected_tab_button.panel, selected_tab_button, frame)
+        _safe_tab_call(tabDef, "onShow", selected_tab_button.panel, selected_tab_button, frame)
     end
 
     if selected_tab_button.panel and selected_tab_button.panel.update_scroll_height then

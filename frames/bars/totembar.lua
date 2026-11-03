@@ -11,7 +11,15 @@ sfui.totembar = sfui.totembar or {}
 -- Shamans on Classic / Camelot only
 if sfui.isRetail then return end
 local _, playerClass = UnitClass("player")
-if playerClass ~= "SHAMAN" then return end
+if playerClass ~= "SHAMAN" then
+    local _stubDebug = { enabled = false, activeTotems = 0, isUnlocked = false, frameCreated = false }
+    sfui.totembar.GetDebugInfo = function() return _stubDebug end
+    sfui.totembar_debug_info = sfui.totembar.GetDebugInfo
+    if sfui.RegisterModule then
+        sfui.RegisterModule("totembar", sfui.totembar)
+    end
+    return
+end
 
 -- ---------------------------------------------------------------------------
 -- Upvalues & Localization
@@ -1581,17 +1589,22 @@ function sfui.totembar.ResetPosition()
     end
 end
 
+local _totemDebug = {}
 function sfui.totembar.GetDebugInfo()
     local activeCount = 0
     for _, el in ipairs(ELEMENTS) do
         if activeState[el] then activeCount = activeCount + 1 end
     end
-    return {
-        enabled      = (SfuiDB and SfuiDB.totembar and SfuiDB.totembar.enabled ~= false),
-        activeTotems = activeCount,
-        isUnlocked   = isUnlocked,
-        frameCreated = bar ~= nil,
-    }
+    _totemDebug.enabled      = (SfuiDB and SfuiDB.totembar and SfuiDB.totembar.enabled ~= false)
+    _totemDebug.activeTotems = activeCount
+    _totemDebug.isUnlocked   = isUnlocked
+    _totemDebug.frameCreated = bar ~= nil
+    return _totemDebug
+end
+sfui.totembar_debug_info = sfui.totembar.GetDebugInfo
+
+if sfui.RegisterModule then
+    sfui.RegisterModule("totembar", sfui.totembar)
 end
 
 function sfui.totembar.UpdateActiveColors()

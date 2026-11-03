@@ -99,11 +99,56 @@ local _curUnit     = nil
 local _curArgCount = 0
 local _curArg1, _curArg2, _curArg3, _curArg4 = nil, nil, nil, nil
 
+local FILE_MODULE_MAP = {
+    ["frames/bars/castbar.lua"]              = "castbars",
+    ["frames/bars/totembar.lua"]             = "totembar",
+    ["frames/bars/swing.lua"]                = "swing",
+    ["frames/bars/swing_classic.lua"]        = "swing",
+    ["frames/bars/vehicle.lua"]              = "vehicle",
+    ["frames/bars/soulfragments.lua"]        = "soulfragments",
+    ["frames/bars/target.lua"]               = "target",
+    ["frames/bars/threat.lua"]               = "threat",
+    ["frames/bars/pet.lua"]                  = "pet",
+    ["frames/tracking/trackedbars.lua"]      = "trackedbars",
+    ["frames/tracking/trackedicons.lua"]     = "trackedicons",
+    ["frames/tracking/panels.lua"]           = "trackedicons",
+    ["frames/tracking/tracking_classic.lua"] = "trackedicons",
+    ["frames/tracking/buffs.lua"]            = "trackedbuffs",
+    ["frames/tracking/cdm.lua"]              = "cdm",
+    ["frames/tracking/glows.lua"]            = "glows",
+    ["frames/gear/lootfeed.lua"]             = "lootfeed",
+    ["frames/gear/lootspec.lua"]             = "lootspec",
+    ["frames/gear/lootviewer.lua"]           = "lootspec",
+    ["frames/gear/bonusroll.lua"]            = "bonusroll",
+    ["frames/gear/hammer.lua"]               = "hammer",
+    ["frames/quests/q_mythic.lua"]           = "mythic",
+    ["frames/quests/modules/q_worldevents.lua"] = "worldevents",
+    ["frames/quests/modules/q_abundance.lua"]   = "worldevents",
+    ["frames/automation/currency.lua"]       = "currency",
+    ["frames/automation/fishing.lua"]        = "fishing",
+    ["frames/automation/location.lua"]       = "location",
+    ["frames/automation/logs.lua"]           = "logs",
+    ["frames/automation/pets.lua"]           = "pets",
+    ["frames/automation/rankup.lua"]         = "rankup",
+    ["frames/automation/transfer.lua"]       = "transfer",
+    ["frames/automation/triage.lua"]         = "triage",
+    ["frames/alts/mail_data.lua"]            = "mail",
+    ["frames/alts/mail_engine.lua"]          = "mail",
+    ["frames/alts/mail_ui.lua"]              = "mail",
+    ["frames/alts/mail_mailbox.lua"]         = "mail",
+    ["frames/map/pins.lua"]                  = "pins",
+}
+
 local function _extract_mod(file)
     if not file then return "core" end
-    return string_match(file, "^frames/([^/]+)")
-        or string_match(file, "^core/([^/]+)")
-        or string_match(file, "^data/([^/]+)")
+    if FILE_MODULE_MAP[file] then return FILE_MODULE_MAP[file] end
+    if string_find(file, "^frames/map/providers/") then return "pins" end
+    if string_find(file, "^frames/map/") then return "minimap" end
+    if string_find(file, "^frames/professions/") then return "recipes" end
+    if string_find(file, "^frames/reminders/") then return "buffs" end
+    return string_match(file, "^frames/([^/%.]+)")
+        or string_match(file, "^core/([^/%.]+)")
+        or string_match(file, "^data/([^/%.]+)")
         or string_match(file, "^([^/%.]+)%.lua")
         or "core"
 end

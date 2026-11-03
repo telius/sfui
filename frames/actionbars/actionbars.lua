@@ -222,6 +222,7 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Module Registration & Lifecycle
 -- ─────────────────────────────────────────────────────────────────────────────
+local _abDebug = {}
 local function get_actionbars_debug_info()
     local activeBars = 0
     local totalButtons = 0
@@ -236,13 +237,12 @@ local function get_actionbars_debug_info()
             end
         end
     end
-    return {
-        activeBars = activeBars,
-        totalButtons = totalButtons,
-        unlocked = sfui.actionbars.moversUnlocked,
-        petActive = sfui.actionbars.petBar and sfui.actionbars.petBar:IsShown() or false,
-        mouseover = sfui.actionbars.mouseover and sfui.actionbars.mouseover.IsEnabled and sfui.actionbars.mouseover.IsEnabled() or false,
-    }
+    _abDebug.activeBars   = activeBars
+    _abDebug.totalButtons = totalButtons
+    _abDebug.unlocked     = sfui.actionbars.moversUnlocked
+    _abDebug.petActive    = sfui.actionbars.petBar and sfui.actionbars.petBar:IsShown() or false
+    _abDebug.mouseover    = sfui.actionbars.mouseover and sfui.actionbars.mouseover.IsEnabled and sfui.actionbars.mouseover.IsEnabled() or false
+    return _abDebug
 end
 
 function sfui.actionbars_debug_info()

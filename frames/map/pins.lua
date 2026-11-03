@@ -1285,3 +1285,20 @@ end
 if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("PLAYER_LOGIN", InitPinEngine)
 end
+
+local _pinsDebug = {}
+function sfui.pins_debug_info()
+    local wmf = _G.WorldMapFrame
+    _pinsDebug.mapShown          = (wmf and wmf:IsShown()) and true or false
+    _pinsDebug.activeCount       = #activePins
+    _pinsDebug.poolSize          = #pinPool
+    _pinsDebug.minimapActive     = #activeMinimapPins
+    _pinsDebug.minimapPoolSize   = #minimapPinPool
+    _pinsDebug.providersCount    = #providerOrder
+    return _pinsDebug
+end
+pins.GetDebugInfo = sfui.pins_debug_info
+
+if sfui.RegisterModule then
+    sfui.RegisterModule("pins", pins)
+end

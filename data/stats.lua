@@ -773,34 +773,49 @@ end
 
 -- ─── Outgoing Attacks ────────────────────────────────────────────────────────
 
---- Calculates Hit Chance across Melee, Ranged, and Spell
+--- Calculates Hit Chance across Melee, Ranged, Spell, and Off-Hand
 function sfui.stats.GetHitChance(unit)
     unit = unit or "player"
-    local meleeHit, rangedHit, spellHit = 0, 0, 0
+    local meleeHit, rangedHit, spellHit, offhandHit = 0, 0, 0, 0
+    local CR = _G.GetCombatRatingBonus
+    local crMelee = num(CR and _G.CR_HIT_MELEE and CR(_G.CR_HIT_MELEE))
+    local modHit = num(_G.GetHitModifier and _G.GetHitModifier())
+    local ownerMelee = crMelee + modHit
+
+    local crSpell = num(CR and _G.CR_HIT_SPELL and CR(_G.CR_HIT_SPELL))
+    local modSpell = num(_G.GetSpellHitModifier and _G.GetSpellHitModifier())
+    local ownerSpell = crSpell + modSpell
+
     if unit == "player" then
-        local CR = _G.GetCombatRatingBonus
-        local crMelee = num(CR and _G.CR_HIT_MELEE and CR(_G.CR_HIT_MELEE))
-        local modHit = num(_G.GetHitModifier and _G.GetHitModifier())
-        meleeHit = crMelee + modHit
+        meleeHit = ownerMelee
+        local modOffhand = _G.GetOffhandHitModifier and num(_G.GetOffhandHitModifier()) or modHit
+        offhandHit = crMelee + modOffhand
 
         local crRanged = num(CR and _G.CR_HIT_RANGED and CR(_G.CR_HIT_RANGED))
         local modRanged = _G.GetRangedHitModifier and num(_G.GetRangedHitModifier()) or modHit
         rangedHit = crRanged + modRanged
 
-        local crSpell = num(CR and _G.CR_HIT_SPELL and CR(_G.CR_HIT_SPELL))
-        local modSpell = num(_G.GetSpellHitModifier and _G.GetSpellHitModifier())
-        spellHit = crSpell + modSpell
+        spellHit = ownerSpell
     elseif unit == "pet" then
-        meleeHit = num(_G.GetPetHitChanceModifier and _G.GetPetHitChanceModifier())
+        -- Pets inherit 100% of the owner's hit chance on top of their own modifiers (PaperDollFrameStats.lua)
+        meleeHit = ownerMelee + num(_G.GetPetHitChanceModifier and _G.GetPetHitChanceModifier())
         rangedHit = meleeHit
-        spellHit = num(_G.GetPetSpellHitChanceModifier and _G.GetPetSpellHitChanceModifier())
+        offhandHit = meleeHit
+        spellHit = ownerSpell + num(_G.GetPetSpellHitChanceModifier and _G.GetPetSpellHitChanceModifier())
     end
-    local maxHit = math_max(meleeHit, rangedHit, spellHit)
-    return maxHit, meleeHit, rangedHit, spellHit
+    local maxHit = math_max(meleeHit, rangedHit, spellHit, offhandHit)
+    return maxHit, meleeHit, rangedHit, spellHit, offhandHit
 end
 
 --- Calculates Critical Strike Chance across Melee, Ranged, and Spell
-function sfui.stats.GetCritChance(outSchools)
+function sfui.stats.GetCritChance(outSchools, unit)
+    if unit == "pet" and _G.GetPetCritChance then
+        local mCrit, sCrit = _G.GetPetCritChance()
+        local meleeCrit = num(mCrit)
+        local spellCrit = num(sCrit)
+        local maxCrit = math_max(meleeCrit, spellCrit)
+        return maxCrit, meleeCrit, meleeCrit, spellCrit
+    end
     local meleeCrit = num(_G.GetCritChance and _G.GetCritChance())
     local rangedCrit = num(_G.GetRangedCritChance and _G.GetRangedCritChance())
     local spellCrit = 0
@@ -817,6 +832,11 @@ function sfui.stats.GetCritChance(outSchools)
     end
     local maxCrit = math_max(meleeCrit, rangedCrit, spellCrit)
     return maxCrit, meleeCrit, rangedCrit, spellCrit
+end
+
+--- Pet dodge chance (Camelot GetPetDodgeChance).
+function sfui.stats.GetPetDodge()
+    return num(_G.GetPetDodgeChance and _G.GetPetDodgeChance())
 end
 
 --- Melee / ranged miss chance for a weapon skill against a target defense.

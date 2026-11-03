@@ -609,15 +609,15 @@ if sfui.common and sfui.common.register_special_frame then
 end
 frame:Hide()
 
+local _merchDebug = {}
 function sfui.merchant_debug_info()
     local pCount = 0
     local pool = sfui.merchant.tablePool or {}
     for _ in pairs(pool) do pCount = pCount + 1 end
-    return {
-        tablePool = pCount,
-        frameCreated = frame ~= nil,
-        frameShown = frame and frame:IsShown() or false,
-    }
+    _merchDebug.tablePool    = pCount
+    _merchDebug.frameCreated = frame ~= nil
+    _merchDebug.frameShown   = frame and frame:IsShown() or false
+    return _merchDebug
 end
 
 if sfui.RegisterModule then

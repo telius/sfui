@@ -156,11 +156,11 @@ sfui.events.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW",  on_bank_open
 sfui.events.RegisterEvent("BANKFRAME_CLOSED",                       on_bank_close)
 sfui.events.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE",  on_bank_close)
 
+local _transferDebug = {}
 function sfui.transfer_debug_info()
-    return {
-        queueSize = #scanQueue,
-        active = processingTicker ~= nil,
-    }
+    _transferDebug.queueSize = #scanQueue
+    _transferDebug.active    = processingTicker ~= nil
+    return _transferDebug
 end
 
 sfui.transfer = sfui.transfer or {}

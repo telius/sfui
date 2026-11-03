@@ -1061,18 +1061,19 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
 end
 
 -- ─── Profiler Support for mem.lua ───────────────────────────────────────────
+local _weDebug = {}
 function sfui.worldevents_debug_info()
     local poiCount = 0
     for _ in pairs(poiNameCache) do poiCount = poiCount + 1 end
-    return {
-        activeEvents = #cachedEvents,
-        tablePool    = #tablePool,
-        reminders    = reminderCount,
-        cachedPois   = poiCount,
-        poiCount     = poiCount,
-        isDirty      = isDirty,
-        lastUpdate   = lastUpdateTime,
-    }
+    _weDebug.activeEvents    = #cachedEvents
+    _weDebug.tablePool       = #tablePool
+    _weDebug.reminders       = reminderCount
+    _weDebug.cachedPois      = poiCount
+    _weDebug.poiCount        = poiCount
+    _weDebug.isDirty         = isDirty
+    _weDebug.lastUpdate      = lastUpdateTime
+    _weDebug.abundanceActive = sfui.abundance and sfui.abundance.IsActive and sfui.abundance.IsActive() or false
+    return _weDebug
 end
 
 sfui.worldevents = sfui.worldevents or {}

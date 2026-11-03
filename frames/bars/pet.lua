@@ -14,7 +14,15 @@ if not (sfui.isCamelot or sfui.isClassic or (sfui.compat and (sfui.compat.is_cam
 end
 
 local _, playerClass = UnitClass("player")
-if playerClass ~= "HUNTER" and playerClass ~= "WARLOCK" then return end
+if playerClass ~= "HUNTER" and playerClass ~= "WARLOCK" then
+    local _stubPetDebug = { supportedClass = false, created = false, shown = false, hasPet = false }
+    sfui.pet.GetDebugInfo = function() return _stubPetDebug end
+    sfui.pet_debug_info = sfui.pet.GetDebugInfo
+    if sfui.RegisterModule then
+        sfui.RegisterModule("pet", sfui.pet)
+    end
+    return
+end
 
 local cfg = sfui.config
 local common = sfui.common
@@ -90,6 +98,30 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 --  data & state updates
 -- ─────────────────────────────────────────────────────────────────────────────
+local function is_pet_move_to_pending()
+    local C_PetInfo = _G.C_PetInfo
+    if C_PetInfo and C_PetInfo.IsPetOrderMoveToPending then
+        return C_PetInfo.IsPetOrderMoveToPending() == true
+    end
+    return false
+end
+
+local function update_status_text(movePendingOverride)
+    if not hpText or not UnitExists("pet") then return end
+    local isDead = UnitIsDead("pet") or UnitIsGhost("pet")
+    if isDead then
+        hpText:SetText("|cffff3333dead|r")
+        if healthBar then healthBar:SetValue(0) end
+    else
+        local isMovePending = (movePendingOverride ~= nil) and movePendingOverride or is_pet_move_to_pending()
+        if isMovePending then
+            hpText:SetText("|cff66ccffmove to|r")
+        else
+            hpText:SetText("")
+        end
+    end
+end
+
 local function update_health()
     if not healthBar then return end
     if not UnitExists("pet") then return end
@@ -107,13 +139,7 @@ local function update_health()
         or { 0.2, 0.2, 0.2 }
     healthBar:SetStatusBarColor(fgColor[1], fgColor[2], fgColor[3], fgColor[4] or 1)
 
-    local isDead = UnitIsDead("pet") or UnitIsGhost("pet")
-    if isDead then
-        hpText:SetText("|cffff3333dead|r")
-        healthBar:SetValue(0)
-    else
-        hpText:SetText("")
-    end
+    update_status_text()
 
     -- heal prediction
     local width, height = healthBar:GetSize()
@@ -453,6 +479,31 @@ local function init_pet_frame()
                 GameTooltip:AddDoubleLine("diet:", table.concat(diet, ", "):lower(), 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
             end
         end
+
+        if sfui.stats and (not InCombatLockdown or not InCombatLockdown()) then
+            local stats = sfui.stats
+            local _, petMeleeHit, _, petSpellHit = stats.GetHitChance("pet")
+            local _, petMeleeCrit, _, petSpellCrit = stats.GetCritChance(nil, "pet")
+            local petDodge = stats.GetPetDodge and stats.GetPetDodge() or 0
+            if (petMeleeCrit and petMeleeCrit > 0) or (petSpellCrit and petSpellCrit > 0) then
+                if petSpellCrit and petSpellCrit > 0 and math.abs(petSpellCrit - petMeleeCrit) >= 0.05 then
+                    GameTooltip:AddDoubleLine("crit (melee / spell):", string_format("%.1f%% / %.1f%%", petMeleeCrit, petSpellCrit), 0.8, 0.8, 0.8, 1, 1, 1)
+                else
+                    GameTooltip:AddDoubleLine("crit:", string_format("%.1f%%", math.max(petMeleeCrit or 0, petSpellCrit or 0)), 0.8, 0.8, 0.8, 1, 1, 1)
+                end
+            end
+            if (petMeleeHit and petMeleeHit > 0) or (petSpellHit and petSpellHit > 0) then
+                if petSpellHit and math.abs(petSpellHit - petMeleeHit) >= 0.05 then
+                    GameTooltip:AddDoubleLine("hit (melee / spell):", string_format("%.1f%% / %.1f%%", petMeleeHit, petSpellHit), 0.8, 0.8, 0.8, 1, 1, 1)
+                else
+                    GameTooltip:AddDoubleLine("hit:", string_format("%.1f%%", math.max(petMeleeHit or 0, petSpellHit or 0)), 0.8, 0.8, 0.8, 1, 1, 1)
+                end
+            end
+            if petDodge and petDodge > 0 then
+                GameTooltip:AddDoubleLine("dodge:", string_format("%.1f%%", petDodge), 0.8, 0.8, 0.8, 1, 1, 1)
+            end
+        end
+
         GameTooltip:AddLine("<left-click: target | right-click: menu>", 0.7, 0.7, 0.7)
         if playerClass == "HUNTER" then
             GameTooltip:AddLine("<middle-click: fast feed pet>", 0.2, 0.9, 0.2)
@@ -626,6 +677,10 @@ if sfui.events and sfui.events.RegisterEvent then
         update_visibility()
     end)
 
+    sfui.events.RegisterEvent("PET_ORDER_MOVE_TO_PENDING_CHANGED", function(_, isPending)
+        update_status_text(isPending == true)
+    end)
+
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         init_pet_frame()
         update_position()
@@ -655,5 +710,20 @@ sfui.pet.Update           = update_all
 sfui.pet.UpdatePosition   = update_position
 sfui.pet.UpdateVisibility = update_visibility
 sfui.pet.SetBarTexture    = set_bar_texture
+
+local _petDebug = {}
+function sfui.pet_debug_info()
+    _petDebug.supportedClass = true
+    _petDebug.created        = container ~= nil
+    _petDebug.shown          = (container and container:IsShown()) and true or false
+    _petDebug.hasPet         = (UnitExists and UnitExists("pet")) and true or false
+    _petDebug.isDead         = (UnitExists and UnitExists("pet") and ((UnitIsDead and UnitIsDead("pet")) or (UnitIsGhost and UnitIsGhost("pet")))) and true or false
+    return _petDebug
+end
+sfui.pet.GetDebugInfo = sfui.pet_debug_info
+
+if sfui.RegisterModule then
+    sfui.RegisterModule("pet", sfui.pet)
+end
 
 init_pet_frame()

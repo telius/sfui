@@ -200,11 +200,11 @@ do
         end)
     end
 
+    local _currDebug = {}
     function sfui.currency_debug_info()
-        return {
-            currencyFrameCreated = _G.sfui_currency_frame ~= nil,
-            itemFrameCreated = _G.sfui_item_frame ~= nil,
-        }
+        _currDebug.currencyFrameCreated = _G.sfui_currency_frame ~= nil
+        _currDebug.itemFrameCreated     = _G.sfui_item_frame ~= nil
+        return _currDebug
     end
 
     if sfui.RegisterModule then

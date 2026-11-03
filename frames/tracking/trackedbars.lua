@@ -1794,19 +1794,20 @@ function sfui.trackedbars.initialize()
     end)
 end
 
+local _tbDebug = {}
 function sfui.trackedbars_debug_info()
     local barCount = 0
     for _ in pairs(bars) do barCount = barCount + 1 end
     local cacheCount = 0
     for _ in pairs(configCache) do cacheCount = cacheCount + 1 end
-    return {
-        activeBars = barCount,
-        shownBars = _numShownBars,
-        barPool = #barPool,
-        configPool = #configPool,
-        configCache = cacheCount,
-        isDirty = sfui.trackedbars.isDirty or false,
-    }
+    _tbDebug.activeBars  = barCount
+    _tbDebug.shownBars   = _numShownBars
+    _tbDebug.barPool     = #barPool
+    _tbDebug.configPool  = #configPool
+    _tbDebug.configCache = cacheCount
+    _tbDebug.isDirty     = sfui.trackedbars.isDirty or false
+    _tbDebug.loopActive  = ((common and common.is_in_combat and common.is_in_combat()) or (_numShownBars > 0)) and true or false
+    return _tbDebug
 end
 
 sfui.trackedbars.OnEnable = function(self) self.initialize() end

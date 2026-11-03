@@ -335,14 +335,13 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
 end)
 
 
+local _miniDebug = {}
 function sfui.minimap_debug_info()
-    local button_bar = sfui.minimap.button_bar
     local bm = sfui.minimap.ButtonManager
-    return {
-        isInitialized = isInitialized,
-        buttonCount = (bm and bm.collectedButtons and #bm.collectedButtons) or 0,
-        autoZoomActive = zoom_timer ~= nil,
-    }
+    _miniDebug.isInitialized  = isInitialized
+    _miniDebug.buttonCount    = (bm and bm.collectedButtons and #bm.collectedButtons) or 0
+    _miniDebug.autoZoomActive = zoom_timer ~= nil
+    return _miniDebug
 end
 
 sfui.minimap.GetDebugInfo = sfui.minimap_debug_info

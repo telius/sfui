@@ -845,6 +845,7 @@ end
 
 _G["SFUI_PET_SUMMON"] = function() sfui.pets.SummonNext(true) end
 
+local _petsDebug = {}
 function sfui.pets_debug_info()
     local charDB = get_char_db()
     local charCount = 0
@@ -852,15 +853,14 @@ function sfui.pets_debug_info()
         for _ in pairs(charDB.charFavs) do charCount = charCount + 1 end
     end
     local useCharFavs = charDB.charFavsEnabled and charCount > 0
-    return {
-        enabled = get_setting("enabled", true),
-        rotationTimer = get_setting("rotationTimer", 720),
-        poolFavsCount = #_poolFavs,
-        historyCount = #_recentHistory,
-        charFavsCount = charCount,
-        isCharFavs = useCharFavs and true or false,
-        currentPet = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID(),
-    }
+    _petsDebug.enabled       = get_setting("enabled", true)
+    _petsDebug.rotationTimer = get_setting("rotationTimer", 720)
+    _petsDebug.poolFavsCount = #_poolFavs
+    _petsDebug.historyCount  = #_recentHistory
+    _petsDebug.charFavsCount = charCount
+    _petsDebug.isCharFavs    = useCharFavs and true or false
+    _petsDebug.currentPet    = C_PetJournal and C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
+    return _petsDebug
 end
 sfui.pets.GetDebugInfo   = sfui.pets_debug_info
 sfui.pets.GetCharDB      = get_char_db

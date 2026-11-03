@@ -208,7 +208,7 @@ local function resolve_context()
     ctx.isWand = (ctx.ranged and ctx.ranged.subclassID == WAND_SUBCLASS) or false
 
     local _
-    _, ctx.meleeHit, ctx.rangedHit, ctx.spellHit = stats.GetHitChance("player")
+    _, ctx.meleeHit, ctx.rangedHit, ctx.spellHit, ctx.offhandHit = stats.GetHitChance("player")
     _, ctx.meleeCrit, ctx.rangedCrit, ctx.spellCrit = stats.GetCritChance(ctx.schoolCrit)
     _, ctx.meleeHaste, ctx.rangedHaste, ctx.spellHaste = stats.GetHaste("player")
 
@@ -560,8 +560,16 @@ function SECTIONS.melee(c)
         row("off-hand:", ohText, (oh.skill >= softCap) and COLOR_GREEN or COLOR_WHITE,
             (oh.skillName or "weapon") .. " skill", "off-hand weapon skill and its glancing penalty.")
 
-        local dwText = string_format("%.1f%% / %.1f%%", c.meleeHit, dwCap)
-        row("white hit (dw):", dwText, (c.meleeHit >= dwCap) and COLOR_GREEN or COLOR_DIM,
+        local ohHit = c.offhandHit or c.meleeHit
+        if math.abs(ohHit - c.meleeHit) >= 0.05 then
+            local ohMiss, ohCap = stats.GetMeleeMissChance(oh.skill, t.defense, t.isPlayer)
+            local ohHitText, ohHitColor = have_vs_cap(ohHit, ohCap)
+            row("off-hand hit:", ohHitText, ohHitColor, "off-hand hit chance",
+                string_format("off-hand hit modifier (%.1f%% miss vs %s at %d skill).", ohMiss, t.who, oh.skill))
+        end
+
+        local dwText = string_format("%.1f%% / %.1f%%", ohHit, dwCap)
+        row("white hit (dw):", dwText, (ohHit >= dwCap) and COLOR_GREEN or COLOR_DIM,
             "dual-wield white hit cap", "dual wielding adds a large miss penalty to auto attacks; specials use the normal cap.")
     end
 end

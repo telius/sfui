@@ -648,7 +648,7 @@ local function OnSwingEvent(event, ...)
         else
             sfui.swing.UpdateVisibility()
         end
-    elseif event == "UNIT_ATTACK_SPEED" or event == "WEAPON_SLOT_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
+    elseif event == "UNIT_ATTACK_SPEED" or event == "UNIT_INVENTORY_CHANGED" or event == "WEAPON_SLOT_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
         if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
             isAttacking = false
             isAutoRepeating = false
@@ -679,7 +679,7 @@ sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", OnSwingEvent)
 sfui.events.RegisterEvent("WEAPON_SLOT_CHANGED", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_LOGIN", OnSwingEvent)
-sfui.events.RegisterUnitEvents({ "UNIT_ATTACK_SPEED" }, "player", OnSwingEvent)
+sfui.events.RegisterUnitEvents({ "UNIT_ATTACK_SPEED", "UNIT_INVENTORY_CHANGED" }, "player", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_IN_COMBAT_CHANGED", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_ENTER_COMBAT", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_LEAVE_COMBAT", OnSwingEvent)

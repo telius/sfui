@@ -39,12 +39,21 @@ local function _module_error_handler(err)
     return err
 end
 
+local function _capture_reg_file()
+    if not debugstack then return nil end
+    local raw = debugstack(3, 1, 0)
+    if not raw then return nil end
+    local norm = string.gsub(raw, "\\", "/")
+    return string.match(norm, "[Aa]dd[Oo]ns/[Ss][Ff][Uu][Ii]/([^:\"%]]+%.[lL][uU][aA])")
+        or string.match(norm, "%.%.%.[^/:\r\n\"<>]*/[Ss][Ff][Uu][Ii]/([^:\"%]]+%.[lL][uU][aA])")
+end
+
 local function _safe_call(mod, method, ...)
     if mod and type(mod[method]) == "function" then
         local prevCtx = _curModuleCtx
         _curModuleCtx = {
             module = mod.name or "core",
-            file = "core/module.lua",
+            file = mod._file or "core/module.lua",
             label = tostring(mod.name) .. ":" .. method .. "()",
         }
         xpcall(mod[method], _module_error_handler, mod, ...)
@@ -52,37 +61,60 @@ local function _safe_call(mod, method, ...)
     end
 end
 
+local function _safe_call_no_self(mod, method, ...)
+    if mod and type(mod[method]) == "function" then
+        local prevCtx = _curModuleCtx
+        _curModuleCtx = {
+            module = mod.name or "core",
+            file = mod._file or "core/module.lua",
+            label = tostring(mod.name) .. "." .. method .. "()",
+        }
+        xpcall(mod[method], _module_error_handler, ...)
+        _curModuleCtx = prevCtx
+    end
+end
+
 --- Register a module with standard lifecycle hooks.
---- @param name string Unique module identifier (e.g. "bars", "castbar", "gear")
+--- @param name string Unique module identifier (e.g. "bars", "castbars", "gear")
 --- @param def table Table containing module definition and lifecycle methods
 --- @return table The registered module table
 function sfui.RegisterModule(name, def)
     if not name or type(name) ~= "string" then return def end
     def = def or {}
-    def.name = name
+    local regFile = _capture_reg_file()
 
-    -- If sfui[name] was already declared as a namespace, preserve existing fields
+    -- If sfui[name] was already declared as a namespace, merge in-place into sfui[name]
+    -- so existing local upvalues across module files remain identical to sfui[name].
+    local target = def
     if sfui[name] and type(sfui[name]) == "table" and sfui[name] ~= def then
-        for k, v in pairs(sfui[name]) do
+        target = sfui[name]
+        for k, v in pairs(def) do
+            target[k] = v
+        end
+        for k, v in pairs(target) do
             if def[k] == nil then
                 def[k] = v
             end
         end
     end
-    sfui[name] = def
-    modules[name] = def
+    target.name = name
+    target._file = target._file or regFile
+    def.name = name
+    def._file = target._file
+    sfui[name] = target
+    modules[name] = target
 
     -- Automatic late-binding if registered after lifecycle triggers
-    if _isAddonLoaded and not def._initRan then
-        def._initRan = true
-        _safe_call(def, "OnInit")
+    if _isAddonLoaded and not target._initRan then
+        target._initRan = true
+        _safe_call(target, "OnInit")
     end
-    if _isPlayerLoggedIn and not def._enabledRan then
-        def._enabledRan = true
-        _safe_call(def, "OnEnable")
+    if _isPlayerLoggedIn and not target._enabledRan then
+        target._enabledRan = true
+        _safe_call(target, "OnEnable")
     end
 
-    return def
+    return target
 end
 
 --- Retrieve a registered module by name.
@@ -115,16 +147,23 @@ function sfui.EnableModules()
 end
 
 -- Listen for settings changes dispatched from options.lua or slash commands
+local SETTING_MODULE_ALIASES = {
+    castbar        = "castbars",
+    questlog       = "quests",
+    recipe_catalog = "recipes",
+}
+
 sfui.events.RegisterMessage("SFUI_SETTING_CHANGED", function(_, moduleName, key, value)
     if not moduleName then return end
-    local mod = modules[moduleName] or sfui[moduleName]
+    local canonical = SETTING_MODULE_ALIASES[moduleName] or moduleName
+    local mod = modules[canonical] or modules[moduleName] or sfui[canonical] or sfui[moduleName]
     if mod then
         if type(mod.OnSettingsChanged) == "function" then
             _safe_call(mod, "OnSettingsChanged", key, value)
         elseif type(mod.update_settings) == "function" then
-            pcall(mod.update_settings)
+            _safe_call_no_self(mod, "update_settings", key, value)
         elseif type(mod.UpdateSettings) == "function" then
-            pcall(mod.UpdateSettings)
+            _safe_call_no_self(mod, "UpdateSettings", key, value)
         end
     end
 end)
@@ -160,11 +199,14 @@ end)
 
 if sfui.dispatcher_debug_info then
     sfui.events = sfui.events or {}
+    sfui.events._file = "dispatcher.lua"
     sfui.events.GetDebugInfo = sfui.dispatcher_debug_info
     sfui.RegisterModule("dispatcher", sfui.events)
 end
 
 if sfui.stats then
+    sfui.stats._file = "core/bridge.lua"
+    sfui.stats.GetDebugInfo = sfui.stats_debug_info
     sfui.RegisterModule("stats", sfui.stats)
 end
 
@@ -181,6 +223,7 @@ local DEFAULT_TAXONOMY = {
     soulfragments  = { category = "bars & combat", client = "retail", order = 50 },
     threat         = { category = "bars & combat", client = "classic", order = 60 },
     target         = { category = "bars & combat", client = "classic", order = 70 },
+    pet            = { category = "bars & combat", client = "classic", order = 75 },
     swing          = { category = "bars & combat", client = "classic", order = 80 },
     totembar       = { category = "bars & combat", client = "classic", order = 90 },
     experience     = { category = "bars & combat", client = "all", order = 100 },
@@ -198,7 +241,7 @@ local DEFAULT_TAXONOMY = {
     dungeonjournal = { category = "objectives", client = "classic", order = 30 },
     worldevents    = { category = "objectives", client = "retail", order = 40 },
     location       = { category = "objectives", client = "all", order = 50 },
-    pins           = { category = "objectives", client = "all", order = 60 },
+    pins           = { category = "objectives", client = "classic", order = 60 },
     research       = { category = "objectives", client = "retail", order = 70 },
 
     -- automation
@@ -226,7 +269,7 @@ local DEFAULT_TAXONOMY = {
     logs           = { category = "general & utilities", client = "all", order = 80 },
     lootfeed       = { category = "general & utilities", client = "all", order = 90 },
     minimap        = { category = "general & utilities", client = "all", order = 100 },
-    portals        = { category = "general & utilities", client = "retail", order = 110 },
+    portals        = { category = "general & utilities", client = "all", order = 110 },
     ring           = { category = "general & utilities", client = "all", order = 120 },
     stats          = { category = "general & utilities", client = "all", order = 130 },
     sync           = { category = "general & utilities", client = "all", order = 140 },
@@ -283,11 +326,14 @@ function sfui.GetModuleSections()
     for _, name in ipairs(allKeys) do
         local mod = modules[name]
         local def = DEFAULT_TAXONOMY[name]
-        local client = (mod and mod.client) or (def and def.client) or "all"
-        if is_module_client_eligible(client) then
-            local cat = (mod and mod.category) or (def and def.category) or "general & utilities"
-            local sec = get_or_create_section(cat)
-            table.insert(sec.modules, name)
+        local isHidden = (mod and mod.hidden) or (def and def.hidden)
+        if not isHidden then
+            local client = (mod and mod.client) or (def and def.client) or "all"
+            if is_module_client_eligible(client) then
+                local cat = (mod and mod.category) or (def and def.category) or "general & utilities"
+                local sec = get_or_create_section(cat)
+                table.insert(sec.modules, name)
+            end
         end
     end
 

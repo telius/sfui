@@ -341,11 +341,9 @@ sfui.RegisterModule("ring", {
         ring.rebuild()
         ring.apply_all_bindings()
     end,
-    OnSettingsChanged = function(_, moduleName, key, value)
-        if moduleName == "ring" then
-            ring.rebuild()
-            ring.apply_all_bindings()
-        end
+    OnSettingsChanged = function()
+        ring.rebuild()
+        ring.apply_all_bindings()
     end,
 })
 
@@ -367,6 +365,7 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
 end)
 
 -- ── 6. Debug & Memory Monitoring ────────────────────────────────────────────
+local _ringDebug = {}
 function sfui.ring_debug_info()
     local provCount = 0
     for _ in pairs(providers) do
@@ -393,14 +392,13 @@ function sfui.ring_debug_info()
         end
     end
 
-    return {
-        enabled = (sfui.db and sfui.db.Get and sfui.db.Get("ring", "enabled", true)) ~= false,
-        providersCount = provCount,
-        activeSlotsCount = activeSlotsCount,
-        isShown = isShown,
-        currentRing = currentRing,
-        pendingCount = pendingCount,
-        boundCount = boundCount,
-    }
+    _ringDebug.enabled          = (sfui.db and sfui.db.Get and sfui.db.Get("ring", "enabled", true)) ~= false
+    _ringDebug.providersCount   = provCount
+    _ringDebug.activeSlotsCount = activeSlotsCount
+    _ringDebug.isShown          = isShown
+    _ringDebug.currentRing      = currentRing
+    _ringDebug.pendingCount     = pendingCount
+    _ringDebug.boundCount       = boundCount
+    return _ringDebug
 end
 sfui.ring.GetDebugInfo = sfui.ring_debug_info
