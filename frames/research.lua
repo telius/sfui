@@ -360,5 +360,8 @@ function sfui.research_debug_info()
 end
 
 sfui.research = sfui.research or {}
+sfui.research.OnEnable = function(self)
+    if self.initialize then self.initialize() end
+end
 sfui.research.GetDebugInfo = sfui.research_debug_info
 sfui.RegisterModule("research", sfui.research)

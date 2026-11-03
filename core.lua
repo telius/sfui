@@ -609,58 +609,12 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
 
     sfui.create_currency_frame()
     sfui.create_item_frame()
-    local function is_unregistered(modName)
-        return not (sfui.modules and sfui.modules[modName])
-    end
 
-    local isRetail = sfui.isRetail
-    if is_unregistered("bars") then
-        sfui.bars:on_state_changed()
-    end
-    if is_unregistered("castbar") or not sfui.castbar.bars then
-        sfui.castbar.initialize()
-    end
-    if is_unregistered("compare") then
+    if sfui.compare and sfui.compare.init then
         sfui.compare.init()
     end
-    if is_unregistered("gear") then
-        sfui.gear.initialize()
-    end
-    if isRetail and is_unregistered("hammer") then
-        sfui.hammer.initialize()
-    end
-    if isRetail and is_unregistered("research") then
-        sfui.research.initialize()
-    end
-    if is_unregistered("automation") then
-        sfui.automation.initialize()
-    end
-    if is_unregistered("cursor") or not _G.SfuiCursor then
-        sfui.cursor.initialize()
-    end
-    if is_unregistered("trackedbars") then
-        sfui.trackedbars.initialize()
-    end
-    if is_unregistered("trackedicons") then
-        sfui.trackedicons.initialize()
-    end
-    if is_unregistered("trackedoptions") then
+    if sfui.trackedoptions and sfui.trackedoptions.initialize then
         sfui.trackedoptions.initialize()
-    end
-    if is_unregistered("alts") then
-        sfui.alts.initialize()
-    end
-    if is_unregistered("portals") and sfui.portals and sfui.portals.initialize then
-        sfui.portals.initialize()
-    end
-    if isRetail and is_unregistered("lootspec") then
-        sfui.lootspec.initialize()
-    end
-    if is_unregistered("lootviewer") and sfui.lootviewer and sfui.lootviewer.initialize then
-        sfui.lootviewer.initialize()
-    end
-    if is_unregistered("questlog") then
-        sfui.questlog.initialize()
     end
 
     sfui.theme.ApplyCurrentTheme()

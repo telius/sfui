@@ -111,7 +111,11 @@ function sfui.RegisterModule(name, def)
     end
     if _isPlayerLoggedIn and not target._enabledRan then
         target._enabledRan = true
-        _safe_call(target, "OnEnable")
+        if type(target.OnEnable) == "function" then
+            _safe_call(target, "OnEnable")
+        elseif type(target.initialize) == "function" then
+            _safe_call_no_self(target, "initialize")
+        end
     end
 
     return target
@@ -127,7 +131,7 @@ end
 --- Execute OnInit() across all registered modules (called during ADDON_LOADED).
 function sfui.InitModules()
     _isAddonLoaded = true
-    for name, mod in pairs(modules) do
+    for _, mod in pairs(modules) do
         if not mod._initRan then
             mod._initRan = true
             _safe_call(mod, "OnInit")
@@ -138,10 +142,14 @@ end
 --- Execute OnEnable() across all registered modules (called during PLAYER_LOGIN).
 function sfui.EnableModules()
     _isPlayerLoggedIn = true
-    for name, mod in pairs(modules) do
+    for _, mod in pairs(modules) do
         if not mod._enabledRan then
             mod._enabledRan = true
-            _safe_call(mod, "OnEnable")
+            if type(mod.OnEnable) == "function" then
+                _safe_call(mod, "OnEnable")
+            elseif type(mod.initialize) == "function" then
+                _safe_call_no_self(mod, "initialize")
+            end
         end
     end
 end
@@ -202,12 +210,6 @@ if sfui.dispatcher_debug_info then
     sfui.events._file = "dispatcher.lua"
     sfui.events.GetDebugInfo = sfui.dispatcher_debug_info
     sfui.RegisterModule("dispatcher", sfui.events)
-end
-
-if sfui.stats then
-    sfui.stats._file = "core/bridge.lua"
-    sfui.stats.GetDebugInfo = sfui.stats_debug_info
-    sfui.RegisterModule("stats", sfui.stats)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

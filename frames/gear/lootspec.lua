@@ -392,6 +392,9 @@ end
 
 if sfui.RegisterModule then
     sfui.lootspec = sfui.lootspec or {}
+    sfui.lootspec.OnEnable = function(self)
+        if self.initialize then self.initialize() end
+    end
     sfui.lootspec.GetDebugInfo = sfui.lootspec_debug_info
     sfui.RegisterModule("lootspec", sfui.lootspec)
 end

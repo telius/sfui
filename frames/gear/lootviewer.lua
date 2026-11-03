@@ -2669,6 +2669,9 @@ sfui.lootviewer.GetDebugInfo = sfui.lootviewer_debug_info
 sfui.lootviewer.hidden = true
 
 if sfui.RegisterModule then
+    sfui.lootviewer.OnEnable = function(self)
+        if self.initialize then self.initialize() end
+    end
     sfui.lootviewer.OnSpecChanged = function(self)
         if frame and frame:IsShown() and self.Rebuild then
             self.Rebuild()

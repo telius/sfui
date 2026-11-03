@@ -967,6 +967,9 @@ function sfui.hammer_debug_info()
 end
 
 if sfui.RegisterModule then
+    sfui.hammer.OnEnable = function(self)
+        if self.initialize then self.initialize() end
+    end
     sfui.hammer.GetDebugInfo = sfui.hammer_debug_info
     sfui.RegisterModule("hammer", sfui.hammer)
 end

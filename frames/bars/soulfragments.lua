@@ -1,4 +1,16 @@
 local _, ns = ...
+-- NOTE (audit findings - do not modify code without explicit review):
+-- 1. retail 12.1 secret-value edge cases:
+--    - line 390 assigns `lastKnownStacks = apps` even when `issecretvalue(apps)` is true.
+--      because `type(secretVal) == "number"` in 12.1, `UpdateThresholdTick` (lines 449-450)
+--      and `UpdateDisplay` (lines 772-773: `currentCount >= cap`) can compare a secret number
+--      if `not issecretvalue(lastKnownStacks)` is not checked first.
+--    - `UpdateVoidMetaDisplay` (lines 608-675) compares `aura.expirationTime` (`metaExpiration > 0`)
+--      and `aura.applications` (`math.min(starStacks, maxStar)`, `starStacks > 0`, `darkHeartStacks >= maxStacks`)
+--      without `issecretvalue` guards.
+-- 2. cpu / update loop note:
+--    - `sfui.events.RegisterUpdate("SoulFragments", 0.05, onSoulFragmentsTick)` (line 949) runs `UpdateDisplay()`
+--      at 20 hz continuously while `container` is shown, even when `isBoundToEngine == true` and no void meta timer is active.
 local isRetail = (sfui.version and sfui.version.retail) or (sfui.compat and not sfui.compat.is_classic)
 if not isRetail then return end
 

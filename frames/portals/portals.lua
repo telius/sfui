@@ -1231,6 +1231,9 @@ end
 
 if sfui.RegisterModule then
     sfui.portals = sfui.portals or {}
+    sfui.portals.OnEnable = function(self)
+        if self.initialize then self.initialize() end
+    end
     sfui.portals.GetDebugInfo = sfui.portals_debug_info
     sfui.RegisterModule("portals", sfui.portals)
 end
