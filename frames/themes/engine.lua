@@ -17,6 +17,7 @@ local table_remove = table.remove
 local pcall = _G.pcall
 local CreateFrame = _G.CreateFrame
 local math_max = math.max
+local math_min = math.min
 
 -- ─── Internal Theme Store ─────────────────────────────────────────────────────
 local registeredThemes = {}
@@ -226,6 +227,9 @@ function sfui.theme.ApplyThemeBarTexture(textureName)
         if sfui.threat and sfui.threat.SetBarTexture then
             sfui.threat.SetBarTexture(texturePath)
         end
+        if sfui.pet and sfui.pet.SetBarTexture then
+            sfui.pet.SetBarTexture(texturePath)
+        end
     end
 
     sfui.options.notify_setting_changed("bars", "barTexture", val)
@@ -234,6 +238,7 @@ function sfui.theme.ApplyThemeBarTexture(textureName)
     sfui.options.notify_setting_changed("experience", "barTexture", val)
     if not sfui.isRetail then
         sfui.options.notify_setting_changed("target", "barTexture", val)
+        sfui.options.notify_setting_changed("pet", "barTexture", val)
     end
 
     if sfui.options.mainTab and sfui.options.mainTab.texture_dropdown then
@@ -790,12 +795,415 @@ local function hide_nineslice_layers(frame, keepLayout)
     end
 end
 
-local function hide_oldgod_layers(frame)
-    if frame.sfuiOldGodLayers and frame.sfuiOldGodLayers.borderFrame then
-        frame.sfuiOldGodLayers.borderFrame:Hide()
+local ALL_SLICE_LAYER_KEYS     = { "sfuiOldGodLayers", "sfuiFallenSanctumLayers", "sfuiMawLayers", "sfuiNecrolordLayers" }
+local ALL_SLICE_CONTAINER_KEYS = { "sfuiOldGodContainer", "sfuiFallenSanctumContainer", "sfuiMawContainer", "sfuiNecrolordContainer" }
+local ALL_SLICE_HEADER_KEYS    = { "sfuiOldGodHeader", "sfuiFallenSanctumHeader", "sfuiMawHeader", "sfuiNecrolordHeader" }
+
+local function apply_slice_piece(tex, slice, texPath)
+    tex:SetTexture(texPath)
+    tex:SetTexCoord(slice.map[3], slice.map[4], slice.map[5], slice.map[6])
+    tex:Show()
+    if tex.SetTextureSliceMode then
+        tex:SetTextureSliceMode(1)
     end
-    if frame.sfuiOldGodContainer and frame.sfuiOldGodContainer.frame then
-        frame.sfuiOldGodContainer.frame:Hide()
+end
+
+function sfui.theme.AttachSliceTheme(theme, sliceCfg)
+    local themeID      = theme.id
+    local mediaPath    = sliceCfg.mediaPath
+    local layerKey     = sliceCfg.layerKey
+    local containerKey = sliceCfg.containerKey
+    local headerKey    = sliceCfg.headerKey
+    local resizeHookKey = "_sfuiSliceResize_" .. themeID
+    local frameSlices  = sliceCfg.frameSlices
+    local paperSlices  = sliceCfg.paperSlices
+    local statsSlices  = sliceCfg.statsSlices
+    local topCfg       = sliceCfg.topOverlay or { w = 410, h = 82, y = 23 }
+    local sideMode     = sliceCfg.sideMode or "proportional"
+    local bgAlpha      = sliceCfg.backdropAlpha or 0.88
+    local isBgActive   = sliceCfg.isBackdropActive
+
+    local function update_window_layout(frame)
+        local layers = frame[layerKey]
+        if not layers or not layers.borderFrame:IsShown() then return end
+
+        local w = frame:GetWidth() or 0
+        local h = frame:GetHeight() or 0
+        if w <= 0 or h <= 0 then return end
+
+        local isSmall = (h < 220 or w < 300)
+        local s = isSmall and paperSlices or frameSlices
+        local texPath = mediaPath .. (isSmall and "paperdoll_border.png" or "char_frame_border.png")
+        local cornerW = s.TL.map[1]
+        local cornerH = s.TL.map[2]
+
+        apply_slice_piece(layers.TL, s.TL, texPath)
+        apply_slice_piece(layers.TR, s.TR, texPath)
+        apply_slice_piece(layers.BL, s.BL, texPath)
+        apply_slice_piece(layers.BR, s.BR, texPath)
+        apply_slice_piece(layers.T,  s.T,  texPath)
+        apply_slice_piece(layers.B,  s.B,  texPath)
+        apply_slice_piece(layers.L,  s.L,  texPath)
+        apply_slice_piece(layers.R,  s.R,  texPath)
+
+        layers.TL:ClearAllPoints()
+        layers.TL:SetPoint("TOPLEFT", layers.borderFrame, "TOPLEFT", s.TL.cx, s.TL.cy)
+        layers.TL:SetSize(cornerW, cornerH)
+
+        layers.TR:ClearAllPoints()
+        layers.TR:SetPoint("TOPRIGHT", layers.borderFrame, "TOPRIGHT", s.TR.cx, s.TR.cy)
+        layers.TR:SetSize(cornerW, cornerH)
+
+        layers.BL:ClearAllPoints()
+        layers.BL:SetPoint("BOTTOMLEFT", layers.borderFrame, "BOTTOMLEFT", s.BL.cx, s.BL.cy)
+        layers.BL:SetSize(cornerW, cornerH)
+
+        layers.BR:ClearAllPoints()
+        layers.BR:SetPoint("BOTTOMRIGHT", layers.borderFrame, "BOTTOMRIGHT", s.BR.cx, s.BR.cy)
+        layers.BR:SetSize(cornerW, cornerH)
+
+        layers.T:ClearAllPoints()
+        layers.T:SetPoint("TOPLEFT", layers.TL, "TOPRIGHT", 0, 0)
+        layers.T:SetPoint("TOPRIGHT", layers.TR, "TOPLEFT", 0, 0)
+        layers.T:SetHeight(cornerH)
+
+        layers.B:ClearAllPoints()
+        layers.B:SetPoint("BOTTOMLEFT", layers.BL, "BOTTOMRIGHT", 0, 0)
+        layers.B:SetPoint("BOTTOMRIGHT", layers.BR, "BOTTOMLEFT", 0, 0)
+        layers.B:SetHeight(cornerH)
+
+        layers.L:ClearAllPoints()
+        layers.L:SetPoint("TOPLEFT", layers.TL, "BOTTOMLEFT", 0, 0)
+        layers.L:SetPoint("BOTTOMLEFT", layers.BL, "TOPLEFT", 0, 0)
+        layers.L:SetWidth(cornerW)
+
+        layers.R:ClearAllPoints()
+        layers.R:SetPoint("TOPRIGHT", layers.TR, "BOTTOMRIGHT", 0, 0)
+        layers.R:SetPoint("BOTTOMRIGHT", layers.BR, "TOPRIGHT", 0, 0)
+        layers.R:SetWidth(cornerW)
+
+        if layers.topOverlay then
+            if w >= 200 then
+                local scale = math_min(1.0, math_max(0.40, (w - 20) / topCfg.w))
+                layers.topOverlay:SetSize(topCfg.w * scale, topCfg.h * scale)
+                layers.topOverlay:ClearAllPoints()
+                layers.topOverlay:SetPoint("CENTER", layers.borderFrame, "TOP", 0, topCfg.y * scale)
+                layers.topOverlay:Show()
+            else
+                layers.topOverlay:Hide()
+            end
+        end
+
+        if layers.leftOverlay and layers.rightOverlay then
+            if sideMode == "oldgod" then
+                if h >= 360 and w >= 360 and not isSmall then
+                    local sideH = math_min(428.07, h - 30)
+                    layers.leftOverlay:SetSize(50, sideH)
+                    layers.leftOverlay:ClearAllPoints()
+                    layers.leftOverlay:SetPoint("CENTER", layers.L, "LEFT", 0, 0)
+                    layers.leftOverlay:Show()
+
+                    layers.rightOverlay:SetSize(50, sideH)
+                    layers.rightOverlay:ClearAllPoints()
+                    layers.rightOverlay:SetPoint("CENTER", layers.R, "RIGHT", 0, 0)
+                    layers.rightOverlay:Show()
+                else
+                    layers.leftOverlay:Hide()
+                    layers.rightOverlay:Hide()
+                end
+            elseif sideMode == "fallensanctum" then
+                if h >= 360 and w >= 360 and not isSmall then
+                    local sideH = math_min(403, h - 30)
+                    local scale = sideH / 403
+                    local sideW = 72 * scale
+                    layers.leftOverlay:SetSize(sideW, sideH)
+                    layers.leftOverlay:ClearAllPoints()
+                    layers.leftOverlay:SetPoint("CENTER", layers.L, "LEFT", -8 * scale, 0)
+                    layers.leftOverlay:Show()
+
+                    layers.rightOverlay:SetSize(sideW, sideH)
+                    layers.rightOverlay:ClearAllPoints()
+                    layers.rightOverlay:SetPoint("CENTER", layers.R, "RIGHT", 8 * scale, 0)
+                    layers.rightOverlay:Show()
+                else
+                    layers.leftOverlay:Hide()
+                    layers.rightOverlay:Hide()
+                end
+            else
+                if h >= 260 and w >= 260 then
+                    local scaleH = math_min(1.0, math_max(0.40, (h - 40) / 403))
+                    layers.leftOverlay:SetSize(72 * scaleH, 403 * scaleH)
+                    layers.leftOverlay:ClearAllPoints()
+                    layers.leftOverlay:SetPoint("CENTER", layers.borderFrame, "LEFT", -8 * scaleH, 0)
+                    layers.leftOverlay:Show()
+
+                    layers.rightOverlay:SetSize(72 * scaleH, 403 * scaleH)
+                    layers.rightOverlay:ClearAllPoints()
+                    layers.rightOverlay:SetPoint("CENTER", layers.borderFrame, "RIGHT", 8 * scaleH, 0)
+                    layers.rightOverlay:Show()
+                else
+                    layers.leftOverlay:Hide()
+                    layers.rightOverlay:Hide()
+                end
+            end
+        end
+
+        if layers.bg then
+            if isBgActive and isBgActive() then
+                layers.bg:SetTexture(mediaPath .. "frame_bg.png")
+                layers.bg:SetAlpha(bgAlpha)
+                layers.bg:Show()
+            else
+                layers.bg:Hide()
+            end
+        end
+    end
+
+    function theme.ApplyWindow(frame)
+        if not frame then return end
+        sfui.common.set_pixel_snapping(frame)
+
+        if frame.sfuiThemeLayers and frame.sfuiThemeLayers.borderFrame then
+            frame.sfuiThemeLayers.borderFrame:Hide()
+        end
+        for _, k in ipairs(ALL_SLICE_LAYER_KEYS) do
+            if k ~= layerKey and frame[k] and frame[k].borderFrame then
+                frame[k].borderFrame:Hide()
+            end
+        end
+        if frame.sfuiNineSlices then
+            for _, c in pairs(frame.sfuiNineSlices) do c:Hide() end
+        end
+        frame.sfuiActiveNineSlice = nil
+
+        if not frame[layerKey] then
+            local borderFrame = CreateFrame("Frame", nil, frame)
+            borderFrame:SetAllPoints(frame)
+            borderFrame:SetFrameLevel(math_max(1, (frame:GetFrameLevel() or 1) + 1))
+            borderFrame:EnableMouse(false)
+
+            local solidBg = borderFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
+            solidBg:SetAllPoints(borderFrame)
+
+            local bg = borderFrame:CreateTexture(nil, "BACKGROUND", nil, -7)
+            bg:SetPoint("TOPLEFT", borderFrame, "TOPLEFT", 6, -6)
+            bg:SetPoint("BOTTOMRIGHT", borderFrame, "BOTTOMRIGHT", -6, 6)
+            bg:SetTexture(mediaPath .. "frame_bg.png")
+            bg:SetAlpha(bgAlpha)
+
+            local function makePiece(layer, sub)
+                return borderFrame:CreateTexture(nil, layer, nil, sub)
+            end
+
+            local topOverlay = borderFrame:CreateTexture(nil, "OVERLAY", nil, 6)
+            topOverlay:SetTexture(mediaPath .. "frame_top_img.png")
+
+            local leftOverlay = borderFrame:CreateTexture(nil, "OVERLAY", nil, 6)
+            leftOverlay:SetTexture(mediaPath .. "frame_left_img.png")
+
+            local rightOverlay = borderFrame:CreateTexture(nil, "OVERLAY", nil, 6)
+            rightOverlay:SetTexture(mediaPath .. "frame_right_img.png")
+
+            frame[layerKey] = {
+                borderFrame  = borderFrame,
+                solidBg      = solidBg,
+                bg           = bg,
+                TL = makePiece("BORDER", 1), TR = makePiece("BORDER", 1),
+                BL = makePiece("BORDER", 1), BR = makePiece("BORDER", 1),
+                T  = makePiece("BORDER", 1), B  = makePiece("BORDER", 1),
+                L  = makePiece("BORDER", 1), R  = makePiece("BORDER", 1),
+                topOverlay   = topOverlay,
+                leftOverlay  = leftOverlay,
+                rightOverlay = rightOverlay,
+            }
+        end
+
+        local layers = frame[layerKey]
+        layers.borderFrame:Show()
+        local pal = sfui.theme.GetPalette()
+        layers.solidBg:SetColorTexture(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], pal.backdropColor[4] or 0.95)
+        layers.solidBg:Show()
+
+        if isBgActive and isBgActive() then
+            layers.bg:SetTexture(mediaPath .. "frame_bg.png")
+            layers.bg:SetAlpha(bgAlpha)
+            layers.bg:Show()
+        else
+            layers.bg:Hide()
+        end
+
+        if frame.SetBackdrop then
+            frame:SetBackdrop(nil)
+        end
+
+        if not frame[resizeHookKey] then
+            frame[resizeHookKey] = true
+            frame:HookScript("OnSizeChanged", function(self)
+                if sfui.theme.GetActiveThemeID() == themeID then
+                    update_window_layout(self)
+                end
+            end)
+        end
+
+        update_window_layout(frame)
+
+        local w = frame:GetWidth() or 0
+        local h = frame:GetHeight() or 0
+        if w <= 0 or h <= 0 then
+            C_Timer.After(0, function()
+                if frame and frame:IsShown() and sfui.theme.GetActiveThemeID() == themeID then
+                    update_window_layout(frame)
+                end
+            end)
+        end
+
+        frame.isCamelotThemed = false
+        sfui.theme.ElevateWindowContents(frame)
+    end
+
+    function theme.ApplyContainer(containerPanel)
+        if not containerPanel then return end
+        sfui.common.set_pixel_snapping(containerPanel)
+
+        if containerPanel.nineSliceInset then
+            if _G.NineSliceUtil and _G.NineSliceUtil.HideLayout then
+                _G.NineSliceUtil.HideLayout(containerPanel.nineSliceInset)
+            end
+            containerPanel.nineSliceInset:Hide()
+        end
+
+        for _, k in ipairs(ALL_SLICE_CONTAINER_KEYS) do
+            if k ~= containerKey and containerPanel[k] and containerPanel[k].frame then
+                containerPanel[k].frame:Hide()
+            end
+        end
+
+        local pal = sfui.theme.GetPalette()
+        if not containerPanel[containerKey] then
+            local bFrame = CreateFrame("Frame", nil, containerPanel)
+            bFrame:SetAllPoints(containerPanel)
+            bFrame:SetFrameLevel(math_max(1, (containerPanel:GetFrameLevel() or 1)))
+            bFrame:EnableMouse(false)
+
+            local solid = bFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
+            solid:SetAllPoints(bFrame)
+            solid:SetColorTexture(pal.containerColor[1], pal.containerColor[2], pal.containerColor[3], pal.containerColor[4] or 0.88)
+
+            local function makePiece(sub)
+                return bFrame:CreateTexture(nil, "BORDER", nil, sub)
+            end
+
+            local TL = makePiece(1)
+            local TR = makePiece(1)
+            local BL = makePiece(1)
+            local BR = makePiece(1)
+            local T  = makePiece(1)
+            local B  = makePiece(1)
+            local L  = makePiece(1)
+            local R  = makePiece(1)
+
+            local s = statsSlices
+            local texPath = mediaPath .. "stats_border.png"
+            apply_slice_piece(TL, s.TL, texPath)
+            apply_slice_piece(TR, s.TR, texPath)
+            apply_slice_piece(BL, s.BL, texPath)
+            apply_slice_piece(BR, s.BR, texPath)
+            apply_slice_piece(T,  s.T,  texPath)
+            apply_slice_piece(B,  s.B,  texPath)
+            apply_slice_piece(L,  s.L,  texPath)
+            apply_slice_piece(R,  s.R,  texPath)
+
+            TL:SetPoint("TOPLEFT", bFrame, "TOPLEFT", s.TL.cx, s.TL.cy)
+            TL:SetSize(15, 15)
+
+            TR:SetPoint("TOPRIGHT", bFrame, "TOPRIGHT", s.TR.cx, s.TR.cy)
+            TR:SetSize(15, 15)
+
+            BL:SetPoint("BOTTOMLEFT", bFrame, "BOTTOMLEFT", s.BL.cx, s.BL.cy)
+            BL:SetSize(15, 15)
+
+            BR:SetPoint("BOTTOMRIGHT", bFrame, "BOTTOMRIGHT", s.BR.cx, s.BR.cy)
+            BR:SetSize(15, 15)
+
+            T:SetPoint("TOPLEFT", TL, "TOPRIGHT", 0, 0)
+            T:SetPoint("TOPRIGHT", TR, "TOPLEFT", 0, 0)
+            T:SetHeight(15)
+
+            B:SetPoint("BOTTOMLEFT", BL, "BOTTOMRIGHT", 0, 0)
+            B:SetPoint("BOTTOMRIGHT", BR, "BOTTOMLEFT", 0, 0)
+            B:SetHeight(15)
+
+            L:SetPoint("TOPLEFT", TL, "BOTTOMLEFT", 0, 0)
+            L:SetPoint("BOTTOMLEFT", BL, "TOPLEFT", 0, 0)
+            L:SetWidth(15)
+
+            R:SetPoint("TOPRIGHT", TR, "BOTTOMRIGHT", 0, 0)
+            R:SetPoint("BOTTOMRIGHT", BR, "TOPRIGHT", 0, 0)
+            R:SetWidth(15)
+
+            containerPanel[containerKey] = {
+                frame = bFrame,
+                solid = solid,
+            }
+        end
+
+        local cObj = containerPanel[containerKey]
+        cObj.solid:SetColorTexture(pal.containerColor[1], pal.containerColor[2], pal.containerColor[3], pal.containerColor[4] or 0.88)
+        cObj.frame:SetFrameLevel(math_max(1, (containerPanel:GetFrameLevel() or 1)))
+        cObj.frame:Show()
+        if containerPanel.SetBackdrop then
+            containerPanel:SetBackdrop(nil)
+        end
+    end
+
+    function theme.ApplyHeader(header)
+        if not header then return end
+        local pal = sfui.theme.GetPalette()
+
+        if not header[headerKey] then
+            local bg = header:CreateTexture(nil, "BACKGROUND", nil, 1)
+            bg:SetAllPoints(header)
+            bg:SetTexture(mediaPath .. "stats_header.png")
+            header[headerKey] = bg
+        end
+
+        header[headerKey]:Show()
+        for _, k in ipairs(ALL_SLICE_HEADER_KEYS) do
+            if k ~= headerKey and header[k] then
+                header[k]:Hide()
+            end
+        end
+        if header.bgBanner then header.bgBanner:Hide() end
+        if header.accent then header.accent:Hide() end
+        if header.SetBackdrop then header:SetBackdrop(nil) end
+
+        header:SetHeight(24)
+        if header.title then
+            header.title:ClearAllPoints()
+            header.title:SetPoint("CENTER", header, "CENTER", 0, 0)
+            header.title:SetJustifyH("CENTER")
+            header.title:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3], 1)
+        end
+        if header.count then
+            header.count:ClearAllPoints()
+            header.count:SetPoint("RIGHT", header, "RIGHT", -12, 0)
+            header.count:SetJustifyH("RIGHT")
+            header.count:SetTextColor(pal.dimTextColor[1], pal.dimTextColor[2], pal.dimTextColor[3], 1)
+        end
+    end
+
+    sfui.theme.RegisterTheme(theme)
+
+    if sliceCfg.aliases then
+        local regThemes = sfui.theme.GetRegisteredThemes()
+        if regThemes then
+            for _, alias in ipairs(sliceCfg.aliases) do
+                regThemes[alias] = theme
+                if sfui.theme.palettes then
+                    sfui.theme.palettes[alias] = theme.colors
+                end
+            end
+        end
     end
 end
 
@@ -803,11 +1211,7 @@ end
 function sfui.theme.GetNineSliceLayout(layoutName)
     if not layoutName then return nil end
     local layouts = _G.NineSliceLayouts
-    if layouts and layouts[layoutName] then
-        return layouts[layoutName]
-    end
-    local custom = sfui.theme.customNineSliceLayouts
-    return custom and custom[layoutName] or nil
+    return layouts and layouts[layoutName] or nil
 end
 
 --- true when every atlas referenced by a NineSliceLayouts entry exists on this client
@@ -2933,7 +3337,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
                 if row.SetBackdropBorderColor then
                     row:SetBackdropBorderColor(0.42, 0.42, 0.48, 0.85)
                 end
-            elseif activeID == "oldgod" then
+            elseif pal and pal.id == "oldgod" then
                 row:SetBackdropColor(0.08, 0.04, 0.12, 0.75)
                 if row.SetBackdropBorderColor then
                     row:SetBackdropBorderColor(0.28, 0.16, 0.40, 0.85)
@@ -3676,6 +4080,12 @@ function sfui.theme.ApplyCurrentTheme()
     end
     if sfui.experience and sfui.experience.reputation and sfui.experience.reputation.ApplyTheme then
         sfui.experience.reputation.ApplyTheme()
+    end
+    if sfui.experience and sfui.experience.challenges and sfui.experience.challenges.ApplyTheme then
+        sfui.experience.challenges.ApplyTheme()
+    end
+    if sfui.experience and sfui.experience.pet and sfui.experience.pet.ApplyTheme then
+        sfui.experience.pet.ApplyTheme()
     end
 
     -- 13. Re-style all registered bars

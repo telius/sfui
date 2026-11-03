@@ -1036,7 +1036,15 @@ end
 
 -- Shared Helper for Masque Sync
 local function SyncIconMasque(icon)
-    sfui.common.sync_masque(icon, { Icon = icon.texture, Cooldown = icon.cooldown })
+    local regions = icon._masqueRegions
+    if not regions then
+        regions = { Icon = icon.texture, Cooldown = icon.cooldown }
+        icon._masqueRegions = regions
+    else
+        regions.Icon = icon.texture
+        regions.Cooldown = icon.cooldown
+    end
+    sfui.common.sync_masque(icon, regions)
 end
 
 -- Create a single icon frame (Standard Button for Taint Isolation)
@@ -1522,7 +1530,15 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
                     icon.entry = entry
                 else
                     icon.type = "spell" -- Default for simple IDs
-                    icon.entry = { id = id, type = "spell" }
+                    local fb = icon._fallbackEntry
+                    if not fb then
+                        fb = { id = id, type = "spell" }
+                        icon._fallbackEntry = fb
+                    else
+                        fb.id = id
+                        fb.type = "spell"
+                    end
+                    icon.entry = fb
                 end
 
                 local iconTexture, activeID, resolvedType, linkedSpellIDs = sfui.trackedicons.GetIconTexture(id, icon.type, icon.entry)

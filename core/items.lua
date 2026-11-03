@@ -221,13 +221,8 @@ function sfui.items.get_inventory_item_link(unit, slotID)
             if l and l ~= "" then return l end
         end
 
-        local scanTip = _G.SfuiHighestScanTooltip
-        if not scanTip and _G.CreateFrame then
-            scanTip = _G.CreateFrame("GameTooltip", "SfuiHighestScanTooltip", nil, "GameTooltipTemplate")
-            scanTip:SetOwner(_G.WorldFrame, "ANCHOR_NONE")
-        end
+        local scanTip = (sfui.common and sfui.common.get_scan_tooltip and sfui.common.get_scan_tooltip())
         if scanTip and scanTip.SetInventoryItem then
-            scanTip:ClearLines()
             local hasItem = scanTip:SetInventoryItem("player", slotID)
             if hasItem then
                 local _, tipLink = scanTip:GetItem()
@@ -632,20 +627,19 @@ function sfui.items.get_weapon_stats(itemLink)
     end
 
     if (dps == 0 or speed == 0) and not foundTooltip then
-        local scanTip = _G.SfuiHighestScanTooltip
-        if not scanTip then
-            scanTip = CreateFrame("GameTooltip", "SfuiHighestScanTooltip", nil, "GameTooltipTemplate")
-            scanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
+        local scanTip, tipName = nil, "SfuiScanTooltip"
+        if sfui.common and sfui.common.get_scan_tooltip then
+            scanTip, tipName = sfui.common.get_scan_tooltip()
         end
-        scanTip:ClearLines()
-        scanTip:SetHyperlink(itemLink)
-        local numLines = scanTip:NumLines()
-        if numLines and numLines > 0 then
-            local dpsTmpl = _G.DPS_TEMPLATE
-            local dpsPat = dpsTmpl and ("^" .. dpsTmpl:gsub("([%(%)%.%%%+%-%*%?%[%^%$])", "%%%1"):gsub("%%%%s", "([%%d%%.,]+)") .. "$")
-            for i = 1, numLines do
-                local leftObj = _G["SfuiHighestScanTooltipTextLeft" .. i]
-                local rightObj = _G["SfuiHighestScanTooltipTextRight" .. i]
+        if scanTip then
+            scanTip:SetHyperlink(itemLink)
+            local numLines = scanTip:NumLines()
+            if numLines and numLines > 0 then
+                local dpsTmpl = _G.DPS_TEMPLATE
+                local dpsPat = dpsTmpl and ("^" .. dpsTmpl:gsub("([%(%)%.%%%+%-%*%?%[%^%$])", "%%%1"):gsub("%%%%s", "([%%d%%.,]+)") .. "$")
+                for i = 1, numLines do
+                    local leftObj = _G[tipName .. "TextLeft" .. i]
+                    local rightObj = _G[tipName .. "TextRight" .. i]
                 local left = leftObj and leftObj:GetText()
                 local right = rightObj and rightObj:GetText()
                 if left and type(left) == "string" then
@@ -673,11 +667,12 @@ function sfui.items.get_weapon_stats(itemLink)
                         end
                     end
                 end
-                if right and type(right) == "string" and speed == 0 then
-                    local cleanRight = right:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
-                    local spdVal = cleanRight:match("([%d]+[%.%d]*)")
-                    if spdVal and (cleanRight:lower():find("speed") or cleanRight:find("%d+%.%d%d")) then
-                        speed = tonumber((spdVal:gsub(",", "."))) or 0
+                    if right and type(right) == "string" and speed == 0 then
+                        local cleanRight = right:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                        local spdVal = cleanRight:match("([%d]+[%.%d]*)")
+                        if spdVal and (cleanRight:lower():find("speed") or cleanRight:find("%d+%.%d%d")) then
+                            speed = tonumber((spdVal:gsub(",", "."))) or 0
+                        end
                     end
                 end
             end

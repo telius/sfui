@@ -937,13 +937,14 @@ local function arm_hardware_reload_catcher(sender)
         hwReloadFrame:SetScript("OnMouseDown", trigger_now)
         hwReloadFrame:SetScript("OnMouseWheel", trigger_now)
         hwReloadFrame:SetScript("OnKeyDown", trigger_now)
-        hwReloadFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-        hwReloadFrame:SetScript("OnEvent", function(self, ev)
-            if ev == "PLAYER_REGEN_DISABLED" and self:IsShown() then
-                sync._pendingRemoteReload = self.senderName or "peer"
-                self:Hide()
-            end
-        end)
+        if sfui.events and sfui.events.RegisterEvent then
+            sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+                if hwReloadFrame and hwReloadFrame:IsShown() then
+                    sync._pendingRemoteReload = hwReloadFrame.senderName or "peer"
+                    hwReloadFrame:Hide()
+                end
+            end)
+        end
     end
 
     local cleanSender = string_lower(tostring(sender or "linked account"))

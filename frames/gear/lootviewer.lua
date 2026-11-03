@@ -188,22 +188,9 @@ local function EnsureEJ()
 end
 
 local itemClassCache = {}
-local scanTip = nil
 
-local scanDummyParent = nil
 local function GetScanTooltip()
-    if not scanTip then
-        scanDummyParent = CreateFrame("Frame", "SfuiLootClassScanParent", UIParent)
-        scanDummyParent:Hide()
-        scanTip = CreateFrame("GameTooltip", "SfuiLootClassScanTooltip", scanDummyParent, "TooltipBackdropTemplate")
-        if _G.TooltipDataHandlerMixin then
-            Mixin(scanTip, _G.TooltipDataHandlerMixin)
-        elseif _G.GameTooltipDataMixin then
-            Mixin(scanTip, _G.GameTooltipDataMixin)
-        end
-        scanTip:SetOwner(scanDummyParent, "ANCHOR_NONE")
-    end
-    return scanTip
+    return sfui.common.get_scan_tooltip()
 end
 
 local function IsItemForPlayerClass(itemID, itemLink)
@@ -304,15 +291,14 @@ local function IsItemForPlayerClass(itemID, itemLink)
 
     -- Method B: Hidden GameTooltip scanner (if C_TooltipInfo didn't find a restriction or lines were unformatted)
     if foundRestriction == nil then
-        local tip = GetScanTooltip()
+        local tip, tipName = GetScanTooltip()
         if tip then
-            tip:ClearLines()
             tip:SetHyperlink(link)
             local numLines = tip:NumLines()
             if numLines and numLines > 1 then
                 dataReady = true
                 for i = 1, numLines do
-                    local fs = _G["SfuiLootClassScanTooltipTextLeft" .. i]
+                    local fs = _G[tipName .. "TextLeft" .. i]
                     if fs then
                         local txt = fs:GetText()
                         local txtLower = (txt and type(txt) == "string") and txt:lower() or ""
@@ -2074,8 +2060,9 @@ local function RebuildContent(scrollChild, tab)
     end
 
     scrollChild:SetHeight(math.max(-y + PAD, 1))
-    if frame and frame.scrollFrame and frame.scrollFrame.ScrollBar and frame.scrollFrame.ScrollBar.UpdateVisibility then
-        frame.scrollFrame.ScrollBar:UpdateVisibility()
+    local f = _G.SfuiLootViewerFrame
+    if f and f.scrollFrame and f.scrollFrame.ScrollBar and f.scrollFrame.ScrollBar.UpdateVisibility then
+        f.scrollFrame.ScrollBar:UpdateVisibility()
     end
 end
 

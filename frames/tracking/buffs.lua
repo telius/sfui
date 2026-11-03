@@ -24,7 +24,6 @@ local C_Item = C_Item
 local BuffIconCooldownViewer = BuffIconCooldownViewer
 
 -- static reuse & throttling (memory & cpu optimization)
-local UPDATE_THROTTLE = 0.08
 local activeFrames = {}
 local slots = {}
 local previewSlots = {}
@@ -32,8 +31,14 @@ local isPreviewMode = false
 local previewActive = false
 local socketContainer = nil
 local mover = nil
-local timeSinceLastUpdate = 0
 local isHooked = false
+
+local PANDEMIC_GLOW_OPTS = {
+    glowType = "pixel",
+    glowColor = { 1, 0.85, 0.2, 1 },
+    glowLines = 8,
+    glowThickness = 2,
+}
 
 local DEFAULT_PREVIEW_ICONS = {
     136080, -- fireball / flame shock
@@ -196,9 +201,6 @@ local function UpdatePosition()
     if not socketContainer then return end
     local db = SfuiDB and SfuiDB.trackedBuffs
     local bCfg = cfg and cfg.trackedBuffs
-    local defPoint = (bCfg and bCfg.anchor and bCfg.anchor.point) or "CENTER"
-    local defX = (bCfg and bCfg.anchor and bCfg.anchor.x) or 0
-    local defY = (bCfg and bCfg.anchor and bCfg.anchor.y) or -220
 
     -- heal previous default if unchanged
     if db and db.anchor and db.anchor.x == 0 and (db.anchor.y == -220 or db.anchor.y == -110) and not db.anchor.isCustom then
@@ -256,8 +258,9 @@ local function RenderPreview()
     if not socketContainer then CreateSocketContainer() end
     if not socketContainer then return end
 
-    local db = SfuiDB and SfuiDB.trackedBuffs or (cfg and cfg.trackedBuffs) or {}
-    local size = db.size or (bCfg and bCfg.size) or 42
+    local bCfg = cfg and cfg.trackedBuffs
+    local db = SfuiDB and SfuiDB.trackedBuffs or bCfg or {}
+    local size = db.size or (cfg and cfg.trackedBuffs and cfg.trackedBuffs.size) or 42
     local spacing = db.spacing or 4
 
     local tracked = sfui.trackedbuffs.GetTrackedBuffs and sfui.trackedbuffs.GetTrackedBuffs()
@@ -277,7 +280,8 @@ local function RenderPreview()
         local slot = GetOrCreatePreviewSlot(i)
         slot:SetSize(size, size)
 
-        local iconTexture = (tracked and tracked[i] and tracked[i].icon) or DEFAULT_PREVIEW_ICONS[((i - 1) % #DEFAULT_PREVIEW_ICONS) + 1]
+        local iconTexture = (tracked and tracked[i] and tracked[i].icon) or
+            DEFAULT_PREVIEW_ICONS[((i - 1) % #DEFAULT_PREVIEW_ICONS) + 1]
         slot.icon:SetTexture(iconTexture)
 
         -- dummy stack count on 2nd slot
@@ -297,12 +301,7 @@ local function RenderPreview()
         -- pandemic glow preview on 1st slot if db.glow enabled
         if i == 1 and (db.glow ~= false) then
             if sfui.glows and sfui.glows.start_glow then
-                sfui.glows.start_glow(slot, {
-                    glowType = "pixel",
-                    glowColor = { 1, 0.85, 0.2, 1 },
-                    glowLines = 8,
-                    glowThickness = 2,
-                })
+                sfui.glows.start_glow(slot, PANDEMIC_GLOW_OPTS)
             end
         else
             if sfui.glows and sfui.glows.stop_glow then
@@ -352,8 +351,9 @@ local function UpdateLayout()
     if not socketContainer then CreateSocketContainer() end
     if not socketContainer then return end
 
-    local db = SfuiDB and SfuiDB.trackedBuffs or (cfg and cfg.trackedBuffs) or {}
-    local size = db.size or (bCfg and bCfg.size) or 42
+    local bCfg = cfg and cfg.trackedBuffs
+    local db = SfuiDB and SfuiDB.trackedBuffs or bCfg or {}
+    local size = db.size or (cfg and cfg.trackedBuffs and cfg.trackedBuffs.size) or 42
     local spacing = db.spacing or 4
 
     if #activeFrames > 0 then
@@ -403,7 +403,8 @@ CreateSocketContainer = function()
         local app = cfg and cfg.appearance
         local hlCol = (app and app.highlightColor) or { 0.4, 0, 1, 0.4 }
         local borderCol = (app and app.accentColor) or { 0, 1, 1, 1 }
-        common.apply_flat_backdrop(mover, { hlCol[1], hlCol[2], hlCol[3], 0.5 }, { borderCol[1], borderCol[2], borderCol[3], 1 })
+        common.apply_flat_backdrop(mover, { hlCol[1], hlCol[2], hlCol[3], 0.5 },
+            { borderCol[1], borderCol[2], borderCol[3], 1 })
     end
 
     local label = mover:CreateFontString(nil, "OVERLAY", (cfg and cfg.font) or "GameFontNormal")
@@ -463,19 +464,33 @@ CreateSocketContainer = function()
 
     -- register with sfui movers
     if sfui.movers and sfui.movers.Register then
-        sfui.movers.Register(mover, {
+        sfui.movers.Register(socketContainer, {
             key = "trackedBuffs",
             label = "tracked buffs",
-            preferredPoint = "BOTTOM",
+            preferredPoint = "CENTER",
             getPoint = function()
-                local pt, relTo, relPt, x, y = mover:GetPoint()
-                return pt or "BOTTOM", relTo or UIParent, relPt or "BOTTOM", x or 0, y or 260
+                local pt, relTo, relPt, x, y = socketContainer:GetPoint()
+                return pt or "CENTER", relTo or UIParent, relPt or "CENTER", x or 0, y or 260
             end,
             setPoint = function(point, relTo, relPoint, x, y)
-                mover:ClearAllPoints()
-                mover:SetPoint(point, UIParent, relPoint, x, y)
-                if sfui.trackedbuffs.SavePosition then
-                    sfui.trackedbuffs.SavePosition(point, relPoint, x, y)
+                local savedPt = point or "CENTER"
+                local savedX = math_floor((x or 0) + 0.5)
+                local savedY = math_floor((y or 0) + 0.5)
+                socketContainer:ClearAllPoints()
+                socketContainer:SetPoint(savedPt, UIParent, savedPt, savedX, savedY)
+                if mover then
+                    mover:ClearAllPoints()
+                    mover:SetPoint(savedPt, UIParent, savedPt, savedX, savedY)
+                end
+                SfuiDB = SfuiDB or {}
+                SfuiDB.trackedBuffs = SfuiDB.trackedBuffs or {}
+                SfuiDB.trackedBuffs.anchor = SfuiDB.trackedBuffs.anchor or {}
+                SfuiDB.trackedBuffs.anchor.point = savedPt
+                SfuiDB.trackedBuffs.anchor.x = savedX
+                SfuiDB.trackedBuffs.anchor.y = savedY
+                SfuiDB.trackedBuffs.anchor.isCustom = true
+                if sfui.trackedoptions and sfui.trackedoptions.buffsContent and sfui.trackedoptions.buffsContent._generated then
+                    sfui.trackedoptions.RenderBuffsTab(sfui.trackedoptions.buffsContent)
                 end
             end,
             onEnterEditMode = function()
@@ -484,21 +499,17 @@ CreateSocketContainer = function()
                 end
             end,
             onExitEditMode = function()
-                sfui.trackedbuffs.SetPreviewMode(false)
+                local optionsOpenOnBuffs = sfui.trackedoptions and sfui.trackedoptions.frame
+                    and sfui.trackedoptions.frame:IsShown()
+                    and sfui.trackedoptions.frame.selectedTabId == 4
+                if not optionsOpenOnBuffs then
+                    sfui.trackedbuffs.SetPreviewMode(false)
+                end
             end,
         })
     elseif sfui.actionbars and sfui.actionbars.movers and sfui.actionbars.movers.list then
         sfui.actionbars.movers.list["trackedBuffs"] = mover
     end
-
-    -- onupdate throttle loop for real-time responsiveness
-    socketContainer:SetScript("OnUpdate", function(self, elapsed)
-        timeSinceLastUpdate = timeSinceLastUpdate + elapsed
-        if timeSinceLastUpdate >= UPDATE_THROTTLE then
-            timeSinceLastUpdate = 0
-            sfui.trackedbuffs.Sync()
-        end
-    end)
 end
 
 -- control preview mode for options configuring
@@ -631,7 +642,7 @@ SyncWithBlizzard = function()
         socketContainer:Show()
     end
 
-    local size = db.size or (bCfg and bCfg.size) or 42
+    local size = db.size or (cfg and cfg.trackedBuffs and cfg.trackedBuffs.size) or 42
     local spacing = db.spacing or 4
     local totalWidth = numActive * size + (numActive - 1) * spacing
     if socketContainer._lastWidth ~= totalWidth or socketContainer._lastHeight ~= size then
@@ -684,12 +695,7 @@ SyncWithBlizzard = function()
             if not slot._isGlowing then
                 slot._isGlowing = true
                 if sfui.glows and sfui.glows.start_glow then
-                    sfui.glows.start_glow(slot, {
-                        glowType = "pixel",
-                        glowColor = { 1, 0.85, 0.2, 1 },
-                        glowLines = 8,
-                        glowThickness = 2,
-                    })
+                    sfui.glows.start_glow(slot, PANDEMIC_GLOW_OPTS)
                 end
             end
         else
@@ -903,7 +909,7 @@ end
 -- telemetry & debug for mem.lua
 local _tbuffDebug = {}
 function sfui.trackedbuffs_debug_info()
-    local db = SfuiDB and SfuiDB.trackedBuffs
+    local db                   = SfuiDB and SfuiDB.trackedBuffs
     _tbuffDebug.enabled        = not db or db.enabled ~= false
     _tbuffDebug.activeCount    = #activeFrames
     _tbuffDebug.slotCount      = #slots
@@ -913,6 +919,7 @@ function sfui.trackedbuffs_debug_info()
     _tbuffDebug.isMoverShown   = (mover and mover:IsShown()) == true
     return _tbuffDebug
 end
+
 sfui.trackedbuffs.GetDebugInfo = sfui.trackedbuffs_debug_info
 
 -- register module with sfui

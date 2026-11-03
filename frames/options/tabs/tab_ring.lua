@@ -53,7 +53,11 @@ sfui.options.RegisterTab({
         if isHunterCamelot then
             rows[#rows + 1] = { id = "pet", label = "hunter pet:", title = "hunter pet ring keybind" }
         end
-        rows[#rows + 1] = { id = "specs",         label = "specializations:",   title = "specializations ring keybind" }
+        if sfui.isRetail then
+            rows[#rows + 1] = { id = "specs", label = "specializations:", title = "specializations ring keybind" }
+        else
+            rows[#rows + 1] = { id = "specs", label = "consumables & buffs:", title = "consumables & missing buffs ring keybind" }
+        end
         rows[#rows + 1] = { id = "utility",       label = "class & custom:",    title = "class utility & custom ring keybind" }
         rows[#rows + 1] = { id = "tracking",      label = "minimap tracking:", title = "minimap tracking keybind" }
         rows[#rows + 1] = { id = "professions",   label = "professions:",       title = "professions keybind" }

@@ -196,10 +196,17 @@ function AbundanceModule:IsEnabled()
     return true
 end
 
+local _wasActive = false
+
 function AbundanceModule:OnEvent(event, arg1, ...)
     if event == "UNIT_AURA" and arg1 ~= "player" then
         return
     end
+    local active = sfui.abundance.IsActive()
+    if not active and not _wasActive then
+        return
+    end
+    _wasActive = active
     self:MarkDirty()
 end
 

@@ -165,7 +165,7 @@ sfui.options.RegisterTab({
                 or false
         end
 
-        local mover_btn = CreateFlatButton(panel, is_movers_unlocked() and "lock UI" or "unlock / move UI", 125, 22, function(self)
+        local mover_btn = CreateFlatButton(panel, is_movers_unlocked() and "lock ui" or "unlock / move ui", 125, 22, function(self)
             local currentlyUnlocked = is_movers_unlocked()
             if currentlyUnlocked then
                 if sfui.movers and sfui.movers.Toggle then
@@ -173,7 +173,7 @@ sfui.options.RegisterTab({
                 elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
                     sfui.actionbars.ToggleMovers(false)
                 end
-                self:SetText("unlock / move UI")
+                self:SetText("unlock / move ui")
             else
                 if sfui.options and sfui.options.Toggle then
                     sfui.options.Toggle()
@@ -183,7 +183,7 @@ sfui.options.RegisterTab({
                 elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
                     sfui.actionbars.ToggleMovers(true)
                 end
-                self:SetText("lock UI")
+                self:SetText("lock ui")
             end
         end)
         mover_btn:SetPoint("TOPLEFT", lock_cb, "BOTTOMLEFT", 0, -8)
@@ -202,6 +202,8 @@ sfui.options.RegisterTab({
         sec2:SetPoint("TOPLEFT", mover_btn, "BOTTOMLEFT", 0, -14)
         sec2:SetTextColor(0.4, 0.9, 1.0)
         sec2:SetText("visibility & mouseover")
+
+        local update_pill_highlights
 
         all_mouseover_cb = create_checkbox(panel, "enable mouseover on all bars", function()
             local cfg = get_mod_cfg()
@@ -406,7 +408,7 @@ sfui.options.RegisterTab({
             end
         end
 
-        local function update_pill_highlights()
+        function update_pill_highlights()
             for b = 1, 10 do
                 local pill = pillButtons[b]
                 if selectedBarKey == ("bar" .. b) then
@@ -633,7 +635,7 @@ sfui.options.RegisterTab({
             end
             if mover_btn and mover_btn.SetText then
                 local unlocked = is_movers_unlocked()
-                mover_btn:SetText(unlocked and "lock UI" or "unlock / move UI")
+                mover_btn:SetText(unlocked and "lock ui" or "unlock / move ui")
             end
             update_pill_highlights()
         end

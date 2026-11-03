@@ -222,7 +222,11 @@ local function SaveCompletedRunRecord()
         savedSplits[k] = v
     end
 
-    local curDur = existing.duration or (_totalTime and _totalTime > 0 and _totalTime) or nil
+    local curDur = existing.duration
+    if not curDur and _timerID and GetWorldElapsedTime then
+        local _, el = GetWorldElapsedTime(_timerID)
+        if el and el > 0 then curDur = el end
+    end
 
     mapData[_currentLevel] = {
         duration = curDur,
@@ -1094,6 +1098,7 @@ local function GetNemesisInfo(delveInfo)
                     if tt:find("nemesis") or tt:find("zekvir") or tt:find("influence") or txt:find("nemesis") or txt:find("zekvir") then
                         nemesis.hasNemesis = true
                         nemesis.tooltip = vTooltip ~= "" and vTooltip or nemesis.tooltip
+                        local cW, tW = vText:match("(%d+)%s*/%s*(%d+)")
                         if cW and tW then
                             nemesis.current = tonumber(cW)
                             nemesis.total   = tonumber(tW)
@@ -1331,12 +1336,16 @@ local function BuildHUDFrame()
         if info and (info.currentCharges or info.maxCharges) then
             local cur = info.currentCharges or 0
             local max = info.maxCharges or 0
-            local color = cur > 0 and "|cff00ff88" or "|cffff4444"
-            tip:AddLine(string_format("Available Charges: %s%s|r / %s", color, tostring(cur), tostring(max)), 1, 1, 1)
-            if info.timeRemaining and info.timeRemaining > 0 then
-                tip:AddLine(string_format("Next Charge in: |cffffffff%s|r", FormatTime(info.timeRemaining)), 0.8, 0.8, 0.8)
-            elseif max > 0 and cur >= max then
-                tip:AddLine("maximum charges reached.", 0.6, 0.6, 0.6)
+            if (issecretvalue and issecretvalue(cur)) or (issecretvalue and issecretvalue(max)) then
+                tip:AddLine("available charges: |cffffffffrestricted in combat|r", 1, 1, 1)
+            else
+                local color = cur > 0 and "|cff00ff88" or "|cffff4444"
+                tip:AddLine(string_format("available charges: %s%s|r / %s", color, tostring(cur), tostring(max)), 1, 1, 1)
+                if info.timeRemaining and info.timeRemaining > 0 then
+                    tip:AddLine(string_format("next charge in: |cffffffff%s|r", FormatTime(info.timeRemaining)), 0.8, 0.8, 0.8)
+                elseif max > 0 and cur >= max then
+                    tip:AddLine("maximum charges reached.", 0.6, 0.6, 0.6)
+                end
             end
         else
             tip:AddLine("no combat resurrection charges active.", 0.6, 0.6, 0.6)
@@ -2647,6 +2656,16 @@ local function UpdateCombatRes()
 
     local charges = info.currentCharges or 0
     local timeRem = math_floor(info.timeRemaining or 0)
+
+    if issecretvalue and issecretvalue(charges) then
+        _lastResCharges = -1
+        _lastResSec = -1
+        _lastResText = "<secret>"
+        MF.resText:SetText(charges)
+        MF.resFrame:SetWidth(28)
+        MF.resFrame:Show()
+        return
+    end
 
     if charges ~= _lastResCharges or timeRem ~= _lastResSec then
         _lastResCharges = charges

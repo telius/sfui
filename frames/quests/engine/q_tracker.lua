@@ -737,17 +737,22 @@ function Tracker.RestorePosition()
     end
 
     container:ClearAllPoints()
-    if x and y then
-        container:SetPoint(point or "TOPRIGHT", UIParent, relPoint or "TOPRIGHT", x, y)
-    else
-        container:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -4, -4)
+    local finalPt = point or "TOPRIGHT"
+    local finalRel = relPoint or "TOPRIGHT"
+    local finalX = (x and y) and x or -4
+    local finalY = (x and y) and y or -4
+    container:SetPoint(finalPt, UIParent, finalRel, finalX, finalY)
+
+    local mf = _G.SfuiMythicHUD
+    if mf and mf.ClearAllPoints then
+        mf:ClearAllPoints()
+        mf:SetPoint(finalPt, UIParent, finalRel, finalX, finalY)
     end
 
     if sfui.tracker and sfui.tracker.boons and sfui.tracker.boons.UpdateAnchor then
         sfui.tracker.boons.UpdateAnchor()
     end
 end
-sfui.questlog.UpdateAnchor = Tracker.RestorePosition
 
 function sfui.questlog.unhide_all()
     if SfuiDB then

@@ -96,7 +96,8 @@ sfui.options.RegisterTab({
         boons_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
         yOff = yOff - 28
 
-        local isCamelotClient = sfui.isCamelot or (_G.ToggleLegacyChallenges ~= nil) or (_G.LegacySystemFrame_LoadUI ~= nil)
+        local isCamelotClient = sfui.isCamelot or (_G.ToggleLegacyChallenges ~= nil) or
+            (_G.LegacySystemFrame_LoadUI ~= nil)
         if isCamelotClient then
             local challenges_ql_cb = create_checkbox(p, "track legacy challenges in quest log",
                 function()
@@ -129,7 +130,7 @@ sfui.options.RegisterTab({
                 or false
         end
 
-        local toggle_movers_btn = CreateFlatButton(p, is_movers_unlocked() and "lock UI" or "unlock / move UI", 120, 22)
+        local toggle_movers_btn = CreateFlatButton(p, is_movers_unlocked() and "lock ui" or "unlock / move ui", 120, 22)
         toggle_movers_btn:SetPoint("LEFT", reset_ql_pos_btn, "RIGHT", 10, 0)
         toggle_movers_btn:SetScript("OnClick", function(self)
             if _G.InCombatLockdown and _G.InCombatLockdown() then return end
@@ -140,7 +141,7 @@ sfui.options.RegisterTab({
                 elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
                     sfui.actionbars.ToggleMovers(false)
                 end
-                self:SetText("unlock / move UI")
+                self:SetText("unlock / move ui")
             else
                 if sfui.options and sfui.options.Toggle then
                     sfui.options.Toggle()
@@ -150,9 +151,14 @@ sfui.options.RegisterTab({
                 elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
                     sfui.actionbars.ToggleMovers(true)
                 end
-                self:SetText("lock UI")
+                self:SetText("lock ui")
             end
         end)
+        p._refreshMoversBtn = function()
+            if toggle_movers_btn and toggle_movers_btn.SetText then
+                toggle_movers_btn:SetText(is_movers_unlocked() and "lock ui" or "unlock / move ui")
+            end
+        end
         yOff = yOff - 36
 
         -- ── Section: Dungeon Journal & World Map Pins (Classic & Camelot) ────
@@ -349,6 +355,11 @@ sfui.options.RegisterTab({
             resize_hint:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
             resize_hint:SetTextColor(0.45, 0.45, 0.45, 1)
             resize_hint:SetText("unlock the hud above, then drag the purple handle to reposition it.")
+        end
+    end,
+    onShow = function(p)
+        if p and p._refreshMoversBtn then
+            p._refreshMoversBtn()
         end
     end,
 })

@@ -28,7 +28,6 @@ local GetAddOnInfo = (C_AddOns and C_AddOns.GetAddOnInfo) or _G.GetAddOnInfo
 local IsAddOnLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
 
 local system_btn = nil
-local update_timer = 0
 local COMBINE_ADDONS = {
     ["Details"]      = "^Details",
     ["DBM"]          = "^DBM",
@@ -281,14 +280,11 @@ function sfui.minimap.init_system_button(parent)
         GameTooltip:Hide()
     end)
 
-    btn:SetScript("OnUpdate", function(self, elapsed)
-        update_timer = update_timer + elapsed
-        if update_timer >= 1.0 then
-            update_timer = 0
-            sfui.minimap.update_system_button()
-            if self.isHovered then
-                update_tooltip(self)
-            end
+    sfui.events.RegisterUpdate("SfuiMinimapSystemButton", 1.0, function()
+        if not btn:IsShown() then return end
+        sfui.minimap.update_system_button()
+        if btn.isHovered then
+            update_tooltip(btn)
         end
     end)
 

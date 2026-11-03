@@ -117,10 +117,11 @@ function sfui.colors.get_spec_color_table(specID)
     if cached then return cached end
 
     local r, g, b, a = 0.0, 0.8, 1.0, 1.0
+    local bridge
     if not specID or specID == 0 then
         r, g, b, a = 0.35, 0.35, 0.35, 1.0
     else
-        local bridge = sfui.talents.SPEC_BRIDGE[specID]
+        bridge = sfui.talents.SPEC_BRIDGE[specID]
         local retailID = bridge and bridge.retailID or (specID < 1482 and specID)
         local camelotID = bridge and bridge.camelotID or (specID >= 14821 and specID <= 14913 and specID)
         local classID = bridge and bridge.classID or (specID >= 1482 and specID <= 1491 and specID)

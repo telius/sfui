@@ -50,6 +50,9 @@ end
 
 -- ─── Tooltip Scanner Fallback ────────────────────────────────────────────────
 local function GetOrCreateScanner()
+    if sfui.common and sfui.common.get_scan_tooltip then
+        return sfui.common.get_scan_tooltip()
+    end
     if not scanTooltip then
         scanTooltip = CreateFrame("GameTooltip", "SfuiBoonsScanTooltip", UIParent, "GameTooltipTemplate")
         scanTooltip:SetOwner(WorldFrame or UIParent, "ANCHOR_NONE")
@@ -182,7 +185,7 @@ local function GetBoonsLines(aura)
 
     -- 4. Fallback: Spell ID description if aura tooltip was completely empty
     if #rawLines == 0 and C_TooltipInfo and C_TooltipInfo.GetSpellByID then
-        local ok, data = pcall(C_TooltipInfo.GetSpellByID, BOONS_SPELL_ID)
+        local ok, data = pcall(C_TooltipInfo.GetSpellByID, aura.spellId or BOONS_SPELL_IDS[1])
         if ok and data and data.lines then
             for _, l in ipairs(data.lines) do
                 local txt = l.leftText
@@ -521,30 +524,36 @@ function Boons.Update()
     Boons.UpdateAnchor()
 end
 
+local function _execute_scheduled_boons_update()
+    pendingUpdate = false
+    updateTimer = nil
+    if InCombatLockdown() then
+        needsUpdateAfterCombat = true
+        return
+    end
+    Boons.Update()
+end
+
 function Boons.RequestUpdate(delay)
     if InCombatLockdown() then
         needsUpdateAfterCombat = true
         return
     end
-    if updateTimer then
-        updateTimer:Cancel()
-        updateTimer = nil
+    if pendingUpdate then
+        return
     end
-    updateTimer = C_Timer.NewTimer(delay or 0.05, function()
-        updateTimer = nil
-        if InCombatLockdown() then
-            needsUpdateAfterCombat = true
-            return
-        end
-        Boons.Update()
-    end)
+    pendingUpdate = true
+    C_Timer.After(delay or 0.05, _execute_scheduled_boons_update)
 end
 
 -- ─── Event Registration ──────────────────────────────────────────────────────
 local function on_regen_disabled()
-    if updateTimer then
-        updateTimer:Cancel()
+    if pendingUpdate or updateTimer then
+        if updateTimer and updateTimer.Cancel then
+            updateTimer:Cancel()
+        end
         updateTimer = nil
+        pendingUpdate = false
         -- the cancelled refresh still has to happen once combat ends
         needsUpdateAfterCombat = true
     end
@@ -563,7 +572,15 @@ local function on_entering_world()
 end
 
 local function on_aura_or_zone(event)
-    Boons.RequestUpdate(event == "UNIT_AURA" and 0.05 or 0.1)
+    if event == "UNIT_AURA" then
+        local isShown = boonsFrame and boonsFrame:IsShown()
+        if not isShown and not FindBoonsAura() then
+            return
+        end
+        Boons.RequestUpdate(0.05)
+    else
+        Boons.RequestUpdate(0.1)
+    end
 end
 
 local events = sfui.events

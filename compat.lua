@@ -200,13 +200,13 @@ local function RegisterGroup(names, ids)
     end
 end
 
+sfui.spells_db = sfui.spells_db or {}
 if sfui.spells_db.RANK_GROUPS then
     for _, def in ipairs(sfui.spells_db.RANK_GROUPS) do
         RegisterGroup(def.names, def.ids)
     end
+    sfui.spells_db.RANK_GROUPS = nil
 end
-
-sfui.spells_db = sfui.spells_db or {}
 
 function sfui.spells_db.GetRanksByID(spellID)
     if not spellID then return nil end
@@ -682,17 +682,12 @@ function sfui.api.GetCombatResInfo()
     local dur = chargeInfo.cooldownDuration
 
     local timeRem = 0
-    if start and dur and dur > 0 then
-        local isSecret = false
-        if _G.issecretvalue then
-            isSecret = _G.issecretvalue(start) or _G.issecretvalue(dur)
-        end
-        if not isSecret then
-            local now = _G.GetTime()
-            local finish = start + dur
-            if finish > now then
-                timeRem = finish - now
-            end
+    local isSecret = _G.issecretvalue and (_G.issecretvalue(start) or _G.issecretvalue(dur))
+    if not isSecret and start and dur and dur > 0 then
+        local now = _G.GetTime()
+        local finish = start + dur
+        if finish > now then
+            timeRem = finish - now
         end
     end
 

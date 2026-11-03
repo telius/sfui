@@ -2055,10 +2055,11 @@ local function EnsureEscButton()
         end
         SyncSpecialFramesEscBinding()
     end)
-    _escButton:RegisterEvent("PLAYER_REGEN_ENABLED")
-    _escButton:SetScript("OnEvent", function()
-        SyncSpecialFramesEscBinding()
-    end)
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+            SyncSpecialFramesEscBinding()
+        end)
+    end
 end
 
 function sfui.common.register_special_frame(frameOrName)

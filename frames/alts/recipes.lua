@@ -352,13 +352,8 @@ local function GetColoredCharacterName(name, className, realm)
 end
 
 -- ── Tooltip Line Scanner (Universal fallback) ─────────────────────────────────
-local scanTooltip = nil
 local function GetOrCreateScanTooltip()
-    if not scanTooltip then
-        scanTooltip = CreateFrame("GameTooltip", "SfuiRecipeScanTooltip", UIParent, "GameTooltipTemplate")
-        scanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
-    end
-    return scanTooltip
+    return sfui.common.get_scan_tooltip()
 end
 
 --- Scan tooltip lines and spellbook for an item link or item ID to check if active player knows it
@@ -412,13 +407,12 @@ local function CheckActivePlayerKnownStatus(itemID)
     end
 
     -- Method 2: Legacy Hidden Tooltip Scanner (Classic Era fallback)
-    local tip = GetOrCreateScanTooltip()
-    tip:ClearLines()
+    local tip, tipName = GetOrCreateScanTooltip()
     tip:SetHyperlink(itemLink)
     local numLines = tip:NumLines()
     if numLines and numLines > 0 then
         for i = 1, numLines do
-            local fontString = _G["SfuiRecipeScanTooltipTextLeft" .. i]
+            local fontString = _G[tipName .. "TextLeft" .. i]
             local leftText = fontString and fontString:GetText()
             if leftText and (leftText == ITEM_SPELL_KNOWN or leftText:find(ITEM_SPELL_KNOWN, 1, true)) then
                 return true, true

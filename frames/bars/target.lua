@@ -903,12 +903,20 @@ local function ResetQuestGuidCache()
     wipe(questGuidCache)
 end
 
+local function SafeTargetGUID()
+    local g = UnitGUID and UnitGUID("target")
+    if g and not issecretvalue(g) then
+        return g
+    end
+    return nil
+end
+
 local function IsTargetQuestObjective()
     if not UnitExists("target") or UnitIsPlayer("target") or UnitIsDeadOrGhost("target") then
         return false
     end
 
-    local guid = UnitGUID("target")
+    local guid = SafeTargetGUID()
     if guid and questGuidCache[guid] ~= nil then
         return questGuidCache[guid]
     end
@@ -943,15 +951,17 @@ local function IsTargetQuestObjective()
     end
 
     if not scanTooltip then
-        scanTooltip = CreateFrame("GameTooltip", "SfuiTargetScanTooltip", nil, "GameTooltipTemplate")
+        scanTooltip = (common and common.get_scan_tooltip and common.get_scan_tooltip())
+            or CreateFrame("GameTooltip", "SfuiTargetScanTooltip", nil, "GameTooltipTemplate")
         scanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
     end
     scanTooltip:ClearLines()
     scanTooltip:SetUnit("target")
+    local tipName = scanTooltip:GetName() or "SfuiScanTooltip"
     for i = 2, scanTooltip:NumLines() do
         local fs = scanTooltipLines[i]
         if not fs then
-            fs = _G["SfuiTargetScanTooltipTextLeft" .. i]
+            fs = _G[tipName .. "TextLeft" .. i]
             scanTooltipLines[i] = fs
         end
         local txt = fs and fs:GetText()
@@ -1288,7 +1298,7 @@ end
 local function GetTargetDisplayName()
     if not UnitExists("target") then return "" end
 
-    local guid = UnitGUID("target")
+    local guid = SafeTargetGUID()
     if guid and targetNameCache[guid] then
         return targetNameCache[guid]
     end
@@ -1410,7 +1420,7 @@ local function OnTargetUnitEvent(event, unit)
         UpdateAuras()
     elseif event == "UNIT_NAME_UPDATE" or event == "UNIT_LEVEL" or event == "UNIT_FACTION" or event == "UNIT_CLASSIFICATION_CHANGED" then
         if event == "UNIT_NAME_UPDATE" then
-            local guid = UnitGUID("target")
+            local guid = SafeTargetGUID()
             if guid then targetNameCache[guid] = nil end
         end
         if event == "UNIT_FACTION" then
@@ -1433,7 +1443,7 @@ local function OnPlayerTargetChanged()
         lastTargetGUID = nil
         return
     end
-    local guid = UnitGUID("target")
+    local guid = SafeTargetGUID()
     if guid and guid == lastTargetGUID then
         return
     end
@@ -1776,13 +1786,15 @@ local function CreateTargetFrame()
     if f.HookScript then
         f:HookScript("OnShow", function()
             if SfuiDB and SfuiDB.enableTargetBar == false then
-                f:Hide()
+                if not (InCombatLockdown and InCombatLockdown()) then
+                    f:Hide()
+                end
                 return
             end
             if sfui.events and sfui.events.RegisterUpdate then
                 sfui.events.RegisterUpdate("SfuiTargetRange", 0.15, UpdateTargetRange)
             end
-            local guid = UnitGUID("target")
+            local guid = SafeTargetGUID()
             if guid and guid == lastTargetGUID then
                 return
             end

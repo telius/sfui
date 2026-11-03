@@ -77,22 +77,24 @@ do
         end
         if resource == Enum.PowerType.Runes then
             local current, max = 0, UnitPowerMax("player", resource)
-            if max <= 0 then return nil, nil end
-            for i = 1, max do
-                local _, _, ready = GetRuneCooldown(i)
-                if ready then current = current + 1 end
+            if not max or (not (issecretvalue and issecretvalue(max)) and max <= 0) then return nil, nil end
+            if not (issecretvalue and issecretvalue(max)) then
+                for i = 1, max do
+                    local _, _, ready = GetRuneCooldown(i)
+                    if ready then current = current + 1 end
+                end
             end
             return max, current
         end
         if resource == "FURY" then
             local current = UnitPower("player", Enum.PowerType.Fury)
             local max = UnitPowerMax("player", Enum.PowerType.Fury)
-            if max <= 0 then return nil, nil end
+            if not max or (not (issecretvalue and issecretvalue(max)) and max <= 0) then return nil, nil end
             return max, current
         end
         local current = UnitPower("player", resource)
         local max = UnitPowerMax("player", resource)
-        if max <= 0 then return nil, nil end
+        if not max or (not (issecretvalue and issecretvalue(max)) and max <= 0) then return nil, nil end
         return max, current
     end
 
@@ -614,7 +616,7 @@ do
             bar.marker:SetPoint("LEFT", bar, "LEFT", bar:GetWidth() * 0.55, 0)
             bar.marker:SetHeight(bar:GetHeight())
             bar.marker:Show()
-        elseif specID == 1480 and max and max > 99 then -- Devourer Demon Hunter (100 value)
+        elseif specID == 1480 and max and not (issecretvalue and issecretvalue(max)) and max > 99 then -- Devourer Demon Hunter (100 value)
             bar.marker:ClearAllPoints()
             local width = bar:GetWidth()
             local pct = 100 / max
@@ -1185,7 +1187,7 @@ do
         end
 
         local max, current = get_secondary_resource_value(resource)
-        if not max or max <= 0 then
+        if not max or (not (issecretvalue and issecretvalue(max)) and max <= 0) then
             if bar1 and bar1.backdrop then bar1.backdrop:Hide() end
             return
         end
@@ -1208,7 +1210,10 @@ do
             end
         end
 
-        if bar._lastVal ~= current then
+        if issecretvalue and issecretvalue(current) then
+            bar._lastVal = nil
+            bar.TextValue:SetText(current)
+        elseif bar._lastVal ~= current then
             bar._lastVal = current
             if isComboPoints then
                 bar.TextValue:SetText(current)
@@ -1303,7 +1308,10 @@ do
         if chargesInfo then
             bar:SetMinMaxValues(0, chargesInfo.maxCharges)
             bar:SetValue(chargesInfo.currentCharges)
-            if bar._lastCharges ~= chargesInfo.currentCharges then
+            if issecretvalue and issecretvalue(chargesInfo.currentCharges) then
+                bar._lastCharges = nil
+                bar.TextValue:SetText(chargesInfo.currentCharges)
+            elseif bar._lastCharges ~= chargesInfo.currentCharges then
                 bar._lastCharges = chargesInfo.currentCharges
                 bar.TextValue:SetFormattedText("%d", chargesInfo.currentCharges)
             end
@@ -1321,7 +1329,7 @@ do
         bar.whirlingSurgeIcon.countText:SetText("")
 
         local wsStart, wsDur = common.get_spell_cooldown(surgeSpellID)
-        if wsStart > 0 and wsDur > 0 and not (issecretvalue and (issecretvalue(wsStart) or issecretvalue(wsDur))) then
+        if wsStart and wsDur and not (issecretvalue and (issecretvalue(wsStart) or issecretvalue(wsDur))) and wsStart > 0 and wsDur > 0 then
             bar.whirlingSurgeIcon.cooldown:SetCooldown(wsStart, wsDur)
         else
             bar.whirlingSurgeIcon.cooldown:Clear()
@@ -1336,7 +1344,7 @@ do
 
         local swStart, swDur = common.get_spell_cooldown(425782)
         local swCharges = C_Spell.GetSpellCharges(425782)
-        if swStart > 0 and swDur > 0 and not (issecretvalue and (issecretvalue(swStart) or issecretvalue(swDur))) then
+        if swStart and swDur and not (issecretvalue and (issecretvalue(swStart) or issecretvalue(swDur))) and swStart > 0 and swDur > 0 then
             bar.secondWindIcon.cooldown:SetCooldown(swStart, swDur)
         else
             bar.secondWindIcon.cooldown:Clear()
@@ -1686,7 +1694,7 @@ do
     local isClassicOrCamelot = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic or sfui.compat.is_classic_era))
     local pClassBars = (common.get_player_class and common.get_player_class()) or (UnitClass and select(2, UnitClass("player")))
     if isClassicOrCamelot and pClassBars == "HUNTER" then
-        sfui.events.RegisterEvent("BAG_UPDATE", function()
+        sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
             update_hunter_ammo_text()
         end)
         sfui.events.RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player", function()

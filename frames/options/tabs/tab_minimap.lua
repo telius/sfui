@@ -300,7 +300,7 @@ sfui.options.RegisterTab({
                 or false
         end
 
-        local edit_mode_btn = CreateFlatButton(minimap_panel, is_movers_unlocked() and "lock UI" or "unlock / move UI", 120, 22)
+        local edit_mode_btn = CreateFlatButton(minimap_panel, is_movers_unlocked() and "lock ui" or "unlock / move ui", 120, 22)
         edit_mode_btn:SetPoint("LEFT", reset_map_pos_btn, "RIGHT", 10, 0)
         edit_mode_btn:SetScript("OnClick", function(self)
             local currentlyUnlocked = is_movers_unlocked()
@@ -310,7 +310,7 @@ sfui.options.RegisterTab({
                 elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
                     sfui.actionbars.ToggleMovers(false)
                 end
-                self:SetText("unlock / move UI")
+                self:SetText("unlock / move ui")
             else
                 if sfui.options and sfui.options.Toggle then
                     sfui.options.Toggle()
@@ -320,9 +320,14 @@ sfui.options.RegisterTab({
                 elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
                     sfui.actionbars.ToggleMovers(true)
                 end
-                self:SetText("lock UI")
+                self:SetText("lock ui")
             end
         end)
+        minimap_panel._refreshMoversBtn = function()
+            if edit_mode_btn and edit_mode_btn.SetText then
+                edit_mode_btn:SetText(is_movers_unlocked() and "lock ui" or "unlock / move ui")
+            end
+        end
 
         local bar_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
         bar_header:SetPoint("TOPLEFT", reset_map_pos_btn, "BOTTOMLEFT", 0, -18)
@@ -387,5 +392,10 @@ sfui.options.RegisterTab({
             loc_y_slider:SetSliderValue(defY)
             sfui.minimap.update_location_bar(defX, defY)
         end)
+    end,
+    onShow = function(minimap_panel)
+        if minimap_panel and minimap_panel._refreshMoversBtn then
+            minimap_panel._refreshMoversBtn()
+        end
     end,
 })

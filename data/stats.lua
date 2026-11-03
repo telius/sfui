@@ -638,6 +638,8 @@ sfui.stat_keys              = sfui.data.STAT_KEYS
 -- ══════════════════════════════════════════════════════════════════════════════
 
 sfui.stats = sfui.stats or {}
+local _tocVer = _G.GetBuildInfo and tonumber((select(4, _G.GetBuildInfo()))) or 0
+if _tocVer >= 100000 then return end
 
 local math_max = math.max
 local math_min = math.min

@@ -613,10 +613,51 @@ local function create_hammer_popup()
         self:ClearAllPoints()
         self:SetPoint("CENTER", UIParent, "CENTER", x, y)
 
-        if sfui.options.sync_hammer_sliders then
+        if sfui.options and sfui.options.sync_hammer_sliders then
             sfui.options.sync_hammer_sliders(x, y)
         end
     end)
+
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(hammerPopup, {
+            key = "masterhammer",
+            label = "repair hammer",
+            preferredPoint = "CENTER",
+            getPoint = function()
+                local defaultPos = (sfui.config and sfui.config.masterHammer and sfui.config.masterHammer.defaultPosition) or { x = 0, y = 120 }
+                local x = (SfuiDB and SfuiDB.repairIconX) or defaultPos.x
+                local y = (SfuiDB and SfuiDB.repairIconY) or defaultPos.y
+                return "CENTER", UIParent, "CENTER", x, y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                local sx = math_floor((x or 0) + 0.5)
+                local sy = math_floor((y or 0) + 0.5)
+                if SfuiDB then
+                    SfuiDB.repairIconX = sx
+                    SfuiDB.repairIconY = sy
+                end
+                hammerPopup:ClearAllPoints()
+                hammerPopup:SetPoint("CENTER", UIParent, "CENTER", sx, sy)
+                if sfui.options and sfui.options.sync_hammer_sliders then
+                    sfui.options.sync_hammer_sliders(sx, sy)
+                end
+            end,
+            resetPosition = function()
+                local defaultPos = (sfui.config and sfui.config.masterHammer and sfui.config.masterHammer.defaultPosition) or { x = 0, y = 120 }
+                if SfuiDB then
+                    SfuiDB.repairIconX = defaultPos.x
+                    SfuiDB.repairIconY = defaultPos.y
+                end
+                sfui.hammer.update_popup_style()
+                if sfui.options and sfui.options.sync_hammer_sliders then
+                    sfui.options.sync_hammer_sliders(defaultPos.x, defaultPos.y)
+                end
+            end,
+            isEnabled = function()
+                return not SfuiDB or SfuiDB.enableMasterHammer ~= false
+            end,
+        })
+    end
 
     sfui.hammer.update_popup_style() -- Apply initial style
     return hammerPopup
@@ -936,6 +977,10 @@ sfui.events.RegisterEvent("UPDATE_INVENTORY_DURABILITY", on_durability_or_regen)
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_durability_or_regen)
 
 function sfui.hammer.initialize()
+    if not hammerPopup then
+        local p = create_hammer_popup()
+        if p then p:Hide() end
+    end
     sfui.hammer.update_hammer_popup()
 end
 

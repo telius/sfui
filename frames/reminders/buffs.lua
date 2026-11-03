@@ -201,7 +201,7 @@ local function CreateBuffIcon(index, parent)
             local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
             if bestLure then
                 GameTooltip:AddLine(string_format("best lure: |cff00ffff%s|r (+%d skill, %d in bags)", bestLure.name, bestLure.bonus, bestLure.count or 1), 0.8, 0.8, 0.8)
-                if inCombat then
+                if InCombatLockdown and InCombatLockdown() then
                     GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
                 else
                     GameTooltip:AddLine("|cff55ff55[click to apply lure]|r", 0.3, 1, 0.3)
@@ -414,6 +414,44 @@ local function InitContainer()
 
     container.dragOverlay = dragOverlay
     sfui.buffs.container = container
+
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(container, {
+            key = "buffreminders",
+            label = "buff reminders",
+            preferredPoint = "CENTER",
+            getPoint = function()
+                local p = SfuiDB and SfuiDB.buffRemindersPos
+                if p and p.point then
+                    return p.point, UIParent, p.relPoint or p.point, p.x or DEFAULT_POS.x, p.y or DEFAULT_POS.y
+                end
+                return DEFAULT_POS.point, UIParent, DEFAULT_POS.relPoint, DEFAULT_POS.x, DEFAULT_POS.y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                local pt = point or "CENTER"
+                local rPt = relPoint or pt
+                local sx = math_floor((x or 0) + 0.5)
+                local sy = math_floor((y or 0) + 0.5)
+                container:ClearAllPoints()
+                container:SetPoint(pt, UIParent, rPt, sx, sy)
+                if SfuiDB then
+                    SfuiDB.buffRemindersPos = {
+                        point = pt,
+                        relPoint = rPt,
+                        x = sx,
+                        y = sy,
+                    }
+                end
+            end,
+            resetPosition = function()
+                sfui.buffs.ResetPosition()
+            end,
+            isEnabled = function()
+                return not SfuiDB or not SfuiDB.buffReminders or SfuiDB.buffReminders.enabled ~= false
+            end,
+        })
+    end
+
     return container
 end
 

@@ -174,8 +174,12 @@ sfui.common.IsDragonriding = sfui.safety.IsDragonriding
 function sfui.safety.GetGCDInfo()
     if C_Spell and C_Spell.GetSpellCooldown then
         local ci = C_Spell.GetSpellCooldown(61304)
-        if ci and ci.duration and ci.duration > 0 then
-            return true, ci.duration
+        if ci then
+            if issecretvalue and issecretvalue(ci.duration) then
+                return ci.isActive == true, 0
+            elseif ci.duration and ci.duration > 0 then
+                return true, ci.duration
+            end
         end
     end
     return false, 0

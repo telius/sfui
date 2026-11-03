@@ -181,6 +181,8 @@ local SNIPPET_PRE = [==[
     self:SetAttribute("toy", nil)
     self:SetAttribute("action", nil)
     self:SetAttribute("marker", nil)
+    self:SetAttribute("unit", nil)
+    self:SetAttribute("target-slot", nil)
 
     local a1_k = self:GetAttribute("slot" .. idx .. "-a1_k")
     if a1_k then
@@ -218,6 +220,8 @@ local SNIPPET_POST = [==[
     self:SetAttribute("macro", nil)
     self:SetAttribute("action", nil)
     self:SetAttribute("marker", nil)
+    self:SetAttribute("unit", nil)
+    self:SetAttribute("target-slot", nil)
 
     local h = self:GetFrameRef("header") or control
     if h then

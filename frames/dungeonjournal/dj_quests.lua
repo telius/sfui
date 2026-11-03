@@ -680,6 +680,7 @@ local function RenderQuestDetail(quest, dungeon)
 
     -- 1. Objectives (live or static)
     local isDone = IsQuestCompleted(quest.id)
+    local isActive = IsQuestInLog(quest.id)
     local objText = GetQuestObjectiveText(quest)
     if objText and objText ~= "" then
         info.oLabel:Show()

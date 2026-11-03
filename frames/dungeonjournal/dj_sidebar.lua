@@ -45,6 +45,10 @@ local function IsDungeonInLevelRange(dungeon, playerLevel)
     return true
 end
 
+local sidebarFrame   = nil
+local scrollFrame    = nil
+local scrollContent  = nil
+
 -- all sidebar filter toggles route through SetOption; the SFUI_DJ_SETTING_CHANGED
 -- listener at the bottom of this file refreshes button states and the list.
 local function SetShowAll(val)
@@ -394,10 +398,6 @@ local function ReleaseAll(pool)
 end
 
 -- ─── Main Refresh ─────────────────────────────────────────────────────────────
-local sidebarFrame   = nil
-local scrollFrame    = nil
-local scrollContent  = nil
-
 local isRefreshing = false
 
 local function RefreshSidebarImpl()

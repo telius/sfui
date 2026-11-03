@@ -21,13 +21,8 @@ local wipe = _G.wipe
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Hidden Scanning Tooltip
 -- ══════════════════════════════════════════════════════════════════════════════
-local scanTip = nil
 local function GetScanTooltip()
-    if not scanTip then
-        scanTip = CreateFrame("GameTooltip", "SfuiHighestScanTooltip", nil, "GameTooltipTemplate")
-        scanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
-    end
-    return scanTip
+    return common.get_scan_tooltip()
 end
 sfui.highest.GetScanTooltip = GetScanTooltip
 
@@ -123,13 +118,12 @@ local function CanPlayerUseItem(itemLink, itemID, ignorePlayerLevel)
                 end
             end
         else
-            local tip = GetScanTooltip()
+            local tip, tipName = GetScanTooltip()
             if tip then
-                tip:ClearLines()
                 tip:SetHyperlink(itemLink)
                 local numLines = tip:NumLines() or 0
                 for i = 1, numLines do
-                    local fsL = _G["SfuiHighestScanTooltipTextLeft" .. i]
+                    local fsL = _G[tipName .. "TextLeft" .. i]
                     if fsL then
                         local r, g, b = fsL:GetTextColor()
                         if r and g and b and r > 0.85 and g < 0.25 and b < 0.25 then
@@ -141,7 +135,7 @@ local function CanPlayerUseItem(itemLink, itemID, ignorePlayerLevel)
                             end
                         end
                     end
-                    local fsR = _G["SfuiHighestScanTooltipTextRight" .. i]
+                    local fsR = _G[tipName .. "TextRight" .. i]
                     if fsR then
                         local r, g, b = fsR:GetTextColor()
                         if r and g and b and r > 0.85 and g < 0.25 and b < 0.25 then
@@ -406,14 +400,13 @@ local function IsBagItemBound(bag, slot)
             end
         end
     else
-        local tip = GetScanTooltip()
+        local tip, tipName = GetScanTooltip()
         if tip then
-            tip:ClearLines()
             if tip.SetBagItem then
                 tip:SetBagItem(bag, slot)
             end
             for i = 1, tip:NumLines() do
-                local line = _G["SfuiHighestScanTooltipTextLeft" .. i]
+                local line = _G[tipName .. "TextLeft" .. i]
                 local t = line and line:GetText()
                 if t then
                     if t:find(_G.ITEM_SOULBOUND or "Soulbound")

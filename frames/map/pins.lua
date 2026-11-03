@@ -1127,13 +1127,10 @@ local function GetMinimapContainer()
     minimapContainer:SetFrameLevel(mm:GetFrameLevel() + 5)
     minimapContainer:EnableMouse(false)
 
-    local minimapThrottle = 0
-    minimapContainer:SetScript("OnUpdate", function(self, elapsed)
+    sfui.events.RegisterUpdate("SfuiMinimapPins", 0.1, function()
+        if not minimapContainer or not minimapContainer:IsShown() then return end
         if #providerOrder == 0 and not next(staticPinBatches) then return end
         if not GetMinimapShowPins() then return end
-        minimapThrottle = minimapThrottle + elapsed
-        if minimapThrottle < 0.1 then return end
-        minimapThrottle = 0
         RenderMinimapPins(false)
     end)
 

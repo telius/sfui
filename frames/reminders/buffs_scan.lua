@@ -726,6 +726,9 @@ function sfui.buffs.scan.RunScan()
     end
 
     dirty = false
+    if sfui.ring and sfui.ring.request_rebuild then
+        sfui.ring.request_rebuild("specs")
+    end
     return activeResults
 end
 

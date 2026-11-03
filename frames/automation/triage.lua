@@ -1790,7 +1790,7 @@ end
 
 local _debugInfo = {}
 function triage.GetDebugInfo()
-    local freeSlots = (lastFreeSlots ~= nil) and lastFreeSlots or get_free_regular_slots()
+    local freeSlots = (lastFreeSlots ~= nil) and lastFreeSlots or get_num_free_regular_slots()
     local threshold = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "threshold", (sfui.config.triage and sfui.config.triage.threshold) or 1)) or 1
     local promptShown = (promptFrame and promptFrame:IsShown()) and true or false
     _debugInfo.enabled           = isEnabled

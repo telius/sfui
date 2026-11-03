@@ -449,8 +449,9 @@ local function StartCast(unit)
     end
     unit = vUnit
 
-    local name, text, texture, startTimeMS, endTimeMS, isTradeSkill, castID, notInterruptible, spellID = UnitCastingInfo(unit)
-    if name and startTimeMS and endTimeMS then
+    local issecretvalue = common.issecretvalue or _G.issecretvalue
+    local name, _, texture, startTimeMS, endTimeMS = UnitCastingInfo(unit)
+    if name and startTimeMS and endTimeMS and not (issecretvalue and (issecretvalue(startTimeMS) or issecretvalue(endTimeMS))) then
         _casting = true
         _channeling = false
         _castStart = startTimeMS / 1000
@@ -483,8 +484,8 @@ local function StartCast(unit)
         return
     end
 
-    local cName, cText, cTexture, cStartMS, cEndMS = UnitChannelInfo(unit)
-    if cName and cStartMS and cEndMS then
+    local cName, _, cTexture, cStartMS, cEndMS = UnitChannelInfo(unit)
+    if cName and cStartMS and cEndMS and not (issecretvalue and (issecretvalue(cStartMS) or issecretvalue(cEndMS))) then
         _casting = false
         _channeling = true
         _castStart = cStartMS / 1000
@@ -574,20 +575,21 @@ local function UpdateAnchor()
 end
 
 -- ─── Vehicle Keybind Helpers ────────────────────────────────────────────────
-local function GetKeysForVehicleButton(i)
-    local foundKeys = {}
-    local seen = {}
+local _foundKeys = {}
+local _seenKeys = {}
 
-    local function addTargetKeys(target)
-        if not target or not GetBindingKey then return end
-        local keys = { GetBindingKey(target) }
-        for _, k in ipairs(keys) do
-            if k and k ~= "" and not seen[k] then
-                seen[k] = true
-                foundKeys[#foundKeys + 1] = k
-            end
-        end
-    end
+local function addTargetKeys(target)
+    if not target or not GetBindingKey then return end
+    local k1, k2, k3, k4 = GetBindingKey(target)
+    if k1 and k1 ~= "" and not _seenKeys[k1] then _seenKeys[k1] = true; _foundKeys[#_foundKeys + 1] = k1 end
+    if k2 and k2 ~= "" and not _seenKeys[k2] then _seenKeys[k2] = true; _foundKeys[#_foundKeys + 1] = k2 end
+    if k3 and k3 ~= "" and not _seenKeys[k3] then _seenKeys[k3] = true; _foundKeys[#_foundKeys + 1] = k3 end
+    if k4 and k4 ~= "" and not _seenKeys[k4] then _seenKeys[k4] = true; _foundKeys[#_foundKeys + 1] = k4 end
+end
+
+local function GetKeysForVehicleButton(i)
+    wipe(_foundKeys)
+    wipe(_seenKeys)
 
     -- 1. Standard Blizzard action binding (e.g. ACTIONBUTTON1)
     if BINDING_NAMES[i] then
@@ -611,7 +613,7 @@ local function GetKeysForVehicleButton(i)
         end
     end
 
-    return foundKeys
+    return _foundKeys
 end
 
 local function GetPrimaryHotkeyText(i)

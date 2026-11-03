@@ -84,9 +84,50 @@ local function get_or_create_popup()
             local y = math_floor(cy - uy)
             SfuiDB.portalPopupX = x
             SfuiDB.portalPopupY = y
-            sfui.options.sync_portal_sliders(x, y)
+            if sfui.options and sfui.options.sync_portal_sliders then
+                sfui.options.sync_portal_sliders(x, y)
+            end
         end
     end)
+
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(f, {
+            key = "portalpopup",
+            label = "portal popup",
+            preferredPoint = "CENTER",
+            getPoint = function()
+                local defPos = (sfui_config and sfui_config.portalPopup and sfui_config.portalPopup.defaultPosition) or { x = 0, y = 180 }
+                local x = (SfuiDB and SfuiDB.portalPopupX) or defPos.x
+                local y = (SfuiDB and SfuiDB.portalPopupY) or defPos.y
+                return "CENTER", UIParent, "CENTER", x, y
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                local sx = math_floor((x or 0) + 0.5)
+                local sy = math_floor((y or 0) + 0.5)
+                if SfuiDB then
+                    SfuiDB.portalPopupX = sx
+                    SfuiDB.portalPopupY = sy
+                end
+                f:ClearAllPoints()
+                f:SetPoint("CENTER", UIParent, "CENTER", sx, sy)
+                if sfui.options and sfui.options.sync_portal_sliders then
+                    sfui.options.sync_portal_sliders(sx, sy)
+                end
+            end,
+            resetPosition = function()
+                local defPos = (sfui_config and sfui_config.portalPopup and sfui_config.portalPopup.defaultPosition) or { x = 0, y = 180 }
+                if SfuiDB then
+                    SfuiDB.portalPopupX = defPos.x
+                    SfuiDB.portalPopupY = defPos.y
+                end
+                sfui.portals.UpdatePortalPopupPosition()
+                if sfui.options and sfui.options.sync_portal_sliders then
+                    sfui.options.sync_portal_sliders(defPos.x, defPos.y)
+                end
+            end,
+            isEnabled = is_enabled,
+        })
+    end
 
     -- Close Button
     local closeBtn = sfui_common.create_close_button(f, function()
@@ -512,6 +553,10 @@ sfui_events.RegisterEvent("CHALLENGE_MODE_START", function()
 end)
 
 sfui_events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+    if not popupFrame then
+        local p = get_or_create_popup()
+        if p then p:Hide() end
+    end
     local inInstance, instanceType = IsInInstance()
     if inInstance and (instanceType == "party" or instanceType == "raid") then
         clear_current_group()

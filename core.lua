@@ -610,6 +610,8 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     sfui.create_currency_frame()
     sfui.create_item_frame()
 
+    local isRetail = sfui.isRetail
+
     if sfui.compare and sfui.compare.init then
         sfui.compare.init()
     end

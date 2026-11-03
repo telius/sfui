@@ -710,3 +710,9 @@ function sfui.toggle_options_panel(tabName)
         end
     end
 end
+
+sfui.options.Toggle  = sfui.toggle_options_panel
+sfui.options.Open    = sfui.open_options_panel
+sfui.options.OpenTab = function(tabName)
+    sfui.open_options_panel(tabName)
+end

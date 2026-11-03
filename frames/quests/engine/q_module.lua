@@ -80,13 +80,18 @@ function sfui.tracker.RegisterModule(moduleDef)
     -- Register Blizzard events declared by the module
     if moduleDef.events and sfui.events and sfui.events.RegisterEvent then
         for _, event in ipairs(moduleDef.events) do
-            sfui.events.RegisterEvent(event, function(ev, ...)
+            local function handler(ev, ...)
                 if moduleDef.OnEvent then
                     moduleDef:OnEvent(ev, ...)
                 else
                     moduleDef:MarkDirty()
                 end
-            end)
+            end
+            if event == "UNIT_AURA" and sfui.events.RegisterUnitEvent then
+                sfui.events.RegisterUnitEvent(event, "player", handler)
+            else
+                sfui.events.RegisterEvent(event, handler)
+            end
         end
     end
 

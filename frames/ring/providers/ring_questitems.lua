@@ -430,11 +430,13 @@ sfui.ring.register_provider("questitems", {
 
                         local cat = nil
                         local dist = 900000000
+                        local itemQuestID, startsQuest
 
                         if not isKeyOrCharm then
-                            local isQuest, itemQuestID, isQuestActive = get_container_quest_info(bag, slot)
+                            local isQuest, isQuestActive
+                            isQuest, itemQuestID, isQuestActive = get_container_quest_info(bag, slot)
                             local hasSpell = C_Item and C_Item.GetItemSpell and C_Item.GetItemSpell(itemID)
-                            local startsQuest = itemQuestID and not isQuestActive and not is_quest_completed(itemQuestID)
+                            startsQuest = itemQuestID and not isQuestActive and not is_quest_completed(itemQuestID)
                             local isQuestOnLog = isQuestActive or (itemQuestID and C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(itemQuestID))
 
                             -- category 1: active usable quest items

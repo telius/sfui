@@ -1065,8 +1065,8 @@ local function PerformSync(data, isLogout)
 
     -- 5. Mythic 0 Lockouts
     local newM0 = {}
+    local numSaved = (isMaxLevel and GetNumSavedInstances and GetNumSavedInstances()) or 0
     if isMaxLevel then
-        local numSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
         for i = 1, numSaved do
             local name, _, reset, difficulty, locked, _, _, isRaid = GetSavedInstanceInfo(i)
             if not isRaid and locked and reset and reset > 0 and (difficulty == 23 or difficulty == 174) then

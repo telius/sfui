@@ -79,20 +79,13 @@ local levelText
 local function get_bar_texture()
     local tex = sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()
     if not tex or tex == "" then
-        local textureName = SfuiDB and SfuiDB.barTexture
-        local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
-        if LSM and textureName then
-            tex = LSM:Fetch("statusbar", textureName)
-        end
-    end
-    if not tex or tex == "" then
         tex = (cfg and cfg.barTexture) or "Interface\\Buttons\\WHITE8x8"
     end
     return tex
 end
 
 local function get_font_path()
-    return (sfui.widgets and sfui.widgets.get_font and sfui.widgets.get_font()) or "Fonts\\FRIZQT__.TTF"
+    return (common and common.get_font_file and common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

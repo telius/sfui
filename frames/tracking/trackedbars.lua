@@ -791,14 +791,9 @@ end
 
 local function _pcall_sync_bar_values(blizzFrame, status, timeString, config, currentStacks)
     -- KEY: pass GetMinMaxValues() and GetValue() return values DIRECTLY as widget-setter
-    -- arguments, never storing them in local variables. Secret values crash the moment
-    -- Lua code stores or touches them (even just assignment to a local triggers the guard);
-    -- passing them directly as args to C SetMinMaxValues / SetValue is safe: the engine
-    -- handles them natively without Lua ever seeing the raw number.
-    -- (This is exactly what EllesmereUI does: sb:SetMinMaxValues(blizzBar:GetMinMaxValues()))
+    -- arguments, never storing them in local variables.
     status:SetMinMaxValues(blizzFrame.Bar:GetMinMaxValues())
-    local ok = pcall(status.SetValue, status, blizzFrame.Bar:GetValue())
-    if not ok then status:SetValue(0) end
+    status:SetValue(blizzFrame.Bar:GetValue())
 
     -- Timer text: GetText() returns a secret string in M+, but SetText accepts secrets.
     -- Never compare, format, or length-check the string.
@@ -832,15 +827,15 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     elseif info and info.spellID and not (issecretvalue and issecretvalue(info.spellID)) and type(info.spellID) == "number" and info.spellID > 0 then
         myBar.spellID = info.spellID
     elseif C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
-        local ok, cdInfo = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, id)
-        if ok and cdInfo and cdInfo.spellID and not (issecretvalue and issecretvalue(cdInfo.spellID)) and type(cdInfo.spellID) == "number" and cdInfo.spellID > 0 then
+        local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+        if cdInfo and cdInfo.spellID and not (issecretvalue and issecretvalue(cdInfo.spellID)) and type(cdInfo.spellID) == "number" and cdInfo.spellID > 0 then
             myBar.spellID = cdInfo.spellID
         end
     end
 
     if not myBar.spellID and blizzFrame.GetSpellID then
-        local ok, bSpell = pcall(blizzFrame.GetSpellID, blizzFrame)
-        if ok and bSpell and not (issecretvalue and issecretvalue(bSpell)) and type(bSpell) == "number" and bSpell > 0 then
+        local bSpell = blizzFrame:GetSpellID()
+        if bSpell and not (issecretvalue and issecretvalue(bSpell)) and type(bSpell) == "number" and bSpell > 0 then
             myBar.spellID = bSpell
         end
     end
@@ -856,21 +851,18 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
 
     -- Seed the cast-mirror duration cache from a clean cooldown read.
     -- This runs every SyncBarData tick so the mirror stays accurate with haste/CDR changes.
-    -- When reads are secret (M+ combat), the probe pcall fails and we preserve the last good value.
     if myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) then
         local cdMirrorCache = sfui.trackedbars._cdDurCache
         if cdMirrorCache then
-            -- Check secrecy with issecretvalue; never probe with arithmetic. A pcall'd
-            -- `x + 0` on a secret is still blocked by the client and logged to taint.log every tick.
-            local ok, cd = pcall(C_Spell.GetSpellCooldown, myBar.spellID)
-            if ok and cd and cd.duration then
+            local cd = C_Spell and C_Spell.GetSpellCooldown and C_Spell.GetSpellCooldown(myBar.spellID)
+            if cd and cd.duration then
                 if not (issecretvalue and issecretvalue(cd.duration)) then
                     cdMirrorCache[myBar.spellID] = cd.duration
                 end
-            else
+            elseif C_Spell and C_Spell.GetSpellCharges then
                 -- Fall back to charge recharge duration (charge-based spells).
-                local ok2, ci = pcall(C_Spell.GetSpellCharges, myBar.spellID)
-                if ok2 and ci and ci.cooldownDuration then
+                local ci = C_Spell.GetSpellCharges(myBar.spellID)
+                if ci and ci.cooldownDuration then
                     if not (issecretvalue and issecretvalue(ci.cooldownDuration)) and ci.cooldownDuration > 0 then
                         cdMirrorCache[myBar.spellID] = ci.cooldownDuration
                     end
@@ -923,10 +915,11 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
 
     -- Fallback 2: Try Aura Data via Instance ID
     if not currentStacks and common.HasAuraInstanceID(blizzFrame.auraInstanceID)
-       and not (issecretvalue and issecretvalue(blizzFrame.auraInstanceID)) then
+       and not (issecretvalue and issecretvalue(blizzFrame.auraInstanceID))
+       and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
         local unit = blizzFrame.auraDataUnit or "player"
-        local ok, auraData = pcall(C_UnitAuras.GetAuraDataByAuraInstanceID, unit, blizzFrame.auraInstanceID)
-        if ok and auraData and auraData.applications then
+        local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, blizzFrame.auraInstanceID)
+        if auraData and auraData.applications then
             currentStacks = auraData.applications
             if auraData.name then myBar.name:SetText(auraData.name) end
         end
@@ -944,8 +937,8 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
 
     -- Fallback 3: Try Spell Display Count (native action bar representation)
     if not currentStacks and myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) and C_Spell and C_Spell.GetSpellDisplayCount then
-        local ok, dc = pcall(C_Spell.GetSpellDisplayCount, myBar.spellID)
-        if ok and dc ~= nil then
+        local dc = C_Spell.GetSpellDisplayCount(myBar.spellID)
+        if dc ~= nil then
             if issecretvalue and issecretvalue(dc) then
                 currentStacks = dc
             else
@@ -958,9 +951,11 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     end
 
     -- Fallback 4: Try Spell Charges (for charge-based spells missing auraInstanceID)
-    if not currentStacks and myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) then
-        local ok, chargeInfo = pcall(C_Spell.GetSpellCharges, myBar.spellID)
-        if ok and chargeInfo and chargeInfo.currentCharges and chargeInfo.maxCharges and chargeInfo.maxCharges > 1 then
+    if not currentStacks and myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) and C_Spell and C_Spell.GetSpellCharges then
+        local chargeInfo = C_Spell.GetSpellCharges(myBar.spellID)
+        if chargeInfo and chargeInfo.currentCharges and chargeInfo.maxCharges
+           and not (issecretvalue and issecretvalue(chargeInfo.maxCharges))
+           and chargeInfo.maxCharges > 1 then
             local cc = chargeInfo.currentCharges
             if type(cc) == "number" or issecretvalue(cc) then
                 currentStacks = cc
@@ -1082,10 +1077,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
         if not skipSetValue then
             if issecretvalue and issecretvalue(currentStacks) then
                 local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate
-                local ok = pcall(myBar.status.SetValue, myBar.status, currentStacks, interp)
-                if not ok then
-                    myBar.status:SetValue(0)
-                end
+                myBar.status:SetValue(currentStacks, interp)
             else
                 local num = tonumber(currentStacks)
                 if num and num >= 0 and num <= maxVal then
@@ -1364,10 +1356,7 @@ local function UpdateBarsState()
                     -- Direct mirror from Blizzard's StatusBar (EllesmereUI lines 4576-4581).
                     -- Passes values directly into widget setters without storing or modifying them in Lua context.
                     myBar.status:SetMinMaxValues(blizzFrame.Bar:GetMinMaxValues())
-                    local ok = pcall(myBar.status.SetValue, myBar.status, blizzFrame.Bar:GetValue())
-                    if not ok then
-                        myBar.status:SetValue(0)
-                    end
+                    myBar.status:SetValue(blizzFrame.Bar:GetValue())
 
                     if blizzFrame.Bar.Duration then
                         local durText = blizzFrame.Bar.Duration:GetText()
@@ -1446,10 +1435,7 @@ local function UpdateBarsState()
                         myBar.status:SetMinMaxValues(0, maxVal)
                         if issecretvalue and issecretvalue(myBar.currentStacks) then
                             local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate
-                            local ok = pcall(myBar.status.SetValue, myBar.status, myBar.currentStacks, interp)
-                            if not ok then
-                                myBar.status:SetValue(0)
-                            end
+                            myBar.status:SetValue(myBar.currentStacks, interp)
                         else
                             local num = tonumber(myBar.currentStacks)
                             if num and num >= 0 and num <= maxVal then
@@ -1481,13 +1467,14 @@ local function UpdateBarsState()
                 if inPandemic and showGlow then
                     if not myBar._inPandemic then
                         if sfui.glows and sfui.glows.start_glow then
-                            sfui.glows.start_glow(myBar.iconFrame, {
+                            myBar._pandemicGlowOpts = myBar._pandemicGlowOpts or {
                                 glowType = "pixel",
                                 glowColor = { 1, 0.85, 0.2, 1 },
                                 glowThickness = 2,
                                 glowLines = 6,
                                 glowSpeed = 0.35,
-                            })
+                            }
+                            sfui.glows.start_glow(myBar.iconFrame, myBar._pandemicGlowOpts)
                         end
                     end
                 else

@@ -409,24 +409,11 @@ end
 -- ---------------------------------------------------------------------------
 local function SafeTotemInfo(slot)
     if not GetTotemInfo then return false end
-    local ok, haveTotem, name, startTime, duration, icon = pcall(GetTotemInfo, slot)
-    if not ok then return nil end
-
-    if issecretvalue and (issecretvalue(haveTotem) or issecretvalue(name) or issecretvalue(startTime)) then
+    local haveTotem, name, startTime, duration, icon = GetTotemInfo(slot)
+    if issecretvalue and (issecretvalue(haveTotem) or issecretvalue(name) or issecretvalue(startTime) or issecretvalue(duration)) then
         return nil
     end
-
-    local checkOk, isPresent = pcall(function()
-        if haveTotem and name and name ~= "" then
-            return true
-        end
-        return false
-    end)
-    if not checkOk then return nil end
-
-    if isPresent then
-        local mathOk = pcall(function() return (startTime or 0) + (duration or 0) end)
-        if not mathOk then startTime, duration = nil, nil end
+    if haveTotem and name and name ~= "" then
         return true, name, startTime, duration, icon
     end
     return false
@@ -673,14 +660,21 @@ local function StartActiveGlow(btn)
             if cfg.glowThickness then gThick = cfg.glowThickness end
         end
 
-        sfui.glows.start_glow(btn.frame, {
-            glowType      = gType,
-            glowColor     = { gr, gg, gb, 1.0 },
-            glowLines     = gLines,
-            glowThickness = gThick,
-            glowSpeed     = gSpeed,
-            glowScale     = gScale,
-        })
+        local gOpts = btn._glowOpts
+        if not gOpts then
+            gOpts = { glowColor = { gr, gg, gb, 1.0 } }
+            btn._glowOpts = gOpts
+        else
+            local gc = gOpts.glowColor
+            gc[1], gc[2], gc[3], gc[4] = gr, gg, gb, 1.0
+        end
+        gOpts.glowType      = gType
+        gOpts.glowLines     = gLines
+        gOpts.glowThickness = gThick
+        gOpts.glowSpeed     = gSpeed
+        gOpts.glowScale     = gScale
+
+        sfui.glows.start_glow(btn.frame, gOpts)
     end
 end
 
@@ -1578,6 +1572,12 @@ end
 
 function sfui.totembar.ResetPosition()
     if not bar then return end
+    if InCombatLockdown and InCombatLockdown() then
+        if sfui.common and sfui.common.print then
+            sfui.common.print("cannot reset totem bar position in combat.")
+        end
+        return
+    end
     bar:ClearAllPoints()
     bar:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 88)
     bar:SetUserPlaced(false)

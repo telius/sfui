@@ -399,6 +399,8 @@ function sfui.swing.IsPossible()
     return true
 end
 
+local lastAnchorFrame, lastSpacing
+
 --- Returns the lowest swing bar backdrop frame for anchoring (whether shown or hidden)
 function sfui.swing.GetLowestPossibleBar()
     EnsureBarsCreated()
@@ -431,8 +433,6 @@ function sfui.swing.GetLowestPossibleBar()
 end
 
 -- ─── External Public API for bars.lua ───────────────────────────────────────
-
-local lastAnchorFrame, lastSpacing
 
 --- Docks the active swing bars below anchorFrame (bar_minus_1 at -2, or bar0 at -1)
 function sfui.swing.UpdatePositions(anchorFrame, spacing)

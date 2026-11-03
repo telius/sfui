@@ -94,6 +94,8 @@ sfui.portals.TOY_ICONS_PER_ROW = TOY_ICONS_PER_ROW
 sfui.portals.TOY_X_OFFSET      = TOY_X_OFFSET
 
 local portalFrame = nil
+local currentlyClicking = false
+local currentHoverFrame = nil
 
 -- ========================
 -- Shared overlay action button (InsecureActionButtonTemplate pattern)
@@ -110,9 +112,6 @@ end)
 actionBtn:Hide()
 
 sfui.portals.actionBtn = actionBtn
-
-local currentlyClicking = false
-local currentHoverFrame = nil
 
 local function set_attr(frame, name, val)
     if frame.SetAttributeNoHandler then

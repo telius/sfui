@@ -375,23 +375,19 @@ local function guard_all_map_pin_mixins()
     end
 end
 
-local guardFrame = _G.CreateFrame and _G.CreateFrame("Frame")
-if guardFrame then
-    guardFrame:RegisterEvent("ADDON_LOADED")
-    guardFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    guardFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    guardFrame:SetScript("OnEvent", function(_, event, arg1)
-        if event == "ADDON_LOADED" then
-            if arg1 and (arg1 == "Blizzard_MapCanvas" or arg1 == "Blizzard_SharedMapDataProviders" or arg1 == "Blizzard_WorldMap") then
-                guard_all_map_pin_mixins()
-            end
-        elseif event == "PLAYER_ENTERING_WORLD" then
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("ADDON_LOADED", function(_, arg1)
+        if arg1 and (arg1 == "Blizzard_MapCanvas" or arg1 == "Blizzard_SharedMapDataProviders" or arg1 == "Blizzard_WorldMap") then
             guard_all_map_pin_mixins()
-        elseif event == "PLAYER_REGEN_ENABLED" then
-            local wmf = _G.WorldMapFrame
-            if wmf and wmf:IsShown() and wmf.RefreshAllDataProviders then
-                pcall(wmf.RefreshAllDataProviders, wmf)
-            end
+        end
+    end)
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        guard_all_map_pin_mixins()
+    end)
+    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        local wmf = _G.WorldMapFrame
+        if wmf and wmf:IsShown() and wmf.RefreshAllDataProviders then
+            pcall(wmf.RefreshAllDataProviders, wmf)
         end
     end)
 end

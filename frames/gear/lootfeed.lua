@@ -209,6 +209,45 @@ local function EnsureContainer()
         c.pos.y = math_floor(y + 0.5)
     end)
 
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(container, {
+            key = "lootfeed",
+            label = "loot feed",
+            preferredPoint = "TOPRIGHT",
+            getPoint = function()
+                local c = GetConfig()
+                local p = c and c.pos
+                local pt = (p and p.point) or "TOPRIGHT"
+                local rPt = (p and p.relativePoint) or pt
+                return pt, UIParent, rPt, (p and p.x) or -320, (p and p.y) or -200
+            end,
+            setPoint = function(point, relTo, relPoint, x, y)
+                local pt = point or "TOPRIGHT"
+                local rPt = relPoint or pt
+                local sx = math_floor((x or -320) + 0.5)
+                local sy = math_floor((y or -200) + 0.5)
+                container:ClearAllPoints()
+                container:SetPoint(pt, UIParent, rPt, sx, sy)
+                local c = GetConfig()
+                c.pos = c.pos or {}
+                c.pos.point = pt
+                c.pos.relativePoint = rPt
+                c.pos.x = sx
+                c.pos.y = sy
+            end,
+            resetPosition = function()
+                local c = GetConfig()
+                c.pos = { point = "TOPRIGHT", relativePoint = "TOPRIGHT", x = -320, y = -200 }
+                container:ClearAllPoints()
+                container:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -320, -200)
+            end,
+            isEnabled = function()
+                local c = GetConfig()
+                return not c or c.enabled ~= false
+            end,
+        })
+    end
+
     -- Pending Items Header
     pendingHeader = CreateFrame("Frame", nil, container, "BackdropTemplate")
     pendingHeader:SetSize(cfg.width or 280, 18)

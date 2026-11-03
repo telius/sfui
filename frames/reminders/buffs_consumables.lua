@@ -162,13 +162,6 @@ local function ScanInventoryFoods()
         return availableFoods
     end
 
-    local db = SfuiDB and SfuiDB.buffReminders
-    if db and (db.enabled == false or not db.trackFood) then
-        _G.wipe(availableFoods)
-        isFoodScanDirty = false
-        return availableFoods
-    end
-
     _G.wipe(scratchCounts)
     _G.wipe(scratchOrder)
 
