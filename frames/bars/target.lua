@@ -1734,10 +1734,6 @@ local function CreateTargetFrame()
         if buffContainer.SetEditModePreviewEnabled then
             buffContainer:SetEditModePreviewEnabled(false)
         end
-        buffContainer.editModePreviewEnabled = false
-        if buffContainer.UnregisterEvent then
-            buffContainer:UnregisterEvent("AURA_DATA_PROVIDER_SWITCH")
-        end
         buffContainer:AddAuraGroup("Buffs", "HELPFUL", {
             maxFrameCount = maxBuffs,
             initializeFrame = InitializeBuffButton,
@@ -1756,10 +1752,6 @@ local function CreateTargetFrame()
         debuffContainer:SetFlowLayoutGrowthDirection(flowDirLeft, flowDirDown)
         if debuffContainer.SetEditModePreviewEnabled then
             debuffContainer:SetEditModePreviewEnabled(false)
-        end
-        debuffContainer.editModePreviewEnabled = false
-        if debuffContainer.UnregisterEvent then
-            debuffContainer:UnregisterEvent("AURA_DATA_PROVIDER_SWITCH")
         end
         debuffContainer:AddAuraGroup("Debuffs", "HARMFUL", {
             maxFrameCount = maxDebuffs,
