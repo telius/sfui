@@ -1517,5 +1517,66 @@
     "mapName": "wetlands",
     "x": 0.2,
     "y": 0.496
+  },
+  "7800": {
+    "npcID": 7800,
+    "mapID": null,
+    "mapName": "gnomeregan",
+    "zoneID": 721,
+    "x": null,
+    "y": null
+  },
+  "5259": {
+    "npcID": 5259,
+    "mapID": null,
+    "mapName": "the temple of atal&apos;hakkar",
+    "zoneID": 1477,
+    "x": null,
+    "y": null
+  },
+  "10398": {
+    "npcID": 10398,
+    "mapID": null,
+    "mapName": "stratholme",
+    "zoneID": 2017,
+    "x": null,
+    "y": null
+  },
+  "759": {
+    "npcID": 759,
+    "mapID": 1435,
+    "mapName": "swamp of sorrows",
+    "x": 0.544,
+    "y": 0.3
+  },
+  "2906": {
+    "npcID": 2906,
+    "mapID": 1418,
+    "mapName": "badlands",
+    "x": 0.634,
+    "y": 0.238
+  },
+  "1885": {
+    "npcID": 1885,
+    "mapID": 1422,
+    "mapName": "western plaguelands",
+    "x": 0.414,
+    "y": 0.134
+  },
+  "15275": {
+    "npcID": 15275,
+    "mapID": null,
+    "mapName": "ahn&apos;qiraj",
+    "zoneID": 3428,
+    "x": null,
+    "y": null
+  },
+  "15276": {
+    "npcID": 15276,
+    "mapID": null,
+    "mapName": "ahn&apos;qiraj",
+    "zoneID": 3428,
+    "x": null,
+    "y": null
   }
 }

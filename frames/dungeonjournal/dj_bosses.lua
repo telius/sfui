@@ -979,7 +979,14 @@ local function RenderLoot(boss, dungeon)
 
             -- Drop rate & Level info
             local reqStr = ""
-            if reqLevel and reqLevel > 0 then
+            if sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) then
+                local rec = sfui.recipes.GetRecipe and sfui.recipes.GetRecipe(itemID)
+                if rec and rec.minSkill and rec.minSkill > 0 then
+                    reqStr = "skill " .. rec.minSkill
+                elseif reqLevel and reqLevel > 0 then
+                    reqStr = "req " .. reqLevel
+                end
+            elseif reqLevel and reqLevel > 0 then
                 reqStr = "req " .. reqLevel
             elseif iLevel and iLevel > 0 then
                 reqStr = "ilvl " .. iLevel

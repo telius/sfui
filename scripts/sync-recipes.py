@@ -175,8 +175,6 @@ SPECIALIZATION_RECIPES = {
     16656: "armorsmith",  # Radiant Boots
     16659: "armorsmith",  # Radiant Circlet
     16660: "armorsmith",  # Dawnbringer Shoulders
-    16661: "armorsmith",  # Storm Gauntlets
-    16728: "armorsmith",  # Helm of the Great Chief
     20853: "armorsmith",  # Fiery Chain Girdle
     20854: "armorsmith",  # Dark Iron Bracers
     20855: "armorsmith",  # Dark Iron Helm
@@ -186,7 +184,6 @@ SPECIALIZATION_RECIPES = {
     20874: "armorsmith",  # Dark Iron Bracers
     20876: "armorsmith",  # Dark Iron Leggings
     20890: "armorsmith",  # Dark Iron Reaver
-    23628: "armorsmith",  # Dark Iron Gauntlets
     23636: "armorsmith",  # Dark Iron Helm
     23637: "armorsmith",  # Dark Iron Gauntlets
     24136: "armorsmith",  # Bloodsoul Breastplate
@@ -214,7 +211,6 @@ SPECIALIZATION_RECIPES = {
     20950: "weaponsmith", # Sulfuron Hammer
     21161: "weaponsmith", # Sulfuron Hammer
     23624: "weaponsmith", # Dawn's Edge
-    23629: "weaponsmith", # Nightfall
     23653: "weaponsmith", # Nightfall
 
     # Leatherworking: Dragonscale Leatherworking
@@ -236,6 +232,8 @@ SPECIALIZATION_RECIPES = {
     24851: "dragonscale leatherworking",  # Sandstalker Breastplate
 
     # Leatherworking: Elemental Leatherworking
+    16661: "elemental leatherworking",  # Storm Gauntlets (moved from Armorsmith in Forever)
+    16746: "elemental leatherworking",  # Invulnerable Mail (moved from Armorsmith in Forever)
     19061: "elemental leatherworking",  # Living Shoulders
     19067: "elemental leatherworking",  # Stormshroud Pants
     19078: "elemental leatherworking",  # Living Leggings
@@ -256,6 +254,8 @@ SPECIALIZATION_RECIPES = {
     # Leatherworking: Tribal Leatherworking
     10621: "tribal leatherworking",  # Wolfshead Helm
     10647: "tribal leatherworking",  # Feathered Breastplate
+    16650: "tribal leatherworking",  # Wildthorn Mail (moved from Armorsmith in Forever)
+    16728: "tribal leatherworking",  # Helm of the Great Chief (moved from Armorsmith in Forever)
     19062: "tribal leatherworking",  # Ironfeather Shoulders
     19066: "tribal leatherworking",  # Frostsaber Boots
     19068: "tribal leatherworking",  # Warbear Harness
@@ -274,6 +274,75 @@ SPECIALIZATION_RECIPES = {
     28472: "tribal leatherworking",  # Bramblewood Helm
     28473: "tribal leatherworking",  # Bramblewood Boots
     28474: "tribal leatherworking",  # Bramblewood Belt
+}
+
+# Starter recipes learned automatically upon learning the profession (minSkill = 0)
+# In Forever, Blizzard set colors[0] = 0 on these, causing Wowhead's JS to set learnedat to colors[1] (yellow).
+STARTER_RECIPES = {
+    818, 2538, 2540, 8604,                        # Cooking: Basic Campfire, Charred Wolf Meat, Roasted Boar Meat, Herb Baked Egg
+    3275,                                         # First Aid: Linen Bandage
+    7183, 1245246, 1245250,                       # Alchemy: Elixir of Minor Defense, Minor Arcane Elixir, Elixir of Minor Force
+    2660, 2663, 3115, 12260, 1245287,             # Blacksmithing: Rough Sharpening Stone, Copper Bracers, Rough Weightstone, Rough Copper Vest, Copper Rod
+    7418, 7421, 1245320, 1245321,                 # Enchanting: Enchant Bracer - Inferior Stamina, Runed Copper Rod, Dust to Motes, Novice's Practice Wand
+    3918, 3919, 3920,                             # Engineering: Rough Blasting Powder, Rough Dynamite, Crafted Light Shot
+    2149, 2152, 2881, 7126, 9058, 9059,           # Leatherworking: Handstitched Leather Boots/Vest/Cloak/Bracers, Light Armor Kit, Light Leather
+    2387, 2963, 3915, 12044,                      # Tailoring: Linen Cloak, Bolt of Linen Cloth, Brown Linen Shirt, Simple Linen Pants
+}
+
+# Non-item trainer/quest/reputation recipes where Wowhead's colors[0] == 0 inflated learnedat to the yellow threshold
+NON_ITEM_SKILL_OVERRIDES = {
+    11452:   210,  # Restorative Potion (quest: Badlands Reagent Run II)
+    24266:   300,  # Gurubashi Mojo Madness (Edge of Madness tablet in Zul'Gurub)
+    1244645: 55,   # Lesser Discolored Healing Potion
+    1244646: 110,  # Discolored Healing Potion
+    1244647: 155,  # Greater Discolored Healing Potion
+    1244648: 215,  # Superior Discolored Healing Potion
+    9957:    205,  # Orcish War Leggings (quest: The Old Ways, lowered from 230 in Forever)
+    9972:    215,  # Ornate Mithril Breastplate (quest, lowered from 240 in Forever)
+    9979:    220,  # Ornate Mithril Boots (quest, lowered from 245 in Forever)
+    9980:    220,  # Ornate Mithril Helm (quest, lowered from 245 in Forever)
+    13028:   175,  # Goldthorn Tea (Henry Stern in Razorfen Downs)
+    24801:   285,  # Smoked Desert Dumplings (quest: Sharing the Knowledge)
+    12716:   205,  # Goblin Mortar
+    23486:   260,  # Dimensional Ripper - Everlook
+    23489:   260,  # Ultrasafe Transporter - Gadgetzan
+    26011:   250,  # Tranquil Mechanical Yeti
+    10619:   200,  # Dragonscale Gauntlets (trainer, lowered from 225 in Forever)
+    10621:   200,  # Wolfshead Helm (trainer, lowered from 225 in Forever)
+    10630:   205,  # Gauntlets of the Sea (trainer, lowered from 230 in Forever)
+    10632:   225,  # Helm of Fire (trainer, lowered from 250 in Forever)
+    10647:   225,  # Feathered Breastplate (trainer, lowered from 250 in Forever)
+    10650:   230,  # Dragonscale Breastplate (trainer, lowered from 255 in Forever)
+    24655:   255,  # Green Dragonscale Gauntlets (trainer, lowered from 280 in Forever)
+    19093:   300,  # Onyxia Scale Cloak
+    22813:   275,  # Gordok Ogre Suit (Tailoring)
+    22815:   275,  # Gordok Ogre Suit (Leatherworking)
+    24703:   300,  # Dreamscale Breastplate
+    24846:   300,  # Spitfire Bracers
+    24847:   300,  # Spitfire Gauntlets
+    24848:   300,  # Spitfire Breastplate
+    24849:   300,  # Sandstalker Bracers
+    24850:   300,  # Sandstalker Gauntlets
+    24851:   300,  # Sandstalker Breastplate
+    28219:   300,  # Polar Tunic
+    28220:   300,  # Polar Gloves
+    28221:   300,  # Polar Bracers
+    28222:   300,  # Icy Scale Breastplate
+    28223:   300,  # Icy Scale Gauntlets
+    28224:   300,  # Icy Scale Bracers
+    28472:   300,  # Bramblewood Helm
+    28473:   300,  # Bramblewood Boots
+    28474:   300,  # Bramblewood Belt
+    19435:   265,  # Mooncloth Boots (Sacred Cloth quest after Mooncloth 230)
+}
+
+# Unused / NYI / Beta DBC spells with no trainer cost, no recipe item, and no source
+IGNORED_SPELLS = {
+    2365,     # Draught of Tongues (removed Alpha/Beta spell)
+    26086,    # Felcloth Bag (unused duplicate of Core Felcloth Bag 26087)
+    1217189,  # Enchant Bracer - Spell Power (unused duplicate)
+    1229737,  # Basic Campfire (unused duplicate of 818)
+    1255241,  # Cleansing Stew (quest dummy spell learnedat=9999)
 }
 
 REPUTATION_RECIPES = {
@@ -630,12 +699,82 @@ def escape_lua_str(val: str) -> str:
     return str(val).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 def compact_spell(sp: dict) -> dict:
-    keep_keys = ("id", "name", "rank", "learnedat", "colors", "creates", "trainingcost", "reagents", "source", "sourcemore")
+    keep_keys = ("id", "name", "rank", "learnedat", "colors", "creates", "trainingcost", "reagents", "source", "sourcemore", "envChange")
     return {k: sp[k] for k in keep_keys if k in sp and sp[k] is not None}
 
 def compact_item(it: dict) -> dict:
-    keep_keys = ("id", "name", "source", "sourcemore", "buyprice", "sm_checked")
+    keep_keys = ("id", "name", "skill", "level", "reqlevel", "quality", "source", "sourcemore", "buyprice", "sm_checked", "envChange")
     return {k: it[k] for k in keep_keys if k in it and it[k] is not None}
+
+def is_sod_or_invalid_item(it: dict) -> bool:
+    iid = int(it.get("id") or 0)
+    if iid in (16072, 16084):  # Expert Cooking / First Aid rank books (not craft recipes)
+        return True
+    name = it.get("name") or ""
+    if "OLD" in name:
+        return True
+    env = it.get("envChange") or {}
+    labels = env.get("labels") or []
+    status = env.get("status")
+    if "seasonal" in labels or status == "unconfirmed":
+        return True
+    if 190000 <= iid < 245000 and status != "new":
+        return True
+    return False
+
+def is_sod_or_invalid_spell(sp: dict) -> bool:
+    sid = int(sp.get("id") or 0)
+    if sid in IGNORED_SPELLS:
+        return True
+    env = sp.get("envChange") or {}
+    labels = env.get("labels") or []
+    status = env.get("status")
+    if "seasonal" in labels or status == "unconfirmed":
+        return True
+    if sid >= 300000 and status != "new":
+        return True
+    return False
+
+def fetch_uncategorized_spell_for_item(item: dict) -> dict | None:
+    """
+    Resolves a craft spell taught by a Forever recipe scroll when Wowhead categorized
+    the spell under Uncategorized Spells instead of the profession's spell listview.
+    Extracts spell ID, output item ID, and reagents directly from the item's XML tooltip.
+    """
+    iid = int(item.get("id") or 0)
+    if not iid:
+        return None
+    try:
+        xml = fetch_url(f"https://www.wowhead.com/forever/item={iid}&xml", timeout=8, max_retries=2)
+        if not xml:
+            return None
+        m = re.search(r"spell=(\d+)[^>]*>Teaches you how to", xml, re.I)
+        if not m:
+            m = re.search(r"spell=(\d+)", xml, re.I)
+        if not m:
+            return None
+        sid = int(m.group(1))
+        sp = {
+            "id": sid,
+            "name": clean_recipe_name(item.get("name", "")),
+            "learnedat": int(item.get("skill") or 0),
+            "source": item.get("source") or [2],
+            "envChange": item.get("envChange") or {"status": "new"},
+        }
+        m_out = re.search(r"itemEffects:1--><br>.*?<a href=\"[^\"]*item=(\d+)/", xml, re.S)
+        if m_out:
+            sp["creates"] = [int(m_out.group(1)), 1, 1]
+        reagents = []
+        m_reag = re.search(r"whtt-reagents\">(.*?)</div>", xml, re.S)
+        if m_reag:
+            for r_m in re.finditer(r"item=(\d+)/[^\"]*\"[^>]*>[^<]+</a>(?:(?:&nbsp;|\s)*\((\d+)\))?", m_reag.group(1)):
+                reagents.append([int(r_m.group(1)), int(r_m.group(2) or 1)])
+        if reagents:
+            sp["reagents"] = reagents
+        return compact_spell(sp)
+    except Exception:
+        pass
+    return None
 
 def fetch_spells_for_profession(prof_slug: str, prof_info: dict) -> list:
     sub = "secondary-skills" if prof_info["type"] == "secondary" else "professions"
@@ -813,30 +952,85 @@ def fetch_recipe_item_rep_and_spec(item_id: int) -> tuple:
     except Exception as e:
         return item_id, {"error": str(e)}
 
-def find_matching_spell(item_name: str, spells_by_norm: dict) -> dict:
+def build_spells_by_norm(spells: list) -> dict:
+    """Indexes spells by normalized current name and pre-Forever (Vanilla) name."""
+    by_norm = {}
+    for sp in spells:
+        if is_sod_or_invalid_spell(sp):
+            continue
+        names = [sp.get("name", "")]
+        before_name = ((sp.get("envChange") or {}).get("before") or {}).get("name")
+        if before_name:
+            names.append(before_name)
+        for nm in names:
+            nk = norm_key(nm)
+            if nk:
+                lst = by_norm.setdefault(nk, [])
+                if not any(existing.get("id") == sp.get("id") for existing in lst):
+                    lst.append(sp)
+    return by_norm
+
+def choose_best_spell_for_item(item: dict, candidates: list) -> dict | None:
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    iid = int(item.get("id") or 0)
+    is_forever_item = (iid >= 245000) or ((item.get("envChange") or {}).get("status") == "new")
+
+    def score_sp(sp):
+        sid = int(sp.get("id") or 0)
+        is_forever_sp = (sid >= 1200000) or ((sp.get("envChange") or {}).get("status") == "new")
+        sc = 0
+        if is_forever_item and is_forever_sp:
+            sc += 5000
+        elif not is_forever_item and sid < 100000:
+            sc += 5000
+        if item.get("skill") and sp.get("learnedat") == item.get("skill"):
+            sc += 500
+        if sp.get("creates"):
+            sc += 100
+        return (sc, -sid)
+
+    return max(candidates, key=score_sp)
+
+def find_matching_spell(item_or_name, spells_by_norm: dict) -> dict | None:
     """Finds the craft spell corresponding to a recipe scroll item, handling suffixes and naming variations."""
+    if isinstance(item_or_name, dict):
+        item = item_or_name
+        item_name = item.get("name", "")
+    else:
+        item = {"id": 0, "name": str(item_or_name)}
+        item_name = str(item_or_name)
+
     nk = norm_key(item_name)
     if not nk:
         return None
 
+    def pick(key):
+        val = spells_by_norm.get(key)
+        if isinstance(val, list):
+            return choose_best_spell_for_item(item, val)
+        return val
+
     # 1. Direct normalized key
     if nk in spells_by_norm:
-        return spells_by_norm[nk]
+        return pick(nk)
 
     # 2. Known manual alias
     if nk in MANUAL_ALIASES and MANUAL_ALIASES[nk] in spells_by_norm:
-        return spells_by_norm[MANUAL_ALIASES[nk]]
+        return pick(MANUAL_ALIASES[nk])
 
     # 3. Singular / plural variation (strip or append 's')
     if nk.endswith("s") and nk[:-1] in spells_by_norm:
-        return spells_by_norm[nk[:-1]]
+        return pick(nk[:-1])
     if (nk + "s") in spells_by_norm:
-        return spells_by_norm[nk + "s"]
+        return pick(nk + "s")
 
     # 4. Suffix variations (potion, elixir, oil, etc.)
     for sfx in ["potion", "elixir", "oil", "transmutation"]:
         if (nk + sfx) in spells_by_norm:
-            return spells_by_norm[nk + sfx]
+            return pick(nk + sfx)
 
     return None
 
@@ -942,6 +1136,31 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
                 print(f"  -> {len(raw_cache[p]['spells'])} spells, {len(raw_cache[p]['items'])} recipe items")
             else:
                 print(f"  Warning: No data returned for {p}; retaining previous cache if available.", file=sys.stderr)
+
+    # 3.4 Resolve any Forever recipe items whose taught spells were put in Wowhead's Uncategorized Spells
+    if not dry_run and not check_only:
+        for p in selected_profs:
+            p_entry = raw_cache.get(p, {})
+            p_spells = p_entry.get("spells", [])
+            p_items = p_entry.get("items", [])
+            if not p_spells or not p_items:
+                continue
+            by_norm = build_spells_by_norm(p_spells)
+            existing_sids = {int(sp.get("id") or 0) for sp in p_spells}
+            for it in p_items:
+                if is_sod_or_invalid_item(it):
+                    continue
+                if (it.get("envChange") or {}).get("status") != "new" and not it.get("source"):
+                    continue
+                if not find_matching_spell(it, by_norm):
+                    uncat_sp = fetch_uncategorized_spell_for_item(it)
+                    if uncat_sp and int(uncat_sp.get("id") or 0) not in existing_sids:
+                        p_spells.append(uncat_sp)
+                        existing_sids.add(int(uncat_sp["id"]))
+                        by_norm = build_spells_by_norm(p_spells)
+                        cache_dirty = True
+                        if verbose:
+                            print(f"  Resolved uncategorized spell {uncat_sp['id']} ({uncat_sp.get('name')}) for item {it['id']}")
 
     # 3.5 Enrich custom Forever multi-source / dungeon recipe items missing `sourcemore`
     if refresh and not dry_run and not check_only:
@@ -1074,24 +1293,32 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
             continue
         skill_id = p_info["skillID"]
 
-        # Build fast lookup for spells in this profession
-        spells_by_norm = {}
-        for sp in p_data.get("spells", []):
-            sp_norm = norm_key(sp.get("name", ""))
-            if sp_norm and sp_norm not in spells_by_norm:
-                spells_by_norm[sp_norm] = sp
+        # Build fast lookup for spells in this profession (indexed by current and pre-Forever names)
+        spells_by_norm = build_spells_by_norm(p_data.get("spells", []))
 
-        # Map recipe items to spells
+        # Map valid Classic / Forever recipe items to spells (excluding SoD items)
         item_by_spell_id = {}
         for it in p_data.get("items", []):
-            matched_spell = find_matching_spell(it.get("name", ""), spells_by_norm)
+            if is_sod_or_invalid_item(it):
+                continue
+            matched_spell = find_matching_spell(it, spells_by_norm)
             if matched_spell:
-                item_by_spell_id[matched_spell["id"]] = it
+                sid = matched_spell["id"]
+                prev_it = item_by_spell_id.get(sid)
+                if not prev_it:
+                    item_by_spell_id[sid] = it
+                else:
+                    # Prefer items with explicit sources or Forever/Classic matching era
+                    if it.get("source") and not prev_it.get("source"):
+                        item_by_spell_id[sid] = it
 
         prof_candidates = {}
         for sp in p_data.get("spells", []):
             spell_id = sp.get("id")
             if not spell_id:
+                continue
+
+            if is_sod_or_invalid_spell(sp):
                 continue
 
             # Skip invalid / datamined / retail spells:
@@ -1126,6 +1353,17 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
             recipe_item = item_by_spell_id.get(spell_id)
             recipe_item_id = recipe_item.get("id") if recipe_item else None
             recipe_item_name = recipe_item.get("name") if recipe_item else None
+
+            # Authoritative minSkill resolution:
+            # 1. Starter recipes learned automatically upon learning the profession -> minSkill = 0
+            # 2. Item-taught recipes -> recipe_item["skill"] is the authoritative Forever required skill on the scroll
+            # 3. Non-item recipes where colors[0] == 0 inflated Wowhead's learnedat to colors[1] (yellow threshold) -> override
+            if spell_id in STARTER_RECIPES:
+                min_skill = 0
+            elif recipe_item and recipe_item.get("skill") and int(recipe_item["skill"]) > 0:
+                min_skill = int(recipe_item["skill"])
+            elif spell_id in NON_ITEM_SKILL_OVERRIDES:
+                min_skill = NON_ITEM_SKILL_OVERRIDES[spell_id]
 
             # Resolve sources
             sources = []
@@ -1289,15 +1527,15 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
             if len(candidates) == 1:
                 chosen = candidates[0]
             else:
-                # Score candidates to select authentic classic version
+                # Score candidates to select authentic Classic / Forever version
                 def candidate_score(c):
                     score = 0
                     sid = c["id"]
-                    # Authentic Classic spell IDs are typically < 100,000 (give huge preference over 400k+ SoD/datamined duplicates)
-                    if sid < 100000:
+                    # Authentic Classic spell IDs (< 100k) or Forever spell IDs (>= 1.2M)
+                    if sid < 100000 or sid >= 1200000:
                         score += 10000
                     if c.get("recipeItemID"):
-                        score += 1000
+                        score += 2000
                     if c.get("output"):
                         score += 500
                     if c.get("spec"):
@@ -1366,8 +1604,8 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
         return
 
     # 7. Safety Threshold: prevent overwriting good database on network/scraping failure
-    if len(unified_recipes) < 2000:
-        print(f"Error: Unified recipe count ({len(unified_recipes)}) below safety threshold (2000). Aborting to prevent data corruption.", file=sys.stderr)
+    if len(unified_recipes) < 1800:
+        print(f"Error: Unified recipe count ({len(unified_recipes)}) below safety threshold (1800). Aborting to prevent data corruption.", file=sys.stderr)
         return
 
     # 8. Write data/recipes_camelot.lua (Atomic write via .tmp file)

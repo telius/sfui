@@ -205,6 +205,7 @@ local CATEGORIES = {
     { name = "LOCKOUTS_HEADER",   label = "raid lockouts",     type = "header" },
     { name = "LOCKOUTS_GRID",     label = "raids (reset)",     type = "classic_lockout_grid" },
     { name = "ONYXIA_ATTUNE",     label = "onyxia attune",     type = "classic_onyxia_attune" },
+    { name = "DALARAN_ATTUNE",    label = "dalaran attune",    type = "classic_dalaran_attune" },
 
     { name = "CURRENCIES_HEADER", label = "currencies",        type = "header" },
     { name = "CURRENCY_3402",     label = "merchant's favor",  type = "classic_currency", id = 3402 },
@@ -508,21 +509,54 @@ local function PerformSync(data, isLogout)
         wipe(data.lockouts)
     end
 
-    -- 5. Onyxia's Lair Attunement (Drakefire Amulet)
+    -- 5. Onyxia's Lair & City of Dalaran Attunements
     data.attunements = data.attunements or {}
     local onyDone = false
+    local dalaranDone = false
+    local dalaranInProgress = false
+    local isOnQuest = C_QuestLog and C_QuestLog.IsOnQuest
     if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
         if not isHorde then
             onyDone = C_QuestLog.IsQuestFlaggedCompleted(6502) or C_QuestLog.IsQuestFlaggedCompleted(4974)
+            dalaranDone = C_QuestLog.IsQuestFlaggedCompleted(92459)
+                or C_QuestLog.IsQuestFlaggedCompleted(92458)
+                or C_QuestLog.IsQuestFlaggedCompleted(92432)
+                or (isOnQuest and isOnQuest(92458))
         else
             onyDone = C_QuestLog.IsQuestFlaggedCompleted(6602) or C_QuestLog.IsQuestFlaggedCompleted(6584) or C_QuestLog.IsQuestFlaggedCompleted(4875)
+            dalaranDone = C_QuestLog.IsQuestFlaggedCompleted(93689)
+                or C_QuestLog.IsQuestFlaggedCompleted(97287)
+                or C_QuestLog.IsQuestFlaggedCompleted(96984)
+                or C_QuestLog.IsQuestFlaggedCompleted(92434)
+                or (isOnQuest and isOnQuest(96984))
+            if not dalaranDone then
+                dalaranInProgress = C_QuestLog.IsQuestFlaggedCompleted(544)
+                    or C_QuestLog.IsQuestFlaggedCompleted(93680)
+                    or C_QuestLog.IsQuestFlaggedCompleted(545)
+            end
         end
     end
     if not onyDone and GetItemCount and GetItemCount(16309, true) > 0 then
         onyDone = true
     end
+    if not dalaranDone and GetItemCount and (GetItemCount(277507, true) > 0 or GetItemCount("Dalaran Sewer Key", true) > 0) then
+        dalaranDone = true
+    end
+    if not dalaranDone and not dalaranInProgress and isOnQuest then
+        if not isHorde then
+            dalaranInProgress = isOnQuest(92432)
+        else
+            dalaranInProgress = isOnQuest(544) or isOnQuest(93680) or isOnQuest(545) or isOnQuest(92434)
+        end
+    end
     if onyDone then
         data.attunements.ony = true
+    end
+    if dalaranDone then
+        data.attunements.dalaran = true
+        data.attunements.dalaranInProgress = nil
+    else
+        data.attunements.dalaranInProgress = dalaranInProgress or nil
     end
 
     -- 6. Classic Professions
@@ -969,6 +1003,47 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
         return true
 
+    elseif cat.type == "classic_dalaran_attune" then
+        local att = altData.attunements or {}
+        local unlocked = att.dalaran == true
+        local inProgress = att.dalaranInProgress == true
+        local isHorde = (altData.race == "Orc" or altData.race == "Troll" or altData.race == "Tauren" or altData.race == "Scourge" or altData.race == "Undead")
+        if unlocked then
+            text:SetText("attuned")
+            text:SetTextColor(0.2, 0.9, 0.2)
+        elseif inProgress then
+            text:SetText("in progress")
+            text:SetTextColor(1.0, 0.82, 0.0)
+        else
+            text:SetText("not attuned")
+            text:SetTextColor(0.5, 0.5, 0.5)
+        end
+
+        cell:EnableMouse(true)
+        cell:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine("city of dalaran attunement", 1, 1, 1)
+            local status
+            if unlocked then
+                status = isHorde and "|cff00ff00attuned (dalaran sewer key)|r" or "|cff00ff00attuned|r"
+            elseif inProgress then
+                status = "|cffffd100in progress|r"
+            else
+                status = "|cffff4444not attuned|r"
+            end
+            GameTooltip:AddDoubleLine("status:", status, 1, 1, 1, 1, 1, 1)
+            if isHorde then
+                GameTooltip:AddDoubleLine("questline:", "key to the city & prison break-in", 0.7, 0.7, 0.7, 1, 0.82, 0)
+                GameTooltip:AddDoubleLine("starts at:", "magus wordeen voidglare, tarren mill", 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
+            else
+                GameTooltip:AddDoubleLine("questline:", "an alarming request", 0.7, 0.7, 0.7, 1, 0.82, 0)
+                GameTooltip:AddDoubleLine("starts at:", "emissary jacques, southshore", 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
+            end
+            GameTooltip:Show()
+        end)
+        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        return true
+
     elseif cat.type == "classic_prof" then
         local p
         if altData.professions and altData.professions.primaries then
@@ -1218,5 +1293,7 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("PLAYER_PVP_KILLS_CHANGED",           on_sync)
         sfui.events.RegisterEvent("PLAYER_PVP_RANK_CHANGED",            on_sync)
         sfui.events.RegisterEvent("BAG_UPDATE_DELAYED",            on_sync)
+        sfui.events.RegisterEvent("QUEST_TURNED_IN",               on_sync)
+        sfui.events.RegisterEvent("QUEST_ACCEPTED",                on_sync)
     end,
 })

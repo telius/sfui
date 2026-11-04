@@ -92,9 +92,9 @@ sfui.dj_camelot.dungeons = {
     {
         id       = "ruins_of_lordaeron",
         name     = "Ruins of Lordaeron",
-        level    = "15 - 22",
+        level    = "15 - 20",
         minLevel = 15,
-        maxLevel = 22,
+        maxLevel = 20,
         zone     = "Tirisfal Glades",
         icon     = 136012,
         iconStr  = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01",
@@ -202,7 +202,7 @@ sfui.dj_camelot.dungeons = {
               objective = "Defeat the Highland Horrors inside Excavation Site: Wetlands.",
               rewardItems = { 271667, 271670, 271664 }, rewardSummary = "" },
             { id = 95647, name = "Lost in the Thicket Things", level = 31, minLevel = 24, faction = "Alliance",
-              pickup = "Llana, Wetlands", turnin = "Llana, Wetlands",
+              pickup = "Caitlin Grassman, Wetlands", turnin = "Caitlin Grassman, Wetlands",
               pickedUpInDungeon = false, shareable = true,
               objective = "Complete Lost in the Thicket Things in Excavation Site: Wetlands.",
               rewardItems = {}, rewardSummary = "" },
@@ -212,18 +212,18 @@ sfui.dj_camelot.dungeons = {
               objective = "Search Excavation Site: Wetlands for Dorin Songblade.",
               rewardItems = {}, rewardSummary = "" },
             { id = 95795, name = "Fallen in the Fen", level = 31, minLevel = 24, faction = "Alliance",
-              pickup = "Wetlands", turnin = "Wetlands",
-              pickedUpInDungeon = false, shareable = true,
+              pickup = "Inside Dungeon", turnin = "Dorin Songblade, Redridge Mountains",
+              pickedUpInDungeon = true, shareable = false,
               objective = "Complete Fallen in the Fen in Excavation Site: Wetlands.",
               rewardItems = { 271769, 271768 }, rewardSummary = "" },
             { id = 95809, name = "Heartwoven", level = 31, minLevel = 24, faction = "Alliance",
-              pickup = "Wetlands", turnin = "Wetlands",
-              pickedUpInDungeon = false, shareable = true,
+              pickup = "Inside Dungeon", turnin = "Caitlin Grassman, Wetlands",
+              pickedUpInDungeon = true, shareable = false,
               objective = "Complete Heartwoven in Excavation Site: Wetlands.",
               rewardItems = { 280766 }, rewardSummary = "" },
             { id = 95810, name = "Lost Relic Carry", level = 31, minLevel = 24, faction = "Alliance",
-              pickup = "Wetlands", turnin = "Wetlands",
-              pickedUpInDungeon = false, shareable = true,
+              pickup = "Dropped inside Dungeon", turnin = "Prospector Whelgar, Wetlands",
+              pickedUpInDungeon = true, shareable = false,
               objective = "Recover the lost relic from Excavation Site: Wetlands.",
               rewardItems = {}, rewardSummary = "" },
             { id = 98815, name = "Highland Hides", level = 28, minLevel = 24, faction = "Alliance",
@@ -232,7 +232,7 @@ sfui.dj_camelot.dungeons = {
               objective = "Collect Highland Hides in Excavation Site: Wetlands.",
               rewardItems = {}, rewardSummary = "" },
             { id = 98824, name = "Prehistoric Prism", level = 31, minLevel = 24, faction = "Alliance",
-              pickup = "Wetlands", turnin = "Wetlands",
+              pickup = "Prospector Whelgar, Wetlands", turnin = "High Explorer Magellas, Ironforge",
               pickedUpInDungeon = false, shareable = true,
               objective = "Recover the Prehistoric Prism from Relic Guardian in Excavation Site: Wetlands.",
               rewardItems = { 271716, 271767, 271766 }, rewardSummary = "" },
@@ -249,12 +249,12 @@ sfui.dj_camelot.dungeons = {
               objective = "Enter the Excavation Sites in the Wetlands and bring back 4 Thicket Raptor Meat.",
               rewardItems = { 280766, 280805, 250185, 250077 }, rewardSummary = "" },
             { id = 95664, name = "Elder Knowledge", level = 31, minLevel = 24, faction = "Horde",
-              pickup = "Wetlands", turnin = "Wetlands",
-              pickedUpInDungeon = false, shareable = true,
+              pickup = "Dropped inside Dungeon", turnin = "Bashana Runetotem, Thunder Bluff",
+              pickedUpInDungeon = true, shareable = false,
               objective = "Complete Elder Knowledge in Excavation Site: Wetlands.",
               rewardItems = {}, rewardSummary = "" },
             { id = 98823, name = "Earthen Echo", level = 31, minLevel = 24, faction = "Horde",
-              pickup = "Wetlands", turnin = "Wetlands",
+              pickup = "Bashana Runetotem, Thunder Bluff", turnin = "Muln Earthfury, Mulgore",
               pickedUpInDungeon = false, shareable = true,
               objective = "Complete Earthen Echo in Excavation Site: Wetlands.",
               rewardItems = { 271766, 271767, 271719 }, rewardSummary = "" },
@@ -284,19 +284,33 @@ sfui.dj_camelot.dungeons = {
         },
         quests = {
             { id = 92456, name = "A Green Sample", level = 33, minLevel = 24, faction = "Alliance",
-              pickup = "Shylamiir, Alterac Mountains", turnin = "Shylamiir, Alterac Mountains",
+              pickup = "Shylamiir, Stormwind City", turnin = "Shylamiir, Stormwind City",
               pickedUpInDungeon = false, shareable = true,
               objective = "Complete A Green Sample in City of Dalaran.",
               rewardItems = { 279835, 279836 }, rewardSummary = "" },
             { id = 92457, name = "Starving Arcane", level = 33, minLevel = 24, faction = "Alliance",
-              pickup = "Alterac Mountains", turnin = "Alterac Mountains",
+              pickup = "Image of Archmage Modera, Silverpine Forest", turnin = "Image of Archmage Modera, Silverpine Forest",
               pickedUpInDungeon = false, shareable = true,
               objective = "Complete Starving Arcane in City of Dalaran.",
               rewardItems = { 279837, 279838 }, rewardSummary = "" },
             { id = 92458, name = "Heart of Disruption", level = 33, minLevel = 24, faction = "Alliance",
-              pickup = "Image of Archmage Modera", turnin = "Image of Archmage Modera",
-              pickedUpInDungeon = false, shareable = true,
-              objective = "Complete Heart of Disruption in City of Dalaran.",
+              pickup = "Image of Archmage Modera, Silverpine Forest", turnin = "Image of Archmage Modera, Silverpine Forest",
+              pickedUpInDungeon = false, shareable = false, hasPrereq = true,
+              prereqId = 92432,
+              prereqText = "Requires Dalaran attunement starter 'An Alarming Request' from Emissary Jacques in Southshore",
+              chain = {
+                  { id = 92432, name = "An Alarming Request", pickup = "Emissary Jacques, Southshore", minLevel = 30, coords = { mapID = 1424, x = 0.4830, y = 0.6010 } },
+                  { id = 92458, name = "Heart of Disruption", pickup = "Image of Archmage Modera, Silverpine Forest", minLevel = 24, coords = { mapID = 1421, x = 0.6860, y = 0.4520 }, isDungeonQuest = true },
+              },
+              chainStart = {
+                  id = 92432,
+                  name = "An Alarming Request",
+                  pickup = "Emissary Jacques, Southshore",
+                  minLevel = 30,
+                  faction = "Alliance",
+                  coords = { mapID = 1424, x = 0.4830, y = 0.6010 },
+              },
+              objective = "Collect the Arcane Mote for the Image of Archmage Modera near the City of Dalaran.",
               rewardItems = { 279839, 279840, 279841 }, rewardSummary = "" },
             { id = 92489, name = "Power Overwhelming", level = 33, minLevel = 24, faction = "Alliance",
               pickup = "High Sorcerer Andromath, Stormwind City", turnin = "High Sorcerer Andromath, Stormwind City",
@@ -304,19 +318,36 @@ sfui.dj_camelot.dungeons = {
               objective = "Complete Power Overwhelming in City of Dalaran.",
               rewardItems = { 251962, 279849 }, rewardSummary = "1g" },
             { id = 96984, name = "Heart of Disruption", level = 33, minLevel = 24, faction = "Horde",
-              pickup = "Alterac Mountains", turnin = "Alterac Mountains",
-              pickedUpInDungeon = false, shareable = true,
-              objective = "Complete Heart of Disruption in City of Dalaran.",
-              rewardItems = { 279842, 279843, 279844 }, rewardSummary = "" },
+              pickup = "Image of Archmage Modera, Silverpine Forest", turnin = "Magus Wordeen Voidglare, Tarren Mill",
+              pickedUpInDungeon = false, shareable = false, hasPrereq = true,
+              prereqId = 92434,
+              prereqText = "Requires Horde Dalaran Sewer Key attunement chain from Magus Wordeen Voidglare in Tarren Mill",
+              chain = {
+                  { id = 544,   name = "Prison Break In",       pickup = "Magus Wordeen Voidglare, Tarren Mill", minLevel = 30, coords = { mapID = 1424, x = 0.6160, y = 0.2080 } },
+                  { id = 93680, name = "Key to the City",       pickup = "Magus Wordeen Voidglare, Tarren Mill", minLevel = 30, coords = { mapID = 1424, x = 0.6160, y = 0.2080 } },
+                  { id = 545,   name = "Dalaran Patrols",       pickup = "Magus Wordeen Voidglare, Tarren Mill", minLevel = 30, coords = { mapID = 1424, x = 0.6160, y = 0.2080 } },
+                  { id = 92434, name = "Blood in the Streets",  pickup = "Magus Wordeen Voidglare, Tarren Mill", minLevel = 30, coords = { mapID = 1424, x = 0.6160, y = 0.2080 } },
+                  { id = 96984, name = "Heart of Disruption",   pickup = "Image of Archmage Modera, Silverpine Forest", minLevel = 24, coords = { mapID = 1421, x = 0.6860, y = 0.4520 }, isDungeonQuest = true },
+              },
+              chainStart = {
+                  id = 544,
+                  name = "Prison Break In",
+                  pickup = "Magus Wordeen Voidglare, Tarren Mill",
+                  minLevel = 30,
+                  faction = "Horde",
+                  coords = { mapID = 1424, x = 0.6160, y = 0.2080 },
+              },
+              objective = "Collect the Arcane Mote in the City of Dalaran for Magus Wordeen Voidglare in Tarren Mill.",
+              rewardItems = { 279842, 279843, 279844 }, rewardSummary = "Dalaran Sewer Key" },
             { id = 96986, name = "The Grave Knight", level = 33, minLevel = 24, faction = "Horde",
-              pickup = "Melisara, Undercity", turnin = "Melisara, Undercity",
+              pickup = "Melisara, Tarren Mill", turnin = "Melisara, Tarren Mill",
               pickedUpInDungeon = false, shareable = true,
               objective = "Defeat Atrexis the Grave Knight in City of Dalaran.",
               rewardItems = { 251963, 251965 }, rewardSummary = "1g" },
             { id = 96987, name = "Opportunistic Education", level = 33, minLevel = 24, faction = "Horde",
-              pickup = "Rexxie Copperclutch", turnin = "Rexxie Copperclutch",
+              pickup = "Rexxie Copperclutch, Dalaran Sewer Entrance", turnin = "Rexxie Copperclutch, Dalaran Sewer Entrance",
               pickedUpInDungeon = false, shareable = true,
-              objective = "Complete Opportunistic Education in City of Dalaran.",
+              objective = "Collect the Founding of Dalaran from the City of Dalaran for Rexxie Copperclutch near the sewer entrance.",
               rewardItems = { 279845, 279846 }, rewardSummary = "" },
             { id = 96988, name = "Source of Power", level = 33, minLevel = 24, faction = "Horde",
               pickup = "Doctor Martin Felben, Undercity", turnin = "Doctor Martin Felben, Undercity",
@@ -324,6 +355,92 @@ sfui.dj_camelot.dungeons = {
               objective = "Complete Source of Power in City of Dalaran.",
               rewardItems = { 279847, 279848 }, rewardSummary = "" },
         },
+    },
+
+    {
+        id       = "the_drowned_city",
+        name     = "The Drowned City",
+        level    = "35 - 40",
+        minLevel = 35,
+        maxLevel = 40,
+        zone     = "Stranglethorn Vale",
+        icon     = 135852,
+        iconStr  = "Interface\\Icons\\Spell_Frost_SummonWaterElemental",
+        category = "camelot",
+        entrance = { mapID = 1434, x = 0.214, y = 0.279 },
+        bosses   = {},
+        quests   = {
+            { id = 95770, name = "Locating the Lost City", level = 40, minLevel = 30, faction = "Horde",
+              pickup = "Grom'gol Base Camp, Stranglethorn Vale", turnin = "Grom'gol Base Camp, Stranglethorn Vale",
+              pickedUpInDungeon = false, shareable = true,
+              objective = "Explore the Vile Reef off the coast of Stranglethorn Vale and find the cavern entrance to The Drowned City.",
+              rewardItems = {}, rewardSummary = "" },
+        },
+    },
+
+    {
+        id       = "kroldok_stronghold",
+        name     = "Krol'dok Stronghold",
+        level    = "40 - 45",
+        minLevel = 40,
+        maxLevel = 45,
+        zone     = "Riverglades",
+        icon     = 134169,
+        iconStr  = "Interface\\Icons\\INV_Misc_MonsterHorn_03",
+        category = "camelot",
+        entrance = { mapID = 2548, x = 0.656, y = 0.214 },
+        bosses   = {},
+        quests   = {},
+    },
+
+    {
+        id       = "alcaz_prison",
+        name     = "Alcaz Prison",
+        level    = "48 - 53",
+        minLevel = 48,
+        maxLevel = 53,
+        zone     = "Dustwallow Marsh",
+        icon     = 134237,
+        iconStr  = "Interface\\Icons\\INV_Misc_Key_03",
+        category = "camelot",
+        entrance = { mapID = 1445, x = 0.762, y = 0.175 },
+        bosses   = {},
+        quests   = {},
+    },
+
+    {
+        id       = "blackmaw_hold",
+        name     = "Blackmaw Hold",
+        level    = "55 - 60",
+        minLevel = 55,
+        maxLevel = 60,
+        zone     = "Azshara",
+        icon     = 132147,
+        iconStr  = "Interface\\Icons\\Ability_Druid_Maul",
+        category = "camelot",
+        entrance = { mapID = 1447, x = 0.416, y = 0.234 },
+        bosses   = {
+            { name = "Chieftain Tor'kwa",         displayId = 0, level = "58", items = {} },
+            { name = "Grizzlemaw the Cursed",     displayId = 0, level = "59", items = {} },
+            { name = "Shadow-Weaver Xelnath",     displayId = 0, level = "60", items = {} },
+            { name = "Avatar of the Abyssal God", displayId = 0, level = "60", items = {} },
+        },
+        quests   = {},
+    },
+
+    {
+        id       = "shapers_terrace",
+        name     = "Shaper's Terrace",
+        level    = "58 - 60",
+        minLevel = 58,
+        maxLevel = 60,
+        zone     = "Un'Goro Crater",
+        icon     = 134077,
+        iconStr  = "Interface\\Icons\\INV_Misc_Gem_Crystal_02",
+        category = "camelot",
+        entrance = { mapID = 1449, x = 0.505, y = 0.088 },
+        bosses   = {},
+        quests   = {},
     },
 
     -- ─── 2. Classic Dungeons ──────────────────────────────────────────────────
@@ -1913,14 +2030,41 @@ sfui.dj_camelot.questCoords = {
     [7462]  = { mapID = 1444, x = 0.6190, y = 0.3090 }, -- The Madness Within (Dire Maul: West)
     [7463]  = { mapID = 1444, x = 0.6190, y = 0.3090 }, -- Unfinished Gordok Business (Dire Maul: North)
     [95204] = { mapID = 1420, x = 0.6440, y = 0.6750 }, -- Crest of Lordaeron (Ruins of Lordaeron)
+    [95770] = { mapID = 1434, x = 0.3140, y = 0.2960 }, -- Locating the Lost City (The Drowned City, Grom'gol Base Camp)
     [96395] = { mapID = 1455, x = 0.3220, y = 0.4550 }, -- An Ancient Grudge (Hall of Thanes)
     [97288] = { mapID = 1420, x = 0.6440, y = 0.6750 }, -- Unending Torment (Ruins of Lordaeron)
-    -- Chain Starter Quest Coordinates
+    -- Chain Starter & Attunement Quest Coordinates
     [151]   = { mapID = 1436, x = 0.5670, y = 0.4740 }, -- Red Leather Bandanas (Deadmines chain starter)
+    [544]   = { mapID = 1424, x = 0.6160, y = 0.2080 }, -- Prison Break In (City of Dalaran Horde attunement step 1)
+    [545]   = { mapID = 1424, x = 0.6160, y = 0.2080 }, -- Dalaran Patrols (City of Dalaran Horde attunement step 3)
     [3520]  = { mapID = 1446, x = 0.6700, y = 0.2240 }, -- Screecher Spirits (Zul'Farrak chain starter)
     [4182]  = { mapID = 1428, x = 0.8580, y = 0.6900 }, -- Dragonkin Menace (Jail Break / Onyxia chain starter)
+    [4342]  = { mapID = 1428, x = 0.8460, y = 0.6910 }, -- Stormwind Rendezvous (Onyxia Alliance attunement)
+    [4361]  = { mapID = 1453, x = 0.7000, y = 0.8000 }, -- The Great Masquerade (Onyxia Alliance attunement)
+    [4362]  = { mapID = 1453, x = 0.7800, y = 0.1800 }, -- The Dragon's Eye (Onyxia Alliance attunement)
+    [4363]  = { mapID = 1452, x = 0.5400, y = 0.5100 }, -- Drakefire Amulet (Onyxia Alliance attunement)
     [4726]  = { mapID = 1428, x = 0.6520, y = 0.2400 }, -- Broodling Essence (Dawn's Gambit chain starter)
+    [4941]  = { mapID = 1418, x = 0.0580, y = 0.4750 }, -- Eitrigg's Wisdom (Onyxia Horde attunement)
+    [92432] = { mapID = 1424, x = 0.4830, y = 0.6010 }, -- An Alarming Request (City of Dalaran Alliance attunement starter)
+    [92434] = { mapID = 1424, x = 0.6160, y = 0.2080 }, -- Blood in the Streets (City of Dalaran Horde attunement step 4)
+    [92456] = { mapID = 1453, x = 0.1520, y = 0.4980 }, -- A Green Sample (City of Dalaran, Shylamiir, Stormwind City)
+    [92457] = { mapID = 1421, x = 0.6860, y = 0.4520 }, -- Starving Arcane (City of Dalaran, Image of Archmage Modera)
+    [92458] = { mapID = 1421, x = 0.6860, y = 0.4520 }, -- Heart of Disruption (City of Dalaran Alliance attunement finale)
+    [92489] = { mapID = 1453, x = 0.3760, y = 0.8160 }, -- Power Overwhelming (City of Dalaran, High Sorcerer Andromath, Stormwind City)
+    [93680] = { mapID = 1424, x = 0.6160, y = 0.2080 }, -- Key to the City (City of Dalaran Horde attunement step 2)
+    [95646] = { mapID = 1437, x = 0.5620, y = 0.4040 }, -- Horrors in the Highland (Excavation Site: Wetlands, Rethiel the Greenwarden)
+    [95647] = { mapID = 1437, x = 0.1180, y = 0.5860 }, -- Lost in the Thicket Things (Excavation Site: Wetlands, Caitlin Grassman)
+    [95682] = { mapID = 1437, x = 0.5140, y = 0.5920 }, -- Open the Maw (Excavation Site: Wetlands, Deathstalker Agent)
+    [95697] = { mapID = 1454, x = 0.5740, y = 0.5340 }, -- Changing Tastes (Excavation Site: Wetlands, Borstan, Orgrimmar)
+    [95772] = { mapID = 1433, x = 0.3080, y = 0.4660 }, -- Songblade Search (Excavation Site: Wetlands, Dorin Songblade, Redridge Mountains)
     [96390] = { mapID = 1426, x = 0.6480, y = 0.5850 }, -- Nip 'Em in the Bud (Hall of Thanes chain starter)
+    [96984] = { mapID = 1421, x = 0.6860, y = 0.4520 }, -- Heart of Disruption (City of Dalaran Horde attunement finale)
+    [96986] = { mapID = 1424, x = 0.6260, y = 0.2060 }, -- The Grave Knight (City of Dalaran, Melisara, Tarren Mill)
+    [96987] = { mapID = 1416, x = 0.1480, y = 0.6580 }, -- Opportunistic Education (City of Dalaran, Rexxie Copperclutch, Dalaran Sewer Entrance)
+    [96988] = { mapID = 1458, x = 0.4660, y = 0.7440 }, -- Source of Power (City of Dalaran, Doctor Martin Felben, Undercity)
+    [98815] = { mapID = 1437, x = 0.0860, y = 0.5560 }, -- Highland Hides (Excavation Site: Wetlands, James Halloran, Menethil Harbor)
+    [98823] = { mapID = 1456, x = 0.7080, y = 0.3380 }, -- Earthen Echo (Excavation Site: Wetlands, Bashana Runetotem, Thunder Bluff)
+    [98824] = { mapID = 1437, x = 0.3880, y = 0.5220 }, -- Prehistoric Prism (Excavation Site: Wetlands, Prospector Whelgar)
 }
 
 function sfui.dj_camelot.GetQuestCoords(questID)

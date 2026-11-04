@@ -1130,6 +1130,17 @@ function B.GetCandidatesForSkill(skillID)
     local spellIDs = (db.by_skill and db.by_skill[skillID])
     local candidatesByName = {}
 
+    local function IsBetterCandidate(r, spellID, existing)
+        if not existing then return true end
+        local rHasItem = (r.recipeItemID and r.recipeItemID > 0) and true or false
+        local eHasItem = (existing.recipeItemID and existing.recipeItemID > 0) and true or false
+        if rHasItem ~= eHasItem then return rHasItem end
+        local rForever = spellID >= 1200000
+        local eForever = (existing.id or 0) >= 1200000
+        if rForever ~= eForever then return rForever end
+        return spellID < (existing.id or 0)
+    end
+
     if spellIDs then
         for _, spellID in ipairs(spellIDs) do
             local r = db.recipes[spellID]
@@ -1138,7 +1149,7 @@ function B.GetCandidatesForSkill(skillID)
                 if rReq <= 320 then
                     local normName = r.name and r.name:lower() or tostring(spellID)
                     local existing = candidatesByName[normName]
-                    if not existing or (spellID < existing.id) then
+                    if IsBetterCandidate(r, spellID, existing) then
                         candidatesByName[normName] = r
                     end
                 end
@@ -1152,7 +1163,7 @@ function B.GetCandidatesForSkill(skillID)
                     if rReq <= 320 then
                         local normName = r.name and r.name:lower() or tostring(spellID)
                         local existing = candidatesByName[normName]
-                        if not existing or (spellID < existing.id) then
+                        if IsBetterCandidate(r, spellID, existing) then
                             candidatesByName[normName] = r
                         end
                     end

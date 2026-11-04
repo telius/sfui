@@ -61,13 +61,12 @@ function B.UpdateProgressBar()
     pb:SetStatusBarTexture(B.GetBarTexture())
 
     local candidates = B.GetCandidatesForSkill(B.selectedSkillID)
-    local totalCount = #candidates
-    if totalCount == 0 then
+    if #candidates == 0 then
         pb:Hide()
         return
     end
 
-    pb:Show()
+    local totalCount = 0
     local knownCount = 0
     local knownTrainer, totalTrainer = 0, 0
     local knownVendor, totalVendor = 0, 0
@@ -79,52 +78,61 @@ function B.UpdateProgressBar()
 
     for _, r in ipairs(candidates) do
         local isKnown = B.IsRecipeLearned(r.id, r)
-        if isKnown then
-            knownCount = knownCount + 1
-        end
+        if isKnown or B.HasAnyNonHostileSource(r) then
+            totalCount = totalCount + 1
+            if isKnown then
+                knownCount = knownCount + 1
+            end
 
-        local isTr = B.RecipeMatchesSource(r, "trainer")
-        if isTr then
-            totalTrainer = totalTrainer + 1
-            if isKnown then knownTrainer = knownTrainer + 1 end
-        end
+            local isTr = B.RecipeMatchesSource(r, "trainer")
+            if isTr then
+                totalTrainer = totalTrainer + 1
+                if isKnown then knownTrainer = knownTrainer + 1 end
+            end
 
-        local isVn = B.RecipeMatchesSource(r, "vendor")
-        if isVn then
-            totalVendor = totalVendor + 1
-            if isKnown then knownVendor = knownVendor + 1 end
-        end
+            local isVn = B.RecipeMatchesSource(r, "vendor")
+            if isVn then
+                totalVendor = totalVendor + 1
+                if isKnown then knownVendor = knownVendor + 1 end
+            end
 
-        local isQst = B.RecipeMatchesSource(r, "quest")
-        if isQst then
-            totalQuest = totalQuest + 1
-            if isKnown then knownQuest = knownQuest + 1 end
-        end
+            local isQst = B.RecipeMatchesSource(r, "quest")
+            if isQst then
+                totalQuest = totalQuest + 1
+                if isKnown then knownQuest = knownQuest + 1 end
+            end
 
-        local isDrp = B.RecipeMatchesSource(r, "drop")
-        if isDrp then
-            totalDrop = totalDrop + 1
-            if isKnown then knownDrop = knownDrop + 1 end
-        end
+            local isDrp = B.RecipeMatchesSource(r, "drop")
+            if isDrp then
+                totalDrop = totalDrop + 1
+                if isKnown then knownDrop = knownDrop + 1 end
+            end
 
-        local isRp = B.RecipeMatchesSource(r, "reputation")
-        if isRp then
-            totalRep = totalRep + 1
-            if isKnown then knownRep = knownRep + 1 end
-        end
+            local isRp = B.RecipeMatchesSource(r, "reputation")
+            if isRp then
+                totalRep = totalRep + 1
+                if isKnown then knownRep = knownRep + 1 end
+            end
 
-        local isLim = B.RecipeMatchesSource(r, "limited_stock")
-        if isLim then
-            totalLimited = totalLimited + 1
-            if isKnown then knownLimited = knownLimited + 1 end
-        end
+            local isLim = B.RecipeMatchesSource(r, "limited_stock")
+            if isLim then
+                totalLimited = totalLimited + 1
+                if isKnown then knownLimited = knownLimited + 1 end
+            end
 
-        local isEv = (r.isEvent or r.event or (B.EVENT_RECIPES and B.EVENT_RECIPES[r.id] ~= nil))
-        if isEv then
-            totalEvent = totalEvent + 1
-            if isKnown then knownEvent = knownEvent + 1 end
+            local isEv = (r.isEvent or r.event or (B.EVENT_RECIPES and B.EVENT_RECIPES[r.id] ~= nil))
+            if isEv then
+                totalEvent = totalEvent + 1
+                if isKnown then knownEvent = knownEvent + 1 end
+            end
         end
     end
+
+    if totalCount == 0 then
+        pb:Hide()
+        return
+    end
+    pb:Show()
 
     local pct = totalCount > 0 and (knownCount / totalCount * 100) or 0
     pb:SetMinMaxValues(0, math.max(1, totalCount))
