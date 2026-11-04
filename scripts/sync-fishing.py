@@ -780,7 +780,13 @@ def discover_custom_forever_fish(forever_zones: dict, verbose: bool = False) -> 
     return discovered_by_uimap
 
 
-def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = False, check_only: bool = False):
+def sync_fishing(
+    refresh: bool = False,
+    refresh_classic: bool = False,
+    dry_run: bool = False,
+    verbose: bool = False,
+    check_only: bool = False,
+):
     """Main synchronization pipeline for fishing atlas and waters."""
     os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -821,10 +827,11 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
     cache_dirty = False
     if refresh or not custom_fish_cache:
         discovered_custom_fish = discover_custom_forever_fish(forever_zones, verbose=verbose)
-        custom_fish_cache.clear()
-        for k, v in discovered_custom_fish.items():
-            custom_fish_cache[str(k)] = v
-        cache_dirty = True
+        if discovered_custom_fish:
+            custom_fish_cache.clear()
+            for k, v in discovered_custom_fish.items():
+                custom_fish_cache[str(k)] = v
+            cache_dirty = True
     else:
         for _, f_entries in custom_fish_cache.items():
             for fe in f_entries:
@@ -839,12 +846,24 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
     for idx, (wh_id, (uimap, zname)) in enumerate(zone_items, start=1):
         str_uimap = str(uimap)
         cached_z = zones_cache.get(str_uimap)
-        needs_fetch = refresh or (cached_z is None)
+        is_custom_zone = wh_id >= 15000 or (2000 <= uimap < 100000)
+        has_valid_cache = cached_z is not None and bool(cached_z.get("items"))
+        needs_fetch = (
+            refresh_classic
+            or not has_valid_cache
+            or (refresh and is_custom_zone)
+        )
 
         if needs_fetch:
             print(f"[{idx}/{total_zones}] Polling zone {zname} (uimap={uimap}, wh_zone={wh_id}) from Wowhead Forever...")
             html = fetch_url(f"{WOWHEAD_BASE}/zone={wh_id}", timeout=12, max_retries=2, allow_waf=True)
             total_count, items = extract_zone_fishing_from_html(html)
+            if not html or (not items and has_valid_cache):
+                print(
+                    f"  Warning: No fishing data returned for {zname} (wh_zone={wh_id}); retaining previous cache.",
+                    file=sys.stderr,
+                )
+                continue
             zones_cache[str_uimap] = {
                 "uimap": uimap,
                 "wh_zone_id": wh_id,
@@ -857,7 +876,7 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
             save_cache_file(cache_data)
             if verbose:
                 print(f"  -> total_count={total_count}, items={len(items)}")
-            time.sleep(0.1)
+            time.sleep(0.15)
 
     # 3. Classify discovered species across all zones and enrich metadata via Nether CDN
     zone_loot_tables, discovered_species = build_tables_from_zones(zones_cache, species_cache, custom_fish_cache)
@@ -865,7 +884,7 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
     for str_iid, sp_info in sorted(discovered_species.items(), key=lambda x: int(x[0])):
         iid = int(str_iid)
         existing_meta = species_cache.get(str_iid, {})
-        if refresh or not existing_meta.get("icon"):
+        if (refresh and iid >= 240000) or not existing_meta.get("icon"):
             if verbose:
                 print(f"Fetching Nether tooltip metadata for item {iid} ({sp_info['name']})...")
             meta = fetch_item_metadata_nether(iid)
@@ -873,6 +892,9 @@ def sync_fishing(refresh: bool = False, dry_run: bool = False, verbose: bool = F
                 sp_info["name"] = meta.get("name") or sp_info["name"]
                 sp_info["quality"] = meta.get("quality", sp_info["quality"])
                 sp_info["icon"] = meta.get("icon", "")
+            elif existing_meta.get("icon"):
+                sp_info["icon"] = existing_meta.get("icon", "")
+                sp_info["quality"] = existing_meta.get("quality", sp_info["quality"])
             cache_dirty = True
         else:
             sp_info["icon"] = existing_meta.get("icon", "")
@@ -1646,13 +1668,20 @@ def print_database_summary(species_cache: dict, zone_loot_tables: dict = None):
 
 def main():
     parser = argparse.ArgumentParser(description="SFUI Fishing Atlas & Waters Synchronizer (Camelot / Classic Forever)")
-    parser.add_argument("--refresh", action="store_true", help="Force re-fetching all zones and items from Wowhead Forever")
+    parser.add_argument("--refresh", action="store_true", help="Force re-fetching Forever & uncached zones and items from Wowhead Forever")
+    parser.add_argument("--refresh-classic", action="store_true", help="Also force re-fetching already-cached Classic 1.12 zones")
     parser.add_argument("--dry-run", action="store_true", help="Perform processing without writing to data/fishing_camelot.lua")
     parser.add_argument("--check", action="store_true", help="Validate and report existing database status without network calls")
     parser.add_argument("--verbose", action="store_true", help="Print detailed per-zone catch progress")
     args = parser.parse_args()
 
-    sync_fishing(refresh=args.refresh, dry_run=args.dry_run, verbose=args.verbose, check_only=args.check)
+    sync_fishing(
+        refresh=args.refresh or args.refresh_classic,
+        refresh_classic=args.refresh_classic,
+        dry_run=args.dry_run,
+        verbose=args.verbose,
+        check_only=args.check,
+    )
 
 
 if __name__ == "__main__":

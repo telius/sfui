@@ -955,7 +955,7 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
 
         if items_to_enrich:
             print(f"Enriching {len(items_to_enrich)} multi-source Forever recipe items from Wowhead...")
-            with ThreadPoolExecutor(max_workers=8) as executor:
+            with ThreadPoolExecutor(max_workers=3) as executor:
                 for iid, sm_list, ok in executor.map(fetch_item_sourcemore, items_to_enrich.keys()):
                     if ok:
                         target_it = items_to_enrich[iid]
@@ -988,7 +988,7 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
     if missing_npcs and not skip_npcs and not dry_run and not check_only:
         print(f"Fetching coordinates for {len(missing_npcs)} NPCs in parallel...")
         npc_cache_dirty = False
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=3) as executor:
             results = executor.map(fetch_npc_location, missing_npcs)
             for res in results:
                 nid = res["npcID"]

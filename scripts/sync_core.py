@@ -161,7 +161,8 @@ _WAF_CACHE_FILE = os.path.join(tempfile.gettempdir(), "sfui_wowhead_waf.json")
 _LAST_WAF_TS = 0.0
 _RATE_LOCK = threading.Lock()
 _LAST_REQ_TS = 0.0
-_MIN_WOWHEAD_INTERVAL = 0.35
+_MIN_WOWHEAD_INTERVAL = 0.75
+_JITTER_RNG = __import__("random").Random()
 
 
 def _load_cached_waf_cookie() -> bool:
@@ -280,7 +281,8 @@ def _pace_wowhead_request(url: str):
         return
     with _RATE_LOCK:
         now = time.time()
-        wait = _MIN_WOWHEAD_INTERVAL - (now - _LAST_REQ_TS)
+        target_interval = _MIN_WOWHEAD_INTERVAL + _JITTER_RNG.uniform(0.15, 0.35)
+        wait = target_interval - (now - _LAST_REQ_TS)
         if wait > 0:
             time.sleep(wait)
         _LAST_REQ_TS = time.time()
@@ -317,10 +319,10 @@ def fetch_url(url: str, timeout: int = 12, max_retries: int = 2, allow_waf: bool
                 if acquire_wowhead_waf_cookie(force=True):
                     continue
             if attempt < max_retries:
-                time.sleep(0.5)
+                time.sleep(1.5 * (2 ** attempt) + _JITTER_RNG.uniform(0.2, 0.5))
         except Exception:
             if attempt < max_retries:
-                time.sleep(0.5)
+                time.sleep(1.5 * (2 ** attempt) + _JITTER_RNG.uniform(0.2, 0.5))
     return ""
 
 

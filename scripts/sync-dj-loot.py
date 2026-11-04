@@ -280,7 +280,10 @@ def audit_against_wowhead_guide(verbose: bool = False, refresh: bool = False):
 
 
 def fetch_npc_droprates(npc_id: int) -> tuple:
-    for base_url in ["https://www.wowhead.com/forever/npc=", "https://www.wowhead.com/classic/npc="]:
+    base_urls = ["https://www.wowhead.com/forever/npc="]
+    if npc_id < 240000:
+        base_urls.append("https://www.wowhead.com/classic/npc=")
+    for base_url in base_urls:
         url = f"{base_url}{npc_id}"
         html = fetch_url(url, timeout=8)
         if not html:
@@ -311,7 +314,7 @@ def fetch_npc_droprates(npc_id: int) -> tuple:
             return npc_id, rates
     return npc_id, {}
 
-def get_or_fetch_droprates(npc_ids: list, refresh: bool = False) -> dict:
+def get_or_fetch_droprates(npc_ids: list, refresh: bool = False, refresh_classic: bool = False) -> dict:
     rates_db = {}
     if os.path.exists(CACHE_FILE):
         try:
@@ -320,14 +323,21 @@ def get_or_fetch_droprates(npc_ids: list, refresh: bool = False) -> dict:
         except Exception:
             rates_db = {}
 
-    if not refresh and rates_db:
+    if not refresh and not refresh_classic and rates_db:
         return rates_db
+    elif refresh_classic:
+        missing_npcs = list(npc_ids)
+    else:
+        # Incremental refresh: re-fetch custom Forever bosses (>= 240000) and any uncached/empty bosses
+        missing_npcs = [
+            nid for nid in npc_ids
+            if nid >= 240000 or str(nid) not in rates_db or not rates_db.get(str(nid))
+        ]
 
-    missing_npcs = npc_ids if refresh else [nid for nid in npc_ids if str(nid) not in rates_db]
     if missing_npcs:
         print(f"Fetching drop rates for {len(missing_npcs)} boss NPCs from Wowhead...")
         t0 = time.time()
-        with ThreadPoolExecutor(max_workers=12) as pool:
+        with ThreadPoolExecutor(max_workers=3) as pool:
             fetched = dict(pool.map(fetch_npc_droprates, missing_npcs))
         dt = time.time() - t0
 
@@ -402,9 +412,9 @@ def fetch_quest_rewards(qid: int) -> tuple:
 
     return qid, [], ""
 
-def get_or_fetch_quest_rewards(quest_ids: list, local_rewards: dict, refresh: bool = False) -> dict:
+def get_or_fetch_quest_rewards(quest_ids: list, local_rewards: dict, refresh: bool = False, refresh_classic: bool = False) -> dict:
     quest_db = {}
-    if os.path.exists(QUEST_CACHE_FILE) and not refresh:
+    if os.path.exists(QUEST_CACHE_FILE):
         try:
             with open(QUEST_CACHE_FILE, "r", encoding="utf-8") as f:
                 quest_db = json.load(f)
@@ -428,11 +438,18 @@ def get_or_fetch_quest_rewards(quest_ids: list, local_rewards: dict, refresh: bo
             else:
                 quest_db[qid_str]["rewardItems"] = items
 
-    missing_qids = [qid for qid in quest_ids if str(qid) not in quest_db or (refresh and str(qid) in quest_db)]
+    if refresh_classic:
+        missing_qids = list(quest_ids)
+    elif refresh:
+        # Incremental refresh: re-fetch custom Forever quests (>= 90000) and any uncached quests
+        missing_qids = [qid for qid in quest_ids if qid >= 90000 or str(qid) not in quest_db]
+    else:
+        missing_qids = [qid for qid in quest_ids if str(qid) not in quest_db]
+
     if missing_qids:
         print(f"Fetching quest rewards for {len(missing_qids)} quests from Wowhead / ClassicDB...")
         t0 = time.time()
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        with ThreadPoolExecutor(max_workers=3) as pool:
             results = list(pool.map(fetch_quest_rewards, missing_qids))
         dt = time.time() - t0
 
@@ -901,16 +918,17 @@ def sync_dj(
     refresh_rates: bool = False,
     refresh_quests: bool = False,
     refresh_guide: bool = False,
+    refresh_classic: bool = False,
     check_guide: bool = False,
     dry_run: bool = False,
     verbose: bool = False,
 ):
     if check_guide or refresh_guide:
         audit_against_wowhead_guide(verbose=verbose, refresh=refresh_guide)
-        if not refresh_rates and not refresh_quests and not dry_run:
+        if not refresh_rates and not refresh_quests and not refresh_classic and not dry_run:
             return
 
-    if refresh_rates and os.path.isfile(TARGET_FILE):
+    if (refresh_rates or refresh_classic) and os.path.isfile(TARGET_FILE):
         with open(TARGET_FILE, "r", encoding="utf-8") as f:
             raw_lua = f.read()
         new_dungeon_blocks = discover_new_forever_dungeons(raw_lua, refresh=True, verbose=verbose)
@@ -924,10 +942,10 @@ def sync_dj(
     print(f"Loaded {len(boss_map)} boss loot tables and {len(boss_npcs)} NPC IDs directly from {os.path.relpath(TARGET_FILE, REPO_ROOT)}.")
 
     unique_npcs = list(set(boss_npcs.values()))
-    rates_db = get_or_fetch_droprates(unique_npcs, refresh=refresh_rates)
+    rates_db = get_or_fetch_droprates(unique_npcs, refresh=refresh_rates, refresh_classic=refresh_classic)
     print(f"Loaded drop rates for {len(rates_db)} bosses.")
 
-    quest_rewards_db = get_or_fetch_quest_rewards(unique_qids, {}, refresh=refresh_quests)
+    quest_rewards_db = get_or_fetch_quest_rewards(unique_qids, {}, refresh=refresh_quests, refresh_classic=refresh_classic)
     print(f"Loaded quest rewards for {len(quest_rewards_db)} quests.")
 
     update_dj_camelot(boss_map, boss_npcs, rates_db, quest_rewards_db, dry_run=dry_run, verbose=verbose)
@@ -936,13 +954,15 @@ def sync_dj(
 def main():
     parser = argparse.ArgumentParser(description="Synchronize Dungeon Journal drop tables, drop rates, and quest rewards.")
     parser.add_argument("--refresh-rates", action="store_true",
-                        help="Force re-fetch all drop rates from Wowhead.")
+                        help="Force re-fetch Forever & uncached boss drop rates from Wowhead.")
     parser.add_argument("--refresh-quests", action="store_true",
-                        help="Force re-fetch all quest rewards from Wowhead / ClassicDB.")
+                        help="Force re-fetch Forever & uncached quest rewards from Wowhead / ClassicDB.")
     parser.add_argument("--refresh-guide", action="store_true",
                         help="Force re-fetch the official Wowhead 'Every Dungeon Quest' guide.")
+    parser.add_argument("--refresh-classic", action="store_true",
+                        help="Also force re-fetching already-cached Classic 1.12 bosses and quests.")
     parser.add_argument("--refresh-all", action="store_true",
-                        help="Force re-fetch drop rates, quest rewards, and the Wowhead guide.")
+                        help="Force re-fetch Forever drop rates, quest rewards, and the Wowhead guide.")
     parser.add_argument("--check-guide", "--check-chains", dest="check_guide", action="store_true",
                         help="Audit quest locations and chains against the Wowhead Forever guide.")
     parser.add_argument("--dry-run", action="store_true",
@@ -951,7 +971,7 @@ def main():
                         help="Print detailed diffs.")
 
     args = parser.parse_args()
-    if args.refresh_all:
+    if args.refresh_all or args.refresh_classic:
         args.refresh_rates = True
         args.refresh_quests = True
         args.refresh_guide = True
@@ -960,6 +980,7 @@ def main():
         refresh_rates=args.refresh_rates,
         refresh_quests=args.refresh_quests,
         refresh_guide=args.refresh_guide,
+        refresh_classic=args.refresh_classic,
         check_guide=args.check_guide,
         dry_run=args.dry_run,
         verbose=args.verbose,

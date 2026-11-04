@@ -38,12 +38,16 @@ def _load_script_module(module_name: str, filename: str):
 def run_unified_sync(
     targets: list[str] | None = None,
     refresh: bool = False,
+    refresh_classic: bool = False,
     dry_run: bool = False,
     check_only: bool = False,
     verbose: bool = False,
 ):
     valid_targets = ("zones", "dj", "recipes", "fishing", "bonusroll")
-    if not targets or "all" in targets:
+    default_targets = ("zones", "dj", "recipes", "fishing")
+    if not targets:
+        active_targets = list(default_targets)
+    elif "all" in targets:
         active_targets = list(valid_targets)
     else:
         active_targets = [t for t in valid_targets if t in targets]
@@ -55,7 +59,7 @@ def run_unified_sync(
 
     # 1. Zone / Dungeon / Raid Discovery (always loaded so downstream modules have latest forever_zones.json)
     if any(t in active_targets for t in ("zones", "dj", "recipes", "fishing")):
-        refresh_zones = refresh or ("zones" in active_targets and refresh)
+        refresh_zones = refresh and ("zones" in active_targets or len(active_targets) > 1)
         zones = load_forever_zones(refresh=refresh_zones, verbose=verbose)
         if "zones" in active_targets:
             open_zones = sum(1 for z in zones.values() if z.get("category") in (0, 1))
@@ -72,6 +76,7 @@ def run_unified_sync(
             refresh_rates=refresh,
             refresh_quests=refresh,
             refresh_guide=refresh,
+            refresh_classic=refresh_classic,
             check_guide=check_only,
             dry_run=dry_run,
             verbose=verbose,
@@ -101,6 +106,7 @@ def run_unified_sync(
         fishing_mod = _load_script_module("sync_fishing", "sync-fishing.py")
         fishing_mod.sync_fishing(
             refresh=refresh,
+            refresh_classic=refresh_classic,
             dry_run=dry_run,
             verbose=verbose,
         )
@@ -127,20 +133,25 @@ def main():
     parser.add_argument(
         "targets",
         nargs="*",
-        help="Optional target subset: all, zones, dj, recipes, fishing (default: all).",
+        help="Optional target subset: all, zones, dj, zones-dj, recipes, fishing, bonusroll (default: zones,dj,recipes,fishing).",
     )
     parser.add_argument(
         "--only",
         type=str,
         default="",
-        help="Comma-separated list of targets to run (zones,dj,recipes,fishing).",
+        help="Comma- or hyphen-separated list of targets to run (e.g. zones-dj, recipes, fishing).",
     )
     parser.add_argument(
         "--refresh",
         "--refresh-all",
         dest="refresh",
         action="store_true",
-        help="Force live re-fetch from Wowhead Forever endpoints.",
+        help="Force live re-fetch of Forever data from Wowhead endpoints.",
+    )
+    parser.add_argument(
+        "--refresh-classic",
+        action="store_true",
+        help="Also force re-fetching already-cached Classic 1.12 bosses, quests, and zones.",
     )
     parser.add_argument(
         "--dry-run",
@@ -161,18 +172,18 @@ def main():
 
     args = parser.parse_args()
     target_set = set()
-    for t in args.targets:
-        for part in t.split(","):
-            if part.strip():
-                target_set.add(part.strip().lower())
+    raw_parts = list(args.targets)
     if args.only:
-        for part in args.only.split(","):
+        raw_parts.append(args.only)
+    for item in raw_parts:
+        for part in item.replace("-", ",").split(","):
             if part.strip():
                 target_set.add(part.strip().lower())
 
     run_unified_sync(
         targets=sorted(target_set) if target_set else None,
-        refresh=args.refresh,
+        refresh=args.refresh or args.refresh_classic,
+        refresh_classic=args.refresh_classic,
         dry_run=args.dry_run,
         check_only=args.check,
         verbose=args.verbose,
