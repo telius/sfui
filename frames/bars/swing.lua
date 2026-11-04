@@ -351,9 +351,9 @@ local BLIZZARD_FRAME_NAMES = {
     "SwingTimerRangedFrame",
 }
 
-local blizzardSuppressed = false
 local function SuppressBlizzardSwingTimer()
-    if blizzardSuppressed or not C_SwingTimer then return end
+    if not C_SwingTimer then return end
+    if SfuiDB and SfuiDB.enableSwingBars == false then return end
 
     -- Keep CVar enabled so the client engine dispatches PLAYER_SWING events
     if sfui.common and sfui.common.set_cvar then
@@ -368,26 +368,67 @@ local function SuppressBlizzardSwingTimer()
 
     -- Unregister events on the manager frame so it stops processing swings
     local mgr = _G["SwingTimerManagerFrame"]
-    if mgr and mgr.SetAlpha then
-        mgr:SetAlpha(0)
-    end
-
-    local allFound = true
-    for i = 1, 3 do
-        local f = _G[BLIZZARD_FRAME_NAMES[i]]
-        if f then
-            if f.SetAlpha then f:SetAlpha(0) end
-            local isProtected = f.IsProtected and f:IsProtected()
-            if not isProtected and f.EnableMouse and not (InCombatLockdown and InCombatLockdown()) then
-                pcall(f.EnableMouse, f, false)
+    if mgr then
+        if mgr.UnregisterAllEvents then
+            mgr:UnregisterAllEvents()
+        end
+        if mgr.SetAlpha then
+            mgr:SetAlpha(0)
+        end
+        if not mgr._sfuiSuppressed and _G.hooksecurefunc then
+            mgr._sfuiSuppressed = true
+            if mgr.UpdateSharedEventRegistration then
+                _G.hooksecurefunc(mgr, "UpdateSharedEventRegistration", function(self)
+                    if SfuiDB and SfuiDB.enableSwingBars == false then return end
+                    if self.UnregisterAllEvents then self:UnregisterAllEvents() end
+                end)
             end
-        else
-            allFound = false
+            if mgr.UpdateSwingEventRegistration then
+                _G.hooksecurefunc(mgr, "UpdateSwingEventRegistration", function(self)
+                    if SfuiDB and SfuiDB.enableSwingBars == false then return end
+                    if self.UnregisterAllEvents then self:UnregisterAllEvents() end
+                end)
+            end
         end
     end
 
-    if allFound and mgr then
-        blizzardSuppressed = true
+    for i = 1, 3 do
+        local f = _G[BLIZZARD_FRAME_NAMES[i]]
+        if f then
+            if f.SetAlpha and (not f.GetAlpha or f:GetAlpha() ~= 0) then
+                f:SetAlpha(0)
+            end
+            if f.SetScript then
+                f:SetScript("OnUpdate", nil)
+            end
+            if f.Selection and f.Selection.SetAlpha then
+                f.Selection:SetAlpha(0)
+            end
+            local isProtected = f.IsProtected and f:IsProtected()
+            if not isProtected and f.EnableMouse and not (InCombatLockdown and InCombatLockdown()) then
+                pcall(f.EnableMouse, f, false)
+                if f.EnableMouseClicks then pcall(f.EnableMouseClicks, f, false) end
+                if f.EnableMouseMotion then pcall(f.EnableMouseMotion, f, false) end
+            end
+            if not f._sfuiSuppressed then
+                f._sfuiSuppressed = true
+                if _G.hooksecurefunc and f.SetAlpha then
+                    _G.hooksecurefunc(f, "SetAlpha", function(self, alpha)
+                        if alpha and alpha > 0 and not (SfuiDB and SfuiDB.enableSwingBars == false) then
+                            self:SetAlpha(0)
+                        end
+                    end)
+                end
+                if f.HookScript then
+                    f:HookScript("OnShow", function(self)
+                        if not (SfuiDB and SfuiDB.enableSwingBars == false) then
+                            if self.SetAlpha then self:SetAlpha(0) end
+                            if self.SetScript then self:SetScript("OnUpdate", nil) end
+                        end
+                    end)
+                end
+            end
+        end
     end
 end
 
@@ -686,6 +727,11 @@ sfui.events.RegisterEvent("PLAYER_LEAVE_COMBAT", OnSwingEvent)
 sfui.events.RegisterEvent("START_AUTOREPEAT_SPELL", OnSwingEvent)
 sfui.events.RegisterEvent("STOP_AUTOREPEAT_SPELL", OnSwingEvent)
 sfui.events.RegisterEvent("PLAYER_DEAD", OnSwingEvent)
+sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", SuppressBlizzardSwingTimer)
+if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
+    _G.EventRegistry:RegisterCallback("EditMode.Enter", SuppressBlizzardSwingTimer, sfui.swing)
+    _G.EventRegistry:RegisterCallback("EditMode.Exit", SuppressBlizzardSwingTimer, sfui.swing)
+end
 
 UpdateEquippedWeapons()
 SuppressBlizzardSwingTimer()
