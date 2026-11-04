@@ -9,13 +9,17 @@ local _G = _G
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local InCombatLockdown = _G.InCombatLockdown
+local GetCursorPosition = _G.GetCursorPosition
+local IsShiftKeyDown = _G.IsShiftKeyDown
+local IsControlKeyDown = _G.IsControlKeyDown
 local math_floor = math.floor
 local math_abs = math.abs
+local math_max = math.max
+local math_min = math.min
 local pairs = _G.pairs
 local ipairs = _G.ipairs
 local tostring = _G.tostring
 local type = _G.type
-local tinsert = _G.tinsert
 local string_format = string.format
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -27,17 +31,39 @@ movers.isUnlocked = false
 sfui.actionbars.moversUnlocked = false
 movers.snappingEnabled = true
 movers.gridEnabled = true
+movers.snapThreshold = 14
+movers.anchorGap = 4
+movers.selectedKey = nil
+
+local ANCHOR_POINTS = {
+    "BOTTOM",
+    "TOP",
+    "CENTER",
+    "LEFT",
+    "RIGHT",
+    "BOTTOMLEFT",
+    "BOTTOMRIGHT",
+    "TOPLEFT",
+    "TOPRIGHT",
+}
+
+local GAP_PRESETS = { 4, 2, 0, 6, 8 }
+local SNAP_PRESETS = { 14, 18, 10 }
+
+local editModeDialog = nil
+local gridOverlay = nil
+local guideOverlay = nil
+local activeNeighbors = {}
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Screen Alignment Grid Overlay
 -- ─────────────────────────────────────────────────────────────────────────────
-local gridOverlay = nil
-
 local function UpdateScreenGrid()
     if not gridOverlay then
         local grid = CreateFrame("Frame", "sfui_EditModeGrid", UIParent)
         grid:SetAllPoints(UIParent)
         grid:SetFrameStrata("BACKGROUND")
+        grid:EnableMouse(false)
         grid:Hide()
         grid.lines = {}
         gridOverlay = grid
@@ -86,7 +112,6 @@ local function UpdateScreenGrid()
         gridOverlay.lines[#gridOverlay.lines + 1] = line
     end
 
-    -- Vertical lines: center axis, positive X, negative X
     addVLine(centerX, true)
     local x = centerX + step
     while x < uiWidth do
@@ -99,7 +124,6 @@ local function UpdateScreenGrid()
         x = x - step
     end
 
-    -- Horizontal lines: center axis, positive Y, negative Y
     addHLine(centerY, true)
     local y = centerY + step
     while y < uiHeight do
@@ -124,6 +148,134 @@ function movers.SetGridShown(show)
     else
         if gridOverlay then gridOverlay:Hide() end
     end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Dynamic Snap Guide Lines & Neighbor Highlighting
+-- ─────────────────────────────────────────────────────────────────────────────
+local function GetOrCreateGuideOverlay()
+    if guideOverlay then return guideOverlay end
+
+    local f = CreateFrame("Frame", "sfui_EditModeSnapGuides", UIParent)
+    f:SetAllPoints(UIParent)
+    f:SetFrameStrata("DIALOG")
+    f:SetFrameLevel(80)
+    f:EnableMouse(false)
+    f:Hide()
+
+    local vLine = f:CreateTexture(nil, "OVERLAY")
+    vLine:SetColorTexture(0.0, 1.0, 0.85, 0.85)
+    vLine:SetWidth(2)
+    vLine:Hide()
+    f.vLine = vLine
+
+    local hLine = f:CreateTexture(nil, "OVERLAY")
+    hLine:SetColorTexture(0.0, 1.0, 0.85, 0.85)
+    hLine:SetHeight(2)
+    hLine:Hide()
+    f.hLine = hLine
+
+    guideOverlay = f
+    return f
+end
+
+local function ApplyMoverBackdropStyle(mover, key)
+    if not mover then return end
+    local app = sfui.config and sfui.config.appearance
+    local hlCol = (app and app.highlightColor) or { 0.4, 0, 1, 0.4 }
+    local borderCol = (app and app.accentColor) or { 0, 1, 1, 1 }
+
+    local bg = { hlCol[1], hlCol[2], hlCol[3], 0.48 }
+    local border = { borderCol[1], borderCol[2], borderCol[3], 0.9 }
+
+    if mover._isDragging or mover._isHovered then
+        bg = { 0.55, 0.15, 1.0, 0.68 }
+        border = { 1.0, 1.0, 1.0, 1.0 }
+    elseif activeNeighbors[mover] then
+        bg = { 0.10, 0.65, 0.45, 0.58 }
+        border = { 0.20, 1.0, 0.65, 1.0 }
+    elseif movers.selectedKey == key then
+        bg = { 0.48, 0.12, 0.95, 0.62 }
+        border = { 1.0, 0.82, 0.20, 1.0 }
+    end
+
+    if sfui.common and sfui.common.apply_flat_backdrop then
+        sfui.common.apply_flat_backdrop(mover, bg, border)
+    elseif mover.SetBackdropColor then
+        mover:SetBackdropColor(bg[1], bg[2], bg[3], bg[4])
+        mover:SetBackdropBorderColor(border[1], border[2], border[3], border[4])
+    end
+end
+
+function movers.RefreshMoverVisuals()
+    for k, m in pairs(movers.list) do
+        if m:IsShown() then
+            ApplyMoverBackdropStyle(m, k)
+        end
+    end
+end
+
+local function HideSnapGuides()
+    local hadNeighbors = false
+    for k in pairs(activeNeighbors) do
+        activeNeighbors[k] = nil
+        hadNeighbors = true
+    end
+    if guideOverlay then
+        guideOverlay.vLine:Hide()
+        guideOverlay.hLine:Hide()
+        guideOverlay:Hide()
+    end
+    if hadNeighbors then
+        movers.RefreshMoverVisuals()
+    end
+end
+
+local function UpdateSnapGuides(snapInfo)
+    local f = GetOrCreateGuideOverlay()
+    local uiWidth = UIParent:GetWidth()
+    local uiHeight = UIParent:GetHeight()
+
+    for k in pairs(activeNeighbors) do
+        activeNeighbors[k] = nil
+    end
+
+    local anyGuide = false
+    if snapInfo then
+        if snapInfo.neighborX then activeNeighbors[snapInfo.neighborX] = true end
+        if snapInfo.neighborY then activeNeighbors[snapInfo.neighborY] = true end
+
+        if snapInfo.snappedX and snapInfo.guideX then
+            f.vLine:ClearAllPoints()
+            f.vLine:SetSize(2, uiHeight)
+            f.vLine:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", math_floor(snapInfo.guideX + 0.5) - 1, 0)
+            f.vLine:Show()
+            anyGuide = true
+        else
+            f.vLine:Hide()
+        end
+
+        if snapInfo.snappedY and snapInfo.guideY then
+            f.hLine:ClearAllPoints()
+            f.hLine:SetSize(uiWidth, 2)
+            f.hLine:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, math_floor(snapInfo.guideY + 0.5) - 1)
+            f.hLine:Show()
+            anyGuide = true
+        else
+            f.hLine:Hide()
+        end
+    else
+        f.vLine:Hide()
+        f.hLine:Hide()
+    end
+
+    if anyGuide then
+        f:Show()
+    else
+        f:Hide()
+    end
+
+    movers.RefreshMoverVisuals()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -163,6 +315,7 @@ local function CalculateRelativeCoordinates(left, bottom, width, height, anchorP
         x = math_floor((left + width / 2) - uiCenterX + 0.5)
         y = math_floor((bottom + height / 2) - uiCenterY + 0.5)
     else -- "BOTTOM" default
+        point = "BOTTOM"
         x = math_floor((left + width / 2) - uiCenterX + 0.5)
         y = math_floor(bottom + 0.5)
     end
@@ -170,68 +323,104 @@ local function CalculateRelativeCoordinates(left, bottom, width, height, anchorP
     return point, point, x, y
 end
 
--- ─────────────────────────────────────────────────────────────────────────────
---  Universal Snapping Algorithm across All Registered Movers & Grid
--- ─────────────────────────────────────────────────────────────────────────────
-function movers.SnapAndSavePosition(self, key)
-    local width = self:GetWidth()
-    local height = self:GetHeight()
-    local left = self:GetLeft()
-    local bottom = self:GetBottom()
+local function GetMoverAnchorPoint(key, mover)
+    if mover and mover._anchorPoint then
+        return mover._anchorPoint
+    end
+    local reg = key and movers.registry[key]
+    if reg and reg.getPoint then
+        local pt = reg.getPoint()
+        if pt and type(pt) == "string" then
+            return pt
+        end
+    end
+    if mover and mover.GetPoint then
+        local pt = mover:GetPoint()
+        if pt and type(pt) == "string" then
+            return pt
+        end
+    end
+    return (reg and reg.preferredPoint) or "BOTTOM"
+end
 
-    if not left or not bottom or not width or not height then return end
-
+-- ─────────────────────────────────────────────────────────────────────────────
+--  14px Magnet Snapping & 4px Anchor Gap Engine
+-- ─────────────────────────────────────────────────────────────────────────────
+local function ComputeSnappedPosition(self, key, rawLeft, rawBottom, width, height)
     local uiWidth = UIParent:GetWidth()
     local uiHeight = UIParent:GetHeight()
     local uiCenterX = uiWidth / 2
     local uiCenterY = uiHeight / 2
 
-    local targetLeft = left
-    local targetBottom = bottom
+    rawLeft = math_max(0, math_min(rawLeft, uiWidth - width))
+    rawBottom = math_max(0, math_min(rawBottom, uiHeight - height))
 
-    local reg = movers.registry[key]
+    local targetLeft = rawLeft
+    local targetBottom = rawBottom
 
-    if movers.snappingEnabled then
-        local right = left + width
-        local top = bottom + height
-        local centerX = left + width / 2
-        local centerY = bottom + height / 2
+    local bypassSnap = IsShiftKeyDown and IsShiftKeyDown()
+    if not movers.snappingEnabled or bypassSnap then
+        return targetLeft, targetBottom, nil
+    end
 
-        local SNAP_THRESHOLD = 12
-        local GAP = 4
+    local SNAP = movers.snapThreshold or 14
+    local GAP = movers.anchorGap or 4
+    local DOCK_MAX_DIST = SNAP + GAP + 28
+    local ALIGN_MAX_DIST = 300
 
-        local snappedX = false
-        local snappedY = false
-        local bestDiffX = SNAP_THRESHOLD + 1
-        local bestDiffY = SNAP_THRESHOLD + 1
+    local right = rawLeft + width
+    local top = rawBottom + height
+    local centerX = rawLeft + width / 2
+    local centerY = rawBottom + height / 2
 
-        -- 1. Check snapping against all other active shown movers
-        for otherKey, other in pairs(movers.list) do
-            if other ~= self and other:IsShown() then
-                local oLeft = other:GetLeft()
-                local oBottom = other:GetBottom()
-                local oWidth = other:GetWidth()
-                local oHeight = other:GetHeight()
+    local snappedX = false
+    local snappedY = false
+    local bestDiffX = SNAP + 0.001
+    local bestDiffY = SNAP + 0.001
+    local guideX, guideY = nil, nil
+    local neighborX, neighborY = nil, nil
+    local labelX, labelY = nil, nil
 
-                if oLeft and oBottom and oWidth and oHeight then
-                    local oRight = oLeft + oWidth
-                    local oTop = oBottom + oHeight
-                    local oCenterX = oLeft + oWidth / 2
-                    local oCenterY = oBottom + oHeight / 2
+    -- 1. Check snapping against all other active shown movers
+    for otherKey, other in pairs(movers.list) do
+        if other ~= self and other:IsShown() then
+            local oLeft = other:GetLeft()
+            local oBottom = other:GetBottom()
+            local oWidth = other:GetWidth()
+            local oHeight = other:GetHeight()
 
-                    -- Horizontal snaps: gap, flush, center
-                    local d = math_abs(left - (oRight + GAP))
+            if oLeft and oBottom and oWidth and oHeight then
+                local oRight = oLeft + oWidth
+                local oTop = oBottom + oHeight
+                local oCenterX = oLeft + oWidth / 2
+                local oCenterY = oBottom + oHeight / 2
+
+                -- Perpendicular span distances (0 when spans overlap)
+                local vDist = 0
+                if rawBottom > oTop then
+                    vDist = rawBottom - oTop
+                elseif oBottom > top then
+                    vDist = oBottom - top
+                end
+
+                local hDist = 0
+                if rawLeft > oRight then
+                    hDist = rawLeft - oRight
+                elseif oLeft > right then
+                    hDist = oLeft - right
+                end
+
+                -- A. Horizontal Adjacent Edge Docking (4px gap default)
+                -- Only dock side-by-side when frames share or nearly share vertical span
+                if vDist <= DOCK_MAX_DIST then
+                    local d = math_abs(rawLeft - (oRight + GAP))
                     if d < bestDiffX then
                         bestDiffX = d
                         targetLeft = oRight + GAP
                         snappedX = true
-                    end
-
-                    d = math_abs(left - oRight)
-                    if d < bestDiffX then
-                        bestDiffX = d
-                        targetLeft = oRight
-                        snappedX = true
+                        guideX = oRight + GAP / 2
+                        neighborX = other
+                        labelX = string_format("%dpx gap", GAP)
                     end
 
                     d = math_abs(right - (oLeft - GAP))
@@ -239,20 +428,22 @@ function movers.SnapAndSavePosition(self, key)
                         bestDiffX = d
                         targetLeft = oLeft - GAP - width
                         snappedX = true
+                        guideX = oLeft - GAP / 2
+                        neighborX = other
+                        labelX = string_format("%dpx gap", GAP)
                     end
+                end
 
-                    d = math_abs(right - oLeft)
-                    if d < bestDiffX then
-                        bestDiffX = d
-                        targetLeft = oLeft - width
-                        snappedX = true
-                    end
-
-                    d = math_abs(left - oLeft)
+                -- B. Horizontal Parallel Edge & Center Alignment (0px flush)
+                if vDist <= ALIGN_MAX_DIST then
+                    local d = math_abs(rawLeft - oLeft)
                     if d < bestDiffX then
                         bestDiffX = d
                         targetLeft = oLeft
                         snappedX = true
+                        guideX = oLeft
+                        neighborX = other
+                        labelX = "align left"
                     end
 
                     d = math_abs(right - oRight)
@@ -260,6 +451,9 @@ function movers.SnapAndSavePosition(self, key)
                         bestDiffX = d
                         targetLeft = oRight - width
                         snappedX = true
+                        guideX = oRight
+                        neighborX = other
+                        labelX = "align right"
                     end
 
                     d = math_abs(centerX - oCenterX)
@@ -267,21 +461,23 @@ function movers.SnapAndSavePosition(self, key)
                         bestDiffX = d
                         targetLeft = oCenterX - width / 2
                         snappedX = true
+                        guideX = oCenterX
+                        neighborX = other
+                        labelX = "center x"
                     end
+                end
 
-                    -- Vertical snaps: gap, flush, center
-                    d = math_abs(bottom - (oTop + GAP))
+                -- C. Vertical Adjacent Edge Docking (4px gap default)
+                -- Only stack top-to-bottom when frames share or nearly share horizontal span
+                if hDist <= DOCK_MAX_DIST then
+                    local d = math_abs(rawBottom - (oTop + GAP))
                     if d < bestDiffY then
                         bestDiffY = d
                         targetBottom = oTop + GAP
                         snappedY = true
-                    end
-
-                    d = math_abs(bottom - oTop)
-                    if d < bestDiffY then
-                        bestDiffY = d
-                        targetBottom = oTop
-                        snappedY = true
+                        guideY = oTop + GAP / 2
+                        neighborY = other
+                        labelY = string_format("%dpx gap", GAP)
                     end
 
                     d = math_abs(top - (oBottom - GAP))
@@ -289,20 +485,22 @@ function movers.SnapAndSavePosition(self, key)
                         bestDiffY = d
                         targetBottom = oBottom - GAP - height
                         snappedY = true
+                        guideY = oBottom - GAP / 2
+                        neighborY = other
+                        labelY = string_format("%dpx gap", GAP)
                     end
+                end
 
-                    d = math_abs(top - oBottom)
-                    if d < bestDiffY then
-                        bestDiffY = d
-                        targetBottom = oBottom - height
-                        snappedY = true
-                    end
-
-                    d = math_abs(bottom - oBottom)
+                -- D. Vertical Parallel Edge & Center Alignment (0px flush)
+                if hDist <= ALIGN_MAX_DIST then
+                    local d = math_abs(rawBottom - oBottom)
                     if d < bestDiffY then
                         bestDiffY = d
                         targetBottom = oBottom
                         snappedY = true
+                        guideY = oBottom
+                        neighborY = other
+                        labelY = "align bottom"
                     end
 
                     d = math_abs(top - oTop)
@@ -310,6 +508,9 @@ function movers.SnapAndSavePosition(self, key)
                         bestDiffY = d
                         targetBottom = oTop - height
                         snappedY = true
+                        guideY = oTop
+                        neighborY = other
+                        labelY = "align top"
                     end
 
                     d = math_abs(centerY - oCenterY)
@@ -317,53 +518,102 @@ function movers.SnapAndSavePosition(self, key)
                         bestDiffY = d
                         targetBottom = oCenterY - height / 2
                         snappedY = true
+                        guideY = oCenterY
+                        neighborY = other
+                        labelY = "center y"
                     end
                 end
             end
         end
-
-        -- 2. Snap to screen center axes if not snapped to another mover
-        if not snappedX then
-            local d = math_abs(centerX - uiCenterX)
-            if d < SNAP_THRESHOLD then
-                targetLeft = uiCenterX - width / 2
-                snappedX = true
-            end
-        end
-
-        if not snappedY then
-            local d = math_abs(centerY - uiCenterY)
-            if d < SNAP_THRESHOLD then
-                targetBottom = uiCenterY - height / 2
-                snappedY = true
-            end
-        end
-
-        -- 3. Snap to 8px symmetrical grid if not snapped
-        local GRID_STEP = 8
-        if not snappedX then
-            local offsetFromCenter = (left + width / 2) - uiCenterX
-            local gridOffset = math_floor(offsetFromCenter / GRID_STEP + 0.5) * GRID_STEP
-            targetLeft = uiCenterX + gridOffset - width / 2
-        end
-
-        if not snappedY then
-            targetBottom = math_floor(bottom / GRID_STEP + 0.5) * GRID_STEP
-        end
     end
 
-    local preferredPoint = (reg and reg.preferredPoint) or "BOTTOM"
-    local point, relPoint, offsetX, offsetY = CalculateRelativeCoordinates(targetLeft, targetBottom, width, height, preferredPoint)
+    -- 2. Snap to screen center axes and screen borders (with GAP margin)
+    local dCenterX = math_abs(centerX - uiCenterX)
+    if dCenterX < bestDiffX then
+        bestDiffX = dCenterX
+        targetLeft = uiCenterX - width / 2
+        snappedX = true
+        guideX = uiCenterX
+        neighborX = nil
+        labelX = "screen center"
+    end
 
-    self:ClearAllPoints()
-    self:SetPoint(point, UIParent, relPoint, offsetX, offsetY)
+    local dLeftEdge = math_abs(rawLeft - GAP)
+    if dLeftEdge < bestDiffX then
+        bestDiffX = dLeftEdge
+        targetLeft = GAP
+        snappedX = true
+        guideX = GAP
+        neighborX = nil
+        labelX = "screen edge"
+    end
 
-    -- Save via custom setter if provided
+    local dRightEdge = math_abs(right - (uiWidth - GAP))
+    if dRightEdge < bestDiffX then
+        bestDiffX = dRightEdge
+        targetLeft = uiWidth - GAP - width
+        snappedX = true
+        guideX = uiWidth - GAP
+        neighborX = nil
+        labelX = "screen edge"
+    end
+
+    local dCenterY = math_abs(centerY - uiCenterY)
+    if dCenterY < bestDiffY then
+        bestDiffY = dCenterY
+        targetBottom = uiCenterY - height / 2
+        snappedY = true
+        guideY = uiCenterY
+        neighborY = nil
+        labelY = "screen center"
+    end
+
+    local dBottomEdge = math_abs(rawBottom - GAP)
+    if dBottomEdge < bestDiffY then
+        bestDiffY = dBottomEdge
+        targetBottom = GAP
+        snappedY = true
+        guideY = GAP
+        neighborY = nil
+        labelY = "screen edge"
+    end
+
+    local dTopEdge = math_abs(top - (uiHeight - GAP))
+    if dTopEdge < bestDiffY then
+        bestDiffY = dTopEdge
+        targetBottom = uiHeight - GAP - height
+        snappedY = true
+        guideY = uiHeight - GAP
+        neighborY = nil
+        labelY = "screen edge"
+    end
+
+    targetLeft = math_max(0, math_min(targetLeft, uiWidth - width))
+    targetBottom = math_max(0, math_min(targetBottom, uiHeight - height))
+
+    return targetLeft, targetBottom, {
+        snappedX = snappedX,
+        snappedY = snappedY,
+        guideX = guideX,
+        guideY = guideY,
+        neighborX = neighborX,
+        neighborY = neighborY,
+        labelX = labelX,
+        labelY = labelY,
+    }
+end
+
+local function SaveMoverPosition(self, key, point, relPoint, offsetX, offsetY)
+    local reg = movers.registry[key]
+    self._anchorPoint = point
+    self._lastSavedPt = point
+    self._lastSavedX = offsetX
+    self._lastSavedY = offsetY
+
     if reg and reg.setPoint then
         reg.setPoint(point, UIParent, relPoint, offsetX, offsetY, self)
     end
 
-    -- Save to ActionBars database if it's an action bar
     if (reg and reg.isActionBar) or (key and (key:match("^bar%d+") or key == "pet" or key == "vehicle")) then
         if SfuiDB and SfuiDB.actionbars and SfuiDB.actionbars.bars then
             SfuiDB.actionbars.bars[key] = SfuiDB.actionbars.bars[key] or {}
@@ -373,6 +623,134 @@ function movers.SnapAndSavePosition(self, key)
             bCfg.x = offsetX
             bCfg.y = offsetY
         end
+    end
+end
+
+function movers.ApplyLivePosition(self, key, rawLeft, rawBottom, isFinal)
+    local width = self:GetWidth()
+    local height = self:GetHeight()
+    if not rawLeft or not rawBottom or not width or not height then return end
+
+    local reg = movers.registry[key]
+    local targetLeft, targetBottom, snapInfo = ComputeSnappedPosition(self, key, rawLeft, rawBottom, width, height)
+    self._lastTargetLeft = targetLeft
+    self._lastTargetBottom = targetBottom
+
+    local anchorPoint = GetMoverAnchorPoint(key, self)
+    local point, relPoint, offsetX, offsetY = CalculateRelativeCoordinates(targetLeft, targetBottom, width, height, anchorPoint)
+
+    self:ClearAllPoints()
+    self:SetPoint(point, UIParent, relPoint, offsetX, offsetY)
+
+    local baseTitle = (reg and reg.label) or tostring(key)
+    if not isFinal then
+        UpdateSnapGuides(snapInfo)
+        local snapTag = ""
+        if snapInfo and (snapInfo.labelX or snapInfo.labelY) then
+            local tagText = snapInfo.labelX or snapInfo.labelY
+            if snapInfo.labelX and snapInfo.labelY and snapInfo.labelX ~= snapInfo.labelY then
+                tagText = snapInfo.labelX .. " • " .. snapInfo.labelY
+            end
+            snapTag = " |cff55ff55[" .. tagText .. "]|r"
+        end
+        self.label:SetText(string_format("%s\n|cff00ffff%d, %d|r%s", baseTitle, offsetX, offsetY, snapTag))
+    else
+        HideSnapGuides()
+        self.label:SetText(baseTitle)
+    end
+
+    if isFinal or point ~= self._lastSavedPt or offsetX ~= self._lastSavedX or offsetY ~= self._lastSavedY then
+        SaveMoverPosition(self, key, point, relPoint, offsetX, offsetY)
+        if editModeDialog and editModeDialog.UpdateInspector then
+            editModeDialog:UpdateInspector()
+        end
+    end
+end
+
+function movers.SnapAndSavePosition(self, key)
+    local left = self:GetLeft()
+    local bottom = self:GetBottom()
+    if not left or not bottom then return end
+    movers.ApplyLivePosition(self, key, left, bottom, true)
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Selection, Precision Nudging & Anchor Cycling
+-- ─────────────────────────────────────────────────────────────────────────────
+function movers.SelectMover(key)
+    if not key or not movers.list[key] then return end
+    movers.selectedKey = key
+    movers.RefreshMoverVisuals()
+    if editModeDialog and editModeDialog.UpdateInspector then
+        editModeDialog:UpdateInspector()
+    end
+end
+
+function movers.NudgeMover(key, dx, dy)
+    if InCombatLockdown() then return end
+    key = key or movers.selectedKey
+    if not key then return end
+    local mover = movers.list[key]
+    if not mover or not mover:IsShown() then return end
+
+    local pt, _, relPt, x, y = mover:GetPoint()
+    if not pt then
+        pt = GetMoverAnchorPoint(key, mover)
+        relPt = pt
+        x, y = 0, 0
+    end
+
+    local newX = math_floor((x or 0) + (dx or 0) + 0.5)
+    local newY = math_floor((y or 0) + (dy or 0) + 0.5)
+
+    mover:ClearAllPoints()
+    mover:SetPoint(pt, UIParent, relPt or pt, newX, newY)
+    SaveMoverPosition(mover, key, pt, relPt or pt, newX, newY)
+
+    if editModeDialog and editModeDialog.UpdateInspector then
+        editModeDialog:UpdateInspector()
+    end
+end
+
+function movers.CycleMoverAnchor(key, reverse)
+    if InCombatLockdown() then return end
+    key = key or movers.selectedKey
+    if not key then return end
+    local mover = movers.list[key]
+    if not mover or not mover:IsShown() then return end
+
+    local left = mover:GetLeft()
+    local bottom = mover:GetBottom()
+    local width = mover:GetWidth()
+    local height = mover:GetHeight()
+    if not left or not bottom or not width or not height then return end
+
+    local curPoint = GetMoverAnchorPoint(key, mover)
+    local curIdx = 1
+    for i, pt in ipairs(ANCHOR_POINTS) do
+        if pt == curPoint then
+            curIdx = i
+            break
+        end
+    end
+
+    local nextIdx
+    if reverse then
+        nextIdx = curIdx - 1
+        if nextIdx < 1 then nextIdx = #ANCHOR_POINTS end
+    else
+        nextIdx = (curIdx % #ANCHOR_POINTS) + 1
+    end
+
+    local nextPoint = ANCHOR_POINTS[nextIdx]
+    local point, relPoint, offsetX, offsetY = CalculateRelativeCoordinates(left, bottom, width, height, nextPoint)
+
+    mover:ClearAllPoints()
+    mover:SetPoint(point, UIParent, relPoint, offsetX, offsetY)
+    SaveMoverPosition(mover, key, point, relPoint, offsetX, offsetY)
+
+    if editModeDialog and editModeDialog.UpdateInspector then
+        editModeDialog:UpdateInspector()
     end
 end
 
@@ -388,6 +766,24 @@ local function ResolveCustomSize(customSize)
     end
 end
 
+local function RefreshMoverTooltip(self, key)
+    local tip = sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()
+    if not tip then return end
+    local reg = movers.registry[key]
+    local baseTitle = (reg and reg.label) or tostring(key)
+    tip:SetOwner(self, "ANCHOR_TOP")
+    tip:SetText(baseTitle, 1, 1, 1)
+    local pt, _, _, x, y = self:GetPoint()
+    if pt then
+        tip:AddLine(string_format("anchor: %s (%d, %d)", pt:lower(), math_floor((x or 0) + 0.5), math_floor((y or 0) + 0.5)), 0.0, 1.0, 1.0)
+    end
+    tip:AddLine(string_format("|cff55ff55drag|r to snap (%dpx magnet, %dpx gap)", movers.snapThreshold or 14, movers.anchorGap or 4), 0.8, 0.8, 0.8)
+    tip:AddLine("|cff55ff55hold shift|r while dragging for 1px free move", 0.8, 0.8, 0.8)
+    tip:AddLine("|cff55ff55scroll wheel|r to nudge 1px (shift: x, ctrl: gap)", 0.8, 0.8, 0.8)
+    tip:AddLine("|cffffaa00right-click|r to reset to default", 0.8, 0.8, 0.8)
+    tip:Show()
+end
+
 function movers.Register(frame, opts)
     opts = opts or {}
     local key = opts.key or (frame and frame.GetName and frame:GetName())
@@ -396,7 +792,6 @@ function movers.Register(frame, opts)
     movers.registry[key] = opts
 
     local mover = movers.list[key]
-    local isNew = false
 
     if not mover then
         local moverName = opts.isActionBar and ("sfui_ActionBarMover_" .. key) or ("sfui_Mover_" .. key)
@@ -404,31 +799,12 @@ function movers.Register(frame, opts)
         mover:SetClampedToScreen(true)
         mover:SetMovable(true)
         mover:EnableMouse(false)
+        mover:EnableMouseWheel(true)
         mover:RegisterForDrag("LeftButton")
         mover:SetFrameStrata("HIGH")
         mover:SetFrameLevel(50)
 
-        -- Theme accent colors
-        local app = sfui.config and sfui.config.appearance
-        local hlCol = (app and app.highlightColor) or { 0.4, 0, 1, 0.4 }
-        local borderCol = (app and app.accentColor) or { 0, 1, 1, 1 }
-        local moverBg = { hlCol[1], hlCol[2], hlCol[3], 0.5 }
-        local moverBorder = { borderCol[1], borderCol[2], borderCol[3], 1 }
-
-        if sfui.common and sfui.common.apply_flat_backdrop then
-            sfui.common.apply_flat_backdrop(mover, moverBg, moverBorder)
-        else
-            mover:SetBackdrop({
-                bgFile = "Interface\\Buttons\\WHITE8X8",
-                edgeFile = "Interface\\Buttons\\WHITE8X8",
-                tile = false,
-                tileSize = 0,
-                edgeSize = 1,
-                insets = { left = 1, right = 1, top = 1, bottom = 1 },
-            })
-            mover:SetBackdropColor(moverBg[1], moverBg[2], moverBg[3], moverBg[4])
-            mover:SetBackdropBorderColor(moverBorder[1], moverBorder[2], moverBorder[3], moverBorder[4])
-        end
+        ApplyMoverBackdropStyle(mover, key)
 
         local font = (sfui.config and sfui.config.font) or "GameFontNormal"
         local label = mover:CreateFontString(nil, "OVERLAY", font)
@@ -436,57 +812,107 @@ function movers.Register(frame, opts)
         label:SetTextColor(1, 1, 1, 1)
         mover.label = label
 
-        -- Drag Handlers
+        -- Live Cursor-Delta Drag Controller
         mover:SetScript("OnDragStart", function(self)
             if InCombatLockdown() then return end
-            self:StartMoving()
+            movers.SelectMover(key)
+
+            local scale = UIParent:GetEffectiveScale() or 1
+            local cx, cy = GetCursorPosition()
+            self._dragStartCursorX = cx / scale
+            self._dragStartCursorY = cy / scale
+            self._dragStartLeft = self:GetLeft() or 0
+            self._dragStartBottom = self:GetBottom() or 0
+            self._lastTargetLeft = self._dragStartLeft
+            self._lastTargetBottom = self._dragStartBottom
+            self._isDragging = true
+            ApplyMoverBackdropStyle(self, key)
+
+            if sfui.common and sfui.common.hide_tooltip then
+                sfui.common.hide_tooltip()
+            end
+
+            self:SetScript("OnUpdate", function(m)
+                if InCombatLockdown() then
+                    m:SetScript("OnUpdate", nil)
+                    m._isDragging = false
+                    HideSnapGuides()
+                    ApplyMoverBackdropStyle(m, key)
+                    return
+                end
+                local s = UIParent:GetEffectiveScale() or 1
+                local curX, curY = GetCursorPosition()
+                local dx = (curX / s) - (m._dragStartCursorX or 0)
+                local dy = (curY / s) - (m._dragStartCursorY or 0)
+                local rawLeft = (m._dragStartLeft or 0) + dx
+                local rawBottom = (m._dragStartBottom or 0) + dy
+                movers.ApplyLivePosition(m, key, rawLeft, rawBottom, false)
+            end)
         end)
 
         mover:SetScript("OnDragStop", function(self)
-            self:StopMovingOrSizing()
-            movers.SnapAndSavePosition(self, key)
+            self:SetScript("OnUpdate", nil)
+            self._isDragging = false
+            local finalLeft = self._lastTargetLeft or self:GetLeft()
+            local finalBottom = self._lastTargetBottom or self:GetBottom()
+            if finalLeft and finalBottom then
+                movers.ApplyLivePosition(self, key, finalLeft, finalBottom, true)
+            else
+                HideSnapGuides()
+            end
+            ApplyMoverBackdropStyle(self, key)
+        end)
+
+        mover:SetScript("OnMouseDown", function(self, button)
+            if button == "LeftButton" and not InCombatLockdown() then
+                movers.SelectMover(key)
+            end
         end)
 
         -- Right-click on mover resets its position
         mover:SetScript("OnMouseUp", function(self, button)
             if button == "RightButton" and not InCombatLockdown() then
+                movers.SelectMover(key)
                 movers.ResetPosition(key)
+                if self._isHovered then
+                    RefreshMoverTooltip(self, key)
+                end
+            end
+        end)
+
+        -- Mousewheel 1px precision nudging (Shift: X axis, Ctrl: anchorGap step)
+        mover:SetScript("OnMouseWheel", function(self, delta)
+            if InCombatLockdown() then return end
+            movers.SelectMover(key)
+            local step = (IsControlKeyDown and IsControlKeyDown()) and math_max(1, movers.anchorGap or 4) or 1
+            if IsShiftKeyDown and IsShiftKeyDown() then
+                movers.NudgeMover(key, delta * step, 0)
+            else
+                movers.NudgeMover(key, 0, delta * step)
+            end
+            if self._isHovered then
+                RefreshMoverTooltip(self, key)
             end
         end)
 
         -- Interactive Hover & Tooltips
         mover:SetScript("OnEnter", function(self)
-            if sfui.common and sfui.common.apply_flat_backdrop then
-                sfui.common.apply_flat_backdrop(self, { 0.5, 0.1, 1.0, 0.65 }, { 1, 1, 1, 1 })
-            end
-            local tip = sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()
-            if tip then
-                tip:SetOwner(self, "ANCHOR_TOP")
-                tip:SetText(self.label:GetText() or key, 1, 1, 1)
-                local pt, _, relPt, x, y = self:GetPoint()
-                if pt then
-                    tip:AddLine(string_format("anchor: %s (%d, %d)", pt:lower(), math_floor(x or 0), math_floor(y or 0)), 0.7, 0.7, 0.8)
-                end
-                tip:AddLine("|cff55ff55drag|r to reposition", 0.8, 0.8, 0.8)
-                tip:AddLine("|cffffaa00right-click|r to reset to default", 0.8, 0.8, 0.8)
-                tip:Show()
+            self._isHovered = true
+            ApplyMoverBackdropStyle(self, key)
+            if not self._isDragging then
+                RefreshMoverTooltip(self, key)
             end
         end)
 
         mover:SetScript("OnLeave", function(self)
-            local curApp = sfui.config and sfui.config.appearance
-            local cBorder = (curApp and curApp.accentColor) or { 0, 1, 1, 1 }
-            local cHl = (curApp and curApp.highlightColor) or { 0.4, 0, 1, 0.4 }
-            if sfui.common and sfui.common.apply_flat_backdrop then
-                sfui.common.apply_flat_backdrop(self, { cHl[1], cHl[2], cHl[3], 0.5 }, { cBorder[1], cBorder[2], cBorder[3], 1 })
-            end
+            self._isHovered = false
+            ApplyMoverBackdropStyle(self, key)
             if sfui.common and sfui.common.hide_tooltip then
                 sfui.common.hide_tooltip()
             end
         end)
 
         movers.list[key] = mover
-        isNew = true
     end
 
     mover.targetFrame = frame
@@ -513,12 +939,14 @@ function movers.Register(frame, opts)
     if opts.getPoint then
         local pt, relTo, relPt, x, y = opts.getPoint()
         if pt then
+            mover._anchorPoint = pt
             mover:ClearAllPoints()
             mover:SetPoint(pt, relTo or UIParent, relPt or pt, x or 0, y or 0)
         end
     elseif frame and frame.GetPoint then
         local pt, relTo, relPt, x, y = frame:GetPoint()
         if pt then
+            mover._anchorPoint = pt
             mover:ClearAllPoints()
             mover:SetPoint(pt, relTo or UIParent, relPt or pt, x or 0, y or 0)
         end
@@ -621,16 +1049,14 @@ function movers.CreateMover(bar, barIndex, barKey)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Floating Top Toolbar Dialog (sfui_EditModeDialog)
+--  Floating Top Toolbar Dialog & Inspector (sfui_EditModeDialog)
 -- ─────────────────────────────────────────────────────────────────────────────
-local editModeDialog = nil
-
 local function GetOrCreateEditModeDialog()
     if editModeDialog then return editModeDialog end
 
     local dialog = CreateFrame("Frame", "sfui_EditModeDialog", UIParent, "BackdropTemplate")
-    dialog:SetSize(520, 48)
-    dialog:SetPoint("TOP", UIParent, "TOP", 0, -25)
+    dialog:SetSize(580, 76)
+    dialog:SetPoint("TOP", UIParent, "TOP", 0, -22)
     dialog:SetFrameStrata("FULLSCREEN_DIALOG")
     dialog:SetFrameLevel(100)
     dialog:SetClampedToScreen(true)
@@ -641,74 +1067,229 @@ local function GetOrCreateEditModeDialog()
     dialog:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
     dialog:Hide()
 
-    -- Register special frame so pressing ESC cleanly locks and closes edit mode without tainting UISpecialFrames
     if sfui.common and sfui.common.register_special_frame then
         sfui.common.register_special_frame(dialog)
     end
 
     dialog:SetScript("OnHide", function(self)
+        self._resetAllConfirm = nil
         if movers.isUnlocked and not movers._isToggling then
             movers.ToggleMovers(false)
         end
     end)
 
-    -- Visual styling with theme accent border
     local app = sfui.config and sfui.config.appearance
     local borderCol = (app and app.accentColor) or { 0.40, 0.00, 1.00, 1 }
     if sfui.common and sfui.common.apply_flat_backdrop then
-        sfui.common.apply_flat_backdrop(dialog, { 0.05, 0.05, 0.07, 0.95 }, { borderCol[1], borderCol[2], borderCol[3], 1 })
+        sfui.common.apply_flat_backdrop(dialog, { 0.05, 0.05, 0.07, 0.96 }, { borderCol[1], borderCol[2], borderCol[3], 1 })
     end
 
-    -- Title & Subtitle
+    -- ─── Row 1: Global Edit Mode Controls ────────────────────────────────────
     local title = dialog:CreateFontString(nil, "OVERLAY", (sfui.config and sfui.config.font) or "GameFontNormal")
-    title:SetPoint("LEFT", dialog, "LEFT", 14, 6)
+    title:SetPoint("TOPLEFT", dialog, "TOPLEFT", 12, -8)
     title:SetText("|cff9966ffsfui|r |cffffffffedit mode|r")
 
     local sub = dialog:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    sub:SetPoint("LEFT", dialog, "LEFT", 14, -8)
-    sub:SetText("|cff777777drag to move • esc to lock|r")
+    sub:SetPoint("TOPLEFT", dialog, "TOPLEFT", 12, -24)
+    sub:SetText("|cff777777shift: free • wheel: 1px|r")
 
     local CreateButton = sfui.common.create_flat_button
 
     -- Close 'X' Button
-    local closeBtn = CreateButton(dialog, "|cffaaaaaax|r", 18, 18, function()
+    local closeBtn = CreateButton(dialog, "|cffaaaaaax|r", 20, 22, function()
         movers.ToggleMovers(false)
     end)
-    closeBtn:SetPoint("TOPRIGHT", dialog, "TOPRIGHT", -5, -5)
+    closeBtn:SetPoint("TOPRIGHT", dialog, "TOPRIGHT", -8, -10)
 
-    -- Lock & Save Button (Prominent right button)
-    local lockBtn = CreateButton(dialog, "|cff55ff55lock & save|r", 95, 24, function()
+    -- Lock & Save Button
+    local lockBtn = CreateButton(dialog, "|cff55ff55lock & save|r", 86, 22, function()
         movers.ToggleMovers(false)
     end)
-    lockBtn:SetPoint("RIGHT", dialog, "RIGHT", -26, 0)
+    lockBtn:SetPoint("RIGHT", closeBtn, "LEFT", -6, 0)
     if lockBtn.SetBackdropBorderColor then
         lockBtn:SetBackdropBorderColor(0.2, 0.8, 0.3, 1)
     end
 
-    -- Reset All Button
-    local resetBtn = CreateButton(dialog, "reset all", 70, 22, function()
-        movers.ResetAllPositions()
+    -- Reset All Button (with 2-click confirmation guard)
+    local resetBtn = CreateButton(dialog, "reset all", 68, 22, function(self)
+        local now = (_G.GetTime and _G.GetTime()) or 0
+        if dialog._resetAllConfirm and (now - dialog._resetAllConfirm) < 3.5 then
+            dialog._resetAllConfirm = nil
+            self:SetText("reset all")
+            movers.ResetAllPositions()
+            if dialog.UpdateInspector then dialog:UpdateInspector() end
+        else
+            dialog._resetAllConfirm = now
+            self:SetText("|cffff5555confirm?|r")
+            if _G.C_Timer and _G.C_Timer.After then
+                _G.C_Timer.After(3.5, function()
+                    if dialog._resetAllConfirm and self:IsShown() then
+                        dialog._resetAllConfirm = nil
+                        self:SetText("reset all")
+                    end
+                end)
+            end
+        end
     end)
-    resetBtn:SetPoint("RIGHT", lockBtn, "LEFT", -8, 0)
+    resetBtn:SetPoint("RIGHT", lockBtn, "LEFT", -6, 0)
+    resetBtn.tooltip = "click twice to reset all frames to default positions"
 
-    -- Magnet Snap Button
-    local snapBtn = CreateButton(dialog, movers.snappingEnabled and "snap: on" or "snap: off", 68, 22, function(self)
-        movers.snappingEnabled = not movers.snappingEnabled
-        if SfuiDB then SfuiDB.editMode_snap = movers.snappingEnabled end
-        self:SetText(movers.snappingEnabled and "snap: on" or "snap: off")
+    -- Anchor Gap Button (4px default; left-click cycles 4/2/0/6/8px, right-click resets to 4px)
+    local gapBtn = CreateButton(dialog, string_format("gap: %dpx", movers.anchorGap or 4), 62, 22)
+    gapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    gapBtn:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            movers.anchorGap = 4
+        else
+            local cur = movers.anchorGap or 4
+            local nextVal = 4
+            for i, v in ipairs(GAP_PRESETS) do
+                if v == cur then
+                    nextVal = GAP_PRESETS[(i % #GAP_PRESETS) + 1]
+                    break
+                end
+            end
+            movers.anchorGap = nextVal
+        end
+        if SfuiDB then SfuiDB.editMode_anchorGap = movers.anchorGap end
+        self:SetText(string_format("gap: %dpx", movers.anchorGap))
     end)
-    snapBtn:SetPoint("RIGHT", resetBtn, "LEFT", -6, 0)
+    gapBtn:SetPoint("RIGHT", resetBtn, "LEFT", -6, 0)
+    gapBtn.tooltip = "edge-to-edge anchor gap (left-click: cycle, right-click: 4px default)"
+
+    -- Magnet Snap Button (14px default; left-click toggles on/off, right-click cycles 14/18/10px)
+    local snapBtn = CreateButton(dialog, movers.snappingEnabled and string_format("snap: %dpx", movers.snapThreshold or 14) or "snap: off", 74, 22)
+    snapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    snapBtn:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            movers.snappingEnabled = true
+            local cur = movers.snapThreshold or 14
+            local nextVal = 14
+            for i, v in ipairs(SNAP_PRESETS) do
+                if v == cur then
+                    nextVal = SNAP_PRESETS[(i % #SNAP_PRESETS) + 1]
+                    break
+                end
+            end
+            movers.snapThreshold = nextVal
+            if SfuiDB then
+                SfuiDB.editMode_snap = true
+                SfuiDB.editMode_snapThreshold = movers.snapThreshold
+            end
+        else
+            movers.snappingEnabled = not movers.snappingEnabled
+            if SfuiDB then SfuiDB.editMode_snap = movers.snappingEnabled end
+        end
+        self:SetText(movers.snappingEnabled and string_format("snap: %dpx", movers.snapThreshold or 14) or "snap: off")
+    end)
+    snapBtn:SetPoint("RIGHT", gapBtn, "LEFT", -6, 0)
+    snapBtn.tooltip = "magnet snapping (left-click: toggle, right-click: cycle 14px/18px/10px)"
 
     -- Alignment Grid Button
-    local gridBtn = CreateButton(dialog, movers.gridEnabled and "grid: on" or "grid: off", 68, 22, function(self)
+    local gridBtn = CreateButton(dialog, movers.gridEnabled and "grid: on" or "grid: off", 64, 22, function(self)
         movers.SetGridShown(not movers.gridEnabled)
         self:SetText(movers.gridEnabled and "grid: on" or "grid: off")
     end)
     gridBtn:SetPoint("RIGHT", snapBtn, "LEFT", -6, 0)
+    gridBtn.tooltip = "toggle background alignment grid"
+
+    -- ─── Divider Line ────────────────────────────────────────────────────────
+    local divider = dialog:CreateTexture(nil, "ARTWORK")
+    divider:SetPoint("TOPLEFT", dialog, "TOPLEFT", 10, -41)
+    divider:SetPoint("TOPRIGHT", dialog, "TOPRIGHT", -10, -41)
+    divider:SetHeight(1)
+    divider:SetColorTexture(1, 1, 1, 0.08)
+
+    -- ─── Row 2: Selected Mover Inspector & 1px Nudge Controls ────────────────
+    local selText = dialog:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    selText:SetPoint("BOTTOMLEFT", dialog, "BOTTOMLEFT", 12, 11)
+    selText:SetJustifyH("LEFT")
+    selText:SetText("|cff777777click or drag any frame to inspect & nudge|r")
+
+    local selResetBtn = CreateButton(dialog, "reset", 50, 20, function()
+        if movers.selectedKey then
+            movers.ResetPosition(movers.selectedKey)
+            dialog:UpdateInspector()
+        end
+    end)
+    selResetBtn:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -8, 8)
+    selResetBtn.tooltip = "reset selected frame to default position"
+
+    local function getNudgeStep()
+        if IsShiftKeyDown and IsShiftKeyDown() then
+            return math_max(1, movers.anchorGap or 4)
+        end
+        return 1
+    end
+
+    local nudgeRightBtn = CreateButton(dialog, ">", 22, 20, function()
+        movers.NudgeMover(movers.selectedKey, getNudgeStep(), 0)
+    end)
+    nudgeRightBtn:SetPoint("RIGHT", selResetBtn, "LEFT", -6, 0)
+    nudgeRightBtn.tooltip = "nudge right 1px (hold shift for gap step)"
+
+    local nudgeDownBtn = CreateButton(dialog, "v", 22, 20, function()
+        movers.NudgeMover(movers.selectedKey, 0, -getNudgeStep())
+    end)
+    nudgeDownBtn:SetPoint("RIGHT", nudgeRightBtn, "LEFT", -3, 0)
+    nudgeDownBtn.tooltip = "nudge down 1px (hold shift for gap step)"
+
+    local nudgeUpBtn = CreateButton(dialog, "^", 22, 20, function()
+        movers.NudgeMover(movers.selectedKey, 0, getNudgeStep())
+    end)
+    nudgeUpBtn:SetPoint("RIGHT", nudgeDownBtn, "LEFT", -3, 0)
+    nudgeUpBtn.tooltip = "nudge up 1px (hold shift for gap step)"
+
+    local nudgeLeftBtn = CreateButton(dialog, "<", 22, 20, function()
+        movers.NudgeMover(movers.selectedKey, -getNudgeStep(), 0)
+    end)
+    nudgeLeftBtn:SetPoint("RIGHT", nudgeUpBtn, "LEFT", -3, 0)
+    nudgeLeftBtn.tooltip = "nudge left 1px (hold shift for gap step)"
+
+    local anchorBtn = CreateButton(dialog, "anchor: bottom", 108, 20)
+    anchorBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    anchorBtn:SetScript("OnClick", function(_, button)
+        movers.CycleMoverAnchor(movers.selectedKey, button == "RightButton")
+    end)
+    anchorBtn:SetPoint("RIGHT", nudgeLeftBtn, "LEFT", -6, 0)
+    anchorBtn.tooltip = "cycle anchor point without moving frame (left/right click)"
+
+    function dialog:UpdateInspector()
+        local key = movers.selectedKey
+        local mover = key and movers.list[key]
+        if mover and mover:IsShown() then
+            local reg = movers.registry[key]
+            local label = (reg and reg.label) or tostring(key)
+            local pt, _, _, x, y = mover:GetPoint()
+            pt = pt or GetMoverAnchorPoint(key, mover)
+            local ix = math_floor((x or 0) + 0.5)
+            local iy = math_floor((y or 0) + 0.5)
+            selText:SetText(string_format("|cffffd100%s|r   |cff00ffffx: %d   y: %d|r", label:lower(), ix, iy))
+            anchorBtn:SetText(string_format("anchor: %s", pt:lower()))
+            anchorBtn:Show()
+            nudgeLeftBtn:Show()
+            nudgeUpBtn:Show()
+            nudgeDownBtn:Show()
+            nudgeRightBtn:Show()
+            selResetBtn:Show()
+        else
+            selText:SetText("|cff777777click or drag any frame to inspect & nudge|r")
+            anchorBtn:Hide()
+            nudgeLeftBtn:Hide()
+            nudgeUpBtn:Hide()
+            nudgeDownBtn:Hide()
+            nudgeRightBtn:Hide()
+            selResetBtn:Hide()
+        end
+    end
 
     function dialog:UpdateButtons()
-        snapBtn:SetText(movers.snappingEnabled and "snap: on" or "snap: off")
+        self._resetAllConfirm = nil
+        resetBtn:SetText("reset all")
+        snapBtn:SetText(movers.snappingEnabled and string_format("snap: %dpx", movers.snapThreshold or 14) or "snap: off")
+        gapBtn:SetText(string_format("gap: %dpx", movers.anchorGap or 4))
         gridBtn:SetText(movers.gridEnabled and "grid: on" or "grid: off")
+        self:UpdateInspector()
     end
 
     editModeDialog = dialog
@@ -743,11 +1324,19 @@ function movers.ToggleMovers(forceState)
 
     if newState then
         -- Read saved settings
-        if SfuiDB and SfuiDB.editMode_snap ~= nil then
-            movers.snappingEnabled = SfuiDB.editMode_snap
-        end
-        if SfuiDB and SfuiDB.editMode_grid ~= nil then
-            movers.gridEnabled = SfuiDB.editMode_grid
+        if SfuiDB then
+            if SfuiDB.editMode_snap ~= nil then
+                movers.snappingEnabled = SfuiDB.editMode_snap
+            end
+            if SfuiDB.editMode_grid ~= nil then
+                movers.gridEnabled = SfuiDB.editMode_grid
+            end
+            if type(SfuiDB.editMode_snapThreshold) == "number" then
+                movers.snapThreshold = SfuiDB.editMode_snapThreshold
+            end
+            if type(SfuiDB.editMode_anchorGap) == "number" then
+                movers.anchorGap = SfuiDB.editMode_anchorGap
+            end
         end
 
         -- Toggle alignment grid
@@ -758,13 +1347,8 @@ function movers.ToggleMovers(forceState)
             if gridOverlay then gridOverlay:Hide() end
         end
 
-        -- Show floating toolbar dialog
-        if dialog then
-            dialog:Show()
-            dialog:UpdateButtons()
-        end
-
         -- Activate all registered movers
+        local firstShownKey = nil
         for key, mover in pairs(movers.list) do
             local reg = movers.registry[key]
             local isEnabled = not reg or not reg.isEnabled or reg.isEnabled()
@@ -786,6 +1370,10 @@ function movers.ToggleMovers(forceState)
                 if reg and reg.getPoint then
                     local pt, relTo, relPt, x, y = reg.getPoint()
                     if pt then
+                        mover._anchorPoint = pt
+                        mover._lastSavedPt = pt
+                        mover._lastSavedX = x or 0
+                        mover._lastSavedY = y or 0
                         mover:ClearAllPoints()
                         mover:SetPoint(pt, relTo or UIParent, relPt or pt, x or 0, y or 0)
                     end
@@ -793,6 +1381,10 @@ function movers.ToggleMovers(forceState)
 
                 mover:EnableMouse(true)
                 mover:Show()
+
+                if not firstShownKey or key == "healthbar" then
+                    firstShownKey = key
+                end
 
                 if reg and reg.onEnterEditMode then
                     reg.onEnterEditMode(mover, target)
@@ -803,15 +1395,28 @@ function movers.ToggleMovers(forceState)
             end
         end
 
+        if not movers.selectedKey or not movers.list[movers.selectedKey] or not movers.list[movers.selectedKey]:IsShown() then
+            movers.selectedKey = firstShownKey
+        end
+        movers.RefreshMoverVisuals()
+
+        -- Show floating toolbar dialog
+        if dialog then
+            dialog:Show()
+            dialog:UpdateButtons()
+        end
+
         -- Bring action bars to 100% alpha while positioning
         if sfui.actionbars and sfui.actionbars.mouseover and sfui.actionbars.mouseover.UpdateAllBars then
             sfui.actionbars.mouseover.UpdateAllBars(true)
         end
 
         if sfui.common and sfui.common.print then
-            sfui.common.print("sfui edit mode unlocked. drag frames to align, right-click to reset, press esc to lock.")
+            sfui.common.print("sfui edit mode unlocked. drag frames to snap (14px magnet, 4px gap), scroll to nudge 1px, press esc to lock.")
         end
     else
+        HideSnapGuides()
+
         -- Hide alignment grid
         if gridOverlay then gridOverlay:Hide() end
 
@@ -825,6 +1430,12 @@ function movers.ToggleMovers(forceState)
             local reg = movers.registry[key]
             local target = mover.targetFrame
 
+            mover:SetScript("OnUpdate", nil)
+            mover._isDragging = false
+            mover._isHovered = false
+            if reg and reg.label then
+                mover.label:SetText(reg.label)
+            end
             mover:EnableMouse(false)
             mover:Hide()
 
@@ -868,6 +1479,10 @@ function movers.ResetBarPosition(barIndexOrKey)
         local x = defaultCfg.x or 0
         local y = defaultCfg.y or 50
 
+        mover._anchorPoint = point
+        mover._lastSavedPt = point
+        mover._lastSavedX = x
+        mover._lastSavedY = y
         mover:ClearAllPoints()
         mover:SetPoint(point, UIParent, relPoint, x, y)
 
@@ -889,6 +1504,10 @@ function movers.ResetPosition(key)
         if mover and reg.getPoint then
             local pt, relTo, relPt, x, y = reg.getPoint()
             if pt then
+                mover._anchorPoint = pt
+                mover._lastSavedPt = pt
+                mover._lastSavedX = x or 0
+                mover._lastSavedY = y or 0
                 mover:ClearAllPoints()
                 mover:SetPoint(pt, relTo or UIParent, relPt or pt, x or 0, y or 0)
             end
@@ -902,6 +1521,9 @@ function movers.ResetPosition(key)
             sfui.common.print(string_format("reset position for %s.", key))
         end
     end
+    if editModeDialog and editModeDialog.UpdateInspector then
+        editModeDialog:UpdateInspector()
+    end
 end
 
 function movers.ResetAllPositions()
@@ -913,6 +1535,10 @@ function movers.ResetAllPositions()
             if mover and reg.getPoint then
                 local pt, relTo, relPt, x, y = reg.getPoint()
                 if pt then
+                    mover._anchorPoint = pt
+                    mover._lastSavedPt = pt
+                    mover._lastSavedX = x or 0
+                    mover._lastSavedY = y or 0
                     mover:ClearAllPoints()
                     mover:SetPoint(pt, relTo or UIParent, relPt or pt, x or 0, y or 0)
                 end
@@ -926,6 +1552,10 @@ function movers.ResetAllPositions()
     end
     movers.ResetBarPosition("pet")
     movers.ResetBarPosition("vehicle")
+
+    if editModeDialog and editModeDialog.UpdateInspector then
+        editModeDialog:UpdateInspector()
+    end
 
     if sfui.common and sfui.common.print then
         sfui.common.print("all mover positions reset to defaults.")

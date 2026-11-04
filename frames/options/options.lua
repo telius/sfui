@@ -303,6 +303,16 @@ function sfui.create_options_panel()
     local close_button = common.create_close_button(frame)
     close_button:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
 
+    local edit_mode_button = common.create_flat_button(frame, "edit mode", 72, 24, function()
+        if frame and frame.Hide then frame:Hide() end
+        if sfui.movers and sfui.movers.Toggle then
+            sfui.movers.Toggle(true)
+        end
+    end)
+    edit_mode_button:SetPoint("RIGHT", close_button, "LEFT", -6, 0)
+    edit_mode_button:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+    edit_mode_button.tooltip = "unlock frames and open sfui edit mode (/sfui move)"
+
     local function refresh_frame_levels()
         local base = frame:GetFrameLevel() or 1
         if frame.sfuiThemeLayers and frame.sfuiThemeLayers.borderFrame then
@@ -323,6 +333,9 @@ function sfui.create_options_panel()
         end
         if close_button then
             close_button:SetFrameLevel(base + 20)
+        end
+        if edit_mode_button then
+            edit_mode_button:SetFrameLevel(base + 20)
         end
     end
 
