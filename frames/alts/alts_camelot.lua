@@ -178,13 +178,9 @@ local PROF_SHORT_NAMES = {
 }
 
 local CLASSIC_RAIDS = {
-    { key = "Onyxia", label = "Onyxia", match = "Onyxia", resetDays = 5 },
-    { key = "MC",     label = "Molten Core", match = "Molten Core", resetDays = 7 },
-    { key = "BWL",    label = "Blackwing Lair", match = "Blackwing Lair", resetDays = 7 },
-    { key = "ZG",     label = "Zul'Gurub", match = "Zul'Gurub", resetDays = 3 },
-    { key = "AQ20",   label = "Ruins of AQ", match = "Ruins of Ahn'Qiraj", resetDays = 3 },
-    { key = "AQ40",   label = "Temple of AQ", match = "Temple of Ahn'Qiraj", resetDays = 7 },
-    { key = "Naxx",   label = "Naxxramas", match = "Naxxramas", resetDays = 7 },
+    { key = "BarrowDeeps", label = "the barrow deeps (10)", match = "Barrow Deeps", size = 10, bosses = 8,  resetDays = 7 },
+    { key = "HyjalSummit", label = "hyjal summit (20)",     match = "Hyjal",        size = 20, bosses = 13, resetDays = 7 },
+    { key = "Onyxia",      label = "onyxia's lair (40)",    match = "Onyxia",       size = 40, bosses = 1,  resetDays = 5, requiresAttunement = true },
 }
 
 local CURRENCIES = {
@@ -208,9 +204,7 @@ local CATEGORIES = {
 
     { name = "LOCKOUTS_HEADER",   label = "raid lockouts",     type = "header" },
     { name = "LOCKOUTS_GRID",     label = "raids (reset)",     type = "classic_lockout_grid" },
-
-    { name = "ATTUNEMENTS_HEADER",label = "attunements & keys",type = "header" },
-    { name = "ATTUNEMENTS_GRID",  label = "access / keys",     type = "classic_attunement_grid" },
+    { name = "ONYXIA_ATTUNE",     label = "onyxia attune",     type = "classic_onyxia_attune" },
 
     { name = "CURRENCIES_HEADER", label = "currencies",        type = "header" },
     { name = "CURRENCY_3402",     label = "merchant's favor",  type = "classic_currency", id = 3402 },
@@ -514,33 +508,21 @@ local function PerformSync(data, isLogout)
         wipe(data.lockouts)
     end
 
-    -- 5. Attunements & Keys
+    -- 5. Onyxia's Lair Attunement (Drakefire Amulet)
     data.attunements = data.attunements or {}
-    -- Molten Core: Quest 7848 (Attunement to the Core)
+    local onyDone = false
     if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
-        local mcDone = C_QuestLog.IsQuestFlaggedCompleted(7848)
-        if mcDone then data.attunements.mc = true end
-        local bwlDone = C_QuestLog.IsQuestFlaggedCompleted(7761)
-        if bwlDone then data.attunements.bwl = true end
-        local naxxDone = C_QuestLog.IsQuestFlaggedCompleted(9121) or C_QuestLog.IsQuestFlaggedCompleted(9122) or C_QuestLog.IsQuestFlaggedCompleted(9123)
-        if naxxDone then data.attunements.naxx = true end
-        local onyDone
         if not isHorde then
-            onyDone = C_QuestLog.IsQuestFlaggedCompleted(6502) or (GetItemCount and GetItemCount(16309, true) > 0)
+            onyDone = C_QuestLog.IsQuestFlaggedCompleted(6502) or C_QuestLog.IsQuestFlaggedCompleted(4974)
         else
-            onyDone = C_QuestLog.IsQuestFlaggedCompleted(6602) or C_QuestLog.IsQuestFlaggedCompleted(6584) or (GetItemCount and GetItemCount(16309, true) > 0)
+            onyDone = C_QuestLog.IsQuestFlaggedCompleted(6602) or C_QuestLog.IsQuestFlaggedCompleted(6584) or C_QuestLog.IsQuestFlaggedCompleted(4875)
         end
-        if onyDone then data.attunements.ony = true end
-    elseif GetItemCount and GetItemCount(16309, true) > 0 then
-        data.attunements.ony = true
     end
-
-    -- Keys (check bags/bank/keyring)
-    if GetItemCount then
-        if GetItemCount(13704, true) > 0 then data.attunements.skeleton = true end
-        if GetItemCount(12382, true) > 0 then data.attunements.city = true end
-        if GetItemCount(11000, true) > 0 then data.attunements.shadowforge = true end
-        if GetItemCount(18249, true) > 0 then data.attunements.crescent = true end
+    if not onyDone and GetItemCount and GetItemCount(16309, true) > 0 then
+        onyDone = true
+    end
+    if onyDone then
+        data.attunements.ony = true
     end
 
     -- 6. Classic Professions
@@ -949,7 +931,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         cell:EnableMouse(true)
         cell:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("classic raid lockouts", 1, 1, 1)
+            GameTooltip:AddLine("raid lockouts", 1, 1, 1)
             for _, rDef in ipairs(CLASSIC_RAIDS) do
                 local lock = lockouts[rDef.key]
                 local isLocked = lock and lock.resetTime and (lock.resetTime > now)
@@ -965,46 +947,23 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
         return true
 
-    elseif cat.type == "classic_attunement_grid" then
-        text:Hide()
+    elseif cat.type == "classic_onyxia_attune" then
         local att = altData.attunements or {}
-        local items = {
-            { key = "mc",          label = "Molten Core" },
-            { key = "ony",         label = "Onyxia's Lair" },
-            { key = "bwl",         label = "Blackwing Lair" },
-            { key = "naxx",        label = "Naxxramas" },
-            { key = "skeleton",    label = "Scholomance (Skeleton Key)" },
-            { key = "city",        label = "Stratholme (Key to the City)" },
-            { key = "shadowforge", label = "BRD (Shadowforge Key)" },
-            { key = "crescent",    label = "Dire Maul (Crescent Key)" },
-        }
-        local numItems = #items
-        local squareSize = (cfg.columnWidth - 10) / numItems
-
-        for bIdx, itm in ipairs(items) do
-            local rect = cell["attRect" .. bIdx] or cell:CreateTexture(nil, "ARTWORK")
-            cell["attRect" .. bIdx] = rect
-            rect:Show()
-            rect:SetSize(squareSize - 2, cfg.rowHeight - 12)
-            rect:SetPoint("LEFT", (bIdx - 1) * squareSize + 5, 0)
-
-            local unlocked = att[itm.key] == true
-            if unlocked then
-                rect:SetColorTexture(0.2, 0.9, 0.2, 0.85) -- Green: Unlocked
-            else
-                rect:SetColorTexture(0.06, 0.06, 0.07, 0.60) -- Dark: Locked
-            end
+        local unlocked = att.ony == true
+        if unlocked then
+            text:SetText("attuned")
+            text:SetTextColor(0.2, 0.9, 0.2)
+        else
+            text:SetText("not attuned")
+            text:SetTextColor(0.5, 0.5, 0.5)
         end
 
         cell:EnableMouse(true)
         cell:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("attunements & dungeon keys", 1, 1, 1)
-            for _, itm in ipairs(items) do
-                local unlocked = att[itm.key] == true
-                local status = unlocked and "|cff00ff00unlocked|r" or "|cffff4444locked|r"
-                GameTooltip:AddDoubleLine(itm.label, status, 1, 1, 1, 1, 1, 1)
-            end
+            GameTooltip:AddLine("onyxia's lair attunement", 1, 1, 1)
+            local status = unlocked and "|cff00ff00attuned (drakefire amulet)|r" or "|cffff4444not attuned|r"
+            GameTooltip:AddDoubleLine("status:", status, 1, 1, 1, 1, 1, 1)
             GameTooltip:Show()
         end)
         cell:SetScript("OnLeave", function() GameTooltip:Hide() end)

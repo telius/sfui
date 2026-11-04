@@ -218,6 +218,17 @@
     "uimap": 2521,
     "wh_id": 16593
   },
+  "16606": {
+    "auto_discovered": true,
+    "category": 6,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "maxlevel": 60,
+    "minlevel": 30,
+    "name": "Darkspear Islands",
+    "uimap": null,
+    "wh_id": 16606
+  },
   "16611": {
     "category": 2,
     "continent": "eastern_kingdoms",
