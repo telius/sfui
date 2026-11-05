@@ -618,6 +618,10 @@ function sfui.actionbars.ApplyPetBarLayout()
                 btn:ClearAllPoints()
                 btn:SetPoint("TOPLEFT", bar, "TOPLEFT", col * (buttonSize + spacing), -row * (buttonSize + spacing))
                 btn:SetSize(buttonSize, buttonSize)
+                if btn.SetAlpha then btn:SetAlpha(1) end
+                if btn.EnableMouse then btn:EnableMouse(true) end
+                if btn.EnableMouseClicks then btn:EnableMouseClicks(true) end
+                if btn.EnableMouseMotion then btn:EnableMouseMotion(true) end
                 btn:Show()
 
                 -- Adjust pet action icon & auto-cast overlay sizing
@@ -677,6 +681,17 @@ function sfui.actionbars.CreatePetBar()
         sfui.actionbars.HookPetActionBar()
     end
 
+    -- Detach Blizzard's PetActionBar from updating or calling SetShown() on PetActionButton1..10 in combat
+    local blizzPetBar = _G.PetActionBar
+    if blizzPetBar then
+        if blizzPetBar.UnregisterAllEvents then blizzPetBar:UnregisterAllEvents() end
+        if blizzPetBar.SetScript then
+            blizzPetBar:SetScript("OnEvent", nil)
+            blizzPetBar:SetScript("OnUpdate", nil)
+        end
+        blizzPetBar.UpdateShownButtons = function() end
+    end
+
     local bar = CreateFrame("Frame", "sfui_PetBar", UIParent, "SecureHandlerStateTemplate")
     sfui.common.set_pixel_snapping(bar)
     bar.barKey = "pet"
@@ -684,16 +699,19 @@ function sfui.actionbars.CreatePetBar()
     sfui.actionbars.petBar = bar
     sfui.actionbars.barsByKey["pet"] = bar
 
-    -- Gather PetActionButton1 through PetActionButton10
+    -- Gather PetActionButton1 through PetActionButton10 without tainting existing Blizzard properties
     for i = 1, 10 do
         local btn = _G["PetActionButton" .. i]
         if btn then
             btn:SetParent(bar)
-            btn.bar = nil
-            btn.index = i
+            if btn.SetAlpha then btn:SetAlpha(1) end
+            if btn.EnableMouse then btn:EnableMouse(true) end
+            if btn.EnableMouseClicks then btn:EnableMouseClicks(true) end
+            if btn.EnableMouseMotion then btn:EnableMouseMotion(true) end
+            if not btn.index then btn.index = i end
             btn.barKey = "pet"
-            btn.commandName = "BONUSACTIONBUTTON" .. i
-            if btn.SetID then btn:SetID(i) end
+            if not btn.commandName then btn.commandName = "BONUSACTIONBUTTON" .. i end
+            if btn.GetID and btn:GetID() ~= i and btn.SetID then btn:SetID(i) end
             bar.buttons[i] = btn
             if sfui.actionbars.style and sfui.actionbars.style.SkinButton then
                 sfui.actionbars.style.SkinButton(btn)

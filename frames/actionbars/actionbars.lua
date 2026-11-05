@@ -82,7 +82,6 @@ local BAR_BUTTON_PATTERNS = {
     { bar = "MultiBar6", prefix = "MultiBar6Button", count = 12 },
     { bar = "MultiBar7", prefix = "MultiBar7Button", count = 12 },
     { bar = "StanceBar", prefix = "StanceButton", count = 10 },
-    { bar = "PetActionBar", prefix = "PetActionButton", count = 10 },
     { bar = "PossessActionBar", prefix = "PossessButton", count = 10 },
 }
 
@@ -106,6 +105,7 @@ local function suppress_blizzard_actionbars()
     -- 1. MainActionBar
     local mainBar = _G.MainActionBar
     if mainBar then
+        if mainBar.UnregisterAllEvents then mainBar:UnregisterAllEvents() end
         if mainBar.SetAlpha then mainBar:SetAlpha(0) end
         if mainBar.EnableMouse then mainBar:EnableMouse(false) end
         if mainBar.EnableMouseClicks then mainBar:EnableMouseClicks(false) end
@@ -137,6 +137,7 @@ local function suppress_blizzard_actionbars()
     for _, name in ipairs(UNTAINT_BARS) do
         local bar = _G[name]
         if bar then
+            if bar.UnregisterAllEvents then bar:UnregisterAllEvents() end
             if bar.SetAlpha then bar:SetAlpha(0) end
             if bar.EnableMouse then bar:EnableMouse(false) end
             if bar.EnableMouseClicks then bar:EnableMouseClicks(false) end
@@ -149,7 +150,20 @@ local function suppress_blizzard_actionbars()
         end
     end
 
-    -- 3. Silence all buttons and containers for all bars (explicit global + bar.actionButtons)
+    -- 2b. Detach PetActionBar from updating or hiding PetActionButton1..10 (which are reparented to sfui_PetBar)
+    local petBar = _G.PetActionBar
+    if petBar then
+        if petBar.SetScript then
+            petBar:SetScript("OnEvent", nil)
+            petBar:SetScript("OnUpdate", nil)
+        end
+        petBar.UpdateShownButtons = function() end
+        for i = 1, 10 do
+            QuietContainer(_G["PetActionBarButtonContainer" .. i])
+        end
+    end
+
+    -- 3. Silence all buttons and containers for suppressed Blizzard bars (excluding PetActionButton1..10)
     for _, info in ipairs(BAR_BUTTON_PATTERNS) do
         for i = 1, info.count do
             QuietButton(_G[info.prefix .. i])

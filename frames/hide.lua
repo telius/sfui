@@ -204,8 +204,9 @@ end
 
 local function UpdateBarChildren(key, suppressed)
     if key == "hide_micromenu" then
+        local reparentButtons = (_G.MicroMenuContainer == nil and _G.MicroMenu == nil)
         for _, name in ipairs(MICRO_BUTTON_NAMES) do
-            SilenceOrRestoreButton(_G[name], suppressed, true)
+            SilenceOrRestoreButton(_G[name], suppressed, reparentButtons)
         end
         local mm = _G.MicroMenu
         if mm and mm.GetChildren then
@@ -260,16 +261,23 @@ local function ParkFrameOffscreen(frame, key)
         frame:SetAlpha(0)
     end
     local isProtected = frame.IsProtected and frame:IsProtected()
+    local isChildMicroMenu = (frame == _G.MicroMenu and _G.MicroMenuContainer ~= nil)
     if not isProtected then
         if frame.EnableMouse then pcall(frame.EnableMouse, frame, false) end
         if frame.EnableMouseClicks then pcall(frame.EnableMouseClicks, frame, false) end
         if frame.EnableMouseMotion then pcall(frame.EnableMouseMotion, frame, false) end
-        if frame.SetParent and frame:GetParent() ~= HiddenFrame then
-            pcall(frame.SetParent, frame, HiddenFrame)
-        end
-        if frame.ClearAllPoints and frame.SetPoint then
-            pcall(frame.ClearAllPoints, frame)
-            pcall(frame.SetPoint, frame, "TOPLEFT", HiddenFrame, "TOPLEFT", 0, -10000)
+        if isChildMicroMenu then
+            if frame.SetParent and frame:GetParent() ~= _G.MicroMenuContainer then
+                pcall(frame.SetParent, frame, _G.MicroMenuContainer)
+            end
+        else
+            if frame.SetParent and frame:GetParent() ~= HiddenFrame then
+                pcall(frame.SetParent, frame, HiddenFrame)
+            end
+            if frame.ClearAllPoints and frame.SetPoint then
+                pcall(frame.ClearAllPoints, frame)
+                pcall(frame.SetPoint, frame, "TOPLEFT", HiddenFrame, "TOPLEFT", 0, -10000)
+            end
         end
     end
     if frame.Selection then
@@ -278,7 +286,7 @@ local function ParkFrameOffscreen(frame, key)
 
     if key and hooksecurefunc and not _hookedOffscreen[frame] then
         _hookedOffscreen[frame] = key
-        if frame.SetPoint then
+        if not isChildMicroMenu and frame.SetPoint then
             hooksecurefunc(frame, "SetPoint", function(self)
                 if _inOffscreenMove[self] or not ShouldHide(key) then return end
                 if InCombatLockdown and InCombatLockdown() then return end
@@ -287,7 +295,8 @@ local function ParkFrameOffscreen(frame, key)
         end
         if frame.SetParent then
             hooksecurefunc(frame, "SetParent", function(self, parent)
-                if _inOffscreenMove[self] or not ShouldHide(key) or parent == HiddenFrame then return end
+                if _inOffscreenMove[self] or not ShouldHide(key) then return end
+                if parent == HiddenFrame or (self == _G.MicroMenu and parent == _G.MicroMenuContainer) then return end
                 if InCombatLockdown and InCombatLockdown() then return end
                 ParkFrameOffscreen(self, key)
             end)
