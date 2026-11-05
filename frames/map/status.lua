@@ -197,12 +197,17 @@ function sfui.minimap.update_status()
 
     local f = get_or_create_weather_frame()
     local diel = get_day_light_indicator()
+    local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
 
-    -- Ensure Blizzard day/light indicator is visible
+    -- Ensure Blizzard day/light indicator is visible on round minimap, suppressed on square minimap
     if diel and diel.SetAlpha then
-        diel:SetAlpha(1)
-        if not diel:IsShown() then
-            diel:Show()
+        if isSquare then
+            diel:SetAlpha(0)
+        else
+            diel:SetAlpha(1)
+            if not diel:IsShown() then
+                diel:Show()
+            end
         end
     end
 
@@ -224,23 +229,24 @@ function sfui.minimap.update_status()
     skin_weather_button(f, f.texture)
 
     f:ClearAllPoints()
-    if diel then
+    if diel and not isSquare then
         if f:GetParent() ~= diel then
             f:SetParent(diel)
         end
         f.ignoreInLayout = true
         f:SetFrameStrata(diel:GetFrameStrata() or "MEDIUM")
-        f:SetFrameLevel(math_max(5, (diel:GetFrameLevel() or 5) + 2))
+        f:SetFrameLevel(math_max(15, (diel:GetFrameLevel() or 15) + 2))
         -- Conjoined cleanly to the southeast of the Diel indicator along the compass rim
         f:SetPoint("CENTER", diel, "CENTER", 22, -22)
     else
-        local targetParent = _G.MinimapCluster or _G.Minimap or _G.UIParent
+        local map = _G.Minimap
+        local targetParent = map or _G.UIParent
         if f:GetParent() ~= targetParent then
             f:SetParent(targetParent)
         end
+        f:SetScale(1)
         f:SetFrameStrata("MEDIUM")
         f:SetFrameLevel(25)
-        local map = _G.Minimap
         if map then
             f:SetPoint("TOPRIGHT", map, "TOPRIGHT", -4, -4)
         end

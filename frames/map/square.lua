@@ -268,23 +268,47 @@ local function get_or_create_bronze_overlay()
     bronzeOverlay = CreateFrame("Frame", "sfui_SquareMinimapBronzeOverlay", parent)
     sfui.common.set_pixel_snapping(bronzeOverlay)
     bronzeOverlay:SetFrameStrata("LOW")
-    bronzeOverlay:SetFrameLevel(math_max(5, (Minimap:GetFrameLevel() or 1) + 5))
-    bronzeOverlay:SetAllPoints(Minimap)
+    bronzeOverlay:SetFrameLevel(math_max(15, (Minimap:GetFrameLevel() or 10) + 5))
+    bronzeOverlay:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -1, 1)
+    bronzeOverlay:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 1, -1)
     bronzeOverlay:EnableMouse(false)
 
-    -- Heavy bronze frame basic texture if supported
-    local nativeBorder = bronzeOverlay:CreateTexture(nil, "BORDER", nil, 2)
-    nativeBorder:SetPoint("TOPLEFT", bronzeOverlay, "TOPLEFT", -8, 8)
-    nativeBorder:SetPoint("BOTTOMRIGHT", bronzeOverlay, "BOTTOMRIGHT", 8, -8)
-    bronzeOverlay.nativeBorder = nativeBorder
+    -- Chiseled Heavy Bronze inner bevel edges (flush with Minimap bounds)
+    local topHL = bronzeOverlay:CreateTexture(nil, "BORDER", nil, 2)
+    topHL:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 0, 0)
+    topHL:SetPoint("TOPRIGHT", Minimap, "TOPRIGHT", 0, 0)
+    topHL:SetHeight(1)
+    topHL:SetColorTexture(0.85, 0.68, 0.34, 0.90)
+    bronzeOverlay.topHL = topHL
 
-    -- 4 Sculpted corner brackets
+    local botShadow = bronzeOverlay:CreateTexture(nil, "BORDER", nil, 2)
+    botShadow:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 0, 0)
+    botShadow:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 0, 0)
+    botShadow:SetHeight(1)
+    botShadow:SetColorTexture(0.08, 0.05, 0.02, 0.95)
+    bronzeOverlay.botShadow = botShadow
+
+    local leftEdge = bronzeOverlay:CreateTexture(nil, "BORDER", nil, 2)
+    leftEdge:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 0, -1)
+    leftEdge:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 0, 1)
+    leftEdge:SetWidth(1)
+    leftEdge:SetColorTexture(0.48, 0.36, 0.16, 0.85)
+    bronzeOverlay.leftEdge = leftEdge
+
+    local rightEdge = bronzeOverlay:CreateTexture(nil, "BORDER", nil, 2)
+    rightEdge:SetPoint("TOPRIGHT", Minimap, "TOPRIGHT", 0, -1)
+    rightEdge:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 0, 1)
+    rightEdge:SetWidth(1)
+    rightEdge:SetColorTexture(0.48, 0.36, 0.16, 0.85)
+    bronzeOverlay.rightEdge = rightEdge
+
+    -- 4 Sculpted corner brackets anchored flush to the outer border corners
     bronzeOverlay.corners = {}
     local bracketDefs = {
-        { key = "TL", point = "TOPLEFT",     x = -2, y = 2 },
-        { key = "TR", point = "TOPRIGHT",    x = 2,  y = 2 },
-        { key = "BL", point = "BOTTOMLEFT",  x = -2, y = -2 },
-        { key = "BR", point = "BOTTOMRIGHT", x = 2,  y = -2 },
+        { key = "TL", point = "TOPLEFT",     x = 0, y = 0 },
+        { key = "TR", point = "TOPRIGHT",    x = 0, y = 0 },
+        { key = "BL", point = "BOTTOMLEFT",  x = 0, y = 0 },
+        { key = "BR", point = "BOTTOMRIGHT", x = 0, y = 0 },
     }
     for _, b in ipairs(bracketDefs) do
         local tex = bronzeOverlay:CreateTexture(nil, "OVERLAY", nil, 6)
@@ -324,33 +348,31 @@ function square:UpdateTheme()
     local isBronze = isSquare and self:IsBronzeTheme()
     local pal = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
     local bCol = (pal and pal.borderColor) or { 0, 0, 0, 1 }
+    if (bCol[4] or 1) <= 0 then
+        bCol = { 0, 0, 0, 1 }
+    end
 
     if isBronze then
-        -- Burnished antique bronze 1px border on the backdrop
-        local bronzeBorderCol = { 0.82, 0.65, 0.32, 1.0 }
+        -- Crisp dark antique bronze 1px outer border on the backdrop
+        local bronzeOuterCol = { 0.14, 0.10, 0.06, 0.98 }
         if sfui.widgets and sfui.widgets.create_border then
-            sfui.widgets.create_border(backdropFrame, 1, bronzeBorderCol)
+            sfui.widgets.create_border(backdropFrame, 1, bronzeOuterCol)
         end
 
         local overlay = get_or_create_bronze_overlay()
         if overlay then
-            overlay:SetAllPoints(Minimap)
+            overlay:SetFrameStrata("LOW")
+            overlay:SetFrameLevel(math_max(15, (Minimap and Minimap:GetFrameLevel() or 10) + 5))
+            overlay:ClearAllPoints()
+            overlay:SetPoint("TOPLEFT", backdropFrame, "TOPLEFT", 0, 0)
+            overlay:SetPoint("BOTTOMRIGHT", backdropFrame, "BOTTOMRIGHT", 0, 0)
             overlay:Show()
 
             local camelotDef = sfui.theme and sfui.theme.GetTheme and sfui.theme.GetTheme("camelot")
             local atlases = camelotDef and camelotDef.atlases or {}
 
-            -- 1. Sculpted native frame texture
-            local frameAtlas = atlases.frameBorderNative or "heavybronze-frame-basic"
-            if sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas(frameAtlas) then
-                overlay.nativeBorder:SetAtlas(frameAtlas)
-                overlay.nativeBorder:Show()
-            else
-                overlay.nativeBorder:Hide()
-            end
-
-            -- 2. Four sculpted corner brackets
-            local bSize = 16
+            -- Four sculpted corner brackets flush at the border corners
+            local bSize = 12
             for key, tex in pairs(overlay.corners) do
                 local atlas = (sfui.theme and sfui.theme.GetCornerBracketAtlas and sfui.theme.GetCornerBracketAtlas(key, camelotDef))
                     or (atlases and atlases["corner" .. key .. "Native"])
@@ -494,8 +516,10 @@ function square:Apply()
             MinimapCluster.Selection:EnableMouse(false)
         end
         if MinimapCluster.DielFrame then
-            MinimapCluster.DielFrame:SetAlpha(1)
-            MinimapCluster.DielFrame:Show()
+            MinimapCluster.DielFrame:SetAlpha(isSquare and 0 or 1)
+            if not isSquare then
+                MinimapCluster.DielFrame:Show()
+            end
         end
     end
 

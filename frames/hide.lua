@@ -114,6 +114,26 @@ local function GetFramesForEntry(entry)
 end
 
 local hookedMultiCast = false
+local hookedBarsAndMenu = false
+local _savedFrameState = setmetatable({}, { __mode = "k" })
+local _hookedOffscreen = setmetatable({}, { __mode = "k" })
+local _inOffscreenMove = setmetatable({}, { __mode = "k" })
+
+local MICRO_BUTTON_NAMES = {
+    "CharacterMicroButton", "ProfessionMicroButton", "PlayerSpellsMicroButton",
+    "SpellbookMicroButton", "TalentMicroButton", "AchievementMicroButton",
+    "LegacyMicroButton", "QuestLogMicroButton", "HousingMicroButton",
+    "GuildMicroButton", "SocialsMicroButton", "WorldMapMicroButton",
+    "LFDMicroButton", "LFGMicroButton", "CollectionsMicroButton",
+    "EJMicroButton", "HelpMicroButton", "StoreMicroButton",
+    "MainMenuMicroButton", "HelpOpenWebTicketButton",
+}
+
+local BAG_BUTTON_NAMES = {
+    "MainMenuBarBackpackButton", "BagBarExpandToggle", "BagSlotCluster",
+    "CharacterBag0Slot", "CharacterBag1Slot", "CharacterBag2Slot",
+    "CharacterBag3Slot", "CharacterReagentBag0Slot", "KeyRingButton",
+}
 
 local function ShouldHide(key)
     if not SfuiDB then return false end
@@ -131,8 +151,193 @@ local function SilenceSelection(selection)
     if selection.EnableMouseMotion then selection:EnableMouseMotion(false) end
 end
 
+local function SaveFrameState(frame)
+    if not frame or _savedFrameState[frame] then return end
+    local parent = frame.GetParent and frame:GetParent() or UIParent
+    if parent == HiddenFrame then return end
+    local points = {}
+    if frame.GetNumPoints and frame.GetPoint then
+        for i = 1, frame:GetNumPoints() do
+            local p, rel, rp, x, y = frame:GetPoint(i)
+            if p and y ~= -10000 then
+                points[#points + 1] = { p, rel or UIParent, rp or p, x or 0, y or 0 }
+            end
+        end
+    end
+    _savedFrameState[frame] = {
+        parent = parent,
+        points = points,
+    }
+end
+
+local function SilenceOrRestoreButton(btn, suppressed, reparentToHidden)
+    if not btn then return end
+    local isProtected = btn.IsProtected and btn:IsProtected()
+    if suppressed then
+        SaveFrameState(btn)
+        if btn.SetAlpha and (not btn.GetAlpha or btn:GetAlpha() ~= 0) then
+            btn:SetAlpha(0)
+        end
+        if not isProtected and not (InCombatLockdown and InCombatLockdown()) then
+            if btn.EnableMouse then pcall(btn.EnableMouse, btn, false) end
+            if btn.EnableMouseClicks then pcall(btn.EnableMouseClicks, btn, false) end
+            if btn.EnableMouseMotion then pcall(btn.EnableMouseMotion, btn, false) end
+            if reparentToHidden and btn.SetParent and btn:GetParent() ~= HiddenFrame then
+                pcall(btn.SetParent, btn, HiddenFrame)
+            end
+        end
+    else
+        if btn.GetAlpha and btn:GetAlpha() ~= 1.0 then
+            btn:SetAlpha(1.0)
+        end
+        if not isProtected and not (InCombatLockdown and InCombatLockdown()) then
+            local saved = _savedFrameState[btn]
+            if reparentToHidden and saved and saved.parent and btn.SetParent and btn:GetParent() == HiddenFrame then
+                pcall(btn.SetParent, btn, saved.parent)
+            end
+            if btn.EnableMouse then pcall(btn.EnableMouse, btn, true) end
+            if btn.EnableMouseClicks then pcall(btn.EnableMouseClicks, btn, true) end
+            if btn.EnableMouseMotion then pcall(btn.EnableMouseMotion, btn, true) end
+        end
+    end
+end
+
+local function UpdateBarChildren(key, suppressed)
+    if key == "hide_micromenu" then
+        for _, name in ipairs(MICRO_BUTTON_NAMES) do
+            SilenceOrRestoreButton(_G[name], suppressed, true)
+        end
+        local mm = _G.MicroMenu
+        if mm and mm.GetChildren then
+            for _, child in ipairs({ mm:GetChildren() }) do
+                SilenceOrRestoreButton(child, suppressed, false)
+            end
+        end
+    elseif key == "hide_bagsbar" then
+        for _, name in ipairs(BAG_BUTTON_NAMES) do
+            SilenceOrRestoreButton(_G[name], suppressed, false)
+        end
+        local bb = _G.BagsBar
+        if bb and bb.GetChildren then
+            for _, child in ipairs({ bb:GetChildren() }) do
+                SilenceOrRestoreButton(child, suppressed, false)
+            end
+        end
+        local cluster = _G.BagSlotCluster
+        if cluster and cluster.GetChildren then
+            for _, child in ipairs({ cluster:GetChildren() }) do
+                SilenceOrRestoreButton(child, suppressed, false)
+            end
+        end
+    end
+end
+
+local function ParkFrameOffscreen(frame, key)
+    if not frame or (InCombatLockdown and InCombatLockdown()) then return end
+    if _inOffscreenMove[frame] then return end
+    _inOffscreenMove[frame] = true
+
+    SaveFrameState(frame)
+
+    if frame == _G.MicroMenuContainer and not ShouldHide("hide_bagsbar") then
+        local bags = _G.BagsBar
+        if bags and bags.GetNumPoints and bags.GetPoint and bags.GetLeft and bags.GetBottom then
+            for i = 1, bags:GetNumPoints() do
+                local _, rel = bags:GetPoint(i)
+                if rel == frame then
+                    local l, b = bags:GetLeft(), bags:GetBottom()
+                    if l and b and b > -1000 then
+                        bags:ClearAllPoints()
+                        bags:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", l, b)
+                    end
+                    break
+                end
+            end
+        end
+    end
+
+    if frame.SetAlpha and (not frame.GetAlpha or frame:GetAlpha() ~= 0) then
+        frame:SetAlpha(0)
+    end
+    local isProtected = frame.IsProtected and frame:IsProtected()
+    if not isProtected then
+        if frame.EnableMouse then pcall(frame.EnableMouse, frame, false) end
+        if frame.EnableMouseClicks then pcall(frame.EnableMouseClicks, frame, false) end
+        if frame.EnableMouseMotion then pcall(frame.EnableMouseMotion, frame, false) end
+        if frame.SetParent and frame:GetParent() ~= HiddenFrame then
+            pcall(frame.SetParent, frame, HiddenFrame)
+        end
+        if frame.ClearAllPoints and frame.SetPoint then
+            pcall(frame.ClearAllPoints, frame)
+            pcall(frame.SetPoint, frame, "TOPLEFT", HiddenFrame, "TOPLEFT", 0, -10000)
+        end
+    end
+    if frame.Selection then
+        SilenceSelection(frame.Selection)
+    end
+
+    if key and hooksecurefunc and not _hookedOffscreen[frame] then
+        _hookedOffscreen[frame] = key
+        if frame.SetPoint then
+            hooksecurefunc(frame, "SetPoint", function(self)
+                if _inOffscreenMove[self] or not ShouldHide(key) then return end
+                if InCombatLockdown and InCombatLockdown() then return end
+                ParkFrameOffscreen(self, key)
+            end)
+        end
+        if frame.SetParent then
+            hooksecurefunc(frame, "SetParent", function(self, parent)
+                if _inOffscreenMove[self] or not ShouldHide(key) or parent == HiddenFrame then return end
+                if InCombatLockdown and InCombatLockdown() then return end
+                ParkFrameOffscreen(self, key)
+            end)
+        end
+        if frame.Show then
+            hooksecurefunc(frame, "Show", function(self)
+                if _inOffscreenMove[self] or not ShouldHide(key) then return end
+                if InCombatLockdown and InCombatLockdown() then return end
+                ParkFrameOffscreen(self, key)
+            end)
+        end
+    end
+
+    _inOffscreenMove[frame] = nil
+end
+
+local function RestoreFrameFromOffscreen(frame, key)
+    if not frame or (InCombatLockdown and InCombatLockdown()) then return end
+    _inOffscreenMove[frame] = true
+
+    local saved = _savedFrameState[frame]
+    local isProtected = frame.IsProtected and frame:IsProtected()
+    if not isProtected then
+        if saved and saved.parent and frame.SetParent and frame:GetParent() == HiddenFrame then
+            pcall(frame.SetParent, frame, saved.parent)
+        elseif frame.SetParent and frame:GetParent() == HiddenFrame then
+            local fallbackParent = (frame == _G.MicroMenu and _G.MicroMenuContainer) or UIParent
+            pcall(frame.SetParent, frame, fallbackParent)
+        end
+        if saved and saved.points and #saved.points > 0 and frame.ClearAllPoints and frame.SetPoint then
+            pcall(frame.ClearAllPoints, frame)
+            for _, pt in ipairs(saved.points) do
+                pcall(frame.SetPoint, frame, pt[1], pt[2], pt[3], pt[4], pt[5])
+            end
+        elseif frame.ApplySystemAnchor then
+            pcall(frame.ApplySystemAnchor, frame)
+        end
+    end
+
+    _inOffscreenMove[frame] = nil
+end
+
 local function SuppressFrame(frame, entry)
     if not frame then return end
+    local key = entry and entry.key
+    if key == "hide_micromenu" or key == "hide_bagsbar" then
+        ParkFrameOffscreen(frame, key)
+        UpdateBarChildren(key, true)
+        return
+    end
     if frame.SetAlpha and (not frame.GetAlpha or frame:GetAlpha() ~= 0) then
         frame:SetAlpha(0)
     end
@@ -165,6 +370,11 @@ end
 
 local function RestoreFrame(frame, entry)
     if not frame then return end
+    local key = entry and entry.key
+    if key == "hide_micromenu" or key == "hide_bagsbar" then
+        RestoreFrameFromOffscreen(frame, key)
+        UpdateBarChildren(key, false)
+    end
     if frame.GetAlpha and frame:GetAlpha() ~= 1.0 then
         frame:SetAlpha(1.0)
     end
@@ -173,6 +383,18 @@ local function RestoreFrame(frame, entry)
         pcall(frame.EnableMouse, frame, true)
         if frame.EnableMouseClicks then pcall(frame.EnableMouseClicks, frame, true) end
         if frame.EnableMouseMotion then pcall(frame.EnableMouseMotion, frame, true) end
+    end
+    if key == "hide_micromenu" then
+        if frame == _G.MicroMenuContainer and frame.Layout then
+            pcall(frame.Layout, frame)
+        end
+        if _G.UpdateMicroButtons then
+            pcall(_G.UpdateMicroButtons)
+        end
+    elseif key == "hide_bagsbar" then
+        if frame == _G.BagsBar and frame.Layout then
+            pcall(frame.Layout, frame)
+        end
     end
     if frame.totFrame then
         if frame.totFrame.GetAlpha and frame.totFrame:GetAlpha() ~= 1.0 then
@@ -208,12 +430,51 @@ local function HookUnitFrames()
         hooksecurefunc("MultiCastActionBarFrame_Update", function(self)
             if SfuiDB and SfuiDB.hide_totem_bar and self then
                 self:SetAlpha(0)
-                local isProtected = self.IsProtected and self:IsProtected()
+                local isProtected = self.IsProtected and self.IsProtected(self)
                 if not isProtected and self.EnableMouse and not InCombatLockdown() then
                     pcall(self.EnableMouse, self, false)
                 end
             end
         end)
+    end
+
+    if hooksecurefunc and not hookedBarsAndMenu then
+        hookedBarsAndMenu = true
+        if _G.MicroMenuBar_SetFullScreenFrame then
+            hooksecurefunc("MicroMenuBar_SetFullScreenFrame", function()
+                if ShouldHide("hide_micromenu") then
+                    ApplyUnitFrame(HIDE_FRAMES[5])
+                end
+            end)
+        end
+        if _G.MicroMenuBar_ClearFullScreenFrame then
+            hooksecurefunc("MicroMenuBar_ClearFullScreenFrame", function()
+                if ShouldHide("hide_micromenu") then
+                    ApplyUnitFrame(HIDE_FRAMES[5])
+                end
+            end)
+        end
+        if _G.UpdateMicroButtons then
+            hooksecurefunc("UpdateMicroButtons", function()
+                if ShouldHide("hide_micromenu") then
+                    UpdateBarChildren("hide_micromenu", true)
+                end
+            end)
+        end
+        if _G.ContainerFrame_SetFullScreenFrame then
+            hooksecurefunc("ContainerFrame_SetFullScreenFrame", function()
+                if ShouldHide("hide_bagsbar") then
+                    ApplyUnitFrame(HIDE_FRAMES[6])
+                end
+            end)
+        end
+        if _G.ContainerFrame_ClearFullScreenFrame then
+            hooksecurefunc("ContainerFrame_ClearFullScreenFrame", function()
+                if ShouldHide("hide_bagsbar") then
+                    ApplyUnitFrame(HIDE_FRAMES[6])
+                end
+            end)
+        end
     end
 end
 

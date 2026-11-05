@@ -161,42 +161,101 @@ function sfui.minimap.update_position(x, y, point, relPoint)
 
     decouple_minimap()
 
+    local cluster = _G.MinimapCluster
     local map = _G.Minimap
-    if map then
-        map:ClearAllPoints()
-        map:SetPoint("CENTER", MinimapHolder, "CENTER", 0, 0)
-        map:SetSize(width, height)
-    end
-
     local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
 
     if isSquare then
+        if map then
+            map:ClearAllPoints()
+            map:SetPoint("CENTER", MinimapHolder, "CENTER", 0, 0)
+            map:SetSize(width, height)
+        end
         if _G.MinimapCompassTexture then
+            _G.MinimapCompassTexture:SetAlpha(0)
             _G.MinimapCompassTexture:Hide()
         end
         if _G.MinimapCompassTextureUnderlay then
+            _G.MinimapCompassTextureUnderlay:SetAlpha(0)
             _G.MinimapCompassTextureUnderlay:Hide()
         end
         if _G.MinimapBackdrop then
             _G.MinimapBackdrop:SetSize(width, height)
         end
+        if cluster and cluster.DielFrame then
+            cluster.DielFrame:SetAlpha(0)
+        end
     else
         -- Blizzard Camelot / Round Minimap:
+        -- Native geometry:
+        --   MinimapCompassTexture: queried via C_Texture.GetAtlasInfo (default 215 x 226)
+        --   Minimap aperture: 192 x 192 (sized safely inside the ~194px inner bronze rim)
+        --   Optical centering: texture bounds have top arrow & right Diel socket; offset (-4, 4) centers aperture
+        local baseSize = 220
+        local scale = width / baseSize
+        if scale <= 0.2 then scale = 1.0 end
+
+        if cluster and cluster.UpdateMinimapConfig then
+            cluster:UpdateMinimapConfig()
+            if not cluster._sfuiConfigHooked and hooksecurefunc then
+                cluster._sfuiConfigHooked = true
+                hooksecurefunc(cluster, "UpdateMinimapConfig", function()
+                    if not isRepositioning and not InCombatLockdown() then
+                        sfui.minimap.update_position()
+                    end
+                end)
+            end
+        end
+
         local compass = _G.MinimapCompassTexture
+        local atlasName = (compass and compass.GetAtlas and compass:GetAtlas()) or "UI-HUD-Minimap-Frame"
+        local atlasInfo = _G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(atlasName)
+        local compassW = (atlasInfo and atlasInfo.width and atlasInfo.width > 0) and atlasInfo.width or 215
+        local compassH = (atlasInfo and atlasInfo.height and atlasInfo.height > 0) and atlasInfo.height or 226
+
+        local aperture = 192 * scale
+        local offX = 4 * scale
+        local offY = -4 * scale
+
+        if map then
+            map:ClearAllPoints()
+            map:SetPoint("CENTER", MinimapHolder, "CENTER", -offX, -offY)
+            map:SetSize(aperture, aperture)
+        end
+
+        if _G.MinimapBackdrop then
+            _G.MinimapBackdrop:SetSize(compassW * scale, compassH * scale)
+        end
+
         if compass and map then
             compass:ClearAllPoints()
-            compass:SetPoint("CENTER", map, "CENTER", 0, 0)
-            compass:SetSize(width * (215 / 198), height * (226 / 198))
+            compass:SetPoint("CENTER", map, "CENTER", offX, offY)
+            compass:SetSize(compassW * scale, compassH * scale)
             compass:SetAlpha(1)
             compass:Show()
         end
+
         local underlay = _G.MinimapCompassTextureUnderlay
         if underlay and map then
             underlay:ClearAllPoints()
-            underlay:SetPoint("CENTER", map, "CENTER", 0, 0)
-            underlay:SetSize(width * (215 / 198), height * (226 / 198))
+            underlay:SetPoint("CENTER", map, "CENTER", offX, offY)
+            underlay:SetSize(compassW * scale, compassH * scale)
             underlay:SetAlpha(1)
-            underlay:Show()
+        end
+
+        if cluster and cluster.DielFrame and map then
+            local diel = cluster.DielFrame
+            if diel:GetParent() ~= map then
+                diel:SetParent(map)
+            end
+            diel:SetFrameStrata("LOW")
+            diel:SetFrameLevel((map:GetFrameLevel() or 10) + 5)
+            diel:SetScale(scale)
+            diel:ClearAllPoints()
+            diel:SetPoint("CENTER", compass or map, "CENTER", 55, 86)
+            diel:EnableMouse(false)
+            diel:SetAlpha(1)
+            diel:Show()
         end
     end
 
@@ -242,6 +301,9 @@ end
 -- Theme Updates
 -- ------------------------------------------------------------------------------
 function sfui.minimap.UpdateMinimapTheme()
+    if sfui.map and sfui.map.square and sfui.map.square.UpdateTheme then
+        sfui.map.square:UpdateTheme()
+    end
     local button_bar = sfui.minimap.button_bar
     if button_bar and sfui.theme and sfui.theme.ApplyMinimapButtonBarStyle then
         sfui.theme.ApplyMinimapButtonBarStyle(button_bar)

@@ -156,13 +156,18 @@ function sfui.minimap.update_indicator_positions()
         end
     end
 
-    -- Ensure Camelot day/night diel cycle indicator stays elevated in LOW strata above map but never intercepts mouse
+    -- Ensure Camelot day/night diel cycle indicator stays elevated in LOW strata above map on round minimap
     if MinimapCluster and MinimapCluster.DielFrame then
-        MinimapCluster.DielFrame:SetFrameStrata("LOW")
-        MinimapCluster.DielFrame:SetFrameLevel(math_max(5, MinimapCluster.DielFrame:GetFrameLevel()))
-        MinimapCluster.DielFrame:EnableMouse(false)
-        MinimapCluster.DielFrame:SetAlpha(1)
-        MinimapCluster.DielFrame:Show()
+        local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
+        if isSquare then
+            MinimapCluster.DielFrame:SetAlpha(0)
+        else
+            MinimapCluster.DielFrame:SetFrameStrata("LOW")
+            MinimapCluster.DielFrame:SetFrameLevel(math_max(15, (map and map:GetFrameLevel() or 10) + 5))
+            MinimapCluster.DielFrame:EnableMouse(false)
+            MinimapCluster.DielFrame:SetAlpha(1)
+            MinimapCluster.DielFrame:Show()
+        end
     end
 
     if sfui.minimap.arrange_buttons then

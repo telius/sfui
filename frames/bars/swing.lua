@@ -366,30 +366,9 @@ local function SuppressBlizzardSwingTimer()
         end
     end
 
-    -- Unregister events on the manager frame so it stops processing swings
     local mgr = _G["SwingTimerManagerFrame"]
-    if mgr then
-        if mgr.UnregisterAllEvents then
-            mgr:UnregisterAllEvents()
-        end
-        if mgr.SetAlpha then
-            mgr:SetAlpha(0)
-        end
-        if not mgr._sfuiSuppressed and _G.hooksecurefunc then
-            mgr._sfuiSuppressed = true
-            if mgr.UpdateSharedEventRegistration then
-                _G.hooksecurefunc(mgr, "UpdateSharedEventRegistration", function(self)
-                    if SfuiDB and SfuiDB.enableSwingBars == false then return end
-                    if self.UnregisterAllEvents then self:UnregisterAllEvents() end
-                end)
-            end
-            if mgr.UpdateSwingEventRegistration then
-                _G.hooksecurefunc(mgr, "UpdateSwingEventRegistration", function(self)
-                    if SfuiDB and SfuiDB.enableSwingBars == false then return end
-                    if self.UnregisterAllEvents then self:UnregisterAllEvents() end
-                end)
-            end
-        end
+    if mgr and mgr.SetAlpha and (not mgr.GetAlpha or mgr:GetAlpha() ~= 0) then
+        mgr:SetAlpha(0)
     end
 
     for i = 1, 3 do
@@ -397,9 +376,6 @@ local function SuppressBlizzardSwingTimer()
         if f then
             if f.SetAlpha and (not f.GetAlpha or f:GetAlpha() ~= 0) then
                 f:SetAlpha(0)
-            end
-            if f.SetScript then
-                f:SetScript("OnUpdate", nil)
             end
             if f.Selection and f.Selection.SetAlpha then
                 f.Selection:SetAlpha(0)
