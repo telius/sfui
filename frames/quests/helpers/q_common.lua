@@ -272,3 +272,138 @@ function QuestCommon.IsClassQuest(questID, questLogIndex, headerTitle)
 
     return false
 end
+
+local table_insert = table.insert
+local table_concat = table.concat
+local tonumber = tonumber
+local tostring = tostring
+
+function QuestCommon.IsObjectiveTextFinished(txt, isFinFlag)
+    if isFinFlag == 1 or isFinFlag == true then return true end
+    if type(txt) ~= "string" then return false end
+    local cur, max = txt:match("(%d+)%s*/%s*(%d+)")
+    if cur and max then
+        local nCur, nMax = tonumber(cur), tonumber(max)
+        if nCur and nMax and nMax > 0 and nCur >= nMax then
+            return true
+        end
+    end
+    return false
+end
+
+function QuestCommon.GetSyncedQuestTrackerInfo(questID)
+    if not questID or not (sfui.sync and sfui.sync.GetQuestPeerStatuses) then
+        return nil
+    end
+    local peerStatuses = sfui.sync.GetQuestPeerStatuses(questID, false)
+    if not peerStatuses or #peerStatuses == 0 then
+        return nil
+    end
+
+    local missingPeers = nil
+    local readyPeers = nil
+    local objOrder = nil
+    local objByKey = nil
+    local hasProgress = false
+    local hasIncompletePeers = false
+    local hasActivePeers = false
+
+    local function add_peer_obj(peerLabel, objText)
+        local clean = tostring(objText or ""):gsub(" / ", "/")
+        if clean == "" then return end
+        local key = clean:lower()
+        objOrder = objOrder or {}
+        objByKey = objByKey or {}
+        local entry = objByKey[key]
+        if not entry then
+            entry = {
+                text  = clean,
+                names = { peerLabel },
+            }
+            objByKey[key] = entry
+            objOrder[#objOrder + 1] = entry
+        else
+            entry.names[#entry.names + 1] = peerLabel
+        end
+    end
+
+    for _, peer in ipairs(peerStatuses) do
+        local pLabel = peer.coloredName or peer.name or "?"
+        if peer.status == "missing" then
+            if peer.inParty then
+                missingPeers = missingPeers or {}
+                missingPeers[#missingPeers + 1] = pLabel
+            end
+        elseif peer.status == "active" then
+            hasActivePeers = true
+            hasIncompletePeers = true
+            if peer.hasProgress then
+                hasProgress = true
+            end
+            local list = peer.unfinishedObjs
+            if type(list) == "table" and #list > 0 then
+                for _, oTxt in ipairs(list) do
+                    add_peer_obj(pLabel, oTxt)
+                end
+            elseif type(peer.objs) == "table" and #peer.objs > 0 then
+                for idx, oTxt in ipairs(peer.objs) do
+                    local finFlag = type(peer.objFinished) == "table" and peer.objFinished[idx] or nil
+                    if not QuestCommon.IsObjectiveTextFinished(oTxt, finFlag) then
+                        add_peer_obj(pLabel, oTxt)
+                    end
+                end
+            else
+                add_peer_obj(pLabel, "in progress")
+            end
+        elseif peer.status == "ready" then
+            hasActivePeers = true
+            hasProgress = true
+            readyPeers = readyPeers or {}
+            readyPeers[#readyPeers + 1] = pLabel
+        end
+    end
+
+    local hasMissingParty = (missingPeers ~= nil and #missingPeers > 0)
+    if not hasMissingParty and not objOrder and not readyPeers then
+        return nil
+    end
+
+    return {
+        missingPeers       = missingPeers,
+        hasMissingParty    = hasMissingParty,
+        peerObjLines       = objOrder,
+        readyPeers         = readyPeers,
+        hasIncompletePeers = hasIncompletePeers,
+        hasActivePeers     = hasActivePeers,
+        hasProgress        = hasProgress,
+    }
+end
+
+function QuestCommon.PrependMissingQuestLine(lines, syncInfo)
+    if not syncInfo or not syncInfo.hasMissingParty or not syncInfo.missingPeers then return end
+    table_insert(lines, {
+        text      = "! missing: " .. table_concat(syncInfo.missingPeers, ", "),
+        completed = false,
+        color     = { 1.0, 0.35, 0.35, 1 },
+    })
+end
+
+function QuestCommon.AppendSyncedQuestLines(lines, syncInfo)
+    if not syncInfo then return end
+    if syncInfo.peerObjLines then
+        for _, entry in ipairs(syncInfo.peerObjLines) do
+            table_insert(lines, {
+                text      = table_concat(entry.names, ", ") .. ": " .. entry.text,
+                completed = false,
+                color     = { 0.78, 0.86, 0.95, 1 },
+            })
+        end
+    end
+    if syncInfo.readyPeers and #syncInfo.readyPeers > 0 then
+        table_insert(lines, {
+            text      = "ready: " .. table_concat(syncInfo.readyPeers, ", "),
+            completed = true,
+            color     = { 0.35, 0.95, 0.35, 1 },
+        })
+    end
+end

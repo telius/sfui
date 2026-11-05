@@ -1606,6 +1606,10 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
         if merge.MergeQuests(data.guid, data) then
             peer.lastSync = now
         end
+    elseif msgType == "DELTA_QUEST_PROG" and s.syncQuests and type(data) == "table" then
+        if merge.MergeQuestProgDelta and merge.MergeQuestProgDelta(data) then
+            peer.lastSync = now
+        end
     elseif msgType == "DATA_DJ_WISHLIST" and s.syncQuests and type(data) == "table" then
         if merge.MergeDJWishlist(data) then
             peer.lastSync = now
@@ -1887,6 +1891,7 @@ local function on_local_fishing_catch_recorded(_, itemID, quantity, quality, map
     on_local_fishing_updated()
 end
 
+local questDeltaPending = false
 local questsBroadcastPending = false
 local pendingTurnedInQuests = {}
 local function on_local_quests_updated(event, arg1)
@@ -1895,6 +1900,25 @@ local function on_local_quests_updated(event, arg1)
     end
     local s = sync.GetSettings()
     if not s.enabled or s.syncQuests == false then return end
+
+    -- 1. Fast active-quest objective delta (runs even in combat so party members see live objective progress)
+    if not questDeltaPending and C_Timer and C_Timer.After then
+        questDeltaPending = true
+        C_Timer.After(0.35, function()
+            questDeltaPending = false
+            if merge.ScanActiveQuestsDelta then
+                local delta = merge.ScanActiveQuestsDelta(pendingTurnedInQuests)
+                if delta then
+                    sync.Broadcast("DELTA_QUEST_PROG", delta, true, false)
+                    if sfui.tracker and sfui.tracker.RequestRefresh then
+                        sfui.tracker.RequestRefresh(0.05)
+                    end
+                end
+            end
+        end)
+    end
+
+    -- 2. Full DJ / completed-quest scan (deferred until out of combat)
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.quests = true
         return
@@ -2033,6 +2057,33 @@ local function is_alt_quest_done(alt, questID)
     return (alt.djQuests and alt.djQuests[questID] == 2) or false
 end
 
+local function is_objective_text_finished(txt, isFinFlag)
+    if isFinFlag == 1 or isFinFlag == true then return true end
+    if type(txt) ~= "string" then return false end
+    local cur, max = string_match(txt, "(%d+)%s*/%s*(%d+)")
+    if cur and max then
+        local nCur, nMax = tonumber(cur), tonumber(max)
+        if nCur and nMax and nMax > 0 and nCur >= nMax then
+            return true
+        end
+    end
+    return false
+end
+
+local function has_objective_text_progress(txt, isFinFlag)
+    if is_objective_text_finished(txt, isFinFlag) then return true end
+    if type(txt) ~= "string" then return false end
+    local cur = string_match(txt, "(%d+)%s*/%s*%d+")
+    if cur and (tonumber(cur) or 0) > 0 then
+        return true
+    end
+    local pct = string_match(txt, "(%d+)%%")
+    if pct and (tonumber(pct) or 0) > 0 then
+        return true
+    end
+    return false
+end
+
 -- Returns an array of class-colored lowercase character names for synced party
 -- members who do NOT have `questID` in their active quest log and have not completed it.
 function sync.GetPartyMissingQuestPeers(questID)
@@ -2068,7 +2119,8 @@ function sync.GetPartyMissingQuestPeers(questID)
 end
 
 -- Returns an array of status tables for synced peers/alts:
--- { guid, name, coloredName, class, inParty, isOnline, status = "missing"|"active"|"ready"|"completed", objs = { "4/10 ...", ... } }
+-- { guid, name, coloredName, class, inParty, isOnline, status = "missing"|"active"|"ready"|"completed",
+--   objs = { "4/10 ...", ... }, objFinished = { 0, 1, ... }, unfinishedObjs = { ... }, hasProgress = bool }
 function sync.GetQuestPeerStatuses(questID, includeAllAlts)
     questID = tonumber(questID)
     if not questID then return nil end
@@ -2092,15 +2144,35 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
                     seenNames[cleanName] = true
                     local status = "missing"
                     local objs = nil
+                    local objFinished = nil
+                    local unfinishedObjs = nil
+                    local hasProgress = false
+
                     if is_alt_quest_done(alt, questID) then
                         status = "completed"
+                        hasProgress = true
                     elseif alt.activeQuests and alt.activeQuests[questID] then
                         local qEntry = alt.activeQuests[questID]
                         objs = qEntry.o
+                        objFinished = qEntry.f
                         if qEntry.c == 1 then
                             status = "ready"
+                            hasProgress = true
                         else
                             status = "active"
+                            if type(objs) == "table" and #objs > 0 then
+                                for idx, oTxt in ipairs(objs) do
+                                    local finFlag = type(objFinished) == "table" and objFinished[idx] or nil
+                                    local isFin = is_objective_text_finished(oTxt, finFlag)
+                                    if has_objective_text_progress(oTxt, finFlag) then
+                                        hasProgress = true
+                                    end
+                                    if not isFin then
+                                        unfinishedObjs = unfinishedObjs or {}
+                                        unfinishedObjs[#unfinishedObjs + 1] = oTxt
+                                    end
+                                end
+                            end
                         end
                     elseif alt.djQuests and alt.djQuests[questID] == 1 then
                         status = "active"
@@ -2109,14 +2181,17 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
                     local colored = format_colored_char_name(alt, cleanName)
                     results = results or {}
                     results[#results + 1] = {
-                        guid        = guid,
-                        name        = cleanName,
-                        coloredName = colored,
-                        class       = alt.class,
-                        inParty     = inParty,
-                        isOnline    = isOnline,
-                        status      = status,
-                        objs        = objs,
+                        guid           = guid,
+                        name           = cleanName,
+                        coloredName    = colored,
+                        class          = alt.class,
+                        inParty        = inParty,
+                        isOnline       = isOnline,
+                        status         = status,
+                        objs           = objs,
+                        objFinished    = objFinished,
+                        unfinishedObjs = unfinishedObjs,
+                        hasProgress    = hasProgress,
                     }
                 end
             end
@@ -2195,6 +2270,9 @@ local function on_entering_world()
                         local manifest = merge.BuildManifest(s)
                         sync.Broadcast("HELLO", manifest, true, true)
                     end
+                    if sfui.tracker and sfui.tracker.RequestRefresh then
+                        sfui.tracker.RequestRefresh(0.1)
+                    end
                 end
             end)
         end
@@ -2205,6 +2283,9 @@ local groupRosterPending = false
 local function on_group_roster_update()
     partyMapCacheTime = 0
     liveOnlineCacheTime = 0
+    if sfui.tracker and sfui.tracker.RequestRefresh then
+        sfui.tracker.RequestRefresh(0.1)
+    end
     if not (codec and codec.ResolveGroupChannel and codec.ResolveGroupChannel()) then
         if codec and codec.PurgeGroupQueue then
             codec.PurgeGroupQueue()

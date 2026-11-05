@@ -880,6 +880,11 @@ local function RenderQuestDetail(quest, dungeon)
                 end
             end
             sLines[#sLines + 1] = string_format("• %s%s  %s", peer.coloredName or peer.name or "?", pTag, stBadge)
+            if peer.status == "active" and type(peer.objs) == "table" and #peer.objs > 0 then
+                for _, oTxt in ipairs(peer.objs) do
+                    sLines[#sLines + 1] = "    |cffb0b8c8- " .. tostring(oTxt):lower() .. "|r"
+                end
+            end
         end
         info.syncText:SetText(table_concat(sLines, "\n"))
         info.syncText:ClearAllPoints()

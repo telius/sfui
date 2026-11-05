@@ -550,14 +550,20 @@ function QuestsModule:BuildBlocks(container)
             local section = GetOrCreateSection(secID, secTitle, secColor)
             local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID)
 
-            -- If quest is complete, reset manual expansion override so it defaults to collapsed
-            if isComplete and manualExpanded[questID] ~= nil then
+            -- Smart progress-based expansion & inline tag (including synced peers)
+            local hasProgress, inlineTag = GetQuestProgressDetails(questID, i, isComplete, objs, canClickToComplete)
+            local syncInfo = QuestCommon and QuestCommon.GetSyncedQuestTrackerInfo and QuestCommon.GetSyncedQuestTrackerInfo(questID)
+            local hasMissingParty = (syncInfo and syncInfo.hasMissingParty) or false
+            local hasIncompletePeers = (syncInfo and syncInfo.hasIncompletePeers) or false
+            local hasSyncProgress = (syncInfo and syncInfo.hasProgress) or false
+            local allComplete = isComplete and not hasIncompletePeers and not hasMissingParty
+
+            -- If quest is complete for everyone, reset manual expansion override so it defaults to collapsed
+            if allComplete and manualExpanded[questID] ~= nil then
                 manualExpanded[questID] = nil
             end
 
-            -- Smart progress-based expansion & inline tag
-            local hasProgress, inlineTag = GetQuestProgressDetails(questID, i, isComplete, objs, canClickToComplete)
-            local defaultExpanded = (hasProgress and not isComplete)
+            local defaultExpanded = ((hasProgress or hasSyncProgress or hasMissingParty) and not allComplete)
             local isExpanded
             if manualExpanded[questID] ~= nil then
                 isExpanded = (manualExpanded[questID] == true)
@@ -569,12 +575,18 @@ function QuestsModule:BuildBlocks(container)
             if not isExpanded and inlineTag ~= "" then
                 displayTitle = displayTitle .. inlineTag
             end
+            if hasMissingParty then
+                displayTitle = displayTitle .. " |cffff5555[!party]|r"
+            end
 
             -- Objectives lines
             local lines = {}
             local progressBar = nil
 
             if isExpanded then
+                if QuestCommon and QuestCommon.PrependMissingQuestLine then
+                    QuestCommon.PrependMissingQuestLine(lines, syncInfo)
+                end
                 if isComplete then
                     local compText = (Waypoints and Waypoints.GetCompletionText(i, canClickToComplete))
                         or (canClickToComplete and (QUEST_WATCH_QUEST_COMPLETE or "Click to complete quest"))
@@ -585,6 +597,7 @@ function QuestsModule:BuildBlocks(container)
                         color     = canClickToComplete and { 1.0, 0.0, 1.0, 1 } or { 0.2, 1.0, 0.2, 1 },
                     })
                 else
+                    local hadLocalObjLines = false
                     if objs and #objs > 0 then
                         for _, obj in ipairs(objs) do
                             local isBar = (obj.type == "progressbar" or obj.type == 8)
@@ -607,6 +620,7 @@ function QuestsModule:BuildBlocks(container)
                                         text      = cleanTxt,
                                         completed = false,
                                     })
+                                    hadLocalObjLines = true
                                 end
                             end
                         end
@@ -620,10 +634,11 @@ function QuestsModule:BuildBlocks(container)
                             completed = false,
                             color     = { 0.0, 1.0, 0.8, 1 },
                         })
+                        hadLocalObjLines = true
                     end
 
                     -- If all individual objectives are finished but quest not yet flagged complete
-                    if #lines == 0 and not progressBar then
+                    if not hadLocalObjLines and not progressBar then
                         local compText = (Waypoints and Waypoints.GetCompletionText(i, canClickToComplete))
                             or (canClickToComplete and (QUEST_WATCH_QUEST_COMPLETE or "Click to complete quest"))
                             or "Ready for turn-in"
@@ -633,6 +648,10 @@ function QuestsModule:BuildBlocks(container)
                             color     = canClickToComplete and { 1.0, 0.0, 1.0, 1 } or { 0.2, 1.0, 0.2, 1 },
                         })
                     end
+                end
+
+                if QuestCommon and QuestCommon.AppendSyncedQuestLines then
+                    QuestCommon.AppendSyncedQuestLines(lines, syncInfo)
                 end
             end
 

@@ -586,8 +586,13 @@ function Tooltip.ShowBlockTooltip(owner, bData)
                     else
                         if peer.objs and #peer.objs > 0 then
                             tip:AddDoubleLine(pLabel, "|cffffd100in progress|r", 1, 1, 1, 1, 0.82, 0)
-                            for _, oTxt in ipairs(peer.objs) do
-                                tip:AddLine("    • " .. tostring(oTxt):lower(), 0.75, 0.75, 0.75, true)
+                            local isFinFn = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest and sfui.tracker.helpers.quest.IsObjectiveTextFinished
+                            for idx, oTxt in ipairs(peer.objs) do
+                                local finFlag = type(peer.objFinished) == "table" and peer.objFinished[idx] or nil
+                                local isFin = isFinFn and isFinFn(oTxt, finFlag) or false
+                                local r, g, b = 0.78, 0.85, 0.92
+                                if isFin then r, g, b = 0.30, 0.80, 0.30 end
+                                tip:AddLine("    • " .. tostring(oTxt):lower(), r, g, b, true)
                             end
                         else
                             tip:AddDoubleLine(pLabel, "|cffffd100in log|r", 1, 1, 1, 1, 0.82, 0)

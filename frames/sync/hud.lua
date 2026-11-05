@@ -51,6 +51,8 @@ local wipe = _G.wipe
 
 local ROW_H = 18
 local HUD_W = 218
+local PAD_X = 4
+local PAD_Y = 4
 
 local isActive           = false
 local hudFrame           = nil
@@ -62,6 +64,22 @@ local lastSentMoney      = nil
 local lastSentDur        = nil
 local statsBroadcastPend = false
 local pendingRefresh     = false
+
+local function get_palette()
+    return (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette())
+        or (sfui.config and sfui.config.appearance)
+        or {}
+end
+
+local function rgb_to_hex(col, dr, dg, db)
+    if type(col) ~= "table" or not col[1] then
+        if type(dr) == "string" then return dr end
+    end
+    local r = math_floor(math_max(0, math_min(1, tonumber(col and col[1]) or tonumber(dr) or 1)) * 255 + 0.5)
+    local g = math_floor(math_max(0, math_min(1, tonumber(col and col[2]) or tonumber(dg) or 1)) * 255 + 0.5)
+    local b = math_floor(math_max(0, math_min(1, tonumber(col and col[3]) or tonumber(db) or 1)) * 255 + 0.5)
+    return string_format("%02x%02x%02x", r, g, b)
+end
 
 local HEADER_TOOLTIP_LINES = {
     "|cff00ffffleft-click header:|r invite missing linked accounts",
@@ -323,7 +341,12 @@ local function show_footer_tooltip(owner)
     if not tip then return end
     tip:SetOwner(owner, "ANCHOR_BOTTOM")
     tip:ClearLines()
-    tip:AddLine("sync party gold, durability & bag space", 0.4, 0.85, 1.0)
+    local pal = get_palette()
+    local ac = pal.accentColor or { 0.4, 0.85, 1.0 }
+    local hc = pal.headerColor or { 1, 0.82, 0 }
+    local dt = pal.dimTextColor or { 0.75, 0.75, 0.82 }
+    local dtHex = rgb_to_hex(dt, "888899")
+    tip:AddLine("sync party gold, durability & bag space", ac[1] or 0.4, ac[2] or 0.85, ac[3] or 1.0)
 
     local members = collect_team_members()
     local partyGold = 0
@@ -335,20 +358,20 @@ local function show_footer_tooltip(owner)
             and (" " .. format_durability_badge(st))
             or ""
         local bagStr = (st and st.free ~= nil and st.slots and st.slots > 0)
-            and string_format(" |cff888899(%d/%d free)|r", st.free, st.slots)
+            and string_format(" |cff%s(%d/%d free)|r", dtHex, st.free, st.slots)
             or ""
         local nameStr = string_lower(m.name)
         if m.class and common and common.class_color_name then
             nameStr = common.class_color_name(nameStr, m.class)
         end
         if m.unit and m.unit ~= "" then
-            nameStr = nameStr .. " |cff8899aa(" .. string_lower(m.unit) .. ")|r"
+            nameStr = nameStr .. " |cff" .. dtHex .. "(" .. string_lower(m.unit) .. ")|r"
         end
         tip:AddDoubleLine(nameStr .. durStr .. bagStr, format_gold(money), 1, 1, 1, 1, 1, 1)
     end
 
     tip:AddLine(" ")
-    tip:AddDoubleLine("party total", format_gold(partyGold), 1, 0.82, 0, 1, 1, 1)
+    tip:AddDoubleLine("party total", format_gold(partyGold), hc[1] or 1, hc[2] or 0.82, hc[3] or 0, 1, 1, 1)
 
     if SfuiDB and type(SfuiDB.alts) == "table" then
         local allAltsGold = 0
@@ -358,18 +381,20 @@ local function show_footer_tooltip(owner)
             end
         end
         if allAltsGold > partyGold then
-            tip:AddDoubleLine("all synced alts", format_gold(allAltsGold), 0.75, 0.75, 0.82, 1, 1, 1)
+            tip:AddDoubleLine("all synced alts", format_gold(allAltsGold), dt[1] or 0.75, dt[2] or 0.75, dt[3] or 0.82, 1, 1, 1)
         end
     end
     tip:Show()
 end
 
+local style_hud_row
+
 local function acquire_hud_row(index)
     if hudRows[index] then return hudRows[index] end
     local row = CreateFrame("Button", "SfuiSyncPartyHudRow" .. index, hudFrame, "SecureActionButtonTemplate")
     row:SetHeight(ROW_H)
-    row:SetPoint("TOPLEFT", hudFrame, "TOPLEFT", 2, -ROW_H * index - 2)
-    row:SetPoint("TOPRIGHT", hudFrame, "TOPRIGHT", -2, -ROW_H * index - 2)
+    row:SetPoint("TOPLEFT", hudFrame, "TOPLEFT", PAD_X, -ROW_H * index - PAD_Y)
+    row:SetPoint("TOPRIGHT", hudFrame, "TOPRIGHT", -PAD_X, -ROW_H * index - PAD_Y)
     if row.SetAttribute then
         row:SetAttribute("useOnKeyDown", false)
         row:SetAttribute("type1", "target")
@@ -377,9 +402,13 @@ local function acquire_hud_row(index)
     end
     row:RegisterForClicks("AnyUp", "AnyDown")
 
+    row.bg = row:CreateTexture(nil, "BACKGROUND")
+    row.bg:SetAllPoints()
+    row.bg:Hide()
+
     row.hl = row:CreateTexture(nil, "HIGHLIGHT")
     row.hl:SetAllPoints()
-    row.hl:SetColorTexture(1, 1, 1, 0.08)
+    row.hl:SetColorTexture(1, 1, 1, 0.14)
 
     row.markFs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.markFs:SetPoint("LEFT", row, "LEFT", 5, 0)
@@ -423,12 +452,15 @@ local function acquire_hud_row(index)
     row:SetScript("OnEnter", function(self)
         local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
         if not tip or not self.memberName then return end
+        local pal = get_palette()
+        local acHex = rgb_to_hex(pal.accentColor, "00ffff")
+        local dtHex = rgb_to_hex(pal.dimTextColor, "8899aa")
         tip:SetOwner(self, "ANCHOR_RIGHT")
         tip:ClearLines()
         local lowerName = string_lower(self.memberName)
         local title = self.class and common and common.class_color_name and common.class_color_name(lowerName, self.class) or lowerName
         if self.unit and self.unit ~= "" then
-            title = title .. " |cff8899aa(" .. string_lower(self.unit) .. ")|r"
+            title = title .. " |cff" .. dtHex .. "(" .. string_lower(self.unit) .. ")|r"
         end
         tip:AddLine(title, 1, 1, 1)
 
@@ -455,8 +487,8 @@ local function acquire_hud_row(index)
         end
 
         tip:AddLine(" ")
-        tip:AddLine("|cff00ffffleft-click:|r target   •   |cff00ffffright-click:|r unit menu", 0.8, 0.8, 0.8)
-        tip:AddLine("|cff00ffffalt+left-click:|r toggle away   •   |cff00ffffshift+left-click:|r make lead", 0.8, 0.8, 0.8)
+        tip:AddLine(string_format("|cff%sleft-click:|r target   •   |cff%sright-click:|r unit menu", acHex, acHex), 0.8, 0.8, 0.8)
+        tip:AddLine(string_format("|cff%salt+left-click:|r toggle away   •   |cff%sshift+left-click:|r make lead", acHex, acHex), 0.8, 0.8, 0.8)
         tip:Show()
     end)
 
@@ -468,8 +500,85 @@ local function acquire_hud_row(index)
         end
     end)
 
+    style_hud_row(row, index, get_palette())
     hudRows[index] = row
     return row
+end
+
+style_hud_row = function(row, index, pal)
+    if not row then return end
+    pal = pal or get_palette()
+    if not (InCombatLockdown and InCombatLockdown()) and hudFrame then
+        row:SetFrameLevel((hudFrame:GetFrameLevel() or 1) + 10)
+    end
+    if row.bg then
+        if index % 2 == 0 then
+            local cc = pal.containerColor or { 0.08, 0.08, 0.12 }
+            row.bg:SetColorTexture(cc[1] or 0.08, cc[2] or 0.08, cc[3] or 0.12, 0.28)
+            row.bg:Show()
+        else
+            row.bg:Hide()
+        end
+    end
+    if row.hl then
+        local hlc = pal.highlightColor or pal.accentColor or { 1, 1, 1 }
+        row.hl:SetColorTexture(hlc[1] or 1, hlc[2] or 1, hlc[3] or 1, 0.14)
+    end
+end
+
+function hud.ApplyTheme(frame, pal)
+    frame = frame or hudFrame
+    if not frame then return end
+    pal = pal or get_palette()
+
+    if not (sfui.theme and sfui.theme.RegisterWindow) and common and common.apply_flat_backdrop then
+        local bgCol = pal.backdropColor or { 0.04, 0.04, 0.06, 0.90 }
+        local bdCol = pal.borderColor or { 0.18, 0.18, 0.25, 1 }
+        common.apply_flat_backdrop(frame, bgCol, bdCol)
+    end
+
+    local baseLevel = frame:GetFrameLevel() or 1
+    local isCamelot = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+    local acc = pal.accentColor or (isCamelot and { 0.85, 0.65, 0.20 } or { 0.0, 1.0, 1.0 })
+    local cc  = pal.containerColor or { 0.08, 0.08, 0.12 }
+    local divCol = isCamelot and { 0.45, 0.34, 0.16, 0.60 }
+        or (pal.borderColor and { pal.borderColor[1] or 0.2, pal.borderColor[2] or 0.2, pal.borderColor[3] or 0.28, 0.75 })
+        or { 0.20, 0.20, 0.28, 0.75 }
+
+    if frame.header then
+        frame.header:SetFrameLevel(baseLevel + 15)
+        if frame.header.bg then
+            frame.header.bg:SetColorTexture(cc[1] or 0.08, cc[2] or 0.08, cc[3] or 0.12, isCamelot and 0.45 or 0.80)
+        end
+        if frame.header.accent then
+            frame.header.accent:SetColorTexture(acc[1] or 0, acc[2] or 1, acc[3] or 1, 0.95)
+        end
+        if frame.header.divider then
+            frame.header.divider:SetColorTexture(divCol[1], divCol[2], divCol[3], divCol[4])
+        end
+    end
+
+    if frame.footer then
+        frame.footer:SetFrameLevel(baseLevel + 10)
+        if frame.footer.bg then
+            frame.footer.bg:SetColorTexture(cc[1] or 0.06, cc[2] or 0.06, cc[3] or 0.09, isCamelot and 0.35 or 0.55)
+        end
+        if frame.footer.divider then
+            frame.footer.divider:SetColorTexture(divCol[1], divCol[2], divCol[3], divCol[4])
+        end
+    end
+
+    for i, row in ipairs(hudRows) do
+        style_hud_row(row, i, pal)
+    end
+
+    if frame:IsShown() then
+        if InCombatLockdown and InCombatLockdown() then
+            hud.RefreshStatsOnly()
+        else
+            hud.Refresh()
+        end
+    end
 end
 
 local function ensure_hud_frame()
@@ -478,9 +587,6 @@ local function ensure_hud_frame()
 
     local f = CreateFrame("Frame", "SfuiSyncPartyHUD", _G.UIParent, "BackdropTemplate")
     f:SetSize(HUD_W, 56)
-    if common and common.apply_flat_backdrop then
-        common.apply_flat_backdrop(f, { 0.04, 0.04, 0.06, 0.90 }, { 0.18, 0.18, 0.25, 1 })
-    end
     f:SetClampedToScreen(true)
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -503,18 +609,30 @@ local function ensure_hud_frame()
     end)
 
     local header = CreateFrame("Button", nil, f)
-    header:SetPoint("TOPLEFT", f, "TOPLEFT", 2, -2)
-    header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
+    header:SetPoint("TOPLEFT", f, "TOPLEFT", PAD_X, -PAD_Y)
+    header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD_X, -PAD_Y)
     header:SetHeight(ROW_H)
     header:RegisterForClicks("AnyUp")
     header:RegisterForDrag("LeftButton")
 
     local headerBg = header:CreateTexture(nil, "BACKGROUND")
     headerBg:SetAllPoints()
-    headerBg:SetColorTexture(0.08, 0.08, 0.12, 0.85)
+    header.bg = headerBg
+
+    local headerAccent = header:CreateTexture(nil, "BORDER")
+    headerAccent:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
+    headerAccent:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+    headerAccent:SetWidth(2)
+    header.accent = headerAccent
+
+    local headerDiv = header:CreateTexture(nil, "BORDER")
+    headerDiv:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+    headerDiv:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
+    headerDiv:SetHeight(1)
+    header.divider = headerDiv
 
     header.text = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    header.text:SetPoint("LEFT", header, "LEFT", 6, 0)
+    header.text:SetPoint("LEFT", header, "LEFT", 7, 0)
     header.text:SetJustifyH("LEFT")
 
     header:SetScript("OnDragStart", function()
@@ -551,9 +669,11 @@ local function ensure_hud_frame()
     header:SetScript("OnEnter", function(self)
         local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
         if not tip then return end
+        local pal = get_palette()
+        local hc = pal.headerColor or pal.accentColor or { 0.4, 0.85, 1.0 }
         tip:SetOwner(self, "ANCHOR_BOTTOM")
         tip:ClearLines()
-        tip:AddLine("sfui sync party hud", 0.4, 0.85, 1.0)
+        tip:AddLine("sfui sync party hud", hc[1] or 0.4, hc[2] or 0.85, hc[3] or 1.0)
         for _, line in ipairs(HEADER_TOOLTIP_LINES) do
             tip:AddLine(line, 0.9, 0.9, 0.95)
         end
@@ -571,6 +691,17 @@ local function ensure_hud_frame()
     local footer = CreateFrame("Frame", nil, f)
     footer:SetHeight(ROW_H)
     footer:EnableMouse(true)
+
+    local footerBg = footer:CreateTexture(nil, "BACKGROUND")
+    footerBg:SetAllPoints()
+    footer.bg = footerBg
+
+    local footerDiv = footer:CreateTexture(nil, "BORDER")
+    footerDiv:SetPoint("TOPLEFT", footer, "TOPLEFT", 0, 0)
+    footerDiv:SetPoint("TOPRIGHT", footer, "TOPRIGHT", 0, 0)
+    footerDiv:SetHeight(1)
+    footer.divider = footerDiv
+
     footer.text = footer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     footer.text:SetPoint("LEFT", footer, "LEFT", 6, 0)
     footer.text:SetJustifyH("LEFT")
@@ -587,11 +718,59 @@ local function ensure_hud_frame()
     f.footer = footer
 
     hudFrame = f
+
+    if sfui.theme and sfui.theme.RegisterWindow then
+        sfui.theme.RegisterWindow(f, hud.ApplyTheme, { cornerBrackets = true })
+    else
+        hud.ApplyTheme(f)
+    end
+
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(f, {
+            key = "syncpartyhud",
+            label = "sync party hud",
+            preferredPoint = "TOP",
+            customSize = function()
+                return f:GetWidth(), f:GetHeight()
+            end,
+            getPoint = function()
+                local cfg = sync.GetSettings and sync.GetSettings()
+                local p = cfg and cfg.hudPos
+                if type(p) == "table" and #p >= 4 then
+                    return p[1], _G.UIParent, p[2], p[3], p[4]
+                end
+                return "TOP", _G.UIParent, "TOP", 220, -6
+            end,
+            setPoint = function(point, _, relPoint, x, y)
+                local cfg = sync.GetSettings and sync.GetSettings()
+                if cfg then
+                    cfg.hudPos = { point, relPoint or point, x, y }
+                end
+                f:ClearAllPoints()
+                f:SetPoint(point, _G.UIParent, relPoint or point, x, y)
+            end,
+            resetPosition = function()
+                local cfg = sync.GetSettings and sync.GetSettings()
+                if cfg then
+                    cfg.hudPos = { "TOP", "TOP", 220, -6 }
+                end
+                f:ClearAllPoints()
+                f:SetPoint("TOP", _G.UIParent, "TOP", 220, -6)
+            end,
+            isEnabled = function()
+                local cfg = sync.GetSettings and sync.GetSettings()
+                return (cfg and cfg.enabled and cfg.mbShowHud ~= false) and true or false
+            end,
+        })
+    end
+
     return f
 end
 
 function hud.RefreshStatsOnly()
     if not hudFrame or not hudFrame:IsShown() then return end
+    local pal = get_palette()
+    local dimHex = rgb_to_hex(pal.dimTextColor, 0.60, 0.60, 0.65)
     local totalGold = 0
     for _, row in ipairs(hudRows) do
         if row:IsShown() and row.memberName then
@@ -604,7 +783,7 @@ function hud.RefreshStatsOnly()
         end
     end
     if hudFrame.footer and hudFrame.footer.text then
-        hudFrame.footer.text:SetText("|cff9999a5team gold:|r " .. format_gold(totalGold))
+        hudFrame.footer.text:SetText("|cff" .. dimHex .. "team gold:|r " .. format_gold(totalGold))
     end
 end
 
@@ -624,6 +803,11 @@ function hud.Refresh()
         return
     end
 
+    local pal = get_palette()
+    local accHex = rgb_to_hex(pal.accentColor, 0, 1, 1)
+    local hdrHex = rgb_to_hex(pal.headerColor or pal.accentColor, 0, 1, 1)
+    local dimHex = rgb_to_hex(pal.dimTextColor, 0.60, 0.60, 0.65)
+
     local members = collect_team_members()
     local leadName = sync.GetLead and sync.GetLead()
     local groupedCount, activeCount = 0, 0
@@ -633,6 +817,7 @@ function hud.Refresh()
 
     for i, m in ipairs(members) do
         local row = acquire_hud_row(i)
+        style_hud_row(row, i, pal)
         local isAway = sync.IsAway(m.name)
         local isLead = leadName and multibox.SameChar(m.name, leadName)
 
@@ -651,7 +836,7 @@ function hud.Refresh()
             row:SetAttribute("unit", m.unit)
         end
 
-        row.markFs:SetText(m.isMe and "|cff00ffff>|r" or (isLead and "|cffffd100*|r" or ""))
+        row.markFs:SetText(m.isMe and ("|cff" .. accHex .. ">|r") or (isLead and "|cffffd100*|r" or ""))
 
         local dispName = string_lower(m.name)
         if isAway then
@@ -683,19 +868,21 @@ function hud.Refresh()
 
     local countBadge = string_format("|cffffd100(%d/%d)|r", groupedCount, math_max(1, activeCount))
     if isCompact then
-        hudFrame.header.text:SetText("sync " .. countBadge .. "  " .. table_concat(compactParts, " "))
+        hudFrame.header.text:SetText("|cff" .. hdrHex .. "sync|r " .. countBadge .. "  " .. table_concat(compactParts, " "))
+        if hudFrame.header.divider then hudFrame.header.divider:Hide() end
         hudFrame.footer:Hide()
-        hudFrame:SetSize(HUD_W, ROW_H + 4)
+        hudFrame:SetSize(HUD_W, ROW_H + PAD_Y * 2)
     else
-        hudFrame.header.text:SetText("|cff00ffffsync party|r  " .. countBadge)
+        hudFrame.header.text:SetText("|cff" .. hdrHex .. "sync party|r  " .. countBadge)
+        if hudFrame.header.divider then hudFrame.header.divider:Show() end
         hudFrame.footer:ClearAllPoints()
-        hudFrame.footer:SetPoint("TOPLEFT", hudFrame, "TOPLEFT", 2, -ROW_H * (#members + 1) - 2)
-        hudFrame.footer:SetPoint("TOPRIGHT", hudFrame, "TOPRIGHT", -2, -ROW_H * (#members + 1) - 2)
+        hudFrame.footer:SetPoint("TOPLEFT", hudFrame, "TOPLEFT", PAD_X, -ROW_H * (#members + 1) - PAD_Y)
+        hudFrame.footer:SetPoint("TOPRIGHT", hudFrame, "TOPRIGHT", -PAD_X, -ROW_H * (#members + 1) - PAD_Y)
         if hudFrame.footer.text then
-            hudFrame.footer.text:SetText("|cff9999a5team gold:|r " .. format_gold(totalGold))
+            hudFrame.footer.text:SetText("|cff" .. dimHex .. "team gold:|r " .. format_gold(totalGold))
         end
         hudFrame.footer:Show()
-        hudFrame:SetSize(HUD_W, ROW_H * (#members + 2) + 4)
+        hudFrame:SetSize(HUD_W, ROW_H * (#members + 2) + PAD_Y * 2)
     end
 
     hudFrame:Show()

@@ -787,20 +787,35 @@ local function get_dj_quest_id_set()
     return djQuestIDSet
 end
 
+local function quest_entry_equal(qa, qb)
+    if type(qa) ~= "table" or type(qb) ~= "table" then return false end
+    if qa.t ~= qb.t or qa.c ~= qb.c or qa.p ~= qb.p then
+        return false
+    end
+    local oa, ob = qa.o, qb.o
+    if (oa == nil) ~= (ob == nil) then return false end
+    if type(oa) == "table" and type(ob) == "table" then
+        if #oa ~= #ob then return false end
+        for i = 1, #oa do
+            if oa[i] ~= ob[i] then return false end
+        end
+    end
+    local fa, fb = qa.f, qb.f
+    if (fa == nil) ~= (fb == nil) then return false end
+    if type(fa) == "table" and type(fb) == "table" then
+        if #fa ~= #fb then return false end
+        for i = 1, #fa do
+            if fa[i] ~= fb[i] then return false end
+        end
+    end
+    return true
+end
+
 local function active_quests_equal(a, b)
     if type(a) ~= "table" or type(b) ~= "table" then return false end
     for qID, qa in pairs(a) do
-        local qb = b[qID]
-        if type(qb) ~= "table" or qa.t ~= qb.t or qa.c ~= qb.c or qa.p ~= qb.p then
+        if not quest_entry_equal(qa, b[qID]) then
             return false
-        end
-        local oa, ob = qa.o, qb.o
-        if (oa == nil) ~= (ob == nil) then return false end
-        if type(oa) == "table" and type(ob) == "table" then
-            if #oa ~= #ob then return false end
-            for i = 1, #oa do
-                if oa[i] ~= ob[i] then return false end
-            end
         end
     end
     for qID in pairs(b) do
@@ -809,34 +824,7 @@ local function active_quests_equal(a, b)
     return true
 end
 
-function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
-    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
-        or (UnitGUID and UnitGUID("player"))
-    if not myGUID then return nil, false end
-
-    SfuiDB = SfuiDB or {}
-    SfuiDB.alts = SfuiDB.alts or {}
-    local alt = SfuiDB.alts[myGUID]
-    if type(alt) ~= "table" then
-        alt = {
-            name  = _G.UnitName and _G.UnitName("player") or nil,
-            realm = (GetRealmName and GetRealmName()) or "",
-            class = _G.UnitClass and select(2, _G.UnitClass("player")) or nil,
-            level = _G.UnitLevel and _G.UnitLevel("player") or nil,
-        }
-        SfuiDB.alts[myGUID] = alt
-    end
-
-    local changed = false
-    alt.completedQuests = alt.completedQuests or {}
-    if justCompletedQuestID and tonumber(justCompletedQuestID) then
-        local cID = tonumber(justCompletedQuestID)
-        if alt.completedQuests[cID] ~= 1 then
-            alt.completedQuests[cID] = 1
-            changed = true
-        end
-    end
-
+local function scan_current_active_quests()
     local activeQuests = {}
     local C_QuestLog = _G.C_QuestLog
     local GetNumQuestLogEntries = _G.GetNumQuestLogEntries
@@ -871,6 +859,8 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
             end
 
             local objList = {}
+            local finList = {}
+            local hasAnyFinished = false
             local progSummary = nil
             if C_QuestLog and C_QuestLog.GetQuestObjectives then
                 local ok, objs = pcall(C_QuestLog.GetQuestObjectives, questID)
@@ -879,6 +869,9 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
                         if type(obj) == "table" and obj.text and obj.text ~= "" then
                             local clean = tostring(obj.text):gsub(" / ", "/")
                             table_insert(objList, clean)
+                            local isFin = (obj.finished == true or obj.finished == 1)
+                            table_insert(finList, isFin and 1 or 0)
+                            if isFin then hasAnyFinished = true end
                             if not progSummary and obj.numRequired and obj.numRequired > 0 and obj.numFulfilled then
                                 progSummary = tostring(obj.numFulfilled) .. "/" .. tostring(obj.numRequired)
                             end
@@ -888,10 +881,13 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
             elseif _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
                 local numLB = _G.GetNumQuestLeaderBoards(i) or 0
                 for objIdx = 1, numLB do
-                    local desc = _G.GetQuestLogLeaderBoard(objIdx, i)
+                    local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIdx, i)
                     if desc and desc ~= "" then
                         local clean = tostring(desc):gsub(" / ", "/")
                         table_insert(objList, clean)
+                        local isFin = (isFinished == true or isFinished == 1)
+                        table_insert(finList, isFin and 1 or 0)
+                        if isFin then hasAnyFinished = true end
                         if not progSummary then
                             progSummary = clean:match("(%d+/%d+)")
                         end
@@ -904,6 +900,7 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
                 c = isComplete and 1 or 0,
                 p = progSummary,
                 o = #objList > 0 and objList or nil,
+                f = hasAnyFinished and finList or nil,
             }
         end
     end
@@ -912,6 +909,215 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
         or (C_QuestLog and C_QuestLog.GetMaxNumQuestsCanAccept and C_QuestLog.GetMaxNumQuestsCanAccept())
         or (C_QuestLog and C_QuestLog.GetMaxNumQuests and C_QuestLog.GetMaxNumQuests())
         or 20
+
+    return activeQuests, numQuests, maxQuests
+end
+
+function merge.ScanActiveQuestsDelta(turnedInMap)
+    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+        or (UnitGUID and UnitGUID("player"))
+    if not myGUID then return nil end
+
+    SfuiDB = SfuiDB or {}
+    SfuiDB.alts = SfuiDB.alts or {}
+    local alt = SfuiDB.alts[myGUID]
+    if type(alt) ~= "table" then
+        alt = {
+            name  = _G.UnitName and _G.UnitName("player") or nil,
+            realm = (GetRealmName and GetRealmName()) or "",
+            class = _G.UnitClass and select(2, _G.UnitClass("player")) or nil,
+            level = _G.UnitLevel and _G.UnitLevel("player") or nil,
+        }
+        SfuiDB.alts[myGUID] = alt
+    end
+
+    local activeQuests, numQuests, maxQuests = scan_current_active_quests()
+    local prevActive = alt.activeQuests or {}
+    local updated = {}
+    local hasUpdated = false
+    local removed = {}
+    local completed = {}
+
+    alt.completedQuests = alt.completedQuests or {}
+    alt.djQuests = alt.djQuests or {}
+    local djSet = get_dj_quest_id_set()
+
+    if type(turnedInMap) == "table" then
+        for qid in pairs(turnedInMap) do
+            local cID = tonumber(qid)
+            if cID then
+                if alt.completedQuests[cID] ~= 1 then
+                    alt.completedQuests[cID] = 1
+                end
+                if djSet and djSet[cID] then
+                    alt.djQuests[cID] = 2
+                end
+                completed[#completed + 1] = cID
+            end
+            turnedInMap[qid] = nil
+        end
+    end
+
+    for qID, qEntry in pairs(activeQuests) do
+        if not quest_entry_equal(prevActive[qID], qEntry) then
+            updated[qID] = deep_copy(qEntry)
+            hasUpdated = true
+        end
+        if djSet and djSet[qID] and alt.djQuests[qID] ~= 1 then
+            alt.djQuests[qID] = 1
+        end
+    end
+
+    for qID in pairs(prevActive) do
+        if activeQuests[qID] == nil then
+            removed[#removed + 1] = qID
+            if djSet and djSet[qID] and alt.djQuests[qID] == 1 and alt.completedQuests[qID] ~= 1 then
+                alt.djQuests[qID] = nil
+            end
+        end
+    end
+
+    local prevCap = alt.questCap
+    local capChanged = (type(prevCap) ~= "table" or prevCap.n ~= numQuests or prevCap.m ~= maxQuests)
+    alt.activeQuests = activeQuests
+    alt.questCap = { n = numQuests, m = maxQuests }
+
+    if not hasUpdated and #removed == 0 and #completed == 0 and not capChanged then
+        return nil
+    end
+
+    local now = (GetServerTime and GetServerTime()) or time()
+    alt.questsRev = math_max((tonumber(alt.questsRev) or 0) + 1, now)
+
+    return {
+        g   = myGUID,
+        n   = alt.name,
+        r   = alt.realm,
+        c   = alt.class,
+        l   = alt.level,
+        rev = alt.questsRev,
+        cap = deep_copy(alt.questCap),
+        u   = hasUpdated and updated or nil,
+        rem = #removed > 0 and removed or nil,
+        d   = #completed > 0 and completed or nil,
+    }
+end
+
+function merge.MergeQuestProgDelta(delta)
+    if type(delta) ~= "table" or type(delta.g) ~= "string" then return false end
+    local guid = delta.g
+    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+        or (UnitGUID and UnitGUID("player"))
+    if guid == myGUID then return false end
+
+    SfuiDB = SfuiDB or {}
+    SfuiDB.alts = SfuiDB.alts or {}
+    local alt = SfuiDB.alts[guid]
+    if type(alt) ~= "table" then
+        alt = {
+            name  = delta.n,
+            realm = delta.r,
+            class = delta.c,
+            level = delta.l,
+        }
+        SfuiDB.alts[guid] = alt
+    else
+        if delta.n and not alt.name then alt.name = delta.n end
+        if delta.c and not alt.class then alt.class = delta.c end
+        if delta.l then alt.level = delta.l end
+    end
+
+    local inRev = tonumber(delta.rev) or 0
+    if inRev > 0 then
+        alt.questsRev = math_max(tonumber(alt.questsRev) or 0, inRev)
+    end
+    if type(delta.cap) == "table" then
+        alt.questCap = deep_copy(delta.cap)
+    end
+
+    alt.activeQuests = alt.activeQuests or {}
+    alt.completedQuests = alt.completedQuests or {}
+    alt.djQuests = alt.djQuests or {}
+    local djSet = get_dj_quest_id_set()
+
+    if type(delta.rem) == "table" then
+        for _, qid in ipairs(delta.rem) do
+            local nID = tonumber(qid)
+            if nID then
+                alt.activeQuests[nID] = nil
+                if alt.djQuests[nID] == 1 and alt.completedQuests[nID] ~= 1 then
+                    alt.djQuests[nID] = nil
+                end
+            end
+        end
+    end
+
+    if type(delta.d) == "table" then
+        for _, qid in ipairs(delta.d) do
+            local nID = tonumber(qid)
+            if nID then
+                alt.activeQuests[nID] = nil
+                alt.completedQuests[nID] = 1
+                if djSet and djSet[nID] then
+                    alt.djQuests[nID] = 2
+                end
+            end
+        end
+    end
+
+    if type(delta.u) == "table" then
+        for k, v in pairs(delta.u) do
+            local nID = tonumber(k)
+            if nID and type(v) == "table" then
+                alt.activeQuests[nID] = deep_copy(v)
+                if djSet and djSet[nID] then
+                    alt.djQuests[nID] = 1
+                end
+            end
+        end
+    end
+
+    if sfui.tracker and sfui.tracker.RequestRefresh then
+        sfui.tracker.RequestRefresh(0.05)
+    end
+    if sfui.dungeonjournal and sfui.dungeonjournal.Rebuild then
+        local djFrame = sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
+        if djFrame and djFrame:IsShown() then
+            sfui.dungeonjournal.Rebuild()
+        end
+    end
+    return true
+end
+
+function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
+    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+        or (UnitGUID and UnitGUID("player"))
+    if not myGUID then return nil, false end
+
+    SfuiDB = SfuiDB or {}
+    SfuiDB.alts = SfuiDB.alts or {}
+    local alt = SfuiDB.alts[myGUID]
+    if type(alt) ~= "table" then
+        alt = {
+            name  = _G.UnitName and _G.UnitName("player") or nil,
+            realm = (GetRealmName and GetRealmName()) or "",
+            class = _G.UnitClass and select(2, _G.UnitClass("player")) or nil,
+            level = _G.UnitLevel and _G.UnitLevel("player") or nil,
+        }
+        SfuiDB.alts[myGUID] = alt
+    end
+
+    local changed = false
+    alt.completedQuests = alt.completedQuests or {}
+    if justCompletedQuestID and tonumber(justCompletedQuestID) then
+        local cID = tonumber(justCompletedQuestID)
+        if alt.completedQuests[cID] ~= 1 then
+            alt.completedQuests[cID] = 1
+            changed = true
+        end
+    end
+
+    local activeQuests, numQuests, maxQuests = scan_current_active_quests()
 
     local prevCap = alt.questCap
     if type(prevCap) ~= "table" or prevCap.n ~= numQuests or prevCap.m ~= maxQuests then
@@ -951,7 +1157,7 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
 
     if changed or not alt.questsRev then
         local now = (GetServerTime and GetServerTime()) or time()
-        alt.questsRev = now
+        alt.questsRev = math_max((tonumber(alt.questsRev) or 0) + 1, now)
     end
     return myGUID, changed
 end
