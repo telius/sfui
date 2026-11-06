@@ -922,12 +922,17 @@ function merge.ScanActiveQuestsDelta(turnedInMap)
     SfuiDB.alts = SfuiDB.alts or {}
     local alt = SfuiDB.alts[myGUID]
     if type(alt) ~= "table" then
+        local uName, uArg2 = _G.UnitName and _G.UnitName("player")
         alt = {
-            name  = _G.UnitName and _G.UnitName("player") or nil,
-            realm = (GetRealmName and GetRealmName()) or "",
-            class = _G.UnitClass and select(2, _G.UnitClass("player")) or nil,
-            level = _G.UnitLevel and _G.UnitLevel("player") or nil,
+            name    = uName or nil,
+            surname = (sfui.isCamelot and uArg2 and uArg2 ~= "") and uArg2 or nil,
+            realm   = (GetRealmName and GetRealmName()) or "",
+            class   = _G.UnitClass and select(2, _G.UnitClass("player")) or nil,
+            level   = _G.UnitLevel and _G.UnitLevel("player") or nil,
         }
+        if sfui.alts and sfui.alts.RepairAltEntry then
+            sfui.alts.RepairAltEntry(alt, myGUID, true)
+        end
         SfuiDB.alts[myGUID] = alt
     end
 
@@ -992,6 +997,7 @@ function merge.ScanActiveQuestsDelta(turnedInMap)
     return {
         g   = myGUID,
         n   = alt.name,
+        sn  = alt.surname,
         r   = alt.realm,
         c   = alt.class,
         l   = alt.level,
@@ -1015,16 +1021,21 @@ function merge.MergeQuestProgDelta(delta)
     local alt = SfuiDB.alts[guid]
     if type(alt) ~= "table" then
         alt = {
-            name  = delta.n,
-            realm = delta.r,
-            class = delta.c,
-            level = delta.l,
+            name    = delta.n,
+            surname = delta.sn,
+            realm   = delta.r,
+            class   = delta.c,
+            level   = delta.l,
         }
         SfuiDB.alts[guid] = alt
     else
         if delta.n and not alt.name then alt.name = delta.n end
+        if delta.sn and not alt.surname then alt.surname = delta.sn end
         if delta.c and not alt.class then alt.class = delta.c end
         if delta.l then alt.level = delta.l end
+    end
+    if sfui.alts and sfui.alts.RepairAltEntry then
+        sfui.alts.RepairAltEntry(alt, guid, false)
     end
 
     local inRev = tonumber(delta.rev) or 0
@@ -1098,12 +1109,17 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID)
     SfuiDB.alts = SfuiDB.alts or {}
     local alt = SfuiDB.alts[myGUID]
     if type(alt) ~= "table" then
+        local uName, uArg2 = _G.UnitName and _G.UnitName("player")
         alt = {
-            name  = _G.UnitName and _G.UnitName("player") or nil,
-            realm = (GetRealmName and GetRealmName()) or "",
-            class = _G.UnitClass and select(2, _G.UnitClass("player")) or nil,
-            level = _G.UnitLevel and _G.UnitLevel("player") or nil,
+            name    = uName or nil,
+            surname = (sfui.isCamelot and uArg2 and uArg2 ~= "") and uArg2 or nil,
+            realm   = (GetRealmName and GetRealmName()) or "",
+            class   = _G.UnitClass and select(2, _G.UnitClass("player")) or nil,
+            level   = _G.UnitLevel and _G.UnitLevel("player") or nil,
         }
+        if sfui.alts and sfui.alts.RepairAltEntry then
+            sfui.alts.RepairAltEntry(alt, myGUID, true)
+        end
         SfuiDB.alts[myGUID] = alt
     end
 
@@ -1170,6 +1186,7 @@ function merge.BuildQuestsPayload(guid)
     return {
         guid            = guid,
         name            = alt.name,
+        surname         = alt.surname,
         realm           = alt.realm,
         class           = alt.class,
         level           = alt.level,
@@ -1192,16 +1209,21 @@ function merge.MergeQuests(guid, incomingData)
     local alt = SfuiDB.alts[guid]
     if type(alt) ~= "table" then
         alt = {
-            name  = incomingData.name,
-            realm = incomingData.realm,
-            class = incomingData.class,
-            level = incomingData.level,
+            name    = incomingData.name,
+            surname = incomingData.surname,
+            realm   = incomingData.realm,
+            class   = incomingData.class,
+            level   = incomingData.level,
         }
         SfuiDB.alts[guid] = alt
     else
         if incomingData.name and not alt.name then alt.name = incomingData.name end
+        if incomingData.surname and not alt.surname then alt.surname = incomingData.surname end
         if incomingData.class and not alt.class then alt.class = incomingData.class end
         if incomingData.level then alt.level = incomingData.level end
+    end
+    if sfui.alts and sfui.alts.RepairAltEntry then
+        sfui.alts.RepairAltEntry(alt, guid, false)
     end
 
     local inRev = tonumber(incomingData.rev) or 0
@@ -1441,6 +1463,7 @@ function merge.BuildManifest(syncCfg)
                     table_insert(manifest.roster, {
                         guid         = guid,
                         name         = d.name,
+                        surname      = d.surname,
                         realm        = d.realm or defaultRealm,
                         class        = d.class,
                         level        = d.level,

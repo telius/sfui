@@ -37,7 +37,7 @@ sfui.dj_camelot.dungeons = {
             { name = "Magmatus",           displayId = 1070,   npcID = 261316,    level = "16",
               items = { 270230, 270231, 271095 }, dropRates = { [270230] = 36, [270231] = 29, [271095] = 35 } },
             { name = "Plunder",            displayId = 142840, npcID = 261311, level = "16",
-              items = { 270228, 271098, 270229 }, dropRates = { [270228] = 34, [271098] = 31, [270229] = 34 } },
+              items = { 270228, 271098, 270229 }, dropRates = { [270228] = 34, [271098] = 32, [270229] = 34 } },
             { name = "Durgen Dirgehammer", displayId = 142837, npcID = 261319, level = "16",
               items = { 270256, 270260, 270261, 274286 }, dropRates = { [270256] = 28, [270260] = 23, [270261] = 23, [274286] = 58 } },
         },
@@ -114,7 +114,7 @@ sfui.dj_camelot.dungeons = {
             { name = "Rath'mael",         displayId = 144175, npcID = 250657, level = "20",
               items = { 271213, 271214, 271215 }, dropRates = { [271213] = 37, [271214] = 30, [271215] = 33 } },
             { name = "Lordaeron Captain", displayId = 144188, npcID = 255699, level = "19",
-              items = { 6641, 6642 }, dropRates = { [6641] = 50, [6642] = 50 } },
+              items = { 6641, 6642 }, dropRates = { [6641] = 64, [6642] = 36 } },
         },
         quests = {
             { id = 95250, name = "Abominable Creatures", level = 21, minLevel = 16, faction = "Alliance",

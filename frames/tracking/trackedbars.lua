@@ -700,7 +700,198 @@ function sfui.trackedbars.SetBarTexture(texturePath)
 end
 sfui.trackedbars.UpdateAppearance = function() sfui.trackedbars.SetBarTexture() end
 
+-- ─── self-driven bars (cdm items blizzard won't give a buff bar frame) ───────
+-- cover-spell items such as forever's paladin "seals" (cooldown id 200340, linked to
+-- every seal) live in the essential/utility categories, so BuffBarCooldownViewer never
+-- creates a frame to mirror. these bars are driven by the shared aura resolver instead:
+-- the aura's duration object feeds StatusBar:SetTimerDuration and a DurationTextBinding,
+-- so the bar and timer text animate natively and secret values are never inspected.
+local auraResolver = sfui.tracking and sfui.tracking.auras
+local _durationFormatter
+local _zeroDuration
+
+local function GetZeroDuration()
+    if _zeroDuration == nil then
+        _zeroDuration = (C_DurationUtil and C_DurationUtil.CreateDuration and C_DurationUtil.CreateDuration()) or false
+    end
+    return _zeroDuration or nil
+end
+
+local function GetDurationFormatter()
+    if _durationFormatter == nil then
+        local f = C_StringUtil and C_StringUtil.CreateSecondsFormatter and C_StringUtil.CreateSecondsFormatter()
+        if f then
+            local E = Enum
+            if f.SetDefaultAbbreviation and E and E.SecondsFormatterAbbreviation then
+                f:SetDefaultAbbreviation(E.SecondsFormatterAbbreviation.OneLetter)
+            end
+            if f.SetRounding and E and E.SecondsFormatterRounding then
+                f:SetRounding(E.SecondsFormatterRounding.Truncate)
+            end
+            if f.SetCanRoundUpLastUnit then f:SetCanRoundUpLastUnit(true) end
+            if f.SetMinInterval and E and E.SecondsFormatterInterval then
+                f:SetMinInterval(E.SecondsFormatterInterval.Seconds)
+            end
+            if f.SetDesiredUnitCount then f:SetDesiredUnitCount(1) end
+        end
+        _durationFormatter = f or false
+    end
+    return _durationFormatter or nil
+end
+
+local function GetBarTextBinding(bar)
+    if bar._durationBinding == nil then
+        local b = C_DurationUtil and C_DurationUtil.CreateDurationTextBinding and C_DurationUtil.CreateDurationTextBinding()
+        if b then
+            if b.SetToDefaults then b:SetToDefaults() end
+            local fmt = GetDurationFormatter()
+            if fmt then b:SetFormatter(fmt) end
+            b:SetFontString(bar.time)
+            if b.SetZeroDurationText then b:SetZeroDurationText("") end
+            if b.SetExpiredText then b:SetExpiredText("") end
+        end
+        bar._durationBinding = b or false
+    end
+    return bar._durationBinding or nil
+end
+
+-- stops native bar-fill timer driving so manual SetValue calls take over again
+local function StopBarTimer(bar)
+    if bar._timerDriven then
+        bar._timerDriven = nil
+        local zero = GetZeroDuration()
+        if zero and bar.status.SetTimerDuration then
+            bar.status:SetTimerDuration(zero)
+        end
+    end
+end
+
+-- stops native timer/text driving so manual SetValue / SetText calls take over again
+local function StopSelfDrivenTimer(bar)
+    local b = bar._durationBinding
+    if b and bar._bindingEnabled then
+        b:SetEnabled(false)
+        bar._bindingEnabled = nil
+        bar.time:SetText("")
+    end
+    StopBarTimer(bar)
+end
+
+local function ResetSelfDrivenBar(bar)
+    StopSelfDrivenTimer(bar)
+    bar._selfDriven = nil
+    bar._auraActive = nil
+    bar._auraDurationObj = nil
+    bar._auraName = nil
+    bar._auraIcon = nil
+    bar._auraStacks = nil
+    bar._auraCandidates = nil
+    bar._auraCandActive = nil
+    bar._auraCandLinked = nil
+end
+
+local function SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
+    myBar._selfDriven = true
+    myBar._config = config
+
+    local spellID = info and (info.overrideSpellID or info.spellID)
+    if spellID and issecretvalue(spellID) then spellID = nil end
+    myBar.spellID = spellID or id
+
+    local candidates, rebuilt = auraResolver.GetCandidates(myBar, spellID, info and info.linkedSpellIDs, info)
+    local iid, aura, present = auraResolver.Resolve(id, candidates)
+    if aura or iid then
+        local dObj = auraResolver.GetDuration(iid, aura)
+        if dObj then
+            myBar._auraDurationObj = dObj
+        end
+        myBar._auraName = auraResolver.PlainField(aura, "name") or myBar._auraName
+        myBar._auraIcon = auraResolver.PlainField(aura, "icon") or myBar._auraIcon
+        myBar._auraStacks = auraResolver.PlainField(aura, "applications") or myBar._auraStacks
+        myBar._auraActive = true
+    elseif present and not rebuilt and myBar._auraActive then
+        -- aura up but restricted: keep the last duration object ticking
+    else
+        myBar._auraDurationObj = nil
+        myBar._auraName = nil
+        myBar._auraIcon = nil
+        myBar._auraStacks = nil
+        myBar._auraActive = false
+    end
+    local active = myBar._auraActive
+
+    -- icon & name: show the active aura (e.g. the current seal), else the cdm item itself
+    local tex = myBar._auraIcon or (spellID and C_Spell.GetSpellTexture(spellID)) or 134400
+    myBar.icon:SetTexture(tex)
+    myBar.icon:SetDesaturated(not active)
+
+    local db = SfuiDB and SfuiDB.trackedBars or {}
+    local showName = db.showName
+    if config and config.showName ~= nil then showName = config.showName end
+    local displayName = (config and config.name) or myBar._auraName or (spellID and C_Spell.GetSpellName(spellID)) or ""
+    common.SafeSetText(myBar.name, displayName)
+    if showName == false then myBar.name:Hide() else myBar.name:Show() end
+
+    local showDur = not (db.showDuration == false or (config and config.showDuration == false))
+    local stacks = tonumber(myBar._auraStacks) or 0
+    if active and stacks < 1 then stacks = 1 end
+    if not active then stacks = 0 end
+    myBar.currentStacks = stacks
+
+    local showStacks = (config and config.showStacks ~= nil) and config.showStacks or (db.showStacks == true)
+    if showStacks and not isStackMode and stacks > 1 and not (config and config.stackAboveHealth) then
+        myBar.count:SetText(tostring(stacks))
+        myBar.count:Show()
+    else
+        myBar.count:Hide()
+    end
+
+    local dObj = myBar._auraDurationObj
+    local timed = false
+    if active and dObj then
+        if dObj.HasSecretValues and dObj:HasSecretValues() then
+            timed = true
+        else
+            timed = not dObj:IsZero()
+        end
+    end
+
+    if isStackMode then
+        StopBarTimer(myBar)
+        local maxVal = GetMaxStacksForBar(id, config, spellID)
+        maxVal = (type(maxVal) == "number" and maxVal > 0) and maxVal or 5
+        myBar.status:SetMinMaxValues(0, maxVal)
+        myBar.status:SetValue(math.min(stacks, maxVal))
+    elseif timed and myBar.status.SetTimerDuration then
+        local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+        local dir = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
+        myBar.status:SetTimerDuration(dObj, interp, dir)
+        myBar._timerDriven = true
+    else
+        StopBarTimer(myBar)
+        myBar.status:SetMinMaxValues(0, 1)
+        myBar.status:SetValue(active and 1 or 0) -- permanent aura: full bar
+    end
+
+    -- timer text (native binding keeps it ticking without lua updates)
+    local binding = GetBarTextBinding(myBar)
+    if timed and showDur and binding then
+        binding:SetDuration(dObj)
+        if not myBar._bindingEnabled then
+            binding:SetEnabled(true)
+            myBar._bindingEnabled = true
+        end
+        myBar.time:Show()
+    elseif myBar._bindingEnabled then
+        binding:SetEnabled(false)
+        myBar._bindingEnabled = nil
+        myBar.time:SetText("")
+    end
+    if not showDur then myBar.time:Hide() end
+end
+
 local function RecycleBar(bar)
+    ResetSelfDrivenBar(bar)
     bar:Hide()
     bar:ClearAllPoints()
     bar:SetParent(UIParent)
@@ -916,6 +1107,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     -- Fallback 2: Try Aura Data via Instance ID
     if not currentStacks and common.HasAuraInstanceID(blizzFrame.auraInstanceID)
        and not (issecretvalue and issecretvalue(blizzFrame.auraInstanceID))
+       and (not auraResolver or not auraResolver.CanAccessUnitAuras or auraResolver.CanAccessUnitAuras())
        and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
         local unit = blizzFrame.auraDataUnit or "player"
         local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, blizzFrame.auraInstanceID)
@@ -1220,12 +1412,16 @@ local function ProcessBlizzardSync()
             -- avoid calling CooldownViewerSettings:GetDataProvider():GetCooldownInfoForID() which taints LayoutManager
             local specBars = common.get_tracked_bars()
             local isManuallyTracked = specBars and specBars[id]
-            local isValidTrackedBar = true
+            local isCoverSpell = auraResolver and auraResolver.IsCoverSpell and auraResolver.IsCoverSpell(info, id)
+            local isValidTrackedBar = not isCoverSpell
 
             if isValidTrackedBar then
                 local isSpecRestricted = false
 
-                if info and info.isKnown == false then
+                local isKnown = not info
+                    or (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(info, id))
+                    or info.isKnown ~= false
+                if not isKnown then
                     isSpecRestricted = true
                 end
 
@@ -1253,6 +1449,10 @@ local function ProcessBlizzardSync()
                     end
 
                     local myBar = bars[id]
+                    if myBar._selfDriven then
+                        -- blizzard now provides a frame for this item: hand back to mirroring
+                        ResetSelfDrivenBar(myBar)
+                    end
 
                     local config = GetTrackedBarConfig(id) -- Cache config lookup once
                     local isStackMode = config and config.stackMode or false
@@ -1291,6 +1491,50 @@ local function ProcessBlizzardSync()
                         end
                     else
                         if myBar:IsShown() then
+                            myBar:Hide()
+                            layoutNeeded = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Self-driven bars: tracked entries blizzard has no buff bar frame for (e.g. "seals")
+    if auraResolver then
+        local specBars = common.get_tracked_bars()
+        if specBars then
+            local barDB = SfuiDB and SfuiDB.trackedBars or {}
+            local hideInactive = barDB.hideInactive ~= false
+            for rawID, entryCfg in pairs(specBars) do
+                local id = tonumber(rawID)
+                if id and entryCfg and not activeCooldownIDs[id] then
+                    local info = _cdViewerInfoCache[id]
+                    if not info and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+                        info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+                        if info then _cdViewerInfoCache[id] = info end
+                    end
+                    local isKnown = not info or auraResolver.IsCooldownItemKnown(info, id)
+                    if isKnown and auraResolver.WantsAura(info, false, info and info.linkedSpellIDs, info and info.spellID, id) then
+                        activeCooldownIDs[id] = true
+
+                        if not bars[id] then
+                            bars[id] = GetBarFromPool(id) or CreateBar(id)
+                            layoutNeeded = true
+                        end
+
+                        local myBar = bars[id]
+                        local config = GetTrackedBarConfig(id)
+                        local isStackMode = config and config.stackMode or false
+                        SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
+
+                        local shouldShow = myBar._auraActive or not hideInactive
+                        if shouldShow then
+                            if not myBar:IsShown() then
+                                myBar:Show()
+                                layoutNeeded = true
+                            end
+                        elseif myBar:IsShown() then
                             myBar:Hide()
                             layoutNeeded = true
                         end
@@ -1530,10 +1774,8 @@ local function _OnTrackedBarsUpdate(elapsed)
     -- 1. Structure / Visibility Sync
     if sfui.trackedbars.isDirty then
         local now = GetTime()
-        -- In combat: throttle structural re-scans to at least 0.25s apart to prevent API table churn.
-        -- Out of combat: process immediately on first bar activation (_numShownBars == 0),
-        -- otherwise relax subsequent sync calls to at least 1.0s apart.
-        local minCooldown = inCombat and 0.25 or 1.0
+        -- Throttle structural re-scans to at least 0.1s apart while keeping self-driven aura switches responsive.
+        local minCooldown = inCombat and 0.15 or 0.1
         if _numShownBars == 0 or (now - _lastOOCSyncTime) >= minCooldown then
             sfui.trackedbars.isDirty = false
             _lastOOCSyncTime = now
@@ -1732,7 +1974,7 @@ function sfui.trackedbars.initialize()
     sfui.trackedbars._cdMirror   = _cdMirror
     sfui.trackedbars._cdDurCache = _cdDurCache
 
-    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(_, _, _, _, castSid)
+    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(_, _, _, castSid)
         if not castSid then return end
         SyncWithBlizzard()
         -- spellID arg is always plain — safe to use directly.

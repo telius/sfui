@@ -709,6 +709,87 @@ local function IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
     return true
 end
 
+-- ─── aura duration display (seals, self buffs, linked auras) ─────────────────
+-- while an aura tied to the cdm item is up, its duration takes precedence over the
+-- spell cooldown and the icon shows the active aura's texture (e.g. whichever paladin
+-- seal is active). resolution lives in the shared resolver (frames/tracking/auras.lua).
+local auraResolver = sfui.tracking.auras
+
+local function GetIconCooldownID(icon)
+    local entry = icon.entry
+    return (entry and (entry.cooldownID or tonumber(entry.id))) or tonumber(icon.id)
+end
+
+local function GetIconCooldownInfo(icon)
+    local entry = icon.entry
+    local cdID = entry and (entry.cooldownID or (icon.type == "cooldown" and tonumber(entry.id)))
+    return cdID and SafeGetCooldownViewerCooldownInfo(cdID) or nil
+end
+
+local function GetAuraCandidates(icon, activeID, linkedSpellIDs, cdInfo)
+    return auraResolver.GetCandidates(icon, activeID, linkedSpellIDs, cdInfo)
+end
+
+local function ResolveTrackedAura(icon, candidates)
+    return auraResolver.Resolve(GetIconCooldownID(icon), candidates)
+end
+
+local function ClearTrackedAuraDisplay(icon)
+    icon._auraDurationObj = nil
+    icon._auraIcon = nil
+    icon._auraStacks = nil
+    icon._auraState = false
+    icon._auraRev = auraResolver.GetRevision and auraResolver.GetRevision() or 0
+    if icon._auraTextureShown then
+        icon._auraTextureShown = nil
+        if icon.texture and icon._currentTexture then
+            icon.texture:SetTexture(icon._currentTexture)
+        end
+    end
+end
+
+-- applies the active aura's duration + texture; returns true while the aura is up.
+-- must run after UpdateIconCooldown, which clears the swipe when the spell is ready.
+local function ApplyTrackedAuraDuration(icon, activeID, linkedSpellIDs, cdInfo)
+    local candidates, rebuilt = GetAuraCandidates(icon, activeID, linkedSpellIDs, cdInfo)
+    local rev = auraResolver.GetRevision and auraResolver.GetRevision() or 0
+    -- re-resolve when auras changed, the resolver updated, while active, or when re-used/hidden
+    if rebuilt or _playerAurasDirty or icon._auraRev ~= rev or icon._auraState or icon._auraState == nil or not icon:IsShown() then
+        icon._auraRev = rev
+        local iid, aura, present = ResolveTrackedAura(icon, candidates)
+        if aura or iid then
+            icon._auraDurationObj = auraResolver.GetDuration(iid, aura) or icon._auraDurationObj
+            local tex = auraResolver.PlainField(aura, "icon")
+            if tex then
+                icon._auraIcon = tex
+            end
+            local apps = auraResolver.PlainField(aura, "applications")
+            icon._auraStacks = (apps and apps > 1) and apps or nil
+            icon._auraState = true
+        elseif present and not rebuilt and icon._auraState then
+            -- aura up but restricted: keep the last duration object ticking
+            icon._auraState = true
+        else
+            ClearTrackedAuraDisplay(icon)
+            return false
+        end
+    end
+    if not icon._auraState then return false end
+
+    local dObj = icon._auraDurationObj
+    if dObj and icon.cooldown.SetCooldownFromDurationObject then
+        icon.cooldown:SetCooldownFromDurationObject(dObj)
+        if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
+            icon.shadowCooldown:SetCooldownFromDurationObject(dObj)
+        end
+    end
+    if icon._auraIcon and icon.texture then
+        icon.texture:SetTexture(icon._auraIcon)
+        icon._auraTextureShown = true
+    end
+    return true
+end
+
 -- Helper to update icon state (visibility, cooldown, charges)
 local function UpdateIconState(icon, panelConfig, event)
     if not icon.id or not icon.entry then return false end
@@ -777,6 +858,30 @@ local function UpdateIconState(icon, panelConfig, event)
     -- 3. Update Cooldown & Logic
     local count, isReady, isUsable, notEnoughPower, isOnCooldown = UpdateIconCooldown(icon, activeID, resolvedType)
 
+    -- 3b. Aura precedence: an active aura tied to this entry overrides the cooldown swipe
+    local isAuraType = (icon.type == "buff" or icon.type == "debuff" or (icon.entry and (icon.entry.type == "buff" or icon.entry.type == "debuff")))
+    local auraActive = false
+    if resolvedType ~= "item" and icon.type ~= "item" and activeID and activeID ~= 0 then
+        local cdID = GetIconCooldownID(icon)
+        local cdInfo = GetIconCooldownInfo(icon)
+        local wantsAura = auraResolver.WantsAura(cdInfo, isAuraType, linkedSpellIDs, activeID, cdID)
+        if wantsAura then
+            auraActive = ApplyTrackedAuraDuration(icon, activeID, linkedSpellIDs, cdInfo)
+            if auraActive then
+                -- keep the icon crisp and full-color while its active aura duration ticks
+                isUsable = true
+                notEnoughPower = false
+                isOnCooldown = false
+            elseif auraResolver.IsCoverSpell(cdInfo, cdID, activeID) then
+                -- synthetic cover spells (e.g. paladin "seals" 1323522) report IsSpellUsable = false
+                isUsable = true
+                notEnoughPower = false
+            end
+        elseif icon._auraState then
+            ClearTrackedAuraDisplay(icon)
+        end
+    end
+
     if not icon:IsShown() then
         -- Non-protected frames can Show() freely during combat
         icon:Show()
@@ -784,7 +889,6 @@ local function UpdateIconState(icon, panelConfig, event)
 
         -- Update Count Text.
         local displayCount = count
-        local isAuraType = (icon.type == "buff" or icon.type == "debuff" or (icon.entry and (icon.entry.type == "buff" or icon.entry.type == "debuff")))
         if (isAuraType or linkedSpellIDs) and icon.type ~= "item" and activeID and activeID ~= 0 and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
             if _playerAurasDirty or icon._cachedAuraStacks == nil then
                 local aura = nil
@@ -834,6 +938,8 @@ local function UpdateIconState(icon, panelConfig, event)
             if _playerAurasDirty or icon._cachedAuraMissing == nil then
                 local missing = IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
                 if missing == nil then missing = icon._auraMissing or false end
+                -- the aura resolver also matches classic ranks by name
+                if missing and auraActive then missing = false end
                 icon._cachedAuraMissing = missing
             end
             icon._auraMissing = icon._cachedAuraMissing
@@ -1885,6 +1991,7 @@ function sfui.trackedicons.initialize()
 
     -- Real-time events that require immediate structural/GCD sync
     sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(event, unit)
+        _playerAurasDirty = true
         _needsStateUpdate = true
     end)
 
@@ -1967,6 +2074,16 @@ function sfui.trackedicons.initialize()
 
         if _layoutCooldown > 0 then
             _layoutCooldown = _layoutCooldown - elapsed
+        end
+
+        -- trailing edge for throttled UNIT_AURA: an aura change swallowed by the throttle
+        -- (e.g. a seal fading shortly after another aura update) still gets processed
+        if _playerAurasDirty and not _needsStateUpdate then
+            local now = GetTime()
+            if (now - _lastAuraTime) >= (inCombat and 0.25 or 0.5) then
+                _lastAuraTime = now
+                _needsStateUpdate = true
+            end
         end
 
         -- Only update when explicitly dirty

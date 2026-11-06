@@ -1261,7 +1261,9 @@ sfui.alts.RegisterProvider({
             local lA = a.data.level or 0
             local lB = b.data.level or 0
             if lA ~= lB then return lA > lB end
-            return (a.data.name or "") < (b.data.name or "")
+            local nA = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(a.data, a.guid)) or a.data.name or ""
+            local nB = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(b.data, b.guid)) or b.data.name or ""
+            return nA < nB
         elseif sortKey == "pvp_rank" then
             local rA = (a.data.pvp and a.data.pvp.rank) or 0
             local rB = (b.data.pvp and b.data.pvp.rank) or 0

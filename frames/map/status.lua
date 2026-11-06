@@ -199,11 +199,21 @@ function sfui.minimap.update_status()
     local diel = get_day_light_indicator()
     local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
 
-    -- Ensure Blizzard day/light indicator is visible on round minimap, suppressed on square minimap
+    -- Ensure Blizzard day/light indicator is visible and elevated above minimap border on round minimap, suppressed on square minimap
     if diel and diel.SetAlpha then
         if isSquare then
             diel:SetAlpha(0)
         else
+            local map = _G.Minimap
+            if map and diel:GetParent() ~= map then
+                diel:SetParent(map)
+            end
+            if diel.SetFixedFrameStrata then diel:SetFixedFrameStrata(false) end
+            if diel.SetFixedFrameLevel then diel:SetFixedFrameLevel(false) end
+            diel:SetFrameStrata("MEDIUM")
+            diel:SetFrameLevel(20)
+            if diel.SetFixedFrameStrata then diel:SetFixedFrameStrata(true) end
+            if diel.SetFixedFrameLevel then diel:SetFixedFrameLevel(true) end
             diel:SetAlpha(1)
             if not diel:IsShown() then
                 diel:Show()
@@ -234,8 +244,12 @@ function sfui.minimap.update_status()
             f:SetParent(diel)
         end
         f.ignoreInLayout = true
-        f:SetFrameStrata(diel:GetFrameStrata() or "MEDIUM")
-        f:SetFrameLevel(math_max(15, (diel:GetFrameLevel() or 15) + 2))
+        if f.SetFixedFrameStrata then f:SetFixedFrameStrata(false) end
+        if f.SetFixedFrameLevel then f:SetFixedFrameLevel(false) end
+        f:SetFrameStrata("MEDIUM")
+        f:SetFrameLevel(22)
+        if f.SetFixedFrameStrata then f:SetFixedFrameStrata(true) end
+        if f.SetFixedFrameLevel then f:SetFixedFrameLevel(true) end
         -- Conjoined cleanly to the southeast of the Diel indicator along the compass rim
         f:SetPoint("CENTER", diel, "CENTER", 22, -22)
     else
@@ -245,8 +259,12 @@ function sfui.minimap.update_status()
             f:SetParent(targetParent)
         end
         f:SetScale(1)
+        if f.SetFixedFrameStrata then f:SetFixedFrameStrata(false) end
+        if f.SetFixedFrameLevel then f:SetFixedFrameLevel(false) end
         f:SetFrameStrata("MEDIUM")
         f:SetFrameLevel(25)
+        if f.SetFixedFrameStrata then f:SetFixedFrameStrata(true) end
+        if f.SetFixedFrameLevel then f:SetFixedFrameLevel(true) end
         if map then
             f:SetPoint("TOPRIGHT", map, "TOPRIGHT", -4, -4)
         end

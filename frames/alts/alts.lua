@@ -33,7 +33,7 @@ local NORMAL_FONT_COLOR = _G.NORMAL_FONT_COLOR
 local CloseDropDownMenus = _G.CloseDropDownMenus
 local GetGuildInfo = _G.GetGuildInfo
 local RequestTimePlayed = _G.RequestTimePlayed
-local GetRealmName = _G.GetNormalizedRealmName or _G.GetRealmName
+local GetRealmName = _G.GetRealmName or _G.GetNormalizedRealmName
 local StaticPopupDialogs = _G.StaticPopupDialogs
 local StaticPopup_Show = _G.StaticPopup_Show
 
@@ -162,6 +162,171 @@ sfui.alts.ReleaseCell = ReleaseCell
 sfui.alts.AcquireColumn = AcquireColumn
 sfui.alts.ReleaseColumn = ReleaseColumn
 
+local function IsCamelotNameSystem()
+    return sfui.isCamelot
+        or (_G.RegionalUniqueNamesEnabled and _G.RegionalUniqueNamesEnabled())
+        or (_G.NameUtil and _G.NameUtil.FormatUnitNameForDisplay ~= nil)
+end
+
+local function NormalizeRealmToken(s)
+    if type(s) ~= "string" or s == "" then return "" end
+    return s:gsub("[%s%-']", ""):lower()
+end
+
+local function IsServerRealmName(s)
+    if type(s) ~= "string" or s == "" then return false end
+    local norm = NormalizeRealmToken(s)
+    if norm == "" then return false end
+    local r1 = _G.GetRealmName and _G.GetRealmName()
+    if r1 and NormalizeRealmToken(r1) == norm then return true end
+    local r2 = _G.GetNormalizedRealmName and _G.GetNormalizedRealmName()
+    if r2 and NormalizeRealmToken(r2) == norm then return true end
+    local r3 = _G.GetCVar and _G.GetCVar("realmName")
+    if r3 and NormalizeRealmToken(r3) == norm then return true end
+    if norm == "forever" or norm == "camelot" or norm == "global" then
+        return true
+    end
+    return false
+end
+
+local function GetSurnameSeparator()
+    return (_G.Constants and _G.Constants.CharacterNameSeparatorConsts and _G.Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
+end
+
+local function ResolveNameAndSurname(rawName, rawSecond, guid, isPlayer)
+    local firstName = (type(rawName) == "string" and rawName ~= "") and rawName or nil
+    local surname = (type(rawSecond) == "string" and rawSecond ~= "") and rawSecond or nil
+
+    if not IsCamelotNameSystem() then
+        return firstName, nil
+    end
+
+    if surname and IsServerRealmName(surname) then
+        surname = nil
+    end
+
+    -- Strip any accidental "-Realm" suffix or extract a hyphenated surname
+    if firstName and firstName:find("-", 1, true) then
+        local left, right = firstName:match("^([^%-]+)%-(.+)$")
+        if left and left ~= "" then
+            firstName = left
+            if right and right ~= "" and not IsServerRealmName(right) and not surname then
+                surname = right
+            end
+        end
+    end
+
+    -- Split "First Last" if UnitName already returned a combined string
+    local sep = GetSurnameSeparator()
+    if firstName and sep ~= "" then
+        local sIdx, eIdx = firstName:find(sep, 1, true)
+        if sIdx and sIdx > 1 then
+            local fPart = firstName:sub(1, sIdx - 1)
+            local sPart = firstName:sub(eIdx + 1)
+            if fPart ~= "" then
+                firstName = fPart
+                if sPart ~= "" and not IsServerRealmName(sPart) and (not surname or surname == "") then
+                    surname = sPart
+                end
+            end
+        end
+    end
+
+    -- Fallback 1: Live player query via UnitNameUnmodified / UnitName
+    if (not surname or surname == "") and (isPlayer or (guid and UnitGUID and guid == UnitGUID("player"))) then
+        if _G.UnitNameUnmodified then
+            local uFirst, uSecond = _G.UnitNameUnmodified("player")
+            if uSecond and uSecond ~= "" and not IsServerRealmName(uSecond) then
+                surname = uSecond
+                if not firstName or firstName == "" then firstName = uFirst end
+            elseif uFirst and sep ~= "" and uFirst:find(sep, 1, true) then
+                local sIdx, eIdx = uFirst:find(sep, 1, true)
+                if sIdx and sIdx > 1 then
+                    local sPart = uFirst:sub(eIdx + 1)
+                    if sPart ~= "" and not IsServerRealmName(sPart) then
+                        surname = sPart
+                    end
+                end
+            end
+        end
+        if (not surname or surname == "") and UnitName then
+            local uFirst, uSecond = UnitName("player")
+            if uSecond and uSecond ~= "" and not IsServerRealmName(uSecond) then
+                surname = uSecond
+                if not firstName or firstName == "" then firstName = uFirst end
+            elseif uFirst and sep ~= "" and uFirst:find(sep, 1, true) then
+                local sIdx, eIdx = uFirst:find(sep, 1, true)
+                if sIdx and sIdx > 1 then
+                    local sPart = uFirst:sub(eIdx + 1)
+                    if sPart ~= "" and not IsServerRealmName(sPart) then
+                        surname = sPart
+                    end
+                end
+            end
+        end
+    end
+
+    -- Fallback 2: Client GUID cache via UnitNameFromGUID / GetPlayerInfoByGUID
+    if (not surname or surname == "") and type(guid) == "string" and guid ~= "" then
+        if _G.UnitNameFromGUID then
+            local gFirst, gSecond = _G.UnitNameFromGUID(guid)
+            if gSecond and gSecond ~= "" and not IsServerRealmName(gSecond) then
+                surname = gSecond
+                if not firstName or firstName == "" then firstName = gFirst end
+            elseif gFirst and sep ~= "" and gFirst:find(sep, 1, true) then
+                local sIdx, eIdx = gFirst:find(sep, 1, true)
+                if sIdx and sIdx > 1 then
+                    local fPart = gFirst:sub(1, sIdx - 1)
+                    local sPart = gFirst:sub(eIdx + 1)
+                    if not firstName or firstName == "" then firstName = fPart end
+                    if sPart ~= "" and not IsServerRealmName(sPart) then
+                        surname = sPart
+                    end
+                end
+            end
+        end
+        if (not surname or surname == "") and _G.GetPlayerInfoByGUID then
+            local _, _, _, _, _, pFirst, pSecond = _G.GetPlayerInfoByGUID(guid)
+            if pSecond and pSecond ~= "" and not IsServerRealmName(pSecond) then
+                surname = pSecond
+                if not firstName or firstName == "" then firstName = pFirst end
+            end
+        end
+    end
+
+    if surname and surname ~= "" and firstName and surname:lower() == firstName:lower() then
+        surname = nil
+    end
+
+    return firstName, surname
+end
+
+local function RepairAltEntry(altData, guid, isPlayer)
+    if type(altData) ~= "table" then return end
+    if not IsCamelotNameSystem() then return end
+
+    if altData.surname and IsServerRealmName(altData.surname) then
+        altData.surname = nil
+    end
+    if (not altData.surname or altData.surname == "") and altData.realm and altData.realm ~= "" and not IsServerRealmName(altData.realm) then
+        altData.surname = altData.realm
+    end
+
+    local fName, sName = ResolveNameAndSurname(altData.name, altData.surname, guid, isPlayer)
+    if fName and fName ~= "" then
+        altData.name = fName
+    end
+    if sName and sName ~= "" and not IsServerRealmName(sName) then
+        altData.surname = sName
+    end
+
+    local currentRealm = (_G.GetRealmName and _G.GetRealmName()) or ""
+    if currentRealm ~= "" then
+        altData.realm = currentRealm
+    end
+end
+sfui.alts.RepairAltEntry = RepairAltEntry
+
 local function GetCurrentCharacterGUID()
     local guid = UnitGUID("player")
     if guid then return guid end
@@ -178,45 +343,51 @@ sfui.alts.GetCurrentCharacterGUID = GetCurrentCharacterGUID
 
 --- Get display name for an alt, incorporating surname on Camelot/Forever
 --- @param altData table
+--- @param guid string?
 --- @return string displayName
-function sfui.alts.GetDisplayName(altData)
+function sfui.alts.GetDisplayName(altData, guid)
     if not altData then return "Unknown" end
-    local NameUtil = _G.NameUtil
-    if altData.surname and altData.surname ~= "" then
+    if type(altData) == "table" then
+        RepairAltEntry(altData, guid)
+    end
+    local firstName = altData.name or "Unknown"
+    local surname = altData.surname
+    if surname and surname ~= "" and not IsServerRealmName(surname) then
+        local sep = GetSurnameSeparator()
+        if firstName:find(sep, 1, true) then
+            return firstName
+        end
+        local NameUtil = _G.NameUtil
         if NameUtil and NameUtil.GetFullNameWithoutRealm then
-            local fn = NameUtil.GetFullNameWithoutRealm(altData.name, altData.surname)
+            local fn = NameUtil.GetFullNameWithoutRealm(firstName, surname)
             if fn and fn ~= "" then return fn end
         end
-        return string.format("%s %s", altData.name or "Unknown", altData.surname)
+        return string.format("%s%s%s", firstName, sep, surname)
     end
-    return altData.name or "Unknown"
+    return firstName
 end
 sfui.common.get_alt_display_name = sfui.alts.GetDisplayName
 
---- Get valid mail recipient string for an alt (name, or name-realm if cross-realm)
+--- Get valid mail recipient string for an alt (First Last on Forever; name or name-realm on Retail)
 --- @param altData table
+--- @param guid string?
 --- @return string recipient
-function sfui.alts.GetMailRecipient(altData)
+function sfui.alts.GetMailRecipient(altData, guid)
     if not altData then return "" end
-    local name = altData.name or ""
-    if altData.surname and altData.surname ~= "" and not name:find(" ") then
-        local NameUtil = _G.NameUtil
-        if NameUtil and NameUtil.GetFullNameWithoutRealm then
-            local fn = NameUtil.GetFullNameWithoutRealm(name, altData.surname)
-            if fn and fn ~= "" then
-                name = fn
-            else
-                name = string.format("%s %s", name, altData.surname)
-            end
-        else
-            local sep = (_G.Constants and _G.Constants.CharacterNameSeparatorConsts and _G.Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
-            name = string.format("%s%s%s", name, sep, altData.surname)
-        end
+    if type(altData) == "table" then
+        RepairAltEntry(altData, guid)
+    end
+    local name = sfui.alts.GetDisplayName(altData, guid)
+    if name == "Unknown" then
+        name = altData.name or ""
+    end
+    if IsCamelotNameSystem() then
+        return name
     end
     local myRealm = (GetRealmName and GetRealmName()) or ""
-    local myNormRealm = myRealm:gsub("%s+", ""):lower()
+    local myNormRealm = NormalizeRealmToken(myRealm)
     local targetRealm = (altData.realm or ""):gsub("%s+", "")
-    if targetRealm ~= "" and targetRealm:lower() ~= myNormRealm then
+    if targetRealm ~= "" and NormalizeRealmToken(targetRealm) ~= myNormRealm then
         return string.format("%s-%s", name, targetRealm)
     end
     return name
@@ -290,18 +461,20 @@ function sfui.alts.PerformSync(isLogout)
     SfuiDB.alts = SfuiDB.alts or {}
     local d = SfuiDB.alts[guid] or {}
 
-    local isCamelotGame = sfui.isCamelot or (_G.NameUtil and _G.NameUtil.FormatUnitNameForDisplay)
-    if isCamelotGame then
-        d.name = name
-        d.surname = (arg2 and arg2 ~= "") and arg2 or nil
-        d.realm = (GetRealmName and GetRealmName()) or ""
+    if IsCamelotNameSystem() then
+        local fName, sName = ResolveNameAndSurname(name, arg2, guid, true)
+        d.name = fName or name
+        if sName and sName ~= "" and not IsServerRealmName(sName) then
+            d.surname = sName
+        elseif d.surname and IsServerRealmName(d.surname) then
+            d.surname = nil
+        end
+        d.realm = (_G.GetRealmName and _G.GetRealmName()) or ""
 
-        -- Repair any existing corrupt entries in database where surname was stored as realm
-        local currentRealm = (GetRealmName and GetRealmName()) or ""
-        for _, alt in pairs(SfuiDB.alts) do
-            if alt.realm and alt.realm ~= "" and alt.realm ~= currentRealm and (not alt.surname or alt.surname == "") then
-                alt.surname = alt.realm
-                alt.realm = currentRealm
+        -- Repair all existing alt entries (scrub server names from surname & recover surnames by GUID)
+        for altGuid, alt in pairs(SfuiDB.alts) do
+            if type(alt) == "table" then
+                RepairAltEntry(alt, altGuid, altGuid == guid)
             end
         end
     else
@@ -464,7 +637,9 @@ local function RefreshSettingsPanel()
         chars[#chars + 1] = { guid = guid, data = data }
     end
     table.sort(chars, function(a, b)
-        return (a.data.name or "") < (b.data.name or "")
+        local nA = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(a.data, a.guid)) or a.data.name or ""
+        local nB = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(b.data, b.guid)) or b.data.name or ""
+        return nA < nB
     end)
 
     local charY = 0
@@ -500,7 +675,7 @@ local function RefreshSettingsPanel()
         local d = cInfo.data
         local classColor = RAID_CLASS_COLORS[d.class] or NORMAL_FONT_COLOR
         local colorStr = classColor and classColor.colorStr or "ffffffff"
-        local name = d.name or "Unknown"
+        local name = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(d, cInfo.guid)) or d.name or "Unknown"
 
         if row.cb.text then
             row.cb.text:SetText(string.format("|c%s%s|r", colorStr, name))
@@ -813,7 +988,9 @@ local function SortAlts(a, b)
         local tB = tonumber(b.data and b.data.timeplayed) or 0
         if tA ~= tB then return tA > tB end
     end
-    return tostring(a.data and a.data.name or "") < tostring(b.data and b.data.name or "")
+    local nA = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(a.data, a.guid)) or tostring(a.data and a.data.name or "")
+    local nB = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(b.data, b.guid)) or tostring(b.data and b.data.name or "")
+    return nA < nB
 end
 
 local updateRequested = false
@@ -1002,7 +1179,7 @@ function sfui.alts.UpdateUI(force)
                             mailTag = string.format(" %s[%d]|r", color, alt.data.inboxCount)
                         end
 
-                        text:SetText(string.format("%s%s", sfui.alts.GetDisplayName(alt.data), mailTag))
+                        text:SetText(string.format("%s%s", sfui.alts.GetDisplayName(alt.data, alt.guid), mailTag))
                         text:SetTextColor(classColor.r, classColor.g, classColor.b)
 
                         local altSnap = alt
@@ -1011,8 +1188,8 @@ function sfui.alts.UpdateUI(force)
                             local d = altSnap.data
                             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                             local cc = RAID_CLASS_COLORS[d.class] or NORMAL_FONT_COLOR
-                            GameTooltip:AddLine(string.format("|c%s%s|r", cc.colorStr or "ffffffff", sfui.alts.GetDisplayName(d)), 1, 1, 1)
-                            if d.realm then
+                            GameTooltip:AddLine(string.format("|c%s%s|r", cc.colorStr or "ffffffff", sfui.alts.GetDisplayName(d, altSnap.guid)), 1, 1, 1)
+                            if d.realm and d.realm ~= "" and not IsCamelotNameSystem() then
                                 GameTooltip:AddLine(d.realm, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
                             end
                             if d.guild then

@@ -1059,7 +1059,7 @@ function sfui.recipes.IsAltNeeded(recipeOrID)
         if guid ~= myGUID and altData then
             local altRealm = altData.realm or myRealm
             local normAltRealm = altRealm and altRealm:gsub("[%s%-']", ""):lower() or ""
-            if normAltRealm == "" or normMyRealm == "" or normAltRealm == normMyRealm then
+            if sfui.isCamelot or normAltRealm == "" or normMyRealm == "" or normAltRealm == normMyRealm then
                 local hasProf = false
                 if altData.professions then
                     if altData.professions.primaries then
@@ -1081,7 +1081,7 @@ function sfui.recipes.IsAltNeeded(recipeOrID)
                     local isKnown = B.IsRecipeLearned(r, guid, altRealm)
                     if not isKnown then
                         matchingAlts = matchingAlts or {}
-                        matchingAlts[#matchingAlts + 1] = altData.name or "alt"
+                        matchingAlts[#matchingAlts + 1] = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(altData, guid)) or altData.name or "alt"
                     end
                 end
             end

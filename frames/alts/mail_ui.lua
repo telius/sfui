@@ -748,7 +748,8 @@ RefreshUI = function()
         local selectedAltData = selectedGUID and SfuiDB and SfuiDB.alts and SfuiDB.alts[selectedGUID]
         if selectedAltData then
             local curSuffix = (selectedGUID == UnitGUID("player")) and " |cff888888(current character)|r" or ""
-            configFrame.centerTitle:SetText(string.format("%s assigned items%s", common.class_color_name(selectedAltData.name, selectedAltData.class), curSuffix))
+            local selDisplayName = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(selectedAltData, selectedGUID)) or selectedAltData.name
+            configFrame.centerTitle:SetText(string.format("%s assigned items%s", common.class_color_name(selDisplayName, selectedAltData.class), curSuffix))
         else
             configFrame.centerTitle:SetText("assigned items")
         end
@@ -816,7 +817,7 @@ if not mail._shiftClickHooked and _G.hooksecurefunc then
             mail.AddItemToRoute(selectedGUID, itemID)
             RefreshUI()
             local alt = SfuiDB.alts and SfuiDB.alts[selectedGUID]
-            local aName = alt and alt.name or "alt"
+            local aName = (alt and sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, selectedGUID)) or (alt and alt.name) or "alt"
             if common and common.print then
                 common.print(string.format("|cff00ff88assigned %s to %s.|r", link, aName))
             end

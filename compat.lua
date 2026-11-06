@@ -759,17 +759,13 @@ function sfui.api.IsQuestPushable(questID, questLogIndex)
         if ok and pushable ~= nil then
             return not not pushable
         end
+        return false
     end
 
     local qIndex = questLogIndex
-    if not qIndex then
-        if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
-            local ok, idx = pcall(_G.C_QuestLog.GetLogIndexForQuestID, questID)
-            if ok and type(idx) == "number" and idx > 0 then qIndex = idx end
-        elseif _G.GetQuestLogIndexByID then
-            local ok, idx = pcall(_G.GetQuestLogIndexByID, questID)
-            if ok and type(idx) == "number" and idx > 0 then qIndex = idx end
-        end
+    if not qIndex and _G.GetQuestLogIndexByID then
+        local ok, idx = pcall(_G.GetQuestLogIndexByID, questID)
+        if ok and type(idx) == "number" and idx > 0 then qIndex = idx end
     end
 
     if qIndex and _G.SelectQuestLogEntry and _G.GetQuestLogPushable then

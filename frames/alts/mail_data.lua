@@ -488,7 +488,7 @@ function mail.GetAssignedDisenchanter()
     if alt then
         return {
             guid  = guid,
-            name  = alt.name or "unknown",
+            name  = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name or "unknown",
             realm = alt.realm or (GetRealmName and GetRealmName()) or "",
             class = alt.class or "PRIEST",
             level = alt.level or 1,
@@ -553,9 +553,9 @@ function mail.GetCategoryRecipient(categoryKey)
     for guid, route in pairs(settings.routes or {}) do
         if route[categoryKey] == true then
             local alt = SfuiDB and SfuiDB.alts and SfuiDB.alts[guid]
-            local dName = alt and alt.name
-            if not dName and guid == myGUID and UnitName then
-                dName = UnitName("player")
+            local dName = (alt and sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or (alt and alt.name)
+            if not dName and guid == myGUID then
+                dName = (sfui.common and sfui.common.get_player_display_name and sfui.common.get_player_display_name()) or (UnitName and UnitName("player"))
             end
             local class = (alt and alt.class) or (guid == myGUID and UnitClass and select(2, UnitClass("player"))) or "WARRIOR"
             return dName, class, guid

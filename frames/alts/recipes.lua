@@ -138,8 +138,15 @@ local function EnsurePlayerContext()
     if not myRealm then
         myRealm = GetRealmName()
     end
-    if not myName then
-        myName = UnitName("player")
+    if not myName or (sfui.isCamelot and not myName:find(" ", 1, true)) then
+        local resolved = (sfui.common and sfui.common.get_player_display_name and sfui.common.get_player_display_name())
+            or UnitName("player")
+        if resolved and resolved ~= "Unknown" and resolved ~= myName then
+            myName = resolved
+            if formattedNameCache then
+                wipe(formattedNameCache)
+            end
+        end
     end
     if not myClass then
         local ec = sfui.common.get_player_class()
@@ -163,6 +170,7 @@ local scratchLowSkillList    = {}
 
 local function InvalidateRecipeStatusCache()
     wipe(recipeStatusCache)
+    wipe(formattedNameCache)
     if sfui.recipes and sfui.recipes.browser and sfui.recipes.browser.ClearLearnedCache then
         sfui.recipes.browser.ClearLearnedCache()
     end
@@ -323,9 +331,24 @@ local function IsRecipe(itemID)
 end
 
 --- Extract colored character name (memoized)
-local function GetColoredCharacterName(name, className, realm)
-    local displayName = name or "Unknown"
-    local cacheKey = displayName .. ":" .. (className or "") .. ":" .. (realm or "")
+local function GetColoredCharacterName(name, className, realm, altData, guid)
+    local isCamelotNames = sfui.isCamelot
+        or (_G.RegionalUniqueNamesEnabled and _G.RegionalUniqueNamesEnabled())
+        or (_G.NameUtil and _G.NameUtil.FormatUnitNameForDisplay ~= nil)
+
+    local displayName = nil
+    if altData and sfui.alts and sfui.alts.GetDisplayName then
+        displayName = sfui.alts.GetDisplayName(altData, guid)
+    elseif guid and SfuiDB and SfuiDB.alts and SfuiDB.alts[guid] and sfui.alts and sfui.alts.GetDisplayName then
+        displayName = sfui.alts.GetDisplayName(SfuiDB.alts[guid], guid)
+    elseif guid and guid == myGUID and myName then
+        displayName = myName
+    end
+    if not displayName or displayName == "" or displayName == "Unknown" then
+        displayName = name or "Unknown"
+    end
+
+    local cacheKey = (guid or displayName) .. ":" .. displayName .. ":" .. (className or "") .. ":" .. (isCamelotNames and "" or (realm or ""))
     local cached = formattedNameCache[cacheKey]
     if cached then
         return cached
@@ -342,8 +365,12 @@ local function GetColoredCharacterName(name, className, realm)
                 (col and string.format("ff%02x%02x%02x", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255)) or
                 "ffffffff"
 
-    if realm and realm ~= "" and realm ~= myRealm then
-        displayName = string.format("%s-%s", displayName, realm)
+    if not isCamelotNames and realm and realm ~= "" and myRealm and myRealm ~= "" then
+        local normRealm = realm:gsub("[%s%-']", ""):lower()
+        local normMyRealm = myRealm:gsub("[%s%-']", ""):lower()
+        if normRealm ~= "" and normMyRealm ~= "" and normRealm ~= normMyRealm then
+            displayName = string.format("%s-%s", displayName, realm)
+        end
     end
 
     local formatted = string.format("|c%s%s|r", hex, displayName)
@@ -1212,7 +1239,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
                 local className = (alt and alt.class) or (guid == myGUID and myClass)
                 local realm = (alt and alt.realm) or (guid == myGUID and myRealm)
                 if name then
-                    table.insert(scratchCrafterList, GetColoredCharacterName(name, className, realm))
+                    table.insert(scratchCrafterList, GetColoredCharacterName(name, className, realm, alt, guid))
                 end
             end
         end
@@ -1299,13 +1326,14 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
 
     -- Format Known Characters (active player first, then alts)
     if myGUID and scratchKnownGUIDs[myGUID] and myName then
-        table.insert(scratchKnownList, GetColoredCharacterName(myName, myClass, myRealm))
+        local myAlt = SfuiDB.alts and SfuiDB.alts[myGUID]
+        table.insert(scratchKnownList, GetColoredCharacterName(myName, myClass, myRealm, myAlt, myGUID))
     end
     for guid in pairs(scratchKnownGUIDs) do
         if guid ~= myGUID then
             local alt = SfuiDB.alts and SfuiDB.alts[guid]
             if alt and alt.name then
-                table.insert(scratchKnownList, GetColoredCharacterName(alt.name, alt.class, alt.realm))
+                table.insert(scratchKnownList, GetColoredCharacterName(alt.name, alt.class, alt.realm, alt, guid))
             end
         end
     end
@@ -1319,7 +1347,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
             local myData = SfuiDB.alts[myGUID]
             local hasProf, meetsRank, currentRank = CheckAltEligibility(myData, profName, minSkill, subclassID, skillID)
             if hasProf then
-                local formatted = GetColoredCharacterName(myData.name or myName, myData.class or myClass, myData.realm or myRealm)
+                local formatted = GetColoredCharacterName(myData.name or myName, myData.class or myClass, myData.realm or myRealm, myData, myGUID)
                 if meetsRank then
                     if showCanLearn then
                         table.insert(scratchCanLearnList, formatted)
@@ -1334,7 +1362,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
             if guid ~= myGUID and not scratchKnownGUIDs[guid] then
                 local hasProf, meetsRank, currentRank = CheckAltEligibility(altData, profName, minSkill, subclassID, skillID)
                 if hasProf then
-                    local formatted = GetColoredCharacterName(altData.name, altData.class, altData.realm)
+                    local formatted = GetColoredCharacterName(altData.name, altData.class, altData.realm, altData, guid)
                     if meetsRank then
                         if showCanLearn then
                             table.insert(scratchCanLearnList, formatted)

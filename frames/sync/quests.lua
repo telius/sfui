@@ -765,25 +765,19 @@ end
 
 local function on_quest_accepted(_, arg1, arg2)
     if not should_automate_quests() then return end
+    if not (_G.C_QuestLog and _G.C_QuestLog.PushQuestToParty) then return end
     local questID = tonumber(arg2) or tonumber(arg1)
-    local logIdx  = tonumber(arg2) and tonumber(arg1) or nil
+    if not questID then return end
 
     if C_Timer and C_Timer.After then
         C_Timer.After(0.6, function()
             if not should_automate_quests() then return end
-            if questID and sync.GetPartyMissingQuestPeers then
+            if sync.GetPartyMissingQuestPeers then
                 local missing = sync.GetPartyMissingQuestPeers(questID)
                 if not missing or #missing == 0 then return end
             end
-            if _G.C_QuestLog and _G.C_QuestLog.PushQuestToParty and questID then
+            if _G.C_QuestLog and _G.C_QuestLog.PushQuestToParty then
                 _G.C_QuestLog.PushQuestToParty(questID)
-            elseif _G.QuestLogPushQuest then
-                if logIdx and _G.SelectQuestLogEntry then
-                    _G.SelectQuestLogEntry(logIdx)
-                end
-                if not _G.GetQuestLogPushable or _G.GetQuestLogPushable() then
-                    _G.QuestLogPushQuest()
-                end
             end
         end)
     end

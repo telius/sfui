@@ -111,10 +111,15 @@ local function get_all_cdm_entries()
     local cat0 = {} -- Essential + EquipSlotEssential (trinkets)
     local cat1 = {} -- Utility + SpecAgnosticEssential (potions / healthstones)
 
+    local auraResolver = sfui.tracking and sfui.tracking.auras
+
     local function categorize(cooldownID, info)
         if not info then return end
         local isItemCooldown = (info.equipSlot ~= nil or info.spellCategoryID ~= nil or (info.itemID and info.itemID > 0))
-        if not isItemCooldown and not info.isKnown then return end
+        local known = isItemCooldown
+            or (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(info, cooldownID))
+            or info.isKnown
+        if not known then return end
 
         local entry = {
             type = isItemCooldown and "item" or "cooldown",
@@ -243,6 +248,7 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
     if not panelConfig or type(panelConfig.entries) ~= "table" then return activeEntries end
 
     local isClassic = not sfui.isRetail
+    local auraResolver = sfui.tracking and sfui.tracking.auras
 
     for _, entry in ipairs(panelConfig.entries) do
         local isKnown = true
@@ -258,10 +264,12 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
                     or (cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0))
 
                 if not isItemCooldown and cdInfo.isKnown == false then
-                    local spellKnown = false
-                    local sID = (type(entry) == "table" and entry.spellID) or (cdInfo.spellID and cdInfo.spellID > 0 and cdInfo.spellID)
-                    if sID then
-                        spellKnown = (_G.IsPlayerSpell and _G.IsPlayerSpell(sID)) or (_G.C_SpellBook and _G.C_SpellBook.HasSpell and _G.C_SpellBook.HasSpell(sID)) or false
+                    local spellKnown = (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(cdInfo, cdID)) or false
+                    if not spellKnown then
+                        local sID = (type(entry) == "table" and entry.spellID) or (cdInfo.spellID and cdInfo.spellID > 0 and cdInfo.spellID)
+                        if sID then
+                            spellKnown = (_G.IsPlayerSpell and _G.IsPlayerSpell(sID)) or (_G.C_SpellBook and _G.C_SpellBook.HasSpell and _G.C_SpellBook.HasSpell(sID)) or false
+                        end
                     end
                     if not spellKnown then
                         isKnown = false

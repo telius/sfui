@@ -194,6 +194,17 @@
     "uimap": 116544,
     "wh_id": 16544
   },
+  "16550": {
+    "auto_discovered": true,
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "maxlevel": 42,
+    "minlevel": 36,
+    "name": "The Drowned City",
+    "uimap": 116550,
+    "wh_id": 16550
+  },
   "1657": {
     "category": 1,
     "continent": "kalimdor",

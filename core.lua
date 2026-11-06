@@ -601,6 +601,18 @@ if isAddOnLoaded and select(2, isAddOnLoaded(addonName or "sfui")) then
 end
 
 sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
+    local tocVersion = (sfui.config and sfui.config.version) or sfui.common.get_addon_metadata(addonName or "sfui", "Version")
+    if tocVersion and SfuiDB and SfuiDB.last_bug_purge_version ~= tocVersion then
+        SfuiDB.last_bug_purge_version = tocVersion
+        if _G.sfuibug and _G.sfuibug.Clear then
+            _G.sfuibug.Clear()
+        elseif _G.SfuiBugDB then
+            _G.SfuiBugDB.errors = {}
+            _G.SfuiBugDB.order = {}
+            _G.SfuiBugDB.total_recorded = 0
+        end
+    end
+
     sfui.update_pixel_scale()
 
     sfui.EnableModules()

@@ -95,10 +95,21 @@ local function decouple_minimap()
         end)
     end
 
-    if map.SetFixedFrameStrata then map:SetFixedFrameStrata(true) end
-    if map.SetFixedFrameLevel then map:SetFixedFrameLevel(true) end
+    if map.SetFixedFrameStrata then map:SetFixedFrameStrata(false) end
+    if map.SetFixedFrameLevel then map:SetFixedFrameLevel(false) end
     map:SetFrameStrata("LOW")
     map:SetFrameLevel(10)
+    if map.SetFixedFrameStrata then map:SetFixedFrameStrata(true) end
+    if map.SetFixedFrameLevel then map:SetFixedFrameLevel(true) end
+
+    if _G.MinimapBackdrop then
+        if _G.MinimapBackdrop.SetFixedFrameStrata then _G.MinimapBackdrop:SetFixedFrameStrata(false) end
+        if _G.MinimapBackdrop.SetFixedFrameLevel then _G.MinimapBackdrop:SetFixedFrameLevel(false) end
+        _G.MinimapBackdrop:SetFrameStrata("LOW")
+        _G.MinimapBackdrop:SetFrameLevel(11)
+        if _G.MinimapBackdrop.SetFixedFrameStrata then _G.MinimapBackdrop:SetFixedFrameStrata(true) end
+        if _G.MinimapBackdrop.SetFixedFrameLevel then _G.MinimapBackdrop:SetFixedFrameLevel(true) end
+    end
 
     -- Suppress Blizzard MinimapCluster & its Edit Mode selection outline completely
     local cluster = _G.MinimapCluster
@@ -224,6 +235,12 @@ function sfui.minimap.update_position(x, y, point, relPoint)
         end
 
         if _G.MinimapBackdrop then
+            if _G.MinimapBackdrop.SetFixedFrameStrata then _G.MinimapBackdrop:SetFixedFrameStrata(false) end
+            if _G.MinimapBackdrop.SetFixedFrameLevel then _G.MinimapBackdrop:SetFixedFrameLevel(false) end
+            _G.MinimapBackdrop:SetFrameStrata("LOW")
+            _G.MinimapBackdrop:SetFrameLevel(11)
+            if _G.MinimapBackdrop.SetFixedFrameStrata then _G.MinimapBackdrop:SetFixedFrameStrata(true) end
+            if _G.MinimapBackdrop.SetFixedFrameLevel then _G.MinimapBackdrop:SetFixedFrameLevel(true) end
             _G.MinimapBackdrop:SetSize(compassW * scale, compassH * scale)
         end
 
@@ -248,8 +265,12 @@ function sfui.minimap.update_position(x, y, point, relPoint)
             if diel:GetParent() ~= map then
                 diel:SetParent(map)
             end
-            diel:SetFrameStrata("LOW")
-            diel:SetFrameLevel((map:GetFrameLevel() or 10) + 5)
+            if diel.SetFixedFrameStrata then diel:SetFixedFrameStrata(false) end
+            if diel.SetFixedFrameLevel then diel:SetFixedFrameLevel(false) end
+            diel:SetFrameStrata("MEDIUM")
+            diel:SetFrameLevel(20)
+            if diel.SetFixedFrameStrata then diel:SetFixedFrameStrata(true) end
+            if diel.SetFixedFrameLevel then diel:SetFixedFrameLevel(true) end
             diel:SetScale(scale)
             diel:ClearAllPoints()
             diel:SetPoint("CENTER", compass or map, "CENTER", 55, 86)

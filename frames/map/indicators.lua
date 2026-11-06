@@ -156,17 +156,25 @@ function sfui.minimap.update_indicator_positions()
         end
     end
 
-    -- Ensure Camelot day/night diel cycle indicator stays elevated in LOW strata above map on round minimap
+    -- Ensure Camelot day/night diel cycle indicator stays elevated in MEDIUM strata above map border on round minimap
     if MinimapCluster and MinimapCluster.DielFrame then
+        local diel = MinimapCluster.DielFrame
         local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
         if isSquare then
-            MinimapCluster.DielFrame:SetAlpha(0)
+            diel:SetAlpha(0)
         else
-            MinimapCluster.DielFrame:SetFrameStrata("LOW")
-            MinimapCluster.DielFrame:SetFrameLevel(math_max(15, (map and map:GetFrameLevel() or 10) + 5))
-            MinimapCluster.DielFrame:EnableMouse(false)
-            MinimapCluster.DielFrame:SetAlpha(1)
-            MinimapCluster.DielFrame:Show()
+            if map and diel:GetParent() ~= map then
+                diel:SetParent(map)
+            end
+            if diel.SetFixedFrameStrata then diel:SetFixedFrameStrata(false) end
+            if diel.SetFixedFrameLevel then diel:SetFixedFrameLevel(false) end
+            diel:SetFrameStrata("MEDIUM")
+            diel:SetFrameLevel(20)
+            if diel.SetFixedFrameStrata then diel:SetFixedFrameStrata(true) end
+            if diel.SetFixedFrameLevel then diel:SetFixedFrameLevel(true) end
+            diel:EnableMouse(false)
+            diel:SetAlpha(1)
+            diel:Show()
         end
     end
 

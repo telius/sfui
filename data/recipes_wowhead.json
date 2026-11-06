@@ -6270,6 +6270,11 @@
         "source": [
           5
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "t": 1,
@@ -6286,12 +6291,7 @@
             "z": 44
           }
         ],
-        "sm_checked": true,
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        "sm_checked": true
       },
       {
         "id": 249886,
@@ -6302,6 +6302,11 @@
         "source": [
           5
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "t": 1,
@@ -6318,12 +6323,7 @@
             "z": 44
           }
         ],
-        "sm_checked": true,
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        "sm_checked": true
       },
       {
         "id": 249887,
@@ -6334,6 +6334,11 @@
         "source": [
           5
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "t": 1,
@@ -6350,12 +6355,7 @@
             "z": 44
           }
         ],
-        "sm_checked": true,
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        "sm_checked": true
       },
       {
         "id": 249888,
@@ -6366,6 +6366,11 @@
         "source": [
           5
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "t": 1,
@@ -6382,12 +6387,7 @@
             "z": 44
           }
         ],
-        "sm_checked": true,
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        "sm_checked": true
       },
       {
         "id": 249889,
@@ -6398,6 +6398,11 @@
         "source": [
           5
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "t": 1,
@@ -6414,12 +6419,7 @@
             "z": 44
           }
         ],
-        "sm_checked": true,
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        "sm_checked": true
       },
       {
         "id": 249890,
@@ -6430,6 +6430,11 @@
         "source": [
           5
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "t": 1,
@@ -6446,12 +6451,7 @@
             "z": 44
           }
         ],
-        "sm_checked": true,
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        "sm_checked": true
       },
       {
         "id": 250173,
@@ -6659,6 +6659,11 @@
         "source": [
           2
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "t": 1,
@@ -6675,12 +6680,7 @@
             "z": 17
           }
         ],
-        "sm_checked": true,
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        "sm_checked": true
       },
       {
         "id": 250188,
@@ -6726,12 +6726,12 @@
         "source": [
           2
         ],
-        "sm_checked": true,
         "envChange": {
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sm_checked": true
       },
       {
         "id": 263511,
@@ -6925,7 +6925,7 @@
         }
       }
     ],
-    "fetched_at": 1793790710
+    "fetched_at": 1793945017
   },
   "first-aid": {
     "spells": [
@@ -8308,7 +8308,7 @@
         }
       }
     ],
-    "fetched_at": 1793790710
+    "fetched_at": 1793945020
   },
   "fishing": {
     "spells": [
@@ -17472,6 +17472,11 @@
         "skill": 290,
         "level": 58,
         "quality": 2,
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "n": "Scarlet Alchemist",
@@ -17479,12 +17484,7 @@
             "ti": 240785,
             "z": 16236
           }
-        ],
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        }
+        ]
       },
       {
         "id": 13501,
@@ -18025,7 +18025,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250365,
@@ -18040,7 +18057,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250366,
@@ -18055,7 +18089,31 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 46,
+            "n": "Murloc Forager",
+            "st": "drop",
+            "z": 12
+          },
+          {
+            "t": 1,
+            "ti": 1545,
+            "n": "Vile Fin Muckdweller",
+            "st": "drop",
+            "z": 85
+          },
+          {
+            "t": 1,
+            "ti": 250283,
+            "n": "Vile Fin Attacker",
+            "st": "drop",
+            "z": 85
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250367,
@@ -18070,7 +18128,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250368,
@@ -18108,7 +18183,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250370,
@@ -18881,7 +18973,7 @@
         }
       }
     ],
-    "fetched_at": 1793790710
+    "fetched_at": 1793945021
   },
   "blacksmithing": {
     "spells": [
@@ -22625,9 +22717,9 @@
       {
         "id": 9954,
         "name": "Truesilver Gauntlets",
-        "learnedat": 200,
+        "learnedat": 220,
         "colors": [
-          200,
+          0,
           220,
           230,
           240
@@ -23028,9 +23120,9 @@
       {
         "id": 9974,
         "name": "Truesilver Breastplate",
-        "learnedat": 220,
+        "learnedat": 240,
         "colors": [
-          220,
+          0,
           240,
           250,
           260
@@ -29197,6 +29289,9 @@
             5498,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -36651,6 +36746,9 @@
             1
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -36686,6 +36784,9 @@
             1
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -36720,6 +36821,9 @@
             12361,
             1
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -40527,6 +40631,9 @@
         "skill": 80,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -40554,6 +40661,9 @@
         "skill": 80,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -40566,6 +40676,9 @@
         "skill": 80,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -40578,6 +40691,9 @@
         "skill": 80,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -40602,6 +40718,18 @@
         "skill": 95,
         "level": 25,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Edwin VanCleef",
+            "t": 1,
+            "ti": 639,
+            "z": 1581
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -40626,6 +40754,18 @@
         "skill": 95,
         "level": 25,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Edwin VanCleef",
+            "t": 1,
+            "ti": 639,
+            "z": 1581
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -40650,6 +40790,18 @@
         "skill": 125,
         "level": 30,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Gelihast",
+            "t": 1,
+            "ti": 6243,
+            "z": 719
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43671,6 +43823,9 @@
         "skill": 110,
         "level": 1,
         "quality": 2,
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43683,6 +43838,9 @@
         "skill": 195,
         "level": 1,
         "quality": 2,
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43695,6 +43853,9 @@
         "skill": 270,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43702,7 +43863,7 @@
         }
       }
     ],
-    "fetched_at": 1793790710
+    "fetched_at": 1793945023
   },
   "enchanting": {
     "spells": [
@@ -50550,7 +50711,7 @@
           1,
           1
         ],
-        "trainingcost": 100,
+        "trainingcost": 105,
         "reagents": [
           [
             4470,
@@ -53075,6 +53236,9 @@
             12361,
             1
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -56249,6 +56413,9 @@
         "skill": 280,
         "level": 50,
         "quality": 2,
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -56256,7 +56423,7 @@
         }
       }
     ],
-    "fetched_at": 1793790710
+    "fetched_at": 1793945026
   },
   "engineering": {
     "spells": [
@@ -68195,15 +68362,6 @@
         "skill": 135,
         "level": 25,
         "quality": 2,
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Sneed",
-            "t": 1,
-            "ti": 643,
-            "z": 1581
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -68213,7 +68371,16 @@
             "Effects added"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Sneed",
+            "t": 1,
+            "ti": 643,
+            "z": 1581
+          }
+        ]
       },
       {
         "id": 215153,
@@ -69585,7 +69752,7 @@
         }
       }
     ],
-    "fetched_at": 1793790710
+    "fetched_at": 1793945028
   },
   "leatherworking": {
     "spells": [
@@ -86465,6 +86632,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -86569,6 +86739,9 @@
             1210,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -94806,6 +94979,9 @@
         "skill": 75,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -94818,6 +94994,15 @@
         "skill": 75,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "z": 2437
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -94830,6 +95015,15 @@
         "skill": 75,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "z": 2437
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -94842,6 +95036,9 @@
         "skill": 75,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -94854,6 +95051,9 @@
         "skill": 75,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -94866,6 +95066,9 @@
         "skill": 75,
         "level": 20,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -95170,17 +95373,17 @@
           2,
           5
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "dd": -1,
             "z": 719
           }
-        ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        ]
       },
       {
         "id": 252799,
@@ -95423,6 +95626,18 @@
         "skill": 125,
         "level": 30,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Kam Deepfury",
+            "t": 1,
+            "ti": 1666,
+            "z": 717
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99159,7 +99374,7 @@
         }
       }
     ],
-    "fetched_at": 1793790710
+    "fetched_at": 1793945030
   },
   "tailoring": {
     "spells": [
@@ -103178,9 +103393,9 @@
       {
         "id": 12052,
         "name": "Shadoweave Pants",
-        "learnedat": 175,
+        "learnedat": 190,
         "colors": [
-          175,
+          0,
           190,
           205,
           220
@@ -103252,9 +103467,9 @@
       {
         "id": 12055,
         "name": "Shadoweave Robe",
-        "learnedat": 180,
+        "learnedat": 195,
         "colors": [
-          180,
+          0,
           195,
           210,
           225
@@ -103680,9 +103895,9 @@
       {
         "id": 12071,
         "name": "Shadoweave Gloves",
-        "learnedat": 190,
+        "learnedat": 205,
         "colors": [
-          190,
+          0,
           205,
           220,
           235
@@ -103719,9 +103934,9 @@
       {
         "id": 12072,
         "name": "Black Mageweave Headband",
-        "learnedat": 190,
+        "learnedat": 205,
         "colors": [
-          190,
+          0,
           205,
           220,
           235
@@ -103754,9 +103969,9 @@
       {
         "id": 12073,
         "name": "Black Mageweave Boots",
-        "learnedat": 190,
+        "learnedat": 205,
         "colors": [
-          190,
+          0,
           205,
           220,
           235
@@ -103793,9 +104008,9 @@
       {
         "id": 12074,
         "name": "Black Mageweave Shoulders",
-        "learnedat": 190,
+        "learnedat": 205,
         "colors": [
-          190,
+          0,
           205,
           220,
           235
@@ -103866,9 +104081,9 @@
       {
         "id": 12076,
         "name": "Shadoweave Shoulders",
-        "learnedat": 195,
+        "learnedat": 210,
         "colors": [
-          195,
+          0,
           210,
           225,
           240
@@ -103905,9 +104120,9 @@
       {
         "id": 12077,
         "name": "Simple Black Dress",
-        "learnedat": 195,
+        "learnedat": 200,
         "colors": [
-          195,
+          0,
           200,
           205,
           210
@@ -103986,9 +104201,9 @@
       {
         "id": 12079,
         "name": "Red Mageweave Bag",
-        "learnedat": 195,
+        "learnedat": 210,
         "colors": [
-          195,
+          0,
           210,
           225,
           240
@@ -104101,9 +104316,9 @@
       {
         "id": 12082,
         "name": "Shadoweave Boots",
-        "learnedat": 200,
+        "learnedat": 215,
         "colors": [
-          200,
+          0,
           215,
           230,
           245
@@ -104254,9 +104469,9 @@
       {
         "id": 12088,
         "name": "Cindercloth Boots",
-        "learnedat": 200,
+        "learnedat": 215,
         "colors": [
-          200,
+          0,
           215,
           230,
           245
@@ -104369,9 +104584,9 @@
       {
         "id": 12092,
         "name": "Dreamweave Circlet",
-        "learnedat": 205,
+        "learnedat": 220,
         "colors": [
-          205,
+          0,
           220,
           235,
           250
@@ -104455,7 +104670,7 @@
         "id": 12180,
         "name": "Tailoring",
         "rank": "Artisan",
-        "learnedat": 200,
+        "learnedat": 9999,
         "trainingcost": 50000,
         "source": [
           6
@@ -104469,9 +104684,9 @@
       {
         "id": 18401,
         "name": "Bolt of Runecloth",
-        "learnedat": 205,
+        "learnedat": 210,
         "colors": [
-          205,
+          0,
           210,
           212,
           215
@@ -104500,9 +104715,9 @@
       {
         "id": 18402,
         "name": "Runecloth Belt",
-        "learnedat": 210,
+        "learnedat": 225,
         "colors": [
-          210,
+          0,
           225,
           240,
           255
@@ -108754,7 +108969,7 @@
           1,
           1
         ],
-        "trainingcost": 100,
+        "trainingcost": 105,
         "reagents": [
           [
             2996,
@@ -119973,11 +120188,6 @@
         "skill": 280,
         "level": 1,
         "quality": 3,
-        "sourcemore": [
-          {
-            "z": 16236
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -119989,7 +120199,12 @@
             "Effects reworded"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "z": 16236
+          }
+        ]
       },
       {
         "id": 239149,
@@ -123043,6 +123258,6 @@
         }
       }
     ],
-    "fetched_at": 1793790710
+    "fetched_at": 1793945031
   }
 }

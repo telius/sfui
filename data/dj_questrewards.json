@@ -615,7 +615,6 @@
     "rewardSummary": "Attunement to Naxxramas"
   },
   "92401": {
-    "name": "A Frightened Request",
     "rewardItems": [
       251485,
       251486
@@ -623,14 +622,12 @@
     "rewardSummary": "8s"
   },
   "92415": {
-    "name": "Remember That I Love You",
     "rewardItems": [
       279870
     ],
     "rewardSummary": "8s"
   },
   "92421": {
-    "name": "Light's Justice",
     "rewardItems": [
       279874,
       279875
@@ -638,7 +635,6 @@
     "rewardSummary": "9s"
   },
   "92422": {
-    "name": "The Wrath of Rath'mael",
     "rewardItems": [
       251533,
       251534
@@ -646,12 +642,10 @@
     "rewardSummary": "12s"
   },
   "92753": {
-    "name": "Destruction in Deadmines",
     "rewardItems": [],
     "rewardSummary": "20s"
   },
   "95195": {
-    "name": "Bloodied Insignia",
     "rewardItems": [
       279868,
       279869
@@ -659,14 +653,12 @@
     "rewardSummary": "10s"
   },
   "95204": {
-    "name": "Crest of Lordaeron",
     "rewardItems": [
       280567
     ],
     "rewardSummary": "8s"
   },
   "95216": {
-    "name": "The New Plague",
     "rewardItems": [
       279876,
       279877
@@ -674,7 +666,6 @@
     "rewardSummary": "10s"
   },
   "95250": {
-    "name": "Abominable Creatures",
     "rewardItems": [
       279867,
       279865,
@@ -683,7 +674,6 @@
     "rewardSummary": ""
   },
   "96393": {
-    "name": "Old Ironforge Incursion",
     "rewardItems": [
       279894,
       279895,
@@ -692,7 +682,6 @@
     "rewardSummary": "8s"
   },
   "96394": {
-    "name": "The Restless Dead",
     "rewardItems": [
       279897,
       280095
@@ -700,7 +689,6 @@
     "rewardSummary": "7s"
   },
   "96395": {
-    "name": "An Ancient Grudge",
     "rewardItems": [
       279899,
       279900
@@ -708,7 +696,6 @@
     "rewardSummary": "7s"
   },
   "96403": {
-    "name": "Important Heirlooms",
     "rewardItems": [
       279898,
       280096
@@ -732,7 +719,6 @@
     "rewardSummary": ""
   },
   "97288": {
-    "name": "Unending Torment",
     "rewardItems": [
       279867,
       279865,
@@ -746,7 +732,6 @@
     "rewardSummary": "20s"
   },
   "98423": {
-    "name": "The Treaty of Understanding",
     "rewardItems": [],
     "rewardSummary": "16s"
   },
@@ -1034,6 +1019,30 @@
     "rewardSummary": ""
   },
   "98824": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "544": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "545": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "92432": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "92434": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "93680": {
+    "rewardItems": [],
+    "rewardSummary": ""
+  },
+  "95770": {
     "rewardItems": [],
     "rewardSummary": ""
   }

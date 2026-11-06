@@ -1383,7 +1383,7 @@
       "name": "Badlands",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582653
+      "fetched_at": 1793952415
     },
     "1419": {
       "uimap": 1419,
@@ -3515,7 +3515,7 @@
       "name": "Searing Gorge",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582659
+      "fetched_at": 1793952416
     },
     "1428": {
       "uimap": 1428,
@@ -12217,7 +12217,7 @@
       "name": "Ironforge",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582683
+      "fetched_at": 1793952416
     },
     "1456": {
       "uimap": 1456,
@@ -13476,7 +13476,7 @@
       "name": "Zephras Isle",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582687
+      "fetched_at": 1793952418
     },
     "2482": {
       "uimap": 2482,
@@ -13484,7 +13484,7 @@
       "name": "Mount Hyjal",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582686
+      "fetched_at": 1793952418
     },
     "2548": {
       "uimap": 2548,
@@ -13492,7 +13492,7 @@
       "name": "Riverglades",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582687
+      "fetched_at": 1793952419
     },
     "100718": {
       "uimap": 100718,
@@ -13500,7 +13500,7 @@
       "name": "Wailing Caverns",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582688
+      "fetched_at": 1793952421
     },
     "100719": {
       "uimap": 100719,
@@ -13508,7 +13508,7 @@
       "name": "Blackfathom Deeps",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582688
+      "fetched_at": 1793952423
     },
     "100796": {
       "uimap": 100796,
@@ -13516,7 +13516,7 @@
       "name": "Scarlet Monastery",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582689
+      "fetched_at": 1793952423
     },
     "101477": {
       "uimap": 101477,
@@ -13524,7 +13524,7 @@
       "name": "Sunken Temple",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582690
+      "fetched_at": 1793952425
     },
     "101977": {
       "uimap": 101977,
@@ -13532,7 +13532,7 @@
       "name": "Zul'Gurub",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582691
+      "fetched_at": 1793952425
     },
     "102017": {
       "uimap": 102017,
@@ -13540,7 +13540,7 @@
       "name": "Stratholme",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582692
+      "fetched_at": 1793952427
     },
     "102057": {
       "uimap": 102057,
@@ -13548,7 +13548,7 @@
       "name": "Scholomance",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582693
+      "fetched_at": 1793952428
     },
     "102100": {
       "uimap": 102100,
@@ -13556,7 +13556,7 @@
       "name": "Maraudon",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582694
+      "fetched_at": 1793952429
     },
     "102557": {
       "uimap": 102557,
@@ -13564,7 +13564,7 @@
       "name": "Dire Maul",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793582694
+      "fetched_at": 1793952430
     },
     "2652": {
       "uimap": 2652,
@@ -13572,7 +13572,7 @@
       "name": "Shen'dralas",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793587172
+      "fetched_at": 1793952421
     }
   },
   "species": {

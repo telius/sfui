@@ -117,19 +117,7 @@ local function GetQuestRewardItems(questID, questLogIndex)
         end
     end
 
-    local prevSelection
-    local needRestore = false
-
-    if qIndex and _G.SelectQuestLogEntry and _G.GetQuestLogSelection then
-        local okSel, sel = pcall(_G.GetQuestLogSelection)
-        if okSel and sel ~= qIndex then
-            prevSelection = sel
-            pcall(_G.SelectQuestLogEntry, qIndex)
-            needRestore = true
-        end
-    end
-
-    -- Query choices
+    -- Query choices (pass questID directly to avoid tainting QuestLog selection via SelectQuestLogEntry)
     local numChoices = SafeGetNumQuestLogChoices(questID)
     if numChoices > 0 and _G.GetQuestLogChoiceInfo then
         for i = 1, numChoices do
@@ -185,10 +173,6 @@ local function GetQuestRewardItems(questID, questLogIndex)
                 })
             end
         end
-    end
-
-    if needRestore and prevSelection and prevSelection > 0 and _G.SelectQuestLogEntry then
-        pcall(_G.SelectQuestLogEntry, prevSelection)
     end
 
     return choices, rewards
@@ -496,16 +480,6 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             local desc, obj = _G.GetQuestLogQuestText(bData.questLogIndex)
             if obj and obj ~= "" and not issecretvalue(obj) then
                 questDesc = obj
-            elseif not obj and _G.SelectQuestLogEntry and _G.GetQuestLogSelection then
-                local prev = _G.GetQuestLogSelection()
-                _G.SelectQuestLogEntry(bData.questLogIndex)
-                local d, o = _G.GetQuestLogQuestText()
-                if prev and prev > 0 then _G.SelectQuestLogEntry(prev) end
-                if o and o ~= "" and not issecretvalue(o) then
-                    questDesc = o
-                elseif d and d ~= "" and not issecretvalue(d) then
-                    questDesc = d
-                end
             elseif desc and desc ~= "" and not issecretvalue(desc) then
                 questDesc = desc
             end

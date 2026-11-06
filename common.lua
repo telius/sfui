@@ -1486,8 +1486,29 @@ function sfui.common.get_player_unique_key()
 end
 
 function sfui.common.get_player_display_name()
-    local name = _G.UnitName and _G.UnitName("player")
-    return (name and name ~= "" and name ~= "Unknown Entity") and name or "Unknown"
+    if sfui.alts and sfui.alts.GetDisplayName and _G.SfuiDB and _G.SfuiDB.alts then
+        local guid = _G.UnitGUID and _G.UnitGUID("player")
+        local myAlt = guid and _G.SfuiDB.alts[guid]
+        if myAlt then
+            local disp = sfui.alts.GetDisplayName(myAlt, guid)
+            if disp and disp ~= "" and disp ~= "Unknown" then
+                return disp
+            end
+        end
+    end
+    local name, arg2 = _G.UnitName and _G.UnitName("player")
+    if name and name ~= "" and name ~= "Unknown Entity" and name ~= "Unknown" then
+        if (sfui.isCamelot or (_G.RegionalUniqueNamesEnabled and _G.RegionalUniqueNamesEnabled())) and arg2 and arg2 ~= "" and not name:find(" ", 1, true) then
+            local r1 = _G.GetRealmName and _G.GetRealmName()
+            local r2 = _G.GetNormalizedRealmName and _G.GetNormalizedRealmName()
+            if arg2 ~= r1 and arg2 ~= r2 then
+                local sep = (_G.Constants and _G.Constants.CharacterNameSeparatorConsts and _G.Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
+                return name .. sep .. arg2
+            end
+        end
+        return name
+    end
+    return "Unknown"
 end
 
 -- helper to systematically hide blizzard cooldownviewer frames without mutating EditModeSystemMixin anchors

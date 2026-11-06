@@ -619,6 +619,41 @@ local function RenderTrackedBarsRightSide(parent, width)
         end
     end
 
+    -- 3. Cooldown-category items that carry a self aura (e.g. forever's paladin "seals",
+    --    linked to every seal). blizzard never gives these a buff bar frame, so tracked
+    --    bars drive them from the shared aura resolver (frames/tracking/auras.lua).
+    local auraResolver = sfui.tracking and sfui.tracking.auras
+    if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+        local cdCats = { 0, 1 }
+        if Enum and Enum.CooldownViewerCategory then
+            cdCats = {}
+            for _, catKey in ipairs({ "Essential", "Utility", "SpecAgnosticEssential" }) do
+                if Enum.CooldownViewerCategory[catKey] ~= nil then
+                    table.insert(cdCats, Enum.CooldownViewerCategory[catKey])
+                end
+            end
+        end
+        for _, cat in ipairs(cdCats) do
+            for _, allowUnlearned in ipairs({ true, false }) do
+                local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, allowUnlearned)
+                if ok and ids then
+                    for _, id in ipairs(ids) do
+                        local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+                        local linked = info and info.linkedSpellIDs
+                        local known = auraResolver and auraResolver.IsCooldownItemKnown
+                            and auraResolver.IsCooldownItemKnown(info, id) or (info and info.isKnown ~= false)
+                        local wantsAura = auraResolver and auraResolver.WantsAura
+                            and auraResolver.WantsAura(info, false, linked, info and info.spellID, id)
+                            or (info and (info.selfAura or (linked and #linked > 0)))
+                        if info and not info.equipSlot and not info.spellCategoryID and known and wantsAura then
+                            addID(id)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     -- 4. Any already tracked bars in SFUI's DB for this spec
     local specBars = common.get_tracked_bars()
     if specBars then
@@ -675,11 +710,10 @@ local function RenderTrackedBarsRightSide(parent, width)
 
         local isItem = (meta.equipSlot ~= nil or meta.spellCategoryID ~= nil or (meta.itemID and meta.itemID > 0))
         local cdInfo = meta.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(meta.cooldownID)
-        if not isItem and cdInfo and cdInfo.isKnown == false then
-            icon.texture:SetDesaturated(true)
-        else
-            icon.texture:SetDesaturated(false)
-        end
+        local isKnown = isItem or not cdInfo
+            or (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(cdInfo, meta.cooldownID))
+            or cdInfo.isKnown ~= false
+        icon.texture:SetDesaturated(not isKnown)
 
         -- Hide all borders initially
         if icon.borders then
@@ -1297,12 +1331,11 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
 
             local isItem = (meta.equipSlot ~= nil or meta.spellCategoryID ~= nil or (meta.itemID and meta.itemID > 0))
             local cdInfo = meta.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(meta.cooldownID)
-
-            if not isItem and cdInfo and cdInfo.isKnown == false then
-                icon.texture:SetDesaturated(true)
-            else
-                icon.texture:SetDesaturated(false)
-            end
+            local auraResolver = sfui.tracking and sfui.tracking.auras
+            local isKnown = isItem or not cdInfo
+                or (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(cdInfo, meta.cooldownID))
+                or cdInfo.isKnown ~= false
+            icon.texture:SetDesaturated(not isKnown)
 
             -- Set attributes for the shared click/drag/tooltip handlers
             icon.id = iconId
@@ -1356,12 +1389,16 @@ local function RenderAssignmentsIconPool(parent, width, entries)
     local yPos = -25
     local list = {}
     local seen = {}
+    local auraResolver = sfui.tracking and sfui.tracking.auras
 
     local function addID(id, cat)
         if not id or common.issecretvalue(id) or not IsValidID(id) or seen[id] then return end
         local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
         local isItemCategory = (cat == 5 or cat == 7 or (cdInfo and (cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0))))
-        if isItemCategory or not cdInfo or cdInfo.isKnown ~= false then
+        local isKnown = isItemCategory or not cdInfo
+            or (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(cdInfo, id))
+            or cdInfo.isKnown ~= false
+        if isKnown then
             seen[id] = true
             table.insert(list, id)
         end
@@ -1381,6 +1418,21 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         end
     end
     if #cats == 0 then cats = { 0, 1, 7, 5 } end
+
+    -- buff-category items too: tracked icons show their aura duration via the shared
+    -- aura resolver, so self buffs can live in icon panels as well as tracked bars
+    local buffCats = { 2, 3 }
+    if Enum and Enum.CooldownViewerCategory then
+        buffCats = {}
+        for _, catKey in ipairs({ "TrackedBuff", "TrackedBar" }) do
+            if Enum.CooldownViewerCategory[catKey] ~= nil then
+                table.insert(buffCats, Enum.CooldownViewerCategory[catKey])
+            end
+        end
+    end
+    for _, cat in ipairs(buffCats) do
+        table.insert(cats, cat)
+    end
 
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
         for _, cat in ipairs(cats) do
