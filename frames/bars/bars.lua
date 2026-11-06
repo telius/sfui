@@ -116,14 +116,6 @@ do
             bar0.backdrop:SetPoint(pt, UIParent, relPt, x, y)
         end
 
-        local pf = _G.PlayerFrame
-        if pf and pf.Selection then
-            if pf.Selection.SetAlpha then pf.Selection:SetAlpha(0) end
-            if pf.Selection.EnableMouse then pf.Selection:EnableMouse(false) end
-            if pf.Selection.EnableMouseClicks then pf.Selection:EnableMouseClicks(false) end
-            if pf.Selection.EnableMouseMotion then pf.Selection:EnableMouseMotion(false) end
-        end
-
         if is_dragonflying() then
             if mount_speed_bar and mount_speed_bar.backdrop and vigor_bar and vigor_bar.backdrop then
                 mount_speed_bar.backdrop:ClearAllPoints()

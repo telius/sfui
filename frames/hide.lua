@@ -118,6 +118,7 @@ local hookedBarsAndMenu = false
 local _savedFrameState = setmetatable({}, { __mode = "k" })
 local _hookedOffscreen = setmetatable({}, { __mode = "k" })
 local _inOffscreenMove = setmetatable({}, { __mode = "k" })
+local _suppressedBySfui = setmetatable({}, { __mode = "k" })
 
 local MICRO_BUTTON_NAMES = {
     "CharacterMicroButton", "ProfessionMicroButton", "PlayerSpellsMicroButton",
@@ -341,6 +342,7 @@ end
 
 local function SuppressFrame(frame, entry)
     if not frame then return end
+    _suppressedBySfui[frame] = true
     local key = entry and entry.key
     if key == "hide_micromenu" or key == "hide_bagsbar" then
         ParkFrameOffscreen(frame, key)
@@ -378,7 +380,8 @@ local function SuppressFrame(frame, entry)
 end
 
 local function RestoreFrame(frame, entry)
-    if not frame then return end
+    if not frame or not _suppressedBySfui[frame] then return end
+    _suppressedBySfui[frame] = nil
     local key = entry and entry.key
     if key == "hide_micromenu" or key == "hide_bagsbar" then
         RestoreFrameFromOffscreen(frame, key)

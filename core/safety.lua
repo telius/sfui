@@ -10,7 +10,6 @@ sfui.common = sfui.common or {}
 
 local _issecretvalue = _G.issecretvalue
 local C_Secrets      = _G.C_Secrets
-local GetCVar        = _G.GetCVar
 
 local function issecretvalue(val)
     if _issecretvalue then
@@ -363,100 +362,6 @@ function sfui.safety.copy(t)
     return res
 end
 sfui.common.copy = sfui.safety.copy
-
--- ────────────────────────────────────────────────────────────────────────────
--- TextStatusBar Raw Value Forwarding (Fix for Blizzard_TextStatusBar/TextStatusBar.lua:110)
--- ────────────────────────────────────────────────────────────────────────────
--- In WoW 12.0 / 1.60.1, StatusBar:GetValue() and StatusBar:GetMinMaxValues() return
--- raw/secret values. Blizzard's TextStatusBarMixin:UpdateTextStringWithValues
--- performs `tonumber(valueMax) ~= valueMax or valueMax > 0`, which crashes when looking
--- at secret values. Instead of inspecting or using pcalls, take the raw API values and
--- directly forward them to the text element.
-local function forward_statusbar_values(self, textString, value, valueMin, valueMax)
-    if not textString or not textString.SetText then return end
-
-    if self.LeftText and self.RightText then
-        self.LeftText:SetText("")
-        self.RightText:SetText("")
-        self.LeftText:Hide()
-        self.RightText:Hide()
-    end
-
-    if self.pauseUpdates then
-        return
-    end
-
-    -- do not call self:show() here: unit frame status bars inherit
-    -- secureframeparentpropagationtemplate and are protected in combat,
-    -- which triggers addon_action_blocked on statusbar:show().
-
-    local isShown = false
-    if (self.cvar and GetCVar and GetCVar(self.cvar) == "1" and self.textLockable) or self.forceShow then
-        isShown = true
-    elseif self.lockShow and self.lockShow > 0 and (not self.forceHideText) then
-        isShown = true
-    end
-
-    if not isShown then
-        textString:SetText("")
-        textString:Hide()
-        return
-    end
-
-    -- directly forward raw api values to the element without looking at them
-    if self.disableMaxValue or valueMax == nil then
-        textString:SetText(value)
-    else
-        textString:SetFormattedText("%s / %s", value, valueMax)
-    end
-    textString:Show()
-end
-
-local function install_text_status_bar_safety()
-    -- On Retail (12.1.0+), Blizzard's native C++ status bar engine handles secret values
-    -- correctly. Overriding TextStatusBarMixin taints Blizzard unit frames and triggers
-    -- secret value comparison errors in CompactUnitFrame (e.g. oldR ~= r).
-    if sfui.isRetail then return end
-    local mixin = _G.TextStatusBarMixin
-    if mixin and not mixin._sfui_forward then
-        mixin._sfui_forward = true
-        mixin.UpdateTextStringWithValues = forward_statusbar_values
-    end
-end
-install_text_status_bar_safety()
-
-local function protect_bar(bar)
-    if sfui.isRetail then return end
-    if not bar or bar._sfui_forward then return end
-    bar._sfui_forward = true
-    bar.UpdateTextStringWithValues = forward_statusbar_values
-end
-
-local function protect_core_status_bars()
-    if sfui.isRetail then return end
-    install_text_status_bar_safety()
-    protect_bar(_G.PlayerFrameHealthBar)
-    protect_bar(_G.PlayerFrameManaBar)
-    protect_bar(_G.PetFrameHealthBar)
-    protect_bar(_G.PetFrameManaBar)
-    protect_bar(_G.TargetFrameHealthBar)
-    protect_bar(_G.TargetFrameManaBar)
-    protect_bar(_G.FocusFrameHealthBar)
-    protect_bar(_G.FocusFrameManaBar)
-    if _G.PlayerFrame_GetHealthBar then
-        protect_bar(_G.PlayerFrame_GetHealthBar())
-    end
-    if _G.PlayerFrame_GetManaBar then
-        protect_bar(_G.PlayerFrame_GetManaBar())
-    end
-    if _G.PlayerFrame_GetAlternatePowerBar then
-        protect_bar(_G.PlayerFrame_GetAlternatePowerBar())
-    end
-end
-protect_core_status_bars()
-
-sfui.events.RegisterEvent("PLAYER_LOGIN", protect_core_status_bars)
-sfui.events.RegisterEvent("ADDON_LOADED", protect_core_status_bars)
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Unified Out-of-Combat Execution Queue
