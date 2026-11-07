@@ -1879,6 +1879,9 @@ local function handle_want_from_peer(sender, want, replyChannel, bnetIDAccount)
     if sfui.camelot_skills and sfui.camelot_skills.BroadcastTrackedSkills then
         sfui.camelot_skills.BroadcastTrackedSkills(true)
     end
+    if sfui.recipes and sfui.recipes.BroadcastPinnedRecipes then
+        sfui.recipes.BroadcastPinnedRecipes(true)
+    end
 end
 
 local pendingIncomingPairReq = nil
@@ -2542,6 +2545,26 @@ local function has_objective_text_progress(txt, isFinFlag)
     return false
 end
 
+local function is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap)
+    if type(alt) ~= "table" then return false, false, "" end
+    -- Another alt on the local account cannot be online/in-party while we are logged into myGUID
+    if s and s.accountID and s.accountID ~= "" and alt.accountID and alt.accountID == s.accountID then
+        local cleanName = alt_display_name(alt, guid):lower()
+        return false, false, cleanName
+    end
+    local cleanName = alt_display_name(alt, guid):lower()
+    if cleanName == "" then return false, false, "" end
+    local firstOnly = short_name(alt.name or ""):lower()
+    local allowFirstFallback = (cleanName == firstOnly and firstOnly ~= "")
+    local inParty = (partyGUIDs[guid] == true)
+        or (partyNames[cleanName] == true)
+        or (allowFirstFallback and partyNames[firstOnly] == true)
+    local isOnline = inParty
+        or (liveMap[cleanName] ~= nil)
+        or (allowFirstFallback and liveMap[firstOnly] ~= nil)
+    return inParty, isOnline, cleanName
+end
+
 -- Returns an array of class-colored lowercase character names for synced party
 -- members who do NOT have `questID` in their active quest log and have not completed it.
 function sync.GetPartyMissingQuestPeers(questID)
@@ -2553,16 +2576,15 @@ function sync.GetPartyMissingQuestPeers(questID)
     if not SfuiDB or type(SfuiDB.alts) ~= "table" then return nil end
 
     local partyGUIDs, partyNames = build_party_guid_and_name_maps()
+    local liveMap = build_live_online_map()
     local myGUID = UnitGUID and UnitGUID("player")
     local missing = nil
     local seenNames = {}
 
     for guid, alt in pairs(SfuiDB.alts) do
         if guid ~= myGUID and type(alt) == "table" and type(alt.activeQuests) == "table" then
-            local cleanName = alt_display_name(alt, guid):lower()
-            local firstOnly = short_name(alt.name or ""):lower()
-            if (partyGUIDs[guid] or (cleanName ~= "" and partyNames[cleanName]) or (firstOnly ~= "" and partyNames[firstOnly]))
-                and cleanName ~= "" and not seenNames[cleanName] then
+            local inParty, _, cleanName = is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap)
+            if inParty and cleanName ~= "" and not seenNames[cleanName] then
                 seenNames[cleanName] = true
                 local hasActive = (alt.activeQuests[questID] ~= nil)
                 local hasCompleted = is_alt_quest_done(alt, questID)
@@ -2596,11 +2618,8 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
 
     for guid, alt in pairs(SfuiDB.alts) do
         if guid ~= myGUID and type(alt) == "table" and (type(alt.activeQuests) == "table" or type(alt.djQuests) == "table") then
-            local cleanName = alt_display_name(alt, guid):lower()
-            local firstOnly = short_name(alt.name or ""):lower()
+            local inParty, isOnline, cleanName = is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap)
             if cleanName ~= "" and not seenNames[cleanName] then
-                local inParty = (partyGUIDs[guid] == true) or (partyNames[cleanName] == true) or (firstOnly ~= "" and partyNames[firstOnly] == true)
-                local isOnline = inParty or (liveMap[cleanName] ~= nil) or (firstOnly ~= "" and liveMap[firstOnly] ~= nil)
                 if includeAllAlts or inParty or isOnline then
                     seenNames[cleanName] = true
                     local status = "missing"
@@ -2668,6 +2687,172 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
     end
 
     return results
+end
+
+-- Returns active class quests (`qEntry.cl == 1`) held by online or in-party synced characters.
+function sync.GetSyncedPeerClassQuests()
+    local s = sync.GetSettings()
+    if not s.enabled or s.syncQuests == false then return nil end
+    if not SfuiDB or type(SfuiDB.alts) ~= "table" then return nil end
+
+    local partyGUIDs, partyNames = build_party_guid_and_name_maps()
+    local liveMap = build_live_online_map()
+    local myGUID = UnitGUID and UnitGUID("player")
+
+    local activePeers = {}
+    local seenNames = {}
+    for guid, alt in pairs(SfuiDB.alts) do
+        if guid ~= myGUID and type(alt) == "table" and type(alt.activeQuests) == "table" then
+            local inParty, isOnline, cleanName = is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap)
+            if (inParty or isOnline) and cleanName ~= "" and not seenNames[cleanName] then
+                seenNames[cleanName] = true
+                activePeers[#activePeers + 1] = {
+                    guid        = guid,
+                    alt         = alt,
+                    name        = cleanName,
+                    coloredName = format_colored_char_name(alt, cleanName, guid),
+                    class       = alt.class,
+                    inParty     = inParty,
+                    isOnline    = isOnline,
+                }
+            end
+        end
+    end
+
+    if #activePeers == 0 then return nil end
+    table.sort(activePeers, function(a, b)
+        if a.inParty ~= b.inParty then return a.inParty end
+        return (a.name or "") < (b.name or "")
+    end)
+
+    local questsByKey = {}
+    local questOrder = {}
+
+    for _, p in ipairs(activePeers) do
+        local classToken = p.class or "UNKNOWN"
+        for rawQID, qEntry in pairs(p.alt.activeQuests) do
+            local qID = tonumber(rawQID)
+            if qID and type(qEntry) == "table" and qEntry.cl == 1 then
+                local mapKey = classToken .. ":" .. tostring(qID)
+                local qGroup = questsByKey[mapKey]
+                if not qGroup then
+                    qGroup = {
+                        questID            = qID,
+                        title              = qEntry.t or ("Quest " .. tostring(qID)),
+                        level              = tonumber(qEntry.l) or 0,
+                        suggestedGroup     = tonumber(qEntry.g) or 1,
+                        classToken         = classToken,
+                        hasProgress        = false,
+                        hasIncompletePeers = false,
+                        peerObjLines       = nil,
+                        objByKey           = nil,
+                        readyPeers         = nil,
+                    }
+                    questsByKey[mapKey] = qGroup
+                    questOrder[#questOrder + 1] = qGroup
+                else
+                    if (not qGroup.title or qGroup.title == "") and qEntry.t then
+                        qGroup.title = qEntry.t
+                    end
+                    if qGroup.level == 0 and tonumber(qEntry.l) and tonumber(qEntry.l) > 0 then
+                        qGroup.level = tonumber(qEntry.l)
+                    end
+                    if qGroup.suggestedGroup <= 1 and tonumber(qEntry.g) and tonumber(qEntry.g) > 1 then
+                        qGroup.suggestedGroup = tonumber(qEntry.g)
+                    end
+                end
+
+                local pLabel = p.coloredName or p.name or "?"
+                if qEntry.c == 1 then
+                    qGroup.hasProgress = true
+                    qGroup.readyPeers = qGroup.readyPeers or {}
+                    qGroup.readyPeers[#qGroup.readyPeers + 1] = pLabel
+                else
+                    qGroup.hasIncompletePeers = true
+                    local objs = qEntry.o
+                    local objFin = qEntry.f
+                    local addedAnyObj = false
+                    if type(objs) == "table" and #objs > 0 then
+                        for idx, oTxt in ipairs(objs) do
+                            local finFlag = type(objFin) == "table" and objFin[idx] or nil
+                            local isFin = is_objective_text_finished(oTxt, finFlag)
+                            if has_objective_text_progress(oTxt, finFlag) then
+                                qGroup.hasProgress = true
+                            end
+                            if not isFin then
+                                local clean = tostring(oTxt or ""):gsub(" / ", "/")
+                                if clean ~= "" then
+                                    addedAnyObj = true
+                                    local oKey = clean:lower()
+                                    qGroup.peerObjLines = qGroup.peerObjLines or {}
+                                    qGroup.objByKey = qGroup.objByKey or {}
+                                    local entry = qGroup.objByKey[oKey]
+                                    if not entry then
+                                        entry = {
+                                            text  = clean,
+                                            names = { pLabel },
+                                        }
+                                        qGroup.objByKey[oKey] = entry
+                                        qGroup.peerObjLines[#qGroup.peerObjLines + 1] = entry
+                                    else
+                                        entry.names[#entry.names + 1] = pLabel
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    if not addedAnyObj then
+                        local oKey = "in progress"
+                        qGroup.peerObjLines = qGroup.peerObjLines or {}
+                        qGroup.objByKey = qGroup.objByKey or {}
+                        local entry = qGroup.objByKey[oKey]
+                        if not entry then
+                            entry = {
+                                text  = "in progress",
+                                names = { pLabel },
+                            }
+                            qGroup.objByKey[oKey] = entry
+                            qGroup.peerObjLines[#qGroup.peerObjLines + 1] = entry
+                        else
+                            entry.names[#entry.names + 1] = pLabel
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if #questOrder == 0 then return nil end
+
+    -- Check if any same-class synced party peer is missing a class quest held by another peer of that class
+    for _, qGroup in ipairs(questOrder) do
+        qGroup.objByKey = nil
+        local missingPeers = nil
+        for _, p in ipairs(activePeers) do
+            if p.inParty and p.class == qGroup.classToken then
+                local hasActive = (p.alt.activeQuests and p.alt.activeQuests[qGroup.questID] ~= nil)
+                local hasCompleted = is_alt_quest_done(p.alt, qGroup.questID)
+                if not hasActive and not hasCompleted then
+                    missingPeers = missingPeers or {}
+                    missingPeers[#missingPeers + 1] = p.coloredName or p.name
+                end
+            end
+        end
+        qGroup.missingPeers = missingPeers
+        qGroup.hasMissingParty = (missingPeers ~= nil and #missingPeers > 0)
+    end
+
+    table.sort(questOrder, function(a, b)
+        if a.classToken ~= b.classToken then
+            return (a.classToken or "") < (b.classToken or "")
+        end
+        if a.level ~= b.level then
+            return (a.level or 0) < (b.level or 0)
+        end
+        return (a.title or "") < (b.title or "")
+    end)
+
+    return questOrder
 end
 
 local function on_regen_enabled()

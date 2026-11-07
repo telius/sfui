@@ -157,13 +157,18 @@ local function SetThreatBarShown(show)
     local wasShown = threatBar.backdrop:IsShown()
     if show and not wasShown then
         threatBar.backdrop:Show()
+        UpdateDimensionsAndPosition(false)
         if sfui.bars and sfui.bars.update_bar_positions then
-            sfui.bars:update_bar_positions()
+            sfui.bars.update_bar_positions()
+        elseif sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+            sfui.trackedbars.ForceLayoutUpdate()
         end
     elseif not show and wasShown then
         threatBar.backdrop:Hide()
         if sfui.bars and sfui.bars.update_bar_positions then
-            sfui.bars:update_bar_positions()
+            sfui.bars.update_bar_positions()
+        elseif sfui.trackedbars and sfui.trackedbars.ForceLayoutUpdate then
+            sfui.trackedbars.ForceLayoutUpdate()
         end
     end
 end

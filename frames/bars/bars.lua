@@ -103,7 +103,6 @@ do
     local invalidate_dragonflying_cache = common.invalidate_dragonflying_cache
 
     local function update_bar_positions()
-        if InCombatLockdown and InCombatLockdown() then return end
         local spacing = cfg.barLayout.spacing
 
         if bar0 and bar0.backdrop then
@@ -114,6 +113,10 @@ do
             local x = (SfuiDB and SfuiDB.healthBarX) or cfg.pos.x
             local y = (SfuiDB and SfuiDB.healthBarY) or cfg.pos.y
             bar0.backdrop:SetPoint(pt, UIParent, relPt, x, y)
+        end
+
+        if not sfui.isRetail and sfui.threat and sfui.threat.UpdatePosition then
+            sfui.threat.UpdatePosition()
         end
 
         if is_dragonflying() then
@@ -174,9 +177,6 @@ do
                 sfui.soulfragments:UpdatePosition()
             end
         else
-            if sfui.threat and sfui.threat.UpdatePosition then
-                sfui.threat.UpdatePosition()
-            end
             if sfui.pet and sfui.pet.UpdatePosition then
                 sfui.pet.UpdatePosition()
             end
@@ -358,6 +358,10 @@ do
 
         if not sfui.isRetail and sfui.swing then
             sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, inVehicle)
+        end
+
+        if not sfui.isRetail and sfui.threat and sfui.threat.UpdateVisibility then
+            sfui.threat.UpdateVisibility()
         end
 
         if sfui.pet and sfui.pet.UpdateVisibility then

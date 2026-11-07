@@ -516,6 +516,10 @@ local function UpdateLayout()
             anchor = _G["sfui_bar1_Backdrop"]
         elseif _G["sfui_runeBar"] and _G["sfui_runeBar"]:IsShown() then
             anchor = _G["sfui_runeBar"]
+        elseif not sfui.isRetail and sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame() then
+            anchor = sfui.threat.GetAnchorFrame()
+        elseif _G["SfuiThreatBar_Backdrop"] and _G["SfuiThreatBar_Backdrop"]:IsShown() then
+            anchor = _G["SfuiThreatBar_Backdrop"]
         end
 
         if anchor and anchor:IsShown() then
@@ -561,10 +565,14 @@ local function GetBaseAttachedAnchor()
     local anchor = _G["sfui_bar0_Backdrop"]
     if _G["SfuiSoulFragmentsBar"] and (_G["SfuiSoulFragmentsBar"]:IsShown() or (SfuiDB and SfuiDB.enableSoulFragments ~= false)) then
         anchor = _G["SfuiSoulFragmentsBar"]
-    elseif _G["sfui_bar1_Backdrop"] and (_G["sfui_bar1_Backdrop"]:IsShown() or (SfuiDB and SfuiDB.enablePowerBar ~= false)) then
+    elseif _G["sfui_bar1_Backdrop"] and (_G["sfui_bar1_Backdrop"]:IsShown() or (common.get_secondary_resource and common.get_secondary_resource() and (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false))) then
         anchor = _G["sfui_bar1_Backdrop"]
     elseif _G["sfui_runeBar"] and (_G["sfui_runeBar"]:IsShown() or (SfuiDB and SfuiDB.enableRuneBar ~= false)) then
         anchor = _G["sfui_runeBar"]
+    elseif not sfui.isRetail and sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame() then
+        anchor = sfui.threat.GetAnchorFrame()
+    elseif _G["SfuiThreatBar_Backdrop"] and _G["SfuiThreatBar_Backdrop"]:IsShown() then
+        anchor = _G["SfuiThreatBar_Backdrop"]
     end
     return anchor or _G["sfui_bar0_Backdrop"]
 end

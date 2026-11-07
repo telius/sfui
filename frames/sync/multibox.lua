@@ -1143,6 +1143,9 @@ function multibox.HandleSyncMessage(sender, msgType, data)
     elseif (msgType == "DELTA_TRACKED_SKILLS" or msgType == "DELTA_SKILL_UNTRACK")
         and sfui.camelot_skills and sfui.camelot_skills.HandleSyncMessage then
         sfui.camelot_skills.HandleSyncMessage(sender, msgType, data)
+    elseif (msgType == "DELTA_PINNED_RECIPES" or msgType == "DELTA_RECIPE_UNPIN")
+        and sfui.recipes and sfui.recipes.HandleSyncMessage then
+        sfui.recipes.HandleSyncMessage(sender, msgType, data)
     end
 end
 

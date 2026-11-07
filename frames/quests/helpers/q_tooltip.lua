@@ -496,24 +496,26 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         end
 
         -- Objective lines
-        if bData.lines and #bData.lines > 0 then
-            tip:AddLine(" ")
-            for _, line in ipairs(bData.lines) do
-                if line.text and line.text ~= "" and not issecretvalue(line.text) then
-                    local r, g, b = 0.75, 0.75, 0.75
-                    if line.completed then r, g, b = 0.30, 0.80, 0.30 end
-                    tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), r, g, b, true)
-                end
-            end
-        elseif _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives then
-            local objs = _G.C_QuestLog.GetQuestObjectives(bData.questID)
-            if objs and #objs > 0 then
+        if not bData.isRemotePeerQuest then
+            if bData.lines and #bData.lines > 0 then
                 tip:AddLine(" ")
-                for _, obj in ipairs(objs) do
-                    if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
+                for _, line in ipairs(bData.lines) do
+                    if line.text and line.text ~= "" and not issecretvalue(line.text) then
                         local r, g, b = 0.75, 0.75, 0.75
-                        if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
-                        tip:AddLine("  " .. (obj.finished and ICON_CHECK or ICON_BULLET) .. tostring(obj.text), r, g, b, true)
+                        if line.completed then r, g, b = 0.30, 0.80, 0.30 end
+                        tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), r, g, b, true)
+                    end
+                end
+            elseif _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives then
+                local objs = _G.C_QuestLog.GetQuestObjectives(bData.questID)
+                if objs and #objs > 0 then
+                    tip:AddLine(" ")
+                    for _, obj in ipairs(objs) do
+                        if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
+                            local r, g, b = 0.75, 0.75, 0.75
+                            if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
+                            tip:AddLine("  " .. (obj.finished and ICON_CHECK or ICON_BULLET) .. tostring(obj.text), r, g, b, true)
+                        end
                     end
                 end
             end
@@ -539,7 +541,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         end
 
         -- Group Party Progress
-        if _G.IsInGroup and _G.IsInGroup() and tip.SetQuestPartyProgress then
+        if not bData.isRemotePeerQuest and _G.IsInGroup and _G.IsInGroup() and tip.SetQuestPartyProgress then
             pcall(tip.SetQuestPartyProgress, tip, bData.questID)
         end
 
@@ -547,29 +549,36 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         if bData.questID and sfui.sync and sfui.sync.GetQuestPeerStatuses then
             local peerStatuses = sfui.sync.GetQuestPeerStatuses(bData.questID, false)
             if peerStatuses and #peerStatuses > 0 then
-                tip:AddLine(" ")
-                tip:AddLine("synced peers:", 1, 0.82, 0)
+                local reqClass = bData.isClassQuest and bData.classToken or nil
+                local anyShown = false
                 for _, peer in ipairs(peerStatuses) do
-                    local pLabel = "  " .. (peer.coloredName or peer.name or "?")
-                    if peer.status == "missing" then
-                        tip:AddDoubleLine(pLabel, "|cffff5555missing quest|r", 1, 1, 1, 1, 0.35, 0.35)
-                    elseif peer.status == "completed" then
-                        tip:AddDoubleLine(pLabel, "|cff44ff44completed|r", 1, 1, 1, 0.27, 1, 0.27)
-                    elseif peer.status == "ready" then
-                        tip:AddDoubleLine(pLabel, "|cff44ff44ready for turn-in|r", 1, 1, 1, 0.27, 1, 0.27)
-                    else
-                        if peer.objs and #peer.objs > 0 then
-                            tip:AddDoubleLine(pLabel, "|cffffd100in progress|r", 1, 1, 1, 1, 0.82, 0)
-                            local isFinFn = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest and sfui.tracker.helpers.quest.IsObjectiveTextFinished
-                            for idx, oTxt in ipairs(peer.objs) do
-                                local finFlag = type(peer.objFinished) == "table" and peer.objFinished[idx] or nil
-                                local isFin = isFinFn and isFinFn(oTxt, finFlag) or false
-                                local r, g, b = 0.78, 0.85, 0.92
-                                if isFin then r, g, b = 0.30, 0.80, 0.30 end
-                                tip:AddLine("    • " .. tostring(oTxt):lower(), r, g, b, true)
-                            end
+                    if peer.status ~= "missing" or not reqClass or peer.class == reqClass then
+                        if not anyShown then
+                            anyShown = true
+                            tip:AddLine(" ")
+                            tip:AddLine("synced peers:", 1, 0.82, 0)
+                        end
+                        local pLabel = "  " .. (peer.coloredName or peer.name or "?")
+                        if peer.status == "missing" then
+                            tip:AddDoubleLine(pLabel, "|cffff5555missing quest|r", 1, 1, 1, 1, 0.35, 0.35)
+                        elseif peer.status == "completed" then
+                            tip:AddDoubleLine(pLabel, "|cff44ff44completed|r", 1, 1, 1, 0.27, 1, 0.27)
+                        elseif peer.status == "ready" then
+                            tip:AddDoubleLine(pLabel, "|cff44ff44ready for turn-in|r", 1, 1, 1, 0.27, 1, 0.27)
                         else
-                            tip:AddDoubleLine(pLabel, "|cffffd100in log|r", 1, 1, 1, 1, 0.82, 0)
+                            if peer.objs and #peer.objs > 0 then
+                                tip:AddDoubleLine(pLabel, "|cffffd100in progress|r", 1, 1, 1, 1, 0.82, 0)
+                                local isFinFn = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest and sfui.tracker.helpers.quest.IsObjectiveTextFinished
+                                for idx, oTxt in ipairs(peer.objs) do
+                                    local finFlag = type(peer.objFinished) == "table" and peer.objFinished[idx] or nil
+                                    local isFin = isFinFn and isFinFn(oTxt, finFlag) or false
+                                    local r, g, b = 0.78, 0.85, 0.92
+                                    if isFin then r, g, b = 0.30, 0.80, 0.30 end
+                                    tip:AddLine("    • " .. tostring(oTxt):lower(), r, g, b, true)
+                                end
+                            else
+                                tip:AddDoubleLine(pLabel, "|cffffd100in log|r", 1, 1, 1, 1, 0.82, 0)
+                            end
                         end
                     end
                 end
@@ -578,15 +587,21 @@ function Tooltip.ShowBlockTooltip(owner, bData)
 
         -- Click hints
         tip:AddLine(" ")
-        tip:AddLine("|cff888888left-click: open quest details / map|r", 1, 1, 1)
-        tip:AddLine("|cff888888right-click: collapse/expand objectives|r", 1, 1, 1)
-        tip:AddLine("|cff888888shift-click: untrack quest|r", 1, 1, 1)
-        if not bData.isWorldQuest then
-            tip:AddLine("|cff888888alt-click: share quest|r", 1, 1, 1)
-            tip:AddLine("|cff888888ctrl-click: abandon quest|r", 1, 1, 1)
-        end
-        if bData.canFindGroup then
-            tip:AddLine("|cff00ff88eye button: find group in group finder|r", 1, 1, 1)
+        if bData.isRemotePeerQuest then
+            tip:AddLine("|cff888888left/right-click: collapse/expand objectives|r", 1, 1, 1)
+            tip:AddLine("|cff888888ctrl-click: link quest in chat|r", 1, 1, 1)
+            tip:AddLine("|cff888888shift-click: hide from tracker|r", 1, 1, 1)
+        else
+            tip:AddLine("|cff888888left-click: open quest details / map|r", 1, 1, 1)
+            tip:AddLine("|cff888888right-click: collapse/expand objectives|r", 1, 1, 1)
+            tip:AddLine("|cff888888shift-click: untrack quest|r", 1, 1, 1)
+            if not bData.isWorldQuest then
+                tip:AddLine("|cff888888alt-click: share quest|r", 1, 1, 1)
+                tip:AddLine("|cff888888ctrl-click: abandon quest|r", 1, 1, 1)
+            end
+            if bData.canFindGroup then
+                tip:AddLine("|cff00ff88eye button: find group in group finder|r", 1, 1, 1)
+            end
         end
 
         if bData.questID and bData.questID > 0 then

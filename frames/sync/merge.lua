@@ -800,7 +800,7 @@ end
 
 local function quest_entry_equal(qa, qb)
     if type(qa) ~= "table" or type(qb) ~= "table" then return false end
-    if qa.t ~= qb.t or qa.c ~= qb.c or qa.p ~= qb.p then
+    if qa.t ~= qb.t or qa.c ~= qb.c or qa.p ~= qb.p or qa.cl ~= qb.cl or qa.l ~= qb.l or qa.g ~= qb.g then
         return false
     end
     local oa, ob = qa.o, qb.o
@@ -835,6 +835,23 @@ local function active_quests_equal(a, b)
     return true
 end
 
+local function is_quest_log_class_quest(questID, questLogIndex, headerTitle)
+    local qHelper = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest
+    if qHelper and qHelper.IsClassQuest then
+        return qHelper.IsClassQuest(questID, questLogIndex, headerTitle)
+    end
+    if sfui.questlog and sfui.questlog.IsClassQuest then
+        return sfui.questlog.IsClassQuest(questID, questLogIndex, headerTitle)
+    end
+    if type(headerTitle) == "string" and headerTitle ~= "" and _G.UnitClass then
+        local pClass = _G.UnitClass("player")
+        if pClass and headerTitle:lower() == pClass:lower() then
+            return true
+        end
+    end
+    return false
+end
+
 local function scan_current_active_quests()
     local activeQuests = {}
     local C_QuestLog = _G.C_QuestLog
@@ -845,29 +862,38 @@ local function scan_current_active_quests()
         or (GetNumQuestLogEntries and GetNumQuestLogEntries())
         or 0
     local numQuests = 0
+    local currentHeaderTitle = nil
 
     for i = 1, numEntries do
         local questID, title, isHeader, isComplete = nil, nil, false, false
+        local level, suggestedGroup = 0, 1
         if C_QuestLog and C_QuestLog.GetInfo then
             local info = C_QuestLog.GetInfo(i)
             if info then
                 isHeader = info.isHeader
                 questID = info.questID
                 title = info.title
+                level = tonumber(info.level) or 0
+                suggestedGroup = tonumber(info.suggestedGroup) or 1
             end
         elseif GetQuestLogTitle then
-            local qTitle, _, _, qHeader, _, qComp, _, qID = GetQuestLogTitle(i)
+            local qTitle, qLevel, qGroup, qHeader, _, qComp, _, qID = GetQuestLogTitle(i)
             title = qTitle
+            level = tonumber(qLevel) or 0
+            suggestedGroup = tonumber(qGroup) or 1
             isHeader = qHeader
             isComplete = (qComp == 1)
             questID = qID
         end
 
-        if not isHeader and questID and questID > 0 then
+        if isHeader then
+            currentHeaderTitle = title
+        elseif questID and questID > 0 then
             numQuests = numQuests + 1
             if C_QuestLog and C_QuestLog.IsComplete then
                 isComplete = C_QuestLog.IsComplete(questID) or isComplete
             end
+            local isClassQuest = is_quest_log_class_quest(questID, i, currentHeaderTitle)
 
             local objList = {}
             local finList = {}
@@ -907,11 +933,14 @@ local function scan_current_active_quests()
             end
 
             activeQuests[questID] = {
-                t = title,
-                c = isComplete and 1 or 0,
-                p = progSummary,
-                o = #objList > 0 and objList or nil,
-                f = hasAnyFinished and finList or nil,
+                t  = title,
+                c  = isComplete and 1 or 0,
+                p  = progSummary,
+                o  = #objList > 0 and objList or nil,
+                f  = hasAnyFinished and finList or nil,
+                l  = (level and level > 0) and level or nil,
+                g  = (suggestedGroup and suggestedGroup > 1) and suggestedGroup or nil,
+                cl = isClassQuest and 1 or nil,
             }
         end
     end

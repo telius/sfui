@@ -67,13 +67,53 @@ end
 local recentlyWatched                         = {}
 local manualExpanded                          = {}
 local pendingChangedQuests                    = {}
+local hiddenRemoteQuests                      = {}
 
 -- ─────────────────────────────────────────────────────────
 --  CLASS DETECTION
 -- ─────────────────────────────────────────────────────────
 local GetPlayerClass                          = QuestCommon.GetPlayerClassLocalized
-
 local IsClassQuest                            = QuestCommon.IsClassQuest
+
+local function GetPlayerClassToken()
+    local _, tok = GetPlayerClass()
+    if not tok and UnitClass then
+        _, tok = UnitClass("player")
+    end
+    return tok
+end
+
+local function GetClassDisplayTitle(classToken)
+    local pClassLoc, pClassTok = GetPlayerClass()
+    if classToken and pClassTok and classToken == pClassTok and pClassLoc then
+        return pClassLoc:lower()
+    end
+    if classToken and type(_G.LOCALIZED_CLASS_NAMES_MALE) == "table" and _G.LOCALIZED_CLASS_NAMES_MALE[classToken] then
+        return tostring(_G.LOCALIZED_CLASS_NAMES_MALE[classToken]):lower()
+    end
+    if type(classToken) == "string" and classToken ~= "" then
+        return classToken:lower()
+    end
+    return (pClassLoc and pClassLoc:lower()) or "class"
+end
+
+local function GetClassSectionColor(classToken)
+    local _, pClassTok = GetPlayerClass()
+    if not classToken or (pClassTok and classToken == pClassTok) then
+        return sfui.common.get_class_or_spec_color()
+    end
+    if _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken] then
+        local c = _G.RAID_CLASS_COLORS[classToken]
+        return { c.r or 1, c.g or 1, c.b or 1, 1 }
+    end
+    if sfui.common and sfui.common.get_class_color then
+        local r, g, b = sfui.common.get_class_color(classToken)
+        if r and g and b then
+            return { r, g, b, 1 }
+        end
+    end
+    return sfui.common.get_class_or_spec_color()
+end
 
 -- ─────────────────────────────────────────────────────────
 --  WATCH STATE & PROGRESS DETAILS
@@ -224,6 +264,35 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     end
 end
 
+local function OnRemoteClassQuestClick(block, mouseButton, qGroup, isCurrentlyExpanded)
+    if not qGroup or not qGroup.questID then return end
+    local questID = qGroup.questID
+    local questTitle = qGroup.title
+    local questLevel = qGroup.level
+
+    -- 1. Ctrl-Click: Insert Link into Chat Window
+    if IsControlKeyDown and IsControlKeyDown() and not IsAltKeyDown() then
+        if TryInsertQuestLink(questID, nil, questTitle, questLevel) then
+            return
+        end
+    end
+
+    -- 2. Shift-Click: Insert Link into Chat (if open) or Hide from Tracker
+    if IsShiftKeyDown and IsShiftKeyDown() then
+        if TryInsertQuestLink(questID, nil, questTitle, questLevel) then
+            return
+        end
+        hiddenRemoteQuests[questID] = true
+        manualExpanded[questID] = nil
+        sfui.tracker.RequestRefresh(0.05)
+        return
+    end
+
+    -- 3. Left/Right-Click: Toggle Criteria Expanded / Collapsed
+    manualExpanded[questID] = not isCurrentlyExpanded
+    sfui.tracker.RequestRefresh(0.01)
+end
+
 -- ─────────────────────────────────────────────────────────
 --  OBJECTIVE TRACKER MODULE
 -- ─────────────────────────────────────────────────────────
@@ -244,6 +313,7 @@ local CamelotClassQuestsModule = {
         "QUEST_POI_UPDATE",
         "UNIT_QUEST_LOG_CHANGED",
         "PLAYER_REGEN_ENABLED",
+        "GROUP_ROSTER_UPDATE",
     },
 }
 
@@ -266,6 +336,11 @@ end
 
 function CamelotClassQuestsModule:Init(engine)
     self.engine = engine
+    if sfui.events and sfui.events.RegisterMessage then
+        sfui.events.RegisterMessage("SFUI_SYNC_STATUS_UPDATED", function()
+            self:MarkDirty(0.05)
+        end)
+    end
 end
 
 function CamelotClassQuestsModule:IsEnabled()
@@ -354,6 +429,8 @@ function CamelotClassQuestsModule:BuildBlocks(container)
         or (GetNumQuestLogEntries and GetNumQuestLogEntries())
         or 0
 
+    local myClassToken = GetPlayerClassToken() or "UNKNOWN"
+    local localQuestIDs = {}
     local blocks = {}
     local currentHeaderTitle = "Miscellaneous"
 
@@ -398,8 +475,12 @@ function CamelotClassQuestsModule:BuildBlocks(container)
 
         if isHeader then
             currentHeaderTitle = title or "Miscellaneous"
-        elseif questID and questID > 0 and not IsWorldQuest(questID) and IsQuestWatched(questID, i) then
-            if IsClassQuest(questID, i, currentHeaderTitle) then
+        elseif questID and questID > 0 and not IsWorldQuest(questID) then
+            local isClassQ = IsClassQuest(questID, i, currentHeaderTitle)
+            if isClassQ then
+                localQuestIDs[questID] = true
+            end
+            if isClassQ and IsQuestWatched(questID, i) then
                 if C_QuestLog and C_QuestLog.IsComplete then
                     isComplete = C_QuestLog.IsComplete(questID) or isComplete
                 end
@@ -445,8 +526,9 @@ function CamelotClassQuestsModule:BuildBlocks(container)
 
                 local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID)
 
+                local qClassToken = (QuestCommon and QuestCommon.GetQuestClassToken and QuestCommon.GetQuestClassToken(questID, i, currentHeaderTitle)) or myClassToken
                 local hasProgress, inlineTag = GetQuestProgressDetails(questID, i, isComplete, objs, canClickToComplete)
-                local syncInfo = QuestCommon and QuestCommon.GetSyncedQuestTrackerInfo and QuestCommon.GetSyncedQuestTrackerInfo(questID)
+                local syncInfo = QuestCommon and QuestCommon.GetSyncedQuestTrackerInfo and QuestCommon.GetSyncedQuestTrackerInfo(questID, qClassToken)
                 local hasMissingParty = (syncInfo and syncInfo.hasMissingParty) or false
                 local hasIncompletePeers = (syncInfo and syncInfo.hasIncompletePeers) or false
                 local hasSyncProgress = (syncInfo and syncInfo.hasProgress) or false
@@ -569,6 +651,8 @@ function CamelotClassQuestsModule:BuildBlocks(container)
                     isFailed           = isFailed,
                     isRepeatable       = false,
                     isWarbandCompleted = isWarband,
+                    isClassQuest       = true,
+                    classToken         = qClassToken,
                     itemInfo           = itemInfo,
                     timerBar           = nil, -- Suppressed on Camelot
                     timeLeftText       = rawClock and ("time remaining: " .. rawClock) or nil,
@@ -586,32 +670,150 @@ function CamelotClassQuestsModule:BuildBlocks(container)
 
     UpdateTimerWatcher(hasAnyTimers)
 
-    if #blocks > 0 then
-        local pClass = GetPlayerClass()
-        local classTitle = (pClass and pClass:lower()) or "class"
-        return {
-            {
-                id           = "class",
-                title        = classTitle,
-                color        = sfui.common.get_class_or_spec_color(),
-                count        = #blocks,
-                blocks       = blocks,
+    local sectionsByClass = {}
+    local sectionOrder = {}
+
+    local function GetOrCreateClassSection(classToken)
+        local isLocalClass = (classToken == myClassToken)
+        local secID = isLocalClass and "class" or ("class_" .. tostring(classToken or "unknown"):lower())
+        local sec = sectionsByClass[secID]
+        if not sec then
+            local secBlocks = isLocalClass and blocks or {}
+            sec = {
+                id           = secID,
+                classToken   = classToken,
+                title        = GetClassDisplayTitle(classToken),
+                color        = GetClassSectionColor(classToken),
+                blocks       = secBlocks,
                 OnShiftClick = function()
-                    for _, b in ipairs(blocks) do
+                    for _, b in ipairs(secBlocks) do
                         if b.questID then
-                            recentlyWatched[b.questID] = nil
-                            manualExpanded[b.questID] = nil
-                            if C_QuestLog and C_QuestLog.RemoveQuestWatch then
-                                C_QuestLog.RemoveQuestWatch(b.questID)
-                            elseif _G.RemoveQuestWatch and b.questLogIndex then
-                                _G.RemoveQuestWatch(b.questLogIndex)
+                            if b.isRemotePeerQuest then
+                                hiddenRemoteQuests[b.questID] = true
+                                manualExpanded[b.questID] = nil
+                            else
+                                recentlyWatched[b.questID] = nil
+                                manualExpanded[b.questID] = nil
+                                if C_QuestLog and C_QuestLog.RemoveQuestWatch then
+                                    C_QuestLog.RemoveQuestWatch(b.questID)
+                                elseif _G.RemoveQuestWatch and b.questLogIndex then
+                                    _G.RemoveQuestWatch(b.questLogIndex)
+                                end
                             end
                         end
                     end
                     sfui.tracker.RequestRefresh(0.01)
                 end,
             }
-        }
+            sectionsByClass[secID] = sec
+            table_insert(sectionOrder, sec)
+        end
+        return sec
+    end
+
+    if #blocks > 0 then
+        GetOrCreateClassSection(myClassToken)
+    end
+
+    -- Append active class quests from online / in-party synced characters
+    local peerClassQuests = sfui.sync and sfui.sync.GetSyncedPeerClassQuests and sfui.sync.GetSyncedPeerClassQuests()
+    if peerClassQuests and #peerClassQuests > 0 then
+        local activeRemoteIDs = {}
+        for _, qGroup in ipairs(peerClassQuests) do
+            local questID = qGroup.questID
+            activeRemoteIDs[questID] = true
+            if not localQuestIDs[questID] and not hiddenRemoteQuests[questID] then
+                local classToken = qGroup.classToken or "UNKNOWN"
+                local level = tonumber(qGroup.level) or 0
+                local suggestedGroup = tonumber(qGroup.suggestedGroup) or 1
+                local rawTitle = qGroup.title or ("Quest " .. tostring(questID))
+
+                local entryStub = {
+                    level          = level,
+                    questID        = questID,
+                    suggestedGroup = suggestedGroup,
+                }
+                local displayTitle = rawTitle
+                if Difficulty and Difficulty.FormatTitle then
+                    displayTitle = Difficulty.FormatTitle(entryStub, displayTitle)
+                end
+
+                local isComplete = (not qGroup.hasIncompletePeers) and (qGroup.readyPeers ~= nil and #qGroup.readyPeers > 0)
+                local hasMissingParty = (qGroup.hasMissingParty == true)
+                if classToken == myClassToken then
+                    local isLocalDone = C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(questID)
+                    if not isLocalDone then
+                        hasMissingParty = true
+                    end
+                end
+                local allComplete = isComplete and not hasMissingParty
+
+                local isExpanded
+                if manualExpanded[questID] ~= nil then
+                    isExpanded = (manualExpanded[questID] == true)
+                else
+                    isExpanded = not allComplete
+                end
+
+                if not isExpanded and isComplete then
+                    displayTitle = displayTitle .. " |cff33ff33(Complete)|r"
+                end
+                if hasMissingParty then
+                    displayTitle = displayTitle .. " |cffff5555[!party]|r"
+                end
+
+                local lines = {}
+                if isExpanded then
+                    if QuestCommon and QuestCommon.PrependMissingQuestLine then
+                        QuestCommon.PrependMissingQuestLine(lines, qGroup)
+                    end
+                    if QuestCommon and QuestCommon.AppendSyncedQuestLines then
+                        QuestCommon.AppendSyncedQuestLines(lines, qGroup)
+                    end
+                end
+
+                local titleColor = isComplete and { 0.2, 1.0, 0.2, 1 } or { 1, 1, 1, 1 }
+                local classTitle = GetClassDisplayTitle(classToken)
+                local sec = GetOrCreateClassSection(classToken)
+
+                table_insert(sec.blocks, {
+                    title              = displayTitle,
+                    rawTitle           = rawTitle,
+                    titleColor         = titleColor,
+                    isSuperTracked     = false,
+                    questID            = questID,
+                    questLogIndex      = nil,
+                    zoneName           = classTitle,
+                    level              = level,
+                    suggestedGroup     = suggestedGroup,
+                    isComplete         = isComplete,
+                    canClickToComplete = false,
+                    isFailed           = false,
+                    isRepeatable       = false,
+                    isWarbandCompleted = false,
+                    isClassQuest       = true,
+                    isRemotePeerQuest  = true,
+                    classToken         = classToken,
+                    isExpanded         = isExpanded,
+                    lines              = lines,
+                    OnClick            = function(block, btn)
+                        OnRemoteClassQuestClick(block, btn, qGroup, isExpanded)
+                    end,
+                })
+            end
+        end
+        for qID in pairs(hiddenRemoteQuests) do
+            if not activeRemoteIDs[qID] then
+                hiddenRemoteQuests[qID] = nil
+            end
+        end
+    end
+
+    if #sectionOrder > 0 then
+        for _, sec in ipairs(sectionOrder) do
+            sec.count = #sec.blocks
+        end
+        return sectionOrder
     end
 
     return nil

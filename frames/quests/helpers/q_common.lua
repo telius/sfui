@@ -165,7 +165,7 @@ end
 
 --- inserts a quest link into the active chat / macro / communities edit box.
 --- @return boolean inserted
-function QuestCommon.TryInsertQuestLink(questID, questLogIndex, questTitle)
+function QuestCommon.TryInsertQuestLink(questID, questLogIndex, questTitle, questLevel)
     if not questID then return false end
 
     -- 1. blizzard modern api
@@ -195,7 +195,9 @@ function QuestCommon.TryInsertQuestLink(questID, questLogIndex, questTitle)
     if not link then
         local title = questTitle or (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID))
         if title and title ~= "" then
-            local level = (C_QuestLog and C_QuestLog.GetQuestDifficultyLevel and C_QuestLog.GetQuestDifficultyLevel(questID)) or 0
+            local level = tonumber(questLevel)
+                or (C_QuestLog and C_QuestLog.GetQuestDifficultyLevel and C_QuestLog.GetQuestDifficultyLevel(questID))
+                or 0
             link = string_format("|cffffff00|Hquest:%d:%d|h[%s]|h|r", questID, level, title)
         end
     end
@@ -237,40 +239,83 @@ end
 
 -- localized player class name (quest log headers use localized class names)
 local playerClassLocalized = nil
+local playerClassToken = nil
 function QuestCommon.GetPlayerClassLocalized()
     if not playerClassLocalized and _G.UnitClass then
-        playerClassLocalized = _G.UnitClass("player")
+        playerClassLocalized, playerClassToken = _G.UnitClass("player")
     end
-    return playerClassLocalized
+    return playerClassLocalized, playerClassToken
 end
 
---- true when the quest sits under the player's class header in the quest log.
---- accepts (questID, headerTitle) as a legacy call form.
-function QuestCommon.IsClassQuest(questID, questLogIndex, headerTitle)
+local classHeaderToToken = nil
+local function get_class_header_map()
+    if classHeaderToToken then return classHeaderToToken end
+    classHeaderToToken = {
+        ["warrior"]      = "WARRIOR",
+        ["paladin"]      = "PALADIN",
+        ["hunter"]       = "HUNTER",
+        ["rogue"]        = "ROGUE",
+        ["priest"]       = "PRIEST",
+        ["death knight"] = "DEATHKNIGHT",
+        ["shaman"]       = "SHAMAN",
+        ["mage"]         = "MAGE",
+        ["warlock"]      = "WARLOCK",
+        ["monk"]         = "MONK",
+        ["druid"]        = "DRUID",
+        ["demon hunter"] = "DEMONHUNTER",
+        ["evoker"]       = "EVOKER",
+    }
+    if type(_G.LOCALIZED_CLASS_NAMES_MALE) == "table" then
+        for token, locName in pairs(_G.LOCALIZED_CLASS_NAMES_MALE) do
+            if type(token) == "string" and type(locName) == "string" and locName ~= "" then
+                classHeaderToToken[locName:lower()] = token
+            end
+        end
+    end
+    if type(_G.LOCALIZED_CLASS_NAMES_FEMALE) == "table" then
+        for token, locName in pairs(_G.LOCALIZED_CLASS_NAMES_FEMALE) do
+            if type(token) == "string" and type(locName) == "string" and locName ~= "" then
+                classHeaderToToken[locName:lower()] = token
+            end
+        end
+    end
+    local pClassLoc, pClassTok = QuestCommon.GetPlayerClassLocalized()
+    if pClassLoc and pClassTok then
+        classHeaderToToken[pClassLoc:lower()] = pClassTok
+    end
+    return classHeaderToToken
+end
+
+function QuestCommon.GetQuestClassToken(questID, questLogIndex, headerTitle)
     if type(questLogIndex) == "string" and not headerTitle then
         headerTitle = questLogIndex
         questLogIndex = nil
     end
 
-    local pClass = QuestCommon.GetPlayerClassLocalized()
-    if not pClass then return false end
-    local pClassLower = pClass:lower()
-
-    if headerTitle and headerTitle:lower() == pClassLower then
-        return true
+    local map = get_class_header_map()
+    if type(headerTitle) == "string" and headerTitle ~= "" then
+        local tok = map[headerTitle:lower()]
+        if tok then return tok end
     end
 
     if questID and C_QuestLog and C_QuestLog.GetHeaderIndexForQuest then
         local hIdx = C_QuestLog.GetHeaderIndexForQuest(questID)
         if hIdx then
             local hInfo = C_QuestLog.GetInfo(hIdx)
-            if hInfo and hInfo.title and hInfo.title:lower() == pClassLower then
-                return true
+            if hInfo and type(hInfo.title) == "string" and hInfo.title ~= "" then
+                local tok = map[hInfo.title:lower()]
+                if tok then return tok end
             end
         end
     end
 
-    return false
+    return nil
+end
+
+--- true when the quest sits under a class header in the quest log.
+--- accepts (questID, headerTitle) as a legacy call form.
+function QuestCommon.IsClassQuest(questID, questLogIndex, headerTitle)
+    return QuestCommon.GetQuestClassToken(questID, questLogIndex, headerTitle) ~= nil
 end
 
 local table_insert = table.insert
@@ -291,7 +336,7 @@ function QuestCommon.IsObjectiveTextFinished(txt, isFinFlag)
     return false
 end
 
-function QuestCommon.GetSyncedQuestTrackerInfo(questID)
+function QuestCommon.GetSyncedQuestTrackerInfo(questID, requiredClass)
     if not questID or not (sfui.sync and sfui.sync.GetQuestPeerStatuses) then
         return nil
     end
@@ -330,7 +375,7 @@ function QuestCommon.GetSyncedQuestTrackerInfo(questID)
     for _, peer in ipairs(peerStatuses) do
         local pLabel = peer.coloredName or peer.name or "?"
         if peer.status == "missing" then
-            if peer.inParty then
+            if peer.inParty and (not requiredClass or peer.class == requiredClass) then
                 missingPeers = missingPeers or {}
                 missingPeers[#missingPeers + 1] = pLabel
             end
