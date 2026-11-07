@@ -97,6 +97,8 @@ if sfui.db and sfui.db.RegisterDefaults then
 end
 
 -- ── Settings & Peer Storage ───────────────────────────────────────────────────
+local sanitize_and_merge_peers_table
+
 function sync.GetSettings()
     SfuiDB = SfuiDB or {}
     if type(SfuiDB.sync) ~= "table" then
@@ -167,6 +169,11 @@ function sync.GetSettings()
         end
     end
 
+    if not sync._peersSanitized and sanitize_and_merge_peers_table then
+        sync._peersSanitized = true
+        sanitize_and_merge_peers_table(s.peers)
+    end
+
     return s
 end
 
@@ -183,15 +190,86 @@ local function get_current_realm()
     return r
 end
 
--- Returns the full player name for a unit token.
--- On Forever/Camelot (`not sfui.isRetail`), `GetUnitName(unit, true)` returns the full character
--- name (which may contain spaces like "First Last") with no realm suffix.
-function sync.FullName(unit)
-    unit = unit or "player"
-    local GetUnitName = _G.GetUnitName
-    local n = (GetUnitName and GetUnitName(unit, true)) or (UnitName and UnitName(unit))
-    if not n or n == "" or n == _G.UNKNOWNOBJECT then return nil end
-    return n
+local function is_forever_realm_token(s)
+    if type(s) ~= "string" or s == "" then return false end
+    if sfui.alts and sfui.alts.IsServerRealmName and sfui.alts.IsServerRealmName(s) then
+        return true
+    end
+    local norm = s:gsub("[%s%-']", ""):lower()
+    if norm == "" then return false end
+    if norm:find("^camwow") or norm:find("realm") or norm:find("%d") then
+        return true
+    end
+    local cur = string_lower(get_current_realm())
+    if cur ~= "" and norm == cur then return true end
+    if norm == "forever" or norm == "camelot" or norm == "global" then
+        return true
+    end
+    return false
+end
+
+local function resolve_forever_name(rawName, rawSurname, guid)
+    if type(rawName) ~= "string" then return nil end
+    local trimmed = rawName:gsub("^%s+", ""):gsub("%s+$", "")
+    if trimmed == "" then return nil end
+
+    if sfui.isRetail then
+        return trimmed
+    end
+
+    local surname = (type(rawSurname) == "string" and rawSurname ~= "") and rawSurname:gsub("^%s+", ""):gsub("%s+$", "") or nil
+    if surname and surname:find("-", 1, true) then
+        local sLeft, sRight = string_match(surname, "^([^%-]+)%-(.+)$")
+        if sLeft and sLeft ~= "" and (not sRight or is_forever_realm_token(sRight)) then
+            surname = sLeft:gsub("^%s+", ""):gsub("%s+$", "")
+        end
+    end
+    if surname and (surname == "" or is_forever_realm_token(surname)) then
+        surname = nil
+    end
+
+    -- Strip any accidental "-Realm" suffix on Forever
+    local base, suffix = string_match(trimmed, "^(.+)%-([^%-]+)$")
+    if base and suffix then
+        trimmed = base:gsub("^%s+", ""):gsub("%s+$", "")
+        local cleanSuffix = suffix:gsub("^%s+", ""):gsub("%s+$", "")
+        if not surname and cleanSuffix ~= "" and not is_forever_realm_token(cleanSuffix) then
+            surname = cleanSuffix
+        end
+    end
+
+    -- Check alt record by GUID if available
+    if guid and SfuiDB and type(SfuiDB.alts) == "table" and type(SfuiDB.alts[guid]) == "table" then
+        local alt = SfuiDB.alts[guid]
+        if sfui.alts and sfui.alts.GetDisplayName then
+            local disp = sfui.alts.GetDisplayName(alt, guid)
+            if disp and disp ~= "" and disp ~= "Unknown" then
+                local dClean = disp:match("^([^%-]+)") or disp
+                dClean = dClean:gsub("^%s+", ""):gsub("%s+$", "")
+                if dClean:find(" ", 1, true) or not trimmed:find(" ", 1, true) then
+                    trimmed = dClean
+                end
+            end
+        end
+        if not surname and alt.surname and alt.surname ~= "" and not is_forever_realm_token(alt.surname) then
+            surname = alt.surname
+        end
+    end
+
+    if not trimmed:find(" ", 1, true) then
+        if surname and surname ~= "" and string_lower(surname) ~= string_lower(trimmed) then
+            trimmed = trimmed .. " " .. surname
+        elseif guid and _G.UnitNameFromGUID then
+            local gFirst, gSecond = _G.UnitNameFromGUID(guid)
+            if gSecond and gSecond ~= "" and not is_forever_realm_token(gSecond) and string_lower(gSecond) ~= string_lower(trimmed) then
+                trimmed = trimmed .. " " .. gSecond
+            elseif gFirst and gFirst:find(" ", 1, true) then
+                trimmed = gFirst
+            end
+        end
+    end
+
+    return trimmed
 end
 
 local function normalize_peer_key(nameOrFull, defaultRealm)
@@ -201,17 +279,12 @@ local function normalize_peer_key(nameOrFull, defaultRealm)
 
     local shortName, realm
     if not sfui.isRetail then
-        -- Forever character names can contain spaces ("First Last") and do not use Name-Realm in-game;
-        -- only split on '-' if the suffix matches the current realm name.
         local curRealm = get_current_realm()
-        local base, suffix = string_match(trimmed, "^(.+)%-([^%-]+)$")
-        if base and suffix and curRealm ~= "" and string_lower(suffix:gsub("%s+", "")) == string_lower(curRealm) then
-            shortName = base:gsub("^%s+", ""):gsub("%s+$", "")
-            realm = curRealm
-        else
-            shortName = trimmed
-            realm = defaultRealm or curRealm
-        end
+        shortName = resolve_forever_name(trimmed, nil, nil)
+        if not shortName or shortName == "" then return nil, nil, nil end
+        realm = curRealm ~= "" and curRealm or (defaultRealm or "")
+        local key = string_lower(shortName)
+        return key, shortName, realm
     else
         shortName, realm = string_match(trimmed, "^([^%-]+)%-(.+)$")
         if not shortName then
@@ -220,10 +293,208 @@ local function normalize_peer_key(nameOrFull, defaultRealm)
         else
             realm = realm:gsub("%s+", "")
         end
+        local key = string_lower(shortName) .. "-" .. string_lower(realm or "")
+        return key, shortName, realm
+    end
+end
+
+local function merge_peer_into(dst, src)
+    if type(dst) ~= "table" or type(src) ~= "table" then return end
+    if src.name and src.name ~= "" then
+        local dstHasSpace = type(dst.name) == "string" and dst.name:find(" ", 1, true) ~= nil
+        local srcHasSpace = type(src.name) == "string" and src.name:find(" ", 1, true) ~= nil
+        if not dst.name or dst.name == "" or (srcHasSpace and not dstHasSpace) then
+            dst.name = src.name
+        end
+    end
+    if src.surname and src.surname ~= "" and (not dst.surname or dst.surname == "") then
+        dst.surname = src.surname
+    end
+    if src.guid and src.guid ~= "" then
+        if not dst.guid or dst.guid == "" then
+            dst.guid = src.guid
+        elseif SfuiDB and type(SfuiDB.alts) == "table" and SfuiDB.alts[src.guid] and not SfuiDB.alts[dst.guid] then
+            dst.guid = src.guid
+        end
+    end
+    if src.class and src.class ~= "" and (not dst.class or dst.class == "") then
+        dst.class = src.class
+    end
+    local srcLvl = tonumber(src.level) or 0
+    local dstLvl = tonumber(dst.level) or 0
+    if srcLvl > dstLvl then
+        dst.level = srcLvl
+    end
+    if src.accountID and src.accountID ~= "" and src.accountID ~= "peer-acct-default" then
+        if not dst.accountID or dst.accountID == "" or dst.accountID == "peer-acct-default" then
+            dst.accountID = src.accountID
+        end
+    end
+    if src.accountLabel and src.accountLabel ~= "" and (not dst.accountLabel or dst.accountLabel == "") then
+        dst.accountLabel = src.accountLabel
+    end
+    local srcSeen = tonumber(src.lastSeen) or 0
+    local dstSeen = tonumber(dst.lastSeen) or 0
+    if srcSeen > dstSeen then
+        dst.lastSeen = srcSeen
+    end
+    local srcSync = tonumber(src.lastSync) or 0
+    local dstSync = tonumber(dst.lastSync) or 0
+    if srcSync > dstSync then
+        dst.lastSync = srcSync
+    end
+    if src.trusted then
+        dst.trusted = true
+    end
+end
+
+local function peers_match_forever(a, b)
+    if a.guid and b.guid and a.guid ~= "" and a.guid == b.guid then
+        return true
+    end
+    local na = string_lower(a.name or "")
+    local nb = string_lower(b.name or "")
+    if na == "" or nb == "" then return false end
+    if na == nb then return true end
+
+    local fa = string_match(na, "^(%S+)") or na
+    local fb = string_match(nb, "^(%S+)") or nb
+    if fa == fb and (na == fa or nb == fb) then
+        local la = string_lower(a.accountLabel or "")
+        local lb = string_lower(b.accountLabel or "")
+        local ida = a.accountID or ""
+        local idb = b.accountID or ""
+        if (la ~= "" and la == lb)
+            or (ida ~= "" and ida ~= "peer-acct-default" and ida == idb)
+            or (la == "" or lb == "") then
+            return true
+        end
+    end
+    return false
+end
+
+sanitize_and_merge_peers_table = function(peersTbl)
+    if sfui.isRetail or type(peersTbl) ~= "table" then return end
+    local items = {}
+    for _, p in pairs(peersTbl) do
+        if type(p) == "table" and type(p.name) == "string" and p.name ~= "" then
+            p.name = resolve_forever_name(p.name, p.surname, p.guid) or p.name
+            if (not p.guid or p.guid == "") and SfuiDB and type(SfuiDB.alts) == "table" then
+                local pLower = string_lower(p.name)
+                local pFirst = string_match(pLower, "^(%S+)") or pLower
+                local matchedGuid, matchedAlt = nil, nil
+                local matchCount = 0
+                for g, alt in pairs(SfuiDB.alts) do
+                    if type(alt) == "table" and alt.name then
+                        local disp = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, g)) or alt.name
+                        local dLower = string_lower(disp)
+                        local aFirst = string_lower(string_match(alt.name, "^([^%-]+)") or alt.name)
+                        if dLower == pLower then
+                            matchedGuid, matchedAlt = g, alt
+                            matchCount = 1
+                            break
+                        elseif aFirst == pFirst then
+                            local sameLabel = (p.accountLabel and p.accountLabel ~= "" and alt.accountLabel and string_lower(p.accountLabel) == string_lower(alt.accountLabel))
+                            local sameAcct = (p.accountID and p.accountID ~= "" and p.accountID ~= "peer-acct-default" and alt.accountID == p.accountID)
+                            if sameLabel or sameAcct then
+                                matchedGuid, matchedAlt = g, alt
+                                matchCount = matchCount + 1
+                            end
+                        end
+                    end
+                end
+                if matchCount == 1 and matchedGuid and matchedAlt then
+                    p.guid = matchedGuid
+                    p.class = p.class or matchedAlt.class
+                    p.level = p.level or matchedAlt.level
+                    p.name = resolve_forever_name(p.name, matchedAlt.surname, matchedGuid) or p.name
+                end
+            end
+            items[#items + 1] = p
+        end
     end
 
-    local key = string_lower(shortName) .. "-" .. string_lower(realm or "")
-    return key, shortName, realm
+    wipe(peersTbl)
+    local merged = {}
+    for _, p in ipairs(items) do
+        local target = nil
+        for _, m in ipairs(merged) do
+            if peers_match_forever(m, p) then
+                target = m
+                break
+            end
+        end
+        if target then
+            merge_peer_into(target, p)
+        else
+            merged[#merged + 1] = p
+        end
+    end
+
+    local curRealm = get_current_realm()
+    for _, m in ipairs(merged) do
+        m.name = resolve_forever_name(m.name, m.surname, m.guid) or m.name
+        if curRealm ~= "" then
+            m.realm = curRealm
+        end
+        if m.guid and m.name and m.name:find(" ", 1, true) and SfuiDB and type(SfuiDB.alts) == "table" and type(SfuiDB.alts[m.guid]) == "table" then
+            local alt = SfuiDB.alts[m.guid]
+            local _, sPart = string_match(m.name, "^(%S+)%s+(.+)$")
+            if sPart and sPart ~= "" and not is_forever_realm_token(sPart) and (not alt.surname or alt.surname == "") then
+                alt.surname = sPart
+            end
+        end
+        local key = normalize_peer_key(m.name, m.realm)
+        if key then
+            peersTbl[key] = m
+        end
+    end
+end
+
+function sync.SanitizePeers()
+    if SfuiDB and type(SfuiDB.sync) == "table" and type(SfuiDB.sync.peers) == "table" then
+        sanitize_and_merge_peers_table(SfuiDB.sync.peers)
+    end
+    local bcs = _G.Blizzard_Console_SavedVars
+    if type(bcs) == "table" and type(bcs.sfui_sync) == "table" and type(bcs.sfui_sync.peers) == "table" then
+        sanitize_and_merge_peers_table(bcs.sfui_sync.peers)
+    end
+end
+
+function sync.GetPeerDisplayName(peer)
+    if type(peer) ~= "table" then return "unknown" end
+    if not sfui.isRetail then
+        local resolved = resolve_forever_name(peer.name or "", peer.surname, peer.guid)
+        if resolved and resolved ~= "" then
+            peer.name = resolved
+            return resolved
+        end
+    end
+    return peer.name or "unknown"
+end
+
+-- Returns the full player name for a unit token.
+-- On Forever/Camelot (`not sfui.isRetail`), resolves the full "First Last" character name with no realm suffix.
+function sync.FullName(unit)
+    unit = unit or "player"
+    if not sfui.isRetail then
+        if (unit == "player" or (_G.UnitIsUnit and _G.UnitIsUnit(unit, "player")))
+            and sfui.common and sfui.common.get_player_display_name then
+            local pName = sfui.common.get_player_display_name()
+            if pName and pName ~= "" and pName ~= "Unknown" and pName ~= _G.UNKNOWNOBJECT then
+                return resolve_forever_name(pName, nil, UnitGUID and UnitGUID("player")) or pName
+            end
+        end
+        local uFirst, uSecond = UnitName and UnitName(unit)
+        if uFirst and uFirst ~= "" and uFirst ~= _G.UNKNOWNOBJECT then
+            local g = UnitGUID and UnitGUID(unit)
+            return resolve_forever_name(uFirst, uSecond, g) or uFirst
+        end
+    end
+    local GetUnitName = _G.GetUnitName
+    local n = (GetUnitName and GetUnitName(unit, true)) or (UnitName and UnitName(unit))
+    if not n or n == "" or n == _G.UNKNOWNOBJECT then return nil end
+    return n
 end
 
 function sync.CommandName(nameOrFull)
@@ -264,15 +535,18 @@ local function is_self_character(nameOrFull)
     if SfuiDB and SfuiDB.alts and shortName then
         local lowerShort = string_lower(shortName)
         for guid, alt in pairs(SfuiDB.alts) do
-            if type(alt) == "table" and alt.name and string_lower(alt.name) == lowerShort then
-                if UnitGUID and guid == UnitGUID("player") then
-                    return true
-                end
-                if myAccountID ~= "" and alt.accountID == myAccountID then
-                    return true
-                end
-                if myLabel ~= "" and alt.accountLabel == myLabel then
-                    return true
+            if type(alt) == "table" and alt.name then
+                local disp = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name
+                if string_lower(disp) == lowerShort or string_lower(alt.name) == lowerShort then
+                    if UnitGUID and guid == UnitGUID("player") then
+                        return true
+                    end
+                    if myAccountID ~= "" and alt.accountID == myAccountID then
+                        return true
+                    end
+                    if myLabel ~= "" and alt.accountLabel == myLabel then
+                        return true
+                    end
                 end
             end
         end
@@ -289,6 +563,9 @@ local function sync_machine_store()
     ms.peers = type(ms.peers) == "table" and ms.peers or {}
 
     local s = sync.GetSettings()
+    sanitize_and_merge_peers_table(ms.peers)
+    sanitize_and_merge_peers_table(s.peers)
+
     local myName = sync.FullName("player")
     local myGUID = UnitGUID and UnitGUID("player")
     local _, myClass = _G.UnitClass and _G.UnitClass("player")
@@ -312,47 +589,59 @@ local function sync_machine_store()
     end
 
     -- Import any machine-wide characters from other accounts on this PC
-    for k, mp in pairs(ms.peers) do
+    for _, mp in pairs(ms.peers) do
         if type(mp) == "table" and mp.name and mp.accountID ~= s.accountID and not is_self_character(mp.name) then
-            local existing = s.peers[k]
-            if not existing then
-                s.peers[k] = {
-                    name         = mp.name,
-                    realm        = mp.realm or get_current_realm(),
-                    guid         = mp.guid,
-                    class        = mp.class,
-                    level        = mp.level,
-                    trusted      = true,
-                    addedAt      = now,
-                    lastSeen     = tonumber(mp.lastSeen) or 0,
-                    accountID    = mp.accountID or "peer-acct-default",
-                    accountLabel = mp.accountLabel,
-                }
-            else
-                if mp.guid then existing.guid = mp.guid end
-                if mp.class then existing.class = mp.class end
-                if mp.level then existing.level = mp.level end
-                if mp.accountID and mp.accountID ~= "" then existing.accountID = mp.accountID end
-                if mp.accountLabel and mp.accountLabel ~= "" then existing.accountLabel = mp.accountLabel end
+            local normKey, shortName, realm = normalize_peer_key(mp.name, mp.realm)
+            if normKey and shortName then
+                local existing = s.peers[normKey]
+                if not existing then
+                    s.peers[normKey] = {
+                        name         = shortName,
+                        surname      = mp.surname,
+                        realm        = realm or get_current_realm(),
+                        guid         = mp.guid,
+                        class        = mp.class,
+                        level        = mp.level,
+                        trusted      = true,
+                        addedAt      = now,
+                        lastSeen     = tonumber(mp.lastSeen) or 0,
+                        accountID    = mp.accountID or "peer-acct-default",
+                        accountLabel = mp.accountLabel,
+                    }
+                else
+                    merge_peer_into(existing, mp)
+                end
             end
         end
     end
 
+    sanitize_and_merge_peers_table(s.peers)
+
     -- Export our known peers to the machine store
-    for k, lp in pairs(s.peers) do
-        if type(lp) == "table" and lp.name and not ms.peers[k] then
-            ms.peers[k] = {
-                name         = lp.name,
-                realm        = lp.realm,
-                guid         = lp.guid,
-                class        = lp.class,
-                level        = lp.level,
-                accountID    = lp.accountID,
-                accountLabel = lp.accountLabel,
-                lastSeen     = lp.lastSeen,
-            }
+    for _, lp in pairs(s.peers) do
+        if type(lp) == "table" and lp.name then
+            local normKey, shortName, realm = normalize_peer_key(lp.name, lp.realm)
+            if normKey and shortName then
+                if not ms.peers[normKey] then
+                    ms.peers[normKey] = {
+                        name         = shortName,
+                        surname      = lp.surname,
+                        realm        = realm or lp.realm,
+                        guid         = lp.guid,
+                        class        = lp.class,
+                        level        = lp.level,
+                        accountID    = lp.accountID,
+                        accountLabel = lp.accountLabel,
+                        lastSeen     = lp.lastSeen,
+                    }
+                else
+                    merge_peer_into(ms.peers[normKey], lp)
+                end
+            end
         end
     end
+
+    sanitize_and_merge_peers_table(ms.peers)
 
     -- Reconcile shared settings across accounts on the same PC
     local locRev = tonumber(s.settingsRev) or 0
@@ -372,7 +661,9 @@ local function sync_machine_store()
         ms.fishing_chars = type(ms.fishing_chars) == "table" and ms.fishing_chars or {}
         for fGuid, mData in pairs(ms.fishing_chars) do
             if type(fGuid) == "string" and type(mData) == "table" then
-                merge.MergeFishingChar(fGuid, mData, mData.accountLabel, mData.accountID)
+                if (myGUID and fGuid == myGUID) or (SfuiDB and SfuiDB.alts and SfuiDB.alts[fGuid]) then
+                    merge.MergeFishingChar(fGuid, mData, mData.accountLabel, mData.accountID)
+                end
             end
         end
         local locChars = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.chars
@@ -408,6 +699,20 @@ function sync.FindPeer(sender)
                 return p, k
             end
         end
+        if not sfui.isRetail then
+            local probe = { name = shortName }
+            local matchedPeer, matchedKey = nil, nil
+            local count = 0
+            for k, p in pairs(s.peers) do
+                if type(p) == "table" and peers_match_forever(probe, p) then
+                    matchedPeer, matchedKey = p, k
+                    count = count + 1
+                end
+            end
+            if count == 1 then
+                return matchedPeer, matchedKey
+            end
+        end
     end
     return nil, key
 end
@@ -419,6 +724,8 @@ function sync.MarkPeerOnline(nameOrFull, peerAccountID)
     local _, shortName = normalize_peer_key(nameOrFull)
     if not shortName then return end
     local lowerShort = string_lower(shortName)
+    local peer = sync.FindPeer(nameOrFull)
+    local peerLower = (peer and peer.name and string_lower(peer.name)) or nil
     local now = (GetTime and GetTime()) or 0
 
     -- A single WoW account only has one character online at a time:
@@ -428,7 +735,7 @@ function sync.MarkPeerOnline(nameOrFull, peerAccountID)
         for _, p in pairs(s.peers) do
             if type(p) == "table" and p.accountID == peerAccountID and p.name then
                 local pShort = string_lower(p.name)
-                if pShort ~= lowerShort then
+                if pShort ~= lowerShort and pShort ~= peerLower then
                     onlinePeers[pShort] = nil
                 end
             end
@@ -437,6 +744,10 @@ function sync.MarkPeerOnline(nameOrFull, peerAccountID)
 
     onlinePeers[lowerShort] = now
     offlinePeers[lowerShort] = nil
+    if peerLower and peerLower ~= lowerShort then
+        onlinePeers[peerLower] = now
+        offlinePeers[peerLower] = nil
+    end
     liveOnlineCacheTime = 0
 end
 
@@ -444,8 +755,15 @@ function sync.MarkPeerOffline(nameOrFull)
     local _, shortName = normalize_peer_key(nameOrFull)
     if not shortName then return end
     local lowerShort = string_lower(shortName)
+    local peer = sync.FindPeer(nameOrFull)
+    local peerLower = (peer and peer.name and string_lower(peer.name)) or nil
+    local now = (GetTime and GetTime()) or 1
     onlinePeers[lowerShort] = nil
-    offlinePeers[lowerShort] = (GetTime and GetTime()) or 1
+    offlinePeers[lowerShort] = now
+    if peerLower and peerLower ~= lowerShort then
+        onlinePeers[peerLower] = nil
+        offlinePeers[peerLower] = now
+    end
     liveOnlineCacheTime = 0
     if codec and codec.CancelWhispersToTarget then
         codec.CancelWhispersToTarget(shortName)
@@ -475,8 +793,15 @@ local function build_live_online_map()
         for i = 1, n do
             local u = prefixUnit .. i
             if UnitExists and UnitExists(u) and (not UnitIsConnected or UnitIsConnected(u)) then
+                local full = sync.FullName(u)
+                if full and full ~= "" then
+                    local _, shortName = normalize_peer_key(full)
+                    local lowerFull = string_lower(shortName or full)
+                    map[lowerFull] = true
+                    offlinePeers[lowerFull] = nil
+                end
                 local uName = UnitName(u)
-                if uName then
+                if uName and uName ~= "" then
                     local lower = string_lower(uName)
                     map[lower] = true
                     offlinePeers[lower] = nil
@@ -491,8 +816,8 @@ local function build_live_online_map()
         for i = 1, numFriends do
             local info = C_FriendList.GetFriendInfoByIndex(i)
             if info and info.connected and info.name then
-                local shortName = string_match(info.name, "^([^%-]+)") or info.name
-                local lower = string_lower(shortName)
+                local _, shortName = normalize_peer_key(info.name)
+                local lower = string_lower(shortName or info.name)
                 map[lower] = true
                 offlinePeers[lower] = nil
             end
@@ -507,7 +832,8 @@ local function build_live_online_map()
             for j = 1, numGameAccounts do
                 local gameInfo = C_BattleNet.GetFriendGameAccountInfo(i, j)
                 if gameInfo and gameInfo.isOnline and gameInfo.clientProgram == "WoW" and gameInfo.characterName then
-                    local lower = string_lower(gameInfo.characterName)
+                    local _, shortName = normalize_peer_key(gameInfo.characterName)
+                    local lower = string_lower(shortName or gameInfo.characterName)
                     map[lower] = true
                     offlinePeers[lower] = nil
                 end
@@ -522,10 +848,25 @@ local function build_live_online_map()
         for i = 1, numGuild do
             local fullName, _, _, _, _, _, _, _, online = GetGuildRosterInfo(i)
             if online and fullName then
-                local shortName = string_match(fullName, "^([^%-]+)") or fullName
-                local lower = string_lower(shortName)
+                local _, shortName = normalize_peer_key(fullName)
+                local lower = string_lower(shortName or fullName)
                 map[lower] = true
                 offlinePeers[lower] = nil
+            end
+        end
+    end
+
+    -- On Forever, if a source reported only the 1st name (e.g. "lilith"), also mark the full "first last" peer online
+    if not sfui.isRetail and type(s.peers) == "table" then
+        for _, p in pairs(s.peers) do
+            if type(p) == "table" and p.name then
+                local pLower = string_lower(p.name)
+                if not map[pLower] and not offlinePeers[pLower] then
+                    local fLower = string_match(pLower, "^(%S+)")
+                    if fLower and fLower ~= pLower and map[fLower] then
+                        map[pLower] = map[fLower]
+                    end
+                end
             end
         end
     end
@@ -539,23 +880,56 @@ function sync.IsPeerOnline(nameOrFull)
     local key = string_lower(shortName or nameOrFull)
     if offlinePeers[key] then return false end
     local map = build_live_online_map()
-    return map[key] ~= nil
+    if map[key] ~= nil then return true end
+    if not sfui.isRetail then
+        local peer = sync.FindPeer(nameOrFull)
+        if peer and peer.name then
+            local pKey = string_lower(peer.name)
+            if not offlinePeers[pKey] and map[pKey] ~= nil then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 function sync.AddOrUpdatePeer(nameOrFull, meta)
+    if not sfui.isRetail then
+        nameOrFull = resolve_forever_name(nameOrFull, meta and meta.surname, meta and meta.guid) or nameOrFull
+    end
     if is_self_character(nameOrFull) then return nil end
     local s = sync.GetSettings()
     local key, shortName, realm = normalize_peer_key(nameOrFull, meta and meta.realm)
     if not key or not shortName then return nil end
 
     local existing = s.peers[key]
+    local existingKey = existing and key or nil
     if not existing then
         local lowerShort = string_lower(shortName)
+        local mGuid = type(meta) == "table" and meta.guid or nil
         for k, p in pairs(s.peers) do
-            if type(p) == "table" and p.name and string_lower(p.name) == lowerShort then
-                existing = p
-                key = k
-                break
+            if type(p) == "table" then
+                if (mGuid and mGuid ~= "" and p.guid == mGuid)
+                    or (p.name and string_lower(p.name) == lowerShort) then
+                    existing = p
+                    existingKey = k
+                    break
+                end
+            end
+        end
+        if not existing and not sfui.isRetail then
+            local probe = {
+                name         = shortName,
+                guid         = mGuid,
+                accountID    = type(meta) == "table" and meta.accountID or nil,
+                accountLabel = type(meta) == "table" and meta.accountLabel or nil,
+            }
+            for k, p in pairs(s.peers) do
+                if type(p) == "table" and peers_match_forever(probe, p) then
+                    existing = p
+                    existingKey = k
+                    break
+                end
             end
         end
     end
@@ -571,9 +945,28 @@ function sync.AddOrUpdatePeer(nameOrFull, meta)
             accountID = "peer-acct-default",
         }
         s.peers[key] = existing
+    else
+        if not sfui.isRetail then
+            local curHasSpace = type(existing.name) == "string" and existing.name:find(" ", 1, true) ~= nil
+            local newHasSpace = shortName:find(" ", 1, true) ~= nil
+            if newHasSpace and not curHasSpace then
+                existing.name = shortName
+                if existingKey and existingKey ~= key then
+                    s.peers[existingKey] = nil
+                    s.peers[key] = existing
+                end
+            else
+                key = existingKey or key
+            end
+        else
+            key = existingKey or key
+        end
     end
 
     if type(meta) == "table" then
+        if meta.surname and meta.surname ~= "" and not is_forever_realm_token(meta.surname) then
+            existing.surname = meta.surname
+        end
         if meta.guid then existing.guid = meta.guid end
         if meta.class then existing.class = meta.class end
         if meta.level then existing.level = meta.level end
@@ -585,6 +978,18 @@ function sync.AddOrUpdatePeer(nameOrFull, meta)
         end
         if meta.lastSeen ~= nil then existing.lastSeen = meta.lastSeen end
         if meta.lastSync ~= nil then existing.lastSync = meta.lastSync end
+        if not sfui.isRetail then
+            local upgraded = resolve_forever_name(existing.name, existing.surname, existing.guid)
+            if upgraded and upgraded ~= "" and upgraded ~= existing.name then
+                local newKey = normalize_peer_key(upgraded, existing.realm)
+                existing.name = upgraded
+                if newKey and newKey ~= key then
+                    s.peers[key] = nil
+                    s.peers[newKey] = existing
+                    key = newKey
+                end
+            end
+        end
     end
 
     if sfui.events and sfui.events.SendMessage then
@@ -603,6 +1008,18 @@ function sync.RemovePeer(keyOrName)
             s.peers[foundKey] = nil
         end
     end
+    local bcs = _G.Blizzard_Console_SavedVars
+    if type(bcs) == "table" and type(bcs.sfui_sync) == "table" and type(bcs.sfui_sync.peers) == "table" then
+        local mp = bcs.sfui_sync.peers
+        if mp[keyOrName] then
+            mp[keyOrName] = nil
+        else
+            local normKey = normalize_peer_key(keyOrName)
+            if normKey and mp[normKey] then
+                mp[normKey] = nil
+            end
+        end
+    end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_SYNC_PEERS_UPDATED")
     end
@@ -614,6 +1031,7 @@ function sync.ImportPeerRoster(roster, peerAccountLabel, peerAccountID, activeSe
     local now = (GetServerTime and GetServerTime()) or time()
     local _, activeShort = normalize_peer_key(activeSender or "")
     local activeLower = activeShort and string_lower(activeShort) or nil
+    local activeFirst = activeLower and string_match(activeLower, "^(%S+)") or nil
     local acctID = (peerAccountID and peerAccountID ~= "") and peerAccountID
         or ((peerAccountLabel and peerAccountLabel ~= "") and ("label:" .. string_lower(peerAccountLabel)))
         or (activeLower and ("acct:" .. activeLower))
@@ -621,12 +1039,22 @@ function sync.ImportPeerRoster(roster, peerAccountLabel, peerAccountID, activeSe
 
     for _, entry in ipairs(roster) do
         if type(entry) == "table" and entry.name and entry.name ~= "" then
-            local fullName = entry.realm and entry.realm ~= "" and (entry.name .. "-" .. entry.realm:gsub("%s+", "")) or entry.name
+            local fullName
+            if not sfui.isRetail then
+                fullName = resolve_forever_name(entry.name, entry.surname, entry.guid) or entry.name
+            else
+                fullName = entry.realm and entry.realm ~= "" and (entry.name .. "-" .. entry.realm:gsub("%s+", "")) or entry.name
+            end
             if not is_self_character(fullName) then
                 local existing = sync.FindPeer(fullName)
-                local isSender = activeLower and (string_lower(entry.name) == activeLower)
+                local entryLower = string_lower(fullName)
+                local entryFirst = string_match(entryLower, "^(%S+)") or entryLower
+                local isSender = activeLower and (entryLower == activeLower
+                    or string_lower(entry.name) == activeLower
+                    or (not sfui.isRetail and activeFirst and entryFirst == activeFirst and (entryLower == entryFirst or activeLower == activeFirst)))
                 sync.AddOrUpdatePeer(fullName, {
                     guid         = entry.guid,
+                    surname      = entry.surname,
                     realm        = entry.realm,
                     class        = entry.class,
                     level        = entry.level,
@@ -725,9 +1153,13 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
                 local gameInfo = C_BattleNet.GetFriendGameAccountInfo(i, j)
                 if gameInfo and gameInfo.isOnline and gameInfo.clientProgram == "WoW" and gameInfo.gameAccountID then
                     local charName = gameInfo.characterName
-                    if charName and not is_self_character(charName) and sync.FindPeer(charName) then
+                    local peer = charName and not is_self_character(charName) and sync.FindPeer(charName)
+                    if peer then
                         codec.SendMessage(PREFIX, msgType, dataTable, "BNET", nil, gameInfo.gameAccountID)
                         bnetSentNames[string_lower(charName)] = true
+                        if peer.name then
+                            bnetSentNames[string_lower(peer.name)] = true
+                        end
                     end
                 end
             end
@@ -742,6 +1174,11 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
             for i = 1, n do
                 local u = prefixUnit .. i
                 if UnitExists and UnitExists(u) then
+                    local full = sync.FullName(u)
+                    if full and full ~= "" then
+                        local _, shortName = normalize_peer_key(full)
+                        partyNames[string_lower(shortName or full)] = true
+                    end
                     local uName = UnitName(u)
                     if uName then partyNames[string_lower(uName)] = true end
                 end
@@ -767,8 +1204,11 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
                     accounts[acctKey] = group
                 end
 
-                local lowerName = string_lower(peer.name)
-                if partyNames[lowerName] or bnetSentNames[lowerName] then
+                local peerDisp = sync.GetPeerDisplayName(peer)
+                local lowerName = string_lower(peerDisp)
+                local firstLower = not sfui.isRetail and string_match(lowerName, "^(%S+)") or nil
+                if partyNames[lowerName] or bnetSentNames[lowerName]
+                    or (firstLower and (partyNames[firstLower] or bnetSentNames[firstLower])) then
                     group.alreadyReached = true
                 elseif liveOnline[lowerName] then
                     if not group.onlinePeer or ((tonumber(peer.lastSeen) or 0) > (tonumber(group.onlinePeer.lastSeen) or 0)) then
@@ -1593,6 +2033,7 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
                     {
                         guid         = data.guid,
                         name         = data.data.name,
+                        surname      = data.data.surname,
                         realm        = data.data.realm,
                         class        = data.data.class,
                         level        = data.data.level,
@@ -2004,8 +2445,23 @@ local function short_name(s)
     return string_match(s, "^([^%-]+)") or s
 end
 
-local function format_colored_char_name(alt, fallbackName)
-    local rawName = (alt and alt.name) or fallbackName or "?"
+local function alt_display_name(alt, guid)
+    if type(alt) ~= "table" then return "" end
+    if not sfui.isRetail then
+        local disp = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name or ""
+        local resolved = resolve_forever_name(disp, alt.surname, guid)
+        if resolved and resolved ~= "" then
+            return resolved
+        end
+    end
+    return short_name(alt.name or "")
+end
+
+local function format_colored_char_name(alt, fallbackName, guid)
+    local rawName = alt_display_name(alt, guid)
+    if rawName == "" then
+        rawName = fallbackName or "?"
+    end
     local cleanName = short_name(rawName):lower()
     local classToken = alt and alt.class
     if classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken] then
@@ -2040,8 +2496,10 @@ local function build_party_guid_and_name_maps()
         local u = prefix .. i
         if UnitExists and UnitExists(u) and not (UnitIsUnit and UnitIsUnit(u, "player")) then
             local g = UnitGUID and UnitGUID(u)
+            local full = sync.FullName(u)
             local n = UnitName and UnitName(u)
             if g then cachedPartyGuidMap[g] = true end
+            if full and full ~= "" then cachedPartyNameMap[short_name(full):lower()] = true end
             if n and n ~= "" then cachedPartyNameMap[short_name(n):lower()] = true end
         end
     end
@@ -2101,13 +2559,15 @@ function sync.GetPartyMissingQuestPeers(questID)
 
     for guid, alt in pairs(SfuiDB.alts) do
         if guid ~= myGUID and type(alt) == "table" and type(alt.activeQuests) == "table" then
-            local cleanName = short_name(alt.name or ""):lower()
-            if (partyGUIDs[guid] or (cleanName ~= "" and partyNames[cleanName])) and not seenNames[cleanName] then
+            local cleanName = alt_display_name(alt, guid):lower()
+            local firstOnly = short_name(alt.name or ""):lower()
+            if (partyGUIDs[guid] or (cleanName ~= "" and partyNames[cleanName]) or (firstOnly ~= "" and partyNames[firstOnly]))
+                and cleanName ~= "" and not seenNames[cleanName] then
                 seenNames[cleanName] = true
                 local hasActive = (alt.activeQuests[questID] ~= nil)
                 local hasCompleted = is_alt_quest_done(alt, questID)
                 if not hasActive and not hasCompleted then
-                    local colored = format_colored_char_name(alt, cleanName)
+                    local colored = format_colored_char_name(alt, cleanName, guid)
                     missing = missing or {}
                     missing[#missing + 1] = colored
                 end
@@ -2136,10 +2596,11 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
 
     for guid, alt in pairs(SfuiDB.alts) do
         if guid ~= myGUID and type(alt) == "table" and (type(alt.activeQuests) == "table" or type(alt.djQuests) == "table") then
-            local cleanName = short_name(alt.name or ""):lower()
+            local cleanName = alt_display_name(alt, guid):lower()
+            local firstOnly = short_name(alt.name or ""):lower()
             if cleanName ~= "" and not seenNames[cleanName] then
-                local inParty = (partyGUIDs[guid] == true) or (partyNames[cleanName] == true)
-                local isOnline = inParty or (liveMap[cleanName] ~= nil)
+                local inParty = (partyGUIDs[guid] == true) or (partyNames[cleanName] == true) or (firstOnly ~= "" and partyNames[firstOnly] == true)
+                local isOnline = inParty or (liveMap[cleanName] ~= nil) or (firstOnly ~= "" and liveMap[firstOnly] ~= nil)
                 if includeAllAlts or inParty or isOnline then
                     seenNames[cleanName] = true
                     local status = "missing"
@@ -2178,7 +2639,7 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
                         status = "active"
                     end
 
-                    local colored = format_colored_char_name(alt, cleanName)
+                    local colored = format_colored_char_name(alt, cleanName, guid)
                     results = results or {}
                     results[#results + 1] = {
                         guid           = guid,

@@ -46,7 +46,6 @@ local _castAurasBySpellID = {}
 local _castAurasByName = {}
 local _revision = 0
 local _lastHelpfulCount = 0
-local _lastJudgementTime = 0
 
 local _activeSeal = {
     active = false,
@@ -125,11 +124,6 @@ end
 local function IsSealName(name)
     if not name or issecretvalue(name) or type(name) ~= "string" then return false end
     return string.find(name, "^Seal of ") ~= nil
-end
-
-local function IsJudgementName(name)
-    if not name or issecretvalue(name) or type(name) ~= "string" then return false end
-    return name == "Judgement" or name == "Judgment" or string.find(name, "^Judgement of ") ~= nil or string.find(name, "^Judgment of ") ~= nil
 end
 
 local function EnsureDurationObj(holder, startTime, duration)
@@ -604,25 +598,6 @@ if sfui.events then
             _activeSeal.expirationTime = now + dur
             _activeSeal.auraInstanceID = nil
             EnsureDurationObj(_activeSeal, now, dur)
-            NotifyTrackingDirty()
-            return
-        end
-
-        if IsJudgementName(name) then
-            _lastJudgementTime = now
-            if _activeSeal.active then
-                if not CanAccessUnitAuras() then
-                    _activeSeal.active = false
-                    _activeSeal.auraInstanceID = nil
-                    EnsureDurationObj(_activeSeal, nil, nil)
-                elseif _activeSeal.auraInstanceID and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
-                    if C_UnitAuras.GetAuraDataByAuraInstanceID("player", _activeSeal.auraInstanceID) == nil then
-                        _activeSeal.active = false
-                        _activeSeal.auraInstanceID = nil
-                        EnsureDurationObj(_activeSeal, nil, nil)
-                    end
-                end
-            end
             NotifyTrackingDirty()
             return
         end

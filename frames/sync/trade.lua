@@ -72,8 +72,11 @@ local function resolve_partner_alt(partnerGUID, partnerName)
     end
     if partnerName and partnerName ~= "" then
         for guid, alt in pairs(SfuiDB.alts) do
-            if type(alt) == "table" and multibox.SameChar(alt.name, partnerName) then
-                return guid
+            if type(alt) == "table" then
+                local disp = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name
+                if multibox.SameChar(disp, partnerName) or multibox.SameChar(alt.name, partnerName) then
+                    return guid
+                end
             end
         end
     end

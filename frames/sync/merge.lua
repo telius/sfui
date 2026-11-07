@@ -84,7 +84,13 @@ function merge.MergeAlt(guid, incomingData, peerAccountLabel, peerAccountID)
         elseif existing and existing.accountID then
             merged.accountID = existing.accountID
         end
+        if sfui.alts and sfui.alts.RepairAltEntry then
+            sfui.alts.RepairAltEntry(merged, guid, false)
+        end
         SfuiDB.alts[guid] = merged
+        if sfui.sync and sfui.sync.SanitizePeers then
+            sfui.sync.SanitizePeers()
+        end
         if sfui.sync and sfui.sync.multibox and sfui.sync.multibox.InvalidatePeerCache then
             sfui.sync.multibox.InvalidatePeerCache()
         end
@@ -433,7 +439,12 @@ function merge.BuildFishingCharPayload(guid)
     local copy = deep_copy(cData)
     local alt = SfuiDB.alts and SfuiDB.alts[guid]
     if alt then
-        copy.name = copy.name or alt.name
+        local dispName = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name
+        if not sfui.isRetail and dispName and dispName ~= "" then
+            copy.name = dispName
+        else
+            copy.name = copy.name or dispName
+        end
         copy.realm = copy.realm or alt.realm
         copy.class = copy.class or alt.class
         copy.accountID = copy.accountID or alt.accountID
@@ -1460,9 +1471,10 @@ function merge.BuildManifest(syncCfg)
                 end
                 local isOwnAlt = (not d.accountID or d.accountID == "" or d.accountID == myAccountID)
                 if isOwnAlt and d.name and d.name ~= "" then
+                    local rosterName = (not sfui.isRetail and sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(d, guid)) or d.name
                     table_insert(manifest.roster, {
                         guid         = guid,
-                        name         = d.name,
+                        name         = rosterName,
                         surname      = d.surname,
                         realm        = d.realm or defaultRealm,
                         class        = d.class,

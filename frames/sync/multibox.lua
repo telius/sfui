@@ -69,7 +69,18 @@ end
 
 local function same_char(a, b)
     if not a or not b or a == "" or b == "" then return false end
-    return clean_key(a) == clean_key(b)
+    local ka = clean_key(a)
+    local kb = clean_key(b)
+    if ka == "" or kb == "" then return false end
+    if ka == kb then return true end
+    if not sfui.isRetail then
+        local fa = string_match(ka, "^(%S+)") or ka
+        local fb = string_match(kb, "^(%S+)") or kb
+        if fa == fb and (ka == fa or kb == fb) then
+            return true
+        end
+    end
+    return false
 end
 
 multibox.FullName    = full_name
@@ -87,6 +98,7 @@ local altGUIDByCleanKey = {}
 
 function multibox.InvalidatePeerCache()
     peerCacheValid = false
+    wipe(cleanKeyCache)
 end
 
 local function ensure_peer_cache()
@@ -94,6 +106,7 @@ local function ensure_peer_cache()
     local myGUID = UnitGUID and UnitGUID("player")
     local myClean = clean_key(full_name("player") or "")
     if myClean == "" then return end
+    local myFirst = not sfui.isRetail and (string_match(myClean, "^(%S+)") or myClean) or myClean
 
     wipe(syncedByGUID)
     wipe(syncedByCleanKey)
@@ -103,12 +116,22 @@ local function ensure_peer_cache()
     if SfuiDB and type(SfuiDB.alts) == "table" then
         for guid, alt in pairs(SfuiDB.alts) do
             if type(alt) == "table" then
-                local c = clean_key(alt.name or "")
+                local disp = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name or ""
+                local c = clean_key(disp)
+                local cFirst = clean_key(alt.name or "")
                 if c ~= "" then
                     altGUIDByCleanKey[c] = guid
                     if guid ~= myGUID and c ~= myClean then
                         syncedByGUID[guid] = true
                         syncedByCleanKey[c] = true
+                    end
+                end
+                if cFirst ~= "" and cFirst ~= c then
+                    if not altGUIDByCleanKey[cFirst] then
+                        altGUIDByCleanKey[cFirst] = guid
+                    end
+                    if guid ~= myGUID and cFirst ~= myClean and cFirst ~= myFirst then
+                        syncedByCleanKey[cFirst] = true
                     end
                 end
             end
@@ -119,10 +142,22 @@ local function ensure_peer_cache()
     if s and type(s.peers) == "table" then
         for _, p in pairs(s.peers) do
             if type(p) == "table" and p.trusted and p.name then
-                local c = clean_key(p.name)
+                local disp = (sync.GetPeerDisplayName and sync.GetPeerDisplayName(p)) or p.name
+                local c = clean_key(disp)
                 if c ~= "" and c ~= myClean then
                     syncedByCleanKey[c] = true
-                    if p.guid then syncedByGUID[p.guid] = true end
+                    if not sfui.isRetail then
+                        local f = string_match(c, "^(%S+)")
+                        if f and f ~= "" and f ~= myClean and f ~= myFirst then
+                            syncedByCleanKey[f] = true
+                        end
+                    end
+                    if p.guid then
+                        syncedByGUID[p.guid] = true
+                        if not altGUIDByCleanKey[c] then
+                            altGUIDByCleanKey[c] = p.guid
+                        end
+                    end
                 end
             end
         end
@@ -132,10 +167,22 @@ local function ensure_peer_cache()
     if type(bcs) == "table" and type(bcs.sfui_sync) == "table" and type(bcs.sfui_sync.peers) == "table" then
         for _, mp in pairs(bcs.sfui_sync.peers) do
             if type(mp) == "table" and mp.name then
-                local c = clean_key(mp.name)
+                local disp = (sync.GetPeerDisplayName and sync.GetPeerDisplayName(mp)) or mp.name
+                local c = clean_key(disp)
                 if c ~= "" and c ~= myClean then
                     syncedByCleanKey[c] = true
-                    if mp.guid then syncedByGUID[mp.guid] = true end
+                    if not sfui.isRetail then
+                        local f = string_match(c, "^(%S+)")
+                        if f and f ~= "" and f ~= myClean and f ~= myFirst then
+                            syncedByCleanKey[f] = true
+                        end
+                    end
+                    if mp.guid then
+                        syncedByGUID[mp.guid] = true
+                        if not altGUIDByCleanKey[c] then
+                            altGUIDByCleanKey[c] = mp.guid
+                        end
+                    end
                 end
             end
         end

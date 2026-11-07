@@ -177,6 +177,9 @@ local function IsServerRealmName(s)
     if type(s) ~= "string" or s == "" then return false end
     local norm = NormalizeRealmToken(s)
     if norm == "" then return false end
+    if norm:find("^camwow") or norm:find("realm") or norm:find("%d") then
+        return true
+    end
     local r1 = _G.GetRealmName and _G.GetRealmName()
     if r1 and NormalizeRealmToken(r1) == norm then return true end
     local r2 = _G.GetNormalizedRealmName and _G.GetNormalizedRealmName()
@@ -188,17 +191,27 @@ local function IsServerRealmName(s)
     end
     return false
 end
+sfui.alts.IsServerRealmName = IsServerRealmName
 
 local function GetSurnameSeparator()
     return (_G.Constants and _G.Constants.CharacterNameSeparatorConsts and _G.Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
 end
 
 local function ResolveNameAndSurname(rawName, rawSecond, guid, isPlayer)
-    local firstName = (type(rawName) == "string" and rawName ~= "") and rawName or nil
-    local surname = (type(rawSecond) == "string" and rawSecond ~= "") and rawSecond or nil
+    local firstName = (type(rawName) == "string" and rawName ~= "") and rawName:gsub("^%s+", ""):gsub("%s+$", "") or nil
+    local surname = (type(rawSecond) == "string" and rawSecond ~= "") and rawSecond:gsub("^%s+", ""):gsub("%s+$", "") or nil
+    if firstName == "" then firstName = nil end
+    if surname == "" then surname = nil end
 
     if not IsCamelotNameSystem() then
         return firstName, nil
+    end
+
+    if surname and surname:find("-", 1, true) then
+        local sLeft, sRight = surname:match("^([^%-]+)%-(.+)$")
+        if sLeft and sLeft ~= "" and (not sRight or IsServerRealmName(sRight)) then
+            surname = sLeft:gsub("^%s+", ""):gsub("%s+$", "")
+        end
     end
 
     if surname and IsServerRealmName(surname) then
@@ -209,9 +222,9 @@ local function ResolveNameAndSurname(rawName, rawSecond, guid, isPlayer)
     if firstName and firstName:find("-", 1, true) then
         local left, right = firstName:match("^([^%-]+)%-(.+)$")
         if left and left ~= "" then
-            firstName = left
+            firstName = left:gsub("^%s+", ""):gsub("%s+$", "")
             if right and right ~= "" and not IsServerRealmName(right) and not surname then
-                surname = right
+                surname = right:gsub("^%s+", ""):gsub("%s+$", "")
             end
         end
     end
@@ -221,8 +234,8 @@ local function ResolveNameAndSurname(rawName, rawSecond, guid, isPlayer)
     if firstName and sep ~= "" then
         local sIdx, eIdx = firstName:find(sep, 1, true)
         if sIdx and sIdx > 1 then
-            local fPart = firstName:sub(1, sIdx - 1)
-            local sPart = firstName:sub(eIdx + 1)
+            local fPart = firstName:sub(1, sIdx - 1):gsub("^%s+", ""):gsub("%s+$", "")
+            local sPart = firstName:sub(eIdx + 1):gsub("^%s+", ""):gsub("%s+$", "")
             if fPart ~= "" then
                 firstName = fPart
                 if sPart ~= "" and not IsServerRealmName(sPart) and (not surname or surname == "") then
@@ -290,6 +303,33 @@ local function ResolveNameAndSurname(rawName, rawSecond, guid, isPlayer)
             if pSecond and pSecond ~= "" and not IsServerRealmName(pSecond) then
                 surname = pSecond
                 if not firstName or firstName == "" then firstName = pFirst end
+            elseif pFirst and sep ~= "" and pFirst:find(sep, 1, true) then
+                local sIdx, eIdx = pFirst:find(sep, 1, true)
+                if sIdx and sIdx > 1 then
+                    local sPart = pFirst:sub(eIdx + 1)
+                    if sPart ~= "" and not IsServerRealmName(sPart) then
+                        surname = sPart
+                    end
+                end
+            end
+        end
+    end
+
+    -- Fallback 3: Recover surname from synced peer roster (`SfuiDB.sync.peers`) if known
+    if (not surname or surname == "") and firstName and SfuiDB and type(SfuiDB.sync) == "table" and type(SfuiDB.sync.peers) == "table" then
+        local lowerFirst = firstName:lower()
+        for _, p in pairs(SfuiDB.sync.peers) do
+            if type(p) == "table" and type(p.name) == "string" then
+                local pClean = p.name:match("^([^%-]+)") or p.name
+                local sIdx, eIdx = pClean:find(sep, 1, true)
+                if sIdx and sIdx > 1 then
+                    local pf = pClean:sub(1, sIdx - 1):gsub("^%s+", ""):gsub("%s+$", "")
+                    local ps = pClean:sub(eIdx + 1):gsub("^%s+", ""):gsub("%s+$", "")
+                    if ps ~= "" and not IsServerRealmName(ps) and ((guid and p.guid == guid) or pf:lower() == lowerFirst) then
+                        surname = ps
+                        break
+                    end
+                end
             end
         end
     end
@@ -300,6 +340,7 @@ local function ResolveNameAndSurname(rawName, rawSecond, guid, isPlayer)
 
     return firstName, surname
 end
+sfui.alts.ResolveNameAndSurname = ResolveNameAndSurname
 
 local function RepairAltEntry(altData, guid, isPlayer)
     if type(altData) ~= "table" then return end
@@ -692,9 +733,7 @@ local function RefreshSettingsPanel()
             if StaticPopup_Show then
                 StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", capturedName, nil, { guid = capturedGuid })
             else
-                if SfuiDB.alts then
-                    SfuiDB.alts[capturedGuid] = nil
-                end
+                sfui.alts.PurgeCharacter(capturedGuid)
                 sfui.alts.UpdateUI(true)
                 RefreshSettingsPanel()
             end
@@ -814,6 +853,150 @@ local function CreateSettingsPanel()
     return settingsPanel
 end
 
+--- Purge a character and all associated recipe, craft, fishing, mail, and sync data by GUID
+--- @param guid string
+function sfui.alts.PurgeCharacter(guid)
+    if not guid or not SfuiDB then return end
+
+    local altData = SfuiDB.alts and SfuiDB.alts[guid]
+    local charName = altData and altData.name
+    local charRealm = altData and altData.realm
+
+    -- 1. Alts record (includes active/completed quests, professions, currencies, vault)
+    if SfuiDB.alts then
+        SfuiDB.alts[guid] = nil
+    end
+
+    -- 2. Known recipes matrix (`SfuiDB.recipes[id][realm][guid]`)
+    local recipesChanged = false
+    if type(SfuiDB.recipes) == "table" then
+        for id, realmMap in pairs(SfuiDB.recipes) do
+            if type(realmMap) == "table" then
+                for rKey, guidMap in pairs(realmMap) do
+                    if type(guidMap) == "table" and guidMap[guid] ~= nil then
+                        guidMap[guid] = nil
+                        recipesChanged = true
+                        if next(guidMap) == nil then
+                            realmMap[rKey] = nil
+                        end
+                    end
+                end
+                if next(realmMap) == nil then
+                    SfuiDB.recipes[id] = nil
+                end
+            end
+        end
+    end
+
+    -- 3. Craft outputs matrix (`SfuiDB.crafts[outputItemID][guid]`)
+    if type(SfuiDB.crafts) == "table" then
+        for outID, crafters in pairs(SfuiDB.crafts) do
+            if type(crafters) == "table" and crafters[guid] ~= nil then
+                crafters[guid] = nil
+                recipesChanged = true
+                if next(crafters) == nil then
+                    SfuiDB.crafts[outID] = nil
+                end
+            end
+        end
+    end
+
+    if recipesChanged and sfui.recipes then
+        if sfui.recipes.InvalidateCache then
+            sfui.recipes.InvalidateCache()
+        end
+        if sfui.recipes.InvalidateLiveIndices then
+            sfui.recipes.InvalidateLiveIndices()
+        end
+        local B = sfui.recipes.browser
+        if B then
+            if B.ClearLearnedCache then
+                B.ClearLearnedCache()
+            end
+            if B.ui and B.ui.frame and B.ui.frame:IsShown() then
+                if B.RebuildFilteredList then B.RebuildFilteredList() end
+                if B.UpdateList then B.UpdateList() end
+            end
+        end
+    end
+
+    -- 4. Fishing ledger (`SfuiDB.fishing.chars[guid]` + machine store + aggregate rebuild)
+    local fishingChanged = false
+    if type(SfuiDB.fishing) == "table" and type(SfuiDB.fishing.chars) == "table" and SfuiDB.fishing.chars[guid] ~= nil then
+        SfuiDB.fishing.chars[guid] = nil
+        fishingChanged = true
+    end
+    local bcs = _G.Blizzard_Console_SavedVars
+    if type(bcs) == "table" and type(bcs.sfui_sync) == "table" then
+        if type(bcs.sfui_sync.fishing_chars) == "table" and bcs.sfui_sync.fishing_chars[guid] ~= nil then
+            bcs.sfui_sync.fishing_chars[guid] = nil
+            fishingChanged = true
+        end
+        if type(bcs.sfui_sync.peers) == "table" then
+            for k, mp in pairs(bcs.sfui_sync.peers) do
+                if type(mp) == "table" and mp.guid == guid then
+                    bcs.sfui_sync.peers[k] = nil
+                end
+            end
+        end
+    end
+    if fishingChanged and sfui.fishing and sfui.fishing.RebuildAggregates then
+        sfui.fishing.RebuildAggregates(true)
+    end
+
+    -- 5. Auto-mail routing rules (`SfuiDB.altMailRouting`)
+    if type(SfuiDB.altMailRouting) == "table" then
+        if type(SfuiDB.altMailRouting.routes) == "table" then
+            SfuiDB.altMailRouting.routes[guid] = nil
+        end
+        if SfuiDB.altMailRouting.disenchanterGUID == guid then
+            SfuiDB.altMailRouting.disenchanterGUID = nil
+        end
+        if sfui.alts and sfui.alts.mail and sfui.alts.mail.ui and sfui.alts.mail.ui.Refresh then
+            sfui.alts.mail.ui.Refresh()
+        end
+    end
+
+    -- 6. Per-character skills, gear, and pet settings
+    if type(SfuiDB.characterSkills) == "table" then
+        SfuiDB.characterSkills[guid] = nil
+        if charName and charName ~= "" then
+            SfuiDB.characterSkills[charName] = nil
+            if charRealm and charRealm ~= "" then
+                SfuiDB.characterSkills[charName .. "-" .. charRealm] = nil
+            end
+        end
+    end
+    if type(SfuiDB.gear_char) == "table" then
+        SfuiDB.gear_char[guid] = nil
+        if charName and charName ~= "" then
+            SfuiDB.gear_char[charName] = nil
+            if charRealm and charRealm ~= "" then
+                SfuiDB.gear_char[charName .. "-" .. charRealm] = nil
+            end
+        end
+    end
+    if type(SfuiDB.pets_per_char) == "table" and charName and charName ~= "" then
+        SfuiDB.pets_per_char[charName] = nil
+        if charRealm and charRealm ~= "" then
+            SfuiDB.pets_per_char[charName .. "-" .. charRealm] = nil
+        end
+    end
+
+    -- 7. Sync peer roster & multibox cache
+    if type(SfuiDB.sync) == "table" and type(SfuiDB.sync.peers) == "table" then
+        for k, p in pairs(SfuiDB.sync.peers) do
+            if type(p) == "table" and p.guid == guid then
+                SfuiDB.sync.peers[k] = nil
+            end
+        end
+    end
+    if sfui.sync and sfui.sync.multibox and sfui.sync.multibox.InvalidatePeerCache then
+        sfui.sync.multibox.InvalidatePeerCache()
+    end
+end
+sfui.alts.RemoveCharacter = sfui.alts.PurgeCharacter
+
 -- Confirmation Dialog for Removing Characters
 if StaticPopupDialogs then
     StaticPopupDialogs["SFUI_ALTS_REMOVE_CHARACTER"] = {
@@ -821,8 +1004,8 @@ if StaticPopupDialogs then
         button1 = "Remove",
         button2 = "Cancel",
         OnAccept = function(self, data)
-            if SfuiDB.alts and data and data.guid then
-                SfuiDB.alts[data.guid] = nil
+            if data and data.guid then
+                sfui.alts.PurgeCharacter(data.guid)
                 sfui.alts.UpdateUI(true)
                 if sfui.alts.RefreshSettingsPanel then
                     sfui.alts.RefreshSettingsPanel()

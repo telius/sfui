@@ -496,7 +496,11 @@ local function CheckWeeklyResets()
 
     for g, d in pairs(SfuiDB.alts or {}) do
         if d.lastUpdate and (now - d.lastUpdate > thirtyDaysSecs) then
-            SfuiDB.alts[g] = nil
+            if sfui.alts and sfui.alts.PurgeCharacter then
+                sfui.alts.PurgeCharacter(g)
+            else
+                SfuiDB.alts[g] = nil
+            end
         elseif d.nextWeeklyReset and now > d.nextWeeklyReset then
             if d.quests then wipe(d.quests) end
             if d.profKP then

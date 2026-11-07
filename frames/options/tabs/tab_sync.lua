@@ -494,6 +494,9 @@ sfui.options.RegisterTab({
             ))
 
             -- Populate peer rows
+            if sync and sync.SanitizePeers then
+                sync.SanitizePeers()
+            end
             local list = {}
             for key, p in pairs(cur.peers or {}) do
                 if type(p) == "table" and p.name then
@@ -508,7 +511,9 @@ sfui.options.RegisterTab({
                 local la = string_lower(a.peer.accountLabel or "zzzz")
                 local lb = string_lower(b.peer.accountLabel or "zzzz")
                 if la ~= lb then return la < lb end
-                return string_lower(a.peer.name or "") < string_lower(b.peer.name or "")
+                local na = (sync and sync.GetPeerDisplayName and sync.GetPeerDisplayName(a.peer)) or a.peer.name or ""
+                local nb = (sync and sync.GetPeerDisplayName and sync.GetPeerDisplayName(b.peer)) or b.peer.name or ""
+                return string_lower(na) < string_lower(nb)
             end)
 
             for _, r in ipairs(peerRows) do
@@ -533,7 +538,8 @@ sfui.options.RegisterTab({
                 row:SetPoint("TOPLEFT", sc, "TOPLEFT", 0, -y)
                 row:SetSize(rowW, 24)
 
-                local nameDisplay = string_lower(p.name or "unknown")
+                local rawPeerName = (sync and sync.GetPeerDisplayName and sync.GetPeerDisplayName(p)) or p.name or "unknown"
+                local nameDisplay = string_lower(rawPeerName)
                 if p.class and common.get_class_color then
                     local r, gCol, b = common.get_class_color(p.class)
                     if r and gCol and b then
@@ -549,7 +555,7 @@ sfui.options.RegisterTab({
                 row.nameFs:SetText(nameDisplay)
                 row.metaFs:SetText("last sync: " .. format_ago(p.lastSync or p.lastSeen))
 
-                local targetName = p.name
+                local targetName = rawPeerName
                 local peerKey = item.key
                 row.syncBtn:SetScript("OnClick", function()
                     if sync and sync.SendHelloToPeer then

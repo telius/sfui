@@ -427,8 +427,9 @@ function sfui.fishing.EnsureCharLedger(guid)
     end
 
     if myGUID and guid == myGUID then
-        local uName = _G.UnitName and _G.UnitName("player")
-        if uName and uName ~= "" and uName ~= _G.UNKNOWNOBJECT then
+        local uName = (not sfui.isRetail and sfui.common and sfui.common.get_player_display_name and sfui.common.get_player_display_name())
+            or (_G.UnitName and _G.UnitName("player"))
+        if uName and uName ~= "" and uName ~= "Unknown" and uName ~= _G.UNKNOWNOBJECT then
             entry.name = uName
         end
         local uRealm = _G.GetRealmName and _G.GetRealmName()
@@ -459,7 +460,11 @@ end
 
 local function resolve_angler_meta(guid, cData)
     local alt = (SfuiDB and SfuiDB.alts and SfuiDB.alts[guid]) or nil
-    local rawName = (cData and cData.name) or (alt and alt.name) or "?"
+    local altDisp = alt and ((sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name) or nil
+    local rawName = (not sfui.isRetail and altDisp and altDisp:find(" ", 1, true) and altDisp)
+        or (cData and cData.name)
+        or altDisp
+        or "?"
     local shortName = rawName:match("^([^%-]+)") or rawName
     shortName = shortName:lower()
 
@@ -652,10 +657,27 @@ function sfui.fishing.GetSyncedAnglers()
     return list
 end
 
-function sfui.fishing.RebuildAggregates()
+function sfui.fishing.RebuildAggregates(forceResetRecords)
     SfuiDB = SfuiDB or {}
     SfuiDB.fishing = SfuiDB.fishing or {}
-    if not SfuiDB.fishing.chars or next(SfuiDB.fishing.chars) == nil then
+
+    -- Prune any orphaned fishing ledgers for characters removed from SfuiDB.alts
+    if type(SfuiDB.fishing.chars) == "table" and type(SfuiDB.alts) == "table" and next(SfuiDB.alts) ~= nil then
+        local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+        local bcs = _G.Blizzard_Console_SavedVars
+        local msFishing = type(bcs) == "table" and type(bcs.sfui_sync) == "table" and type(bcs.sfui_sync.fishing_chars) == "table" and bcs.sfui_sync.fishing_chars or nil
+        for guid in pairs(SfuiDB.fishing.chars) do
+            if guid ~= myGUID and not SfuiDB.alts[guid] then
+                SfuiDB.fishing.chars[guid] = nil
+                if msFishing then
+                    msFishing[guid] = nil
+                end
+                forceResetRecords = true
+            end
+        end
+    end
+
+    if not forceResetRecords and (not SfuiDB.fishing.chars or next(SfuiDB.fishing.chars) == nil) then
         return
     end
 
@@ -663,10 +685,10 @@ function sfui.fishing.RebuildAggregates()
     local species = {}
     local zones = {}
     local records = SfuiDB.fishing.records or { longestStreak = 0, bestRate = 0 }
-    local maxStreak = records.longestStreak or 0
-    local maxRate = records.bestRate or 0
+    local maxStreak = forceResetRecords and 0 or (records.longestStreak or 0)
+    local maxRate = forceResetRecords and 0 or (records.bestRate or 0)
 
-    for _, cData in pairs(SfuiDB.fishing.chars) do
+    for _, cData in pairs(SfuiDB.fishing.chars or {}) do
         if type(cData) == "table" then
             if (cData.longestStreak or 0) > maxStreak then
                 maxStreak = cData.longestStreak
