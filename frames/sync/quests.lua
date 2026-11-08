@@ -38,6 +38,7 @@ local UnitClass = _G.UnitClass
 local UnitLevel = _G.UnitLevel
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local C_Timer = _G.C_Timer
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
 
 local PENDING_SECONDS      = 8.0
 local pendingDialogChoices = {}
@@ -99,14 +100,14 @@ end
 local function current_npc_name()
     if UnitExists and UnitExists("npc") then
         local n = UnitName("npc")
-        if n and n ~= "" then
+        if n and not issecretvalue(n) and n ~= "" then
             lastNpcName = n
             return n
         end
     end
     if UnitExists and UnitExists("questnpc") then
         local n = UnitName("questnpc")
-        if n and n ~= "" then
+        if n and not issecretvalue(n) and n ~= "" then
             lastNpcName = n
             return n
         end

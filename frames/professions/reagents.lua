@@ -145,8 +145,9 @@ local function BuildRoster()
     end
 
     local myGUID = UnitGUID and UnitGUID("player")
+    local includeAlts = not (SfuiDB and SfuiDB.recipesReagentShowAlts == false)
     for guid, alt in pairs(alts) do
-        if type(alt) == "table" and alt.professions and (guid == myGUID or not alt.isHidden) then
+        if type(alt) == "table" and alt.professions and (guid == myGUID or (includeAlts and not alt.isHidden)) then
             for skillID in pairs(bySkill) do
                 local hasProf, _, rank = checkAlt(alt, nil, nil, nil, skillID)
                 if hasProf then
@@ -298,6 +299,7 @@ local function BuildLines(itemID, expanded)
 
     local maxCollapsed = (SfuiDB and tonumber(SfuiDB.recipesReagentMaxLines)) or DEFAULT_MAX_LINES
     local maxLines = expanded and SHIFT_MAX_LINES or maxCollapsed
+    local showCanLearn = not (SfuiDB and SfuiDB.recipesReagentShowCanLearn == false)
     local lines = {}
     local expandable = false
 
@@ -318,8 +320,9 @@ local function BuildLines(itemID, expanded)
 
         local shown, hidden, collapsedVisible = 0, 0, 0
         for _, entry in ipairs(g.entries) do
-            local visible = expanded or entry.state ~= STATE_NEEDS_SKILL
-            if entry.state ~= STATE_NEEDS_SKILL then
+            local collapsedOk = (entry.state == STATE_KNOWN) or (showCanLearn and entry.state == STATE_LEARNABLE)
+            local visible = expanded or collapsedOk
+            if collapsedOk then
                 collapsedVisible = collapsedVisible + 1
             else
                 expandable = true

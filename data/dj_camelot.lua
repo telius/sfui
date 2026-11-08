@@ -150,7 +150,22 @@ sfui.dj_camelot.dungeons = {
             { id = 92422, name = "The Wrath of Rath'mael", level = 22, minLevel = 15, faction = "Horde",
               pickup = "Deathguard Kristof, Brill",
               turnin = "Deathguard Kristof, Brill",
-              pickedUpInDungeon = false, shareable = true,
+              pickedUpInDungeon = false, shareable = false, hasPrereq = true,
+              prereqId = 99156,
+              prereqText = "Requires completing the 2-part 'Rear Guard Patrol' quest chain from Deathguard Linnea east of Brill",
+              chain = {
+                  { id = 356,   name = "Rear Guard Patrol",          pickup = "Deathguard Linnea, Brill",  minLevel = 6,  coords = { mapID = 1420, x = 0.6560, y = 0.6020 } },
+                  { id = 99156, name = "Rear Guard Patrol (Part 2)", pickup = "Deathguard Linnea, Brill",  minLevel = 10, coords = { mapID = 1420, x = 0.6560, y = 0.6020 } },
+                  { id = 92422, name = "The Wrath of Rath'mael",     pickup = "Deathguard Kristof, Brill", minLevel = 15, coords = { mapID = 1420, x = 0.6520, y = 0.6020 }, isDungeonQuest = true },
+              },
+              chainStart = {
+                  id = 356,
+                  name = "Rear Guard Patrol",
+                  pickup = "Deathguard Linnea, Brill",
+                  minLevel = 6,
+                  faction = "Horde",
+                  coords = { mapID = 1420, x = 0.6560, y = 0.6020 },
+              },
               objective = "Defeat Rath'mael in the Ruins of Lordaeron.",
               rewardItems = { 251533, 251534 }, rewardSummary = "12s" },
             { id = 92421, name = "Light's Justice", level = 22, minLevel = 15, faction = "Horde",
@@ -165,10 +180,26 @@ sfui.dj_camelot.dungeons = {
               pickedUpInDungeon = false, shareable = true,
               objective = "Investigate the disappearance of Edward Heartweaver in Ruins of Lordaeron.",
               rewardItems = { 251485, 251486 }, rewardSummary = "8s" },
-            { id = 95216, name = "The New Plague", level = 22, minLevel = 16, faction = "Horde",
+            { id = 95216, name = "The New Plague", level = 22, minLevel = 15, faction = "Horde",
               pickup = "Theodore Griffs, Undercity Apothecarium",
               turnin = "Theodore Griffs, Undercity",
-              pickedUpInDungeon = false, shareable = true,
+              pickedUpInDungeon = false, shareable = false, hasPrereq = true,
+              prereqId = 451,
+              prereqText = "Requires completing the 3-part 'A Recipe For Death' quest chain starting with Apothecary Renferrel in The Sepulcher",
+              chain = {
+                  { id = 447,   name = "A Recipe For Death",          pickup = "Apothecary Renferrel, The Sepulcher, Silverpine", minLevel = 9,  coords = { mapID = 1421, x = 0.4280, y = 0.4080 } },
+                  { id = 450,   name = "A Recipe For Death (Part 2)", pickup = "Master Apothecary Faranell, Undercity",           minLevel = 9,  coords = { mapID = 1458, x = 0.4880, y = 0.6920 } },
+                  { id = 451,   name = "A Recipe For Death (Part 3)", pickup = "Apothecary Renferrel, The Sepulcher, Silverpine", minLevel = 9,  coords = { mapID = 1421, x = 0.4280, y = 0.4080 } },
+                  { id = 95216, name = "The New Plague",              pickup = "Theodore Griffs, Undercity Apothecarium",         minLevel = 15, coords = { mapID = 1458, x = 0.4650, y = 0.7160 }, isDungeonQuest = true },
+              },
+              chainStart = {
+                  id = 447,
+                  name = "A Recipe For Death",
+                  pickup = "Apothecary Renferrel, The Sepulcher, Silverpine",
+                  minLevel = 9,
+                  faction = "Horde",
+                  coords = { mapID = 1421, x = 0.4280, y = 0.4080 },
+              },
               objective = "Obtain a Highly Toxic Strain from Witherfang.",
               rewardItems = { 279876, 279877 }, rewardSummary = "10s" },
         },
@@ -563,7 +594,21 @@ sfui.dj_camelot.dungeons = {
               rewardItems = { 6476, 8071, 6481 }, rewardSummary = "28s" },
             { id = 1491, name = "Smart Drinks", level = 18, minLevel = 13, faction = "Both",
               pickup = "Mebok Mizzyrix, Ratchet", turnin = "Mebok Mizzyrix",
-              pickedUpInDungeon = false, shareable = true,
+              pickedUpInDungeon = false, shareable = true, hasPrereq = true,
+              prereqId = 865,
+              prereqText = "Requires 'Raptor Horns' from Mebok Mizzyrix in Ratchet",
+              chain = {
+                  { id = 865,  name = "Raptor Horns", pickup = "Mebok Mizzyrix, Ratchet", minLevel = 13, coords = { mapID = 1413, x = 0.6240, y = 0.3760 } },
+                  { id = 1491, name = "Smart Drinks", pickup = "Mebok Mizzyrix, Ratchet", minLevel = 13, coords = { mapID = 1413, x = 0.6240, y = 0.3760 }, isDungeonQuest = true },
+              },
+              chainStart = {
+                  id = 865,
+                  name = "Raptor Horns",
+                  pickup = "Mebok Mizzyrix, Ratchet",
+                  minLevel = 13,
+                  faction = "Both",
+                  coords = { mapID = 1413, x = 0.6240, y = 0.3760 },
+              },
               objective = "Bring 6 Wailing Essence to Mebok Mizzyrix in Ratchet.",
               rewardItems = { 4599, 4600 }, rewardSummary = "30s" },
             { id = 959,  name = "Trouble at the Docks", level = 18, minLevel = 14, faction = "Both",
@@ -2035,6 +2080,10 @@ sfui.dj_camelot.questCoords = {
     [97288] = { mapID = 1420, x = 0.6440, y = 0.6750 }, -- Unending Torment (Ruins of Lordaeron)
     -- Chain Starter & Attunement Quest Coordinates
     [151]   = { mapID = 1436, x = 0.5670, y = 0.4740 }, -- Red Leather Bandanas (Deadmines chain starter)
+    [356]   = { mapID = 1420, x = 0.6560, y = 0.6020 }, -- Rear Guard Patrol (Ruins of Lordaeron chain step 1)
+    [447]   = { mapID = 1421, x = 0.4280, y = 0.4080 }, -- A Recipe For Death (Ruins of Lordaeron chain step 1)
+    [450]   = { mapID = 1458, x = 0.4880, y = 0.6920 }, -- A Recipe For Death (Ruins of Lordaeron chain step 2)
+    [451]   = { mapID = 1421, x = 0.4280, y = 0.4080 }, -- A Recipe For Death (Ruins of Lordaeron chain step 3)
     [544]   = { mapID = 1424, x = 0.6160, y = 0.2080 }, -- Prison Break In (City of Dalaran Horde attunement step 1)
     [545]   = { mapID = 1424, x = 0.6160, y = 0.2080 }, -- Dalaran Patrols (City of Dalaran Horde attunement step 3)
     [3520]  = { mapID = 1446, x = 0.6700, y = 0.2240 }, -- Screecher Spirits (Zul'Farrak chain starter)
@@ -2065,6 +2114,7 @@ sfui.dj_camelot.questCoords = {
     [98815] = { mapID = 1437, x = 0.0860, y = 0.5560 }, -- Highland Hides (Excavation Site: Wetlands, James Halloran, Menethil Harbor)
     [98823] = { mapID = 1456, x = 0.7080, y = 0.3380 }, -- Earthen Echo (Excavation Site: Wetlands, Bashana Runetotem, Thunder Bluff)
     [98824] = { mapID = 1437, x = 0.3880, y = 0.5220 }, -- Prehistoric Prism (Excavation Site: Wetlands, Prospector Whelgar)
+    [99156] = { mapID = 1420, x = 0.6560, y = 0.6020 }, -- Rear Guard Patrol Part 2 (Ruins of Lordaeron chain step 2)
 }
 
 function sfui.dj_camelot.GetQuestCoords(questID)

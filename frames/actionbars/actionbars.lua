@@ -94,6 +94,61 @@ local UNTAINT_BARS = {
     "PossessBarFrame", "MultiCastActionBarFrame", "MainMenuBarVehicleLeaveButton",
 }
 
+local function disable_actionbar_page_scrolling()
+    if InCombatLockdown and InCombatLockdown() then return end
+
+    -- 1. Ensure Blizzard's underlying action bar page is locked back to page 1
+    if _G.C_ActionBar and _G.C_ActionBar.GetActionBarPage and _G.C_ActionBar.SetActionBarPage then
+        if _G.C_ActionBar.GetActionBarPage() ~= 1 then
+            _G.C_ActionBar.SetActionBarPage(1)
+        end
+    elseif _G.GetActionBarPage and _G.ChangeActionBarPage then
+        if _G.GetActionBarPage() ~= 1 then
+            _G.ChangeActionBarPage(1)
+        end
+    end
+
+    -- 2. Unbind default SHIFT-MOUSEWHEELUP / SHIFT-MOUSEWHEELDOWN from PREVIOUSACTIONPAGE / NEXTACTIONPAGE
+    -- so C++ doesn't swallow Shift+Scroll or fire ACTIONBAR_PAGE_CHANGED
+    local GetBindingAction = _G.GetBindingAction
+    local GetBindingKey = _G.GetBindingKey
+    local SetBinding = _G.SetBinding
+    if not SetBinding then return end
+
+    local changed = false
+    local scrollKeys = { "SHIFT-MOUSEWHEELUP", "SHIFT-MOUSEWHEELDOWN" }
+    if GetBindingAction then
+        for _, key in ipairs(scrollKeys) do
+            local act = GetBindingAction(key)
+            if act == "PREVIOUSACTIONPAGE" or act == "NEXTACTIONPAGE" then
+                SetBinding(key, nil)
+                changed = true
+            end
+        end
+    end
+    if GetBindingKey then
+        local pageCmds = { "PREVIOUSACTIONPAGE", "NEXTACTIONPAGE" }
+        for _, cmd in ipairs(pageCmds) do
+            local k1, k2 = GetBindingKey(cmd)
+            if k1 == "SHIFT-MOUSEWHEELUP" or k1 == "SHIFT-MOUSEWHEELDOWN" then
+                SetBinding(k1, nil)
+                changed = true
+            end
+            if k2 == "SHIFT-MOUSEWHEELUP" or k2 == "SHIFT-MOUSEWHEELDOWN" then
+                SetBinding(k2, nil)
+                changed = true
+            end
+        end
+    end
+
+    if changed and _G.SaveBindings and _G.GetCurrentBindingSet then
+        local set = _G.GetCurrentBindingSet()
+        if set == 1 or set == 2 then
+            _G.SaveBindings(set)
+        end
+    end
+end
+
 local function suppress_blizzard_actionbars()
     if InCombatLockdown and InCombatLockdown() then
         if sfui.common and sfui.common.run_after_combat then
@@ -101,6 +156,8 @@ local function suppress_blizzard_actionbars()
         end
         return
     end
+
+    disable_actionbar_page_scrolling()
 
     -- 1. MainActionBar
     local mainBar = _G.MainActionBar

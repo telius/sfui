@@ -50,6 +50,7 @@ local pairs, ipairs                 = _G.pairs, _G.ipairs
 local math_floor                    = math.floor
 local time                          = _G.time
 local table_insert                  = table.insert
+local issecretvalue                 = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
 
 -- Recipe item class constant (9 = Recipe)
 local ITEM_CLASS_RECIPE = 9
@@ -68,7 +69,7 @@ local function GetNpcID(unit)
     unit = unit or "npc"
     if not UnitExists(unit) then return nil end
     local guid = UnitGUID(unit)
-    if not guid or type(guid) ~= "string" then return nil end
+    if not guid or type(guid) ~= "string" or issecretvalue(guid) then return nil end
     local kind, _, _, _, _, id = strsplit("-", guid)
     if kind == "Creature" or kind == "Vehicle" then
         return tonumber(id)
@@ -79,18 +80,20 @@ end
 local function GetPlayerPosition()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = C_Map.GetBestMapForUnit("player")
-    if not mapID then return nil end
+    if not mapID or issecretvalue(mapID) then return nil end
 
     local mapInfo = C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
-    local zoneName = mapInfo and mapInfo.name or (GetRealZoneText and GetRealZoneText()) or ""
+    local zoneName = (mapInfo and mapInfo.name) or (GetRealZoneText and GetRealZoneText()) or ""
+    if issecretvalue(zoneName) then zoneName = "" end
     local subzoneName = GetSubZoneText and GetSubZoneText()
+    if issecretvalue(subzoneName) then subzoneName = nil end
     local x, y = nil, nil
 
     if C_Map.GetPlayerMapPosition then
         local pos = C_Map.GetPlayerMapPosition(mapID, "player")
         if pos then
             local px, py = pos:GetXY()
-            if px and py and (px > 0 or py > 0) then
+            if px and py and not issecretvalue(px) and not issecretvalue(py) and (px > 0 or py > 0) then
                 x = math_floor(px * 10000 + 0.5) / 10000
                 y = math_floor(py * 10000 + 0.5) / 10000
             end
@@ -111,11 +114,11 @@ local function ScanMerchant()
     EnsureStorage()
     local npcID = GetNpcID("npc")
     local npcName = UnitName("npc")
-    if not npcID or not npcName then return end
+    if not npcID or not npcName or issecretvalue(npcName) then return end
 
     local pos = GetPlayerPosition()
     local numItems = (GetMerchantNumItems and GetMerchantNumItems()) or 0
-    if numItems <= 0 then return end
+    if issecretvalue(numItems) or numItems <= 0 then return end
 
     local dbRecipes = sfui.recipes_camelot and sfui.recipes_camelot.items or {}
     local vendorEntry = nil
@@ -126,7 +129,7 @@ local function ScanMerchant()
 
     for i = 1, numItems do
         local link = GetMerchantItemLink(i)
-        local itemID = link and tonumber(link:match("item:(%d+)"))
+        local itemID = (link and not issecretvalue(link)) and tonumber(link:match("item:(%d+)"))
         if itemID then
             local classID = nil
             if C_Item_GetItemInfoInstant then
@@ -149,24 +152,26 @@ local function ScanMerchant()
                 end
 
                 local merchantInfo = GetMerchantItemInfo and GetMerchantItemInfo(i)
+                local mName = merchantInfo and merchantInfo.name
+                if mName and issecretvalue(mName) then mName = nil end
                 local price = merchantInfo and merchantInfo.price
                 local avail = merchantInfo and merchantInfo.numAvailable
                 local itemData = {
-                    name        = (merchantInfo and merchantInfo.name) or link:match("%[(.-)%]") or "recipe",
-                    priceCopper = price,
-                    limited     = (avail and avail >= 0) and avail or nil,
+                    name        = mName or link:match("%[(.-)%]") or "recipe",
+                    priceCopper = (price and not issecretvalue(price)) and price or nil,
+                    limited     = (avail and not issecretvalue(avail) and avail >= 0) and avail or nil,
                     lastSeen    = time(),
                 }
 
                 -- 1. Barter / Alternative Currency Detection (Tokens)
                 if GetMerchantItemCostInfo and GetMerchantItemCostItem then
                     local numCosts = GetMerchantItemCostInfo(i) or 0
-                    if numCosts > 0 then
+                    if not issecretvalue(numCosts) and numCosts > 0 then
                         local tokenParts = {}
                         for cIdx = 1, numCosts do
                             local _, count, itemLink = GetMerchantItemCostItem(i, cIdx)
-                            local cName = itemLink and itemLink:match("%[(.-)%]") or "token"
-                            if count and count > 1 then
+                            local cName = (itemLink and not issecretvalue(itemLink)) and itemLink:match("%[(.-)%]") or "token"
+                            if count and not issecretvalue(count) and count > 1 then
                                 table_insert(tokenParts, string.format("%s x%d", cName:lower(), count))
                             else
                                 table_insert(tokenParts, cName:lower())
@@ -184,7 +189,7 @@ local function ScanMerchant()
                     if ok and ttData and ttData.lines then
                         for _, line in ipairs(ttData.lines) do
                             local text = line.leftText or (line.args and line.args[2] and line.args[2].stringVal)
-                            if text then
+                            if text and not issecretvalue(text) then
                                 local lower = text:lower()
                                 -- Match: "Requires <Faction> - <Standing>"
                                 local faction, standing = lower:match("requires%s+([%w%s']+.*)%s+%-%s+(%a+)")
@@ -225,11 +230,11 @@ local function ScanTrainer()
     EnsureStorage()
     local npcID = GetNpcID("npc")
     local npcName = UnitName("npc")
-    if not npcID or not npcName then return end
+    if not npcID or not npcName or issecretvalue(npcName) then return end
 
     local pos = GetPlayerPosition()
     local numServices = (GetNumTrainerServices and GetNumTrainerServices()) or 0
-    if numServices <= 0 then return end
+    if issecretvalue(numServices) or numServices <= 0 then return end
 
     local trainerEntry = SfuiDB.contacts.trainers[npcID] or {
         name    = npcName:lower(),
@@ -244,11 +249,14 @@ local function ScanTrainer()
 
     for i = 1, numServices do
         local serviceName, subText, category = GetTrainerServiceInfo(i)
-        if category ~= "header" and serviceName and serviceName ~= "" then
+        if not issecretvalue(category) and category ~= "header" and serviceName and not issecretvalue(serviceName) and serviceName ~= "" then
             local cost = (GetTrainerServiceCost and GetTrainerServiceCost(i)) or 0
+            if issecretvalue(cost) then cost = 0 end
             local skillReq, rankReq = nil, nil
             if GetTrainerServiceSkillReq then
                 skillReq, rankReq = GetTrainerServiceSkillReq(i)
+                if issecretvalue(skillReq) then skillReq = nil end
+                if issecretvalue(rankReq) then rankReq = nil end
             end
 
             trainerEntry.spells[serviceName:lower()] = {
@@ -273,12 +281,15 @@ end
 local function ScanLoot()
     EnsureStorage()
     local numItems = (GetNumLootItems and GetNumLootItems()) or 0
-    if numItems <= 0 then return end
+    if issecretvalue(numItems) or numItems <= 0 then return end
 
     local pos = GetPlayerPosition()
     local targetName = nil
     if UnitExists("target") and UnitIsDead("target") and not UnitIsPlayer("target") then
-        targetName = UnitName("target")
+        local rawTargetName = UnitName("target")
+        if rawTargetName and not issecretvalue(rawTargetName) then
+            targetName = rawTargetName
+        end
     end
 
     local dbRecipes = sfui.recipes_camelot and sfui.recipes_camelot.items or {}
@@ -286,7 +297,7 @@ local function ScanLoot()
 
     for i = 1, numItems do
         local link = GetLootSlotLink(i)
-        local itemID = link and tonumber(link:match("item:(%d+)"))
+        local itemID = (link and not issecretvalue(link)) and tonumber(link:match("item:(%d+)"))
         if itemID then
             local classID = nil
             if C_Item_GetItemInfoInstant then
@@ -301,9 +312,10 @@ local function ScanLoot()
                     SfuiDB.recipe_finds.drops[cleanName] = SfuiDB.recipe_finds.drops[cleanName] or {}
                     local list = SfuiDB.recipe_finds.drops[cleanName]
                     local found = false
+                    local mobLower = (targetName and not issecretvalue(targetName)) and targetName:lower() or "creature"
 
                     for _, entry in ipairs(list) do
-                        if entry.mob == (targetName and targetName:lower() or "creature") and entry.zone == (pos and pos.zone) then
+                        if entry.mob == mobLower and entry.zone == (pos and pos.zone) then
                             entry.count = (entry.count or 1) + 1
                             entry.lastSeen = time()
                             found = true
@@ -313,7 +325,7 @@ local function ScanLoot()
 
                     if not found then
                         table_insert(list, {
-                            mob      = targetName and targetName:lower() or "creature",
+                            mob      = mobLower,
                             zone     = pos and pos.zone,
                             mapID    = pos and pos.mapID,
                             x        = pos and pos.x,
@@ -337,9 +349,10 @@ end
 local function ScanQuest()
     EnsureStorage()
     local questTitle = (GetTitleText and GetTitleText()) or nil
-    if not questTitle or questTitle == "" then return end
+    if not questTitle or issecretvalue(questTitle) or questTitle == "" then return end
 
-    local giverName = UnitExists("npc") and UnitName("npc") or nil
+    local rawGiver = UnitExists("npc") and UnitName("npc") or nil
+    local giverName = (rawGiver and not issecretvalue(rawGiver)) and rawGiver or nil
     local pos = GetPlayerPosition()
     local dbRecipes = sfui.recipes_camelot and sfui.recipes_camelot.items or {}
     local updatedQuest = nil
@@ -348,10 +361,11 @@ local function ScanQuest()
         local count = (kind == "reward" and GetNumQuestRewards and GetNumQuestRewards())
                    or (kind == "choice" and GetNumQuestChoices and GetNumQuestChoices())
                    or 0
+        if issecretvalue(count) then count = 0 end
 
         for i = 1, count do
             local link = GetQuestItemLink(kind, i)
-            local itemID = link and tonumber(link:match("item:(%d+)"))
+            local itemID = (link and not issecretvalue(link)) and tonumber(link:match("item:(%d+)"))
             if itemID then
                 local classID = nil
                 if C_Item_GetItemInfoInstant then

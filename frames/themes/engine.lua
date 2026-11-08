@@ -2021,7 +2021,9 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
                 local p = sfui.theme.GetPalette()
                 local aID = sfui.theme.GetActiveThemeID()
                 local hl = (aID == "oldgod" and p.accentColor) or p.highlightColor or { 0.4, 0, 1, 1 }
-                self:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1.0)
+                if self.SetBackdropBorderColor then
+                    self:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1.0)
+                end
                 local sfs = self:GetFontString() or self.text or self.fs
                 if sfs then
                     if aID == "camelot" then
@@ -2054,19 +2056,25 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
                     local aID = sfui.theme.GetActiveThemeID()
                     local p = sfui.theme.GetPalette()
                     if aID == "camelot" then
-                        self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+                        if self.SetBackdropBorderColor then
+                            self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+                        end
                         local sfs = self:GetFontString() or self.text or self.fs
                         if sfs then
                             sfs:SetTextColor(p.tabNormal[1], p.tabNormal[2], p.tabNormal[3], 1.0)
                         end
                     elseif aID == "oldgod" then
-                        self:SetBackdropBorderColor(p.borderColor[1], p.borderColor[2], p.borderColor[3], 0.90)
+                        if self.SetBackdropBorderColor then
+                            self:SetBackdropBorderColor(p.borderColor[1], p.borderColor[2], p.borderColor[3], 0.90)
+                        end
                         local sfs = self:GetFontString() or self.text or self.fs
                         if sfs and self:IsEnabled() then
                             sfs:SetTextColor(p.tabNormal[1], p.tabNormal[2], p.tabNormal[3], 1.0)
                         end
                     else
-                        self:SetBackdropBorderColor(0, 0, 0, 1.0)
+                        if self.SetBackdropBorderColor then
+                            self:SetBackdropBorderColor(0, 0, 0, 1.0)
+                        end
                         local sfs = self:GetFontString() or self.text or self.fs
                         if sfs and self:IsEnabled() then
                             sfs:SetTextColor(1.0, 1.0, 1.0, 1.0)
@@ -2239,7 +2247,7 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
         if hlAtlas and btn.SetHighlightAtlas then btn:SetHighlightAtlas(hlAtlas, "ADD") end
 
         if btn.SetBackdrop then btn:SetBackdrop(nil) end
-        local fs = btn:GetFontString()
+        local fs = btn:GetFontString() or btn._sfuiCloseFS
         if fs then
             fs:SetText("")
             fs:Hide()
@@ -2254,6 +2262,10 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
         if dt then dt:SetTexture(nil) end
         local ht = btn.GetHighlightTexture and btn:GetHighlightTexture()
         if ht then ht:SetTexture(nil) end
+
+        if not btn.SetBackdrop and _G.BackdropTemplateMixin and _G.Mixin then
+            _G.Mixin(btn, _G.BackdropTemplateMixin)
+        end
 
         local mult = sfui.pixelScale or 1
         if btn.SetBackdrop then
@@ -2284,7 +2296,16 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
             end
         end
 
-        local fs = btn:GetFontString()
+        local fs = btn:GetFontString() or btn._sfuiCloseFS
+        if not fs and btn.CreateFontString then
+            fs = btn:CreateFontString(nil, "OVERLAY", (sfui.config and sfui.config.font) or "GameFontNormal")
+            fs:SetPoint("CENTER", 0, 0)
+            local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+            local _, h = btn:GetSize()
+            fs:SetFont(fontFile, math.max(10, math.floor((h or 22) * 0.5)), "")
+            if btn.SetFontString then btn:SetFontString(fs) end
+            btn._sfuiCloseFS = fs
+        end
         if fs then
             fs:Show()
             fs:SetText("X")
@@ -2306,42 +2327,44 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
         if not btn._sfuiThemeCloseHook then
             btn._sfuiThemeCloseHook = true
             btn:HookScript("OnEnter", function(self)
+                if self.isThemedClose then return end
                 local aID = sfui.theme.GetActiveThemeID()
-                local sfs = self:GetFontString()
+                local sfs = self:GetFontString() or self._sfuiCloseFS
                 if aID == "camelot" then
-                    self:SetBackdropBorderColor(0.90, 0.75, 0.40, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.90, 0.75, 0.40, 1.0) end
                     if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1.0) end
                 elseif aID == "oldgod" then
-                    self:SetBackdropBorderColor(0.85, 0.45, 1.00, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.85, 0.45, 1.00, 1.0) end
                     if sfs then sfs:SetTextColor(1.0, 0.70, 1.0, 1.0) end
                 elseif aID == "fallensanctum" then
-                    self:SetBackdropBorderColor(0.114, 0.949, 0.776, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.114, 0.949, 0.776, 1.0) end
                     if sfs then sfs:SetTextColor(0.114, 0.949, 0.776, 1.0) end
                 elseif aID == "maw" then
-                    self:SetBackdropBorderColor(0.40, 0.90, 0.95, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.40, 0.90, 0.95, 1.0) end
                     if sfs then sfs:SetTextColor(0.40, 0.90, 0.95, 1.0) end
                 elseif aID == "necrolord" then
-                    self:SetBackdropBorderColor(0.35, 0.85, 0.55, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.35, 0.85, 0.55, 1.0) end
                     if sfs then sfs:SetTextColor(0.35, 0.85, 0.55, 1.0) end
                 end
             end)
             btn:HookScript("OnLeave", function(self)
+                if self.isThemedClose then return end
                 local aID = sfui.theme.GetActiveThemeID()
-                local sfs = self:GetFontString()
+                local sfs = self:GetFontString() or self._sfuiCloseFS
                 if aID == "camelot" then
-                    self:SetBackdropBorderColor(0.65, 0.50, 0.25, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.65, 0.50, 0.25, 1.0) end
                     if sfs then sfs:SetTextColor(1.0, 0.85, 0.55, 1.0) end
                 elseif aID == "oldgod" then
-                    self:SetBackdropBorderColor(0.45, 0.22, 0.65, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.45, 0.22, 0.65, 1.0) end
                     if sfs then sfs:SetTextColor(0.85, 0.65, 1.00, 1.0) end
                 elseif aID == "fallensanctum" then
-                    self:SetBackdropBorderColor(0.65, 0.15, 0.15, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.65, 0.15, 0.15, 1.0) end
                     if sfs then sfs:SetTextColor(0.95, 0.65, 0.65, 1.0) end
                 elseif aID == "maw" then
-                    self:SetBackdropBorderColor(0.25, 0.45, 0.55, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.25, 0.45, 0.55, 1.0) end
                     if sfs then sfs:SetTextColor(0.75, 0.85, 0.90, 1.0) end
                 elseif aID == "necrolord" then
-                    self:SetBackdropBorderColor(0.30, 0.65, 0.40, 1.0)
+                    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.30, 0.65, 0.40, 1.0) end
                     if sfs then sfs:SetTextColor(0.84, 0.82, 0.73, 1.0) end
                 end
             end)

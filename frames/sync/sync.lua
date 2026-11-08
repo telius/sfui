@@ -50,6 +50,7 @@ local C_FriendList = _G.C_FriendList
 local BNGetNumFriends = _G.BNGetNumFriends
 local C_BattleNet = _G.C_BattleNet
 local ChatFrame_AddMessageEventFilter = _G.ChatFrame_AddMessageEventFilter
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
 
 sync.stats = sync.stats or {
     packetsSent     = 0,
@@ -1659,14 +1660,55 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
     if s.syncQuests then
         SfuiDB.alts = SfuiDB.alts or {}
         if type(remoteManifest.quests) == "table" then
-            for guid, remRev in pairs(remoteManifest.quests) do
+            for guid, remInfo in pairs(remoteManifest.quests) do
                 local locAlt = SfuiDB.alts[guid]
                 local locRev = locAlt and (tonumber(locAlt.questsRev) or 0) or 0
-                local rRev = tonumber(remRev) or 0
-                if not locAlt or rRev > locRev then
+                local rRev = 0
+                local rActive = nil
+                local rDone = nil
+                if type(remInfo) == "table" then
+                    rRev = tonumber(remInfo.r) or 0
+                    rActive = tonumber(remInfo.a)
+                    rDone = tonumber(remInfo.c)
+                else
+                    rRev = tonumber(remInfo) or 0
+                end
+
+                local locActive = 0
+                local locDone = 0
+                local hasPartial = false
+                if type(locAlt) == "table" then
+                    if type(locAlt.activeQuests) == "table" then
+                        for _, qv in pairs(locAlt.activeQuests) do
+                            if type(qv) == "table" and qv._partial == 1 then
+                                hasPartial = true
+                            else
+                                locActive = locActive + 1
+                            end
+                        end
+                    end
+                    if type(locAlt.completedQuests) == "table" then
+                        for _, cv in pairs(locAlt.completedQuests) do
+                            if cv and cv ~= 0 then
+                                locDone = locDone + 1
+                            end
+                        end
+                    end
+                end
+
+                local wantThis = (not locAlt)
+                    or (rRev > locRev)
+                    or hasPartial
+                    or (rRev == locRev and ((rActive and rActive ~= locActive) or (rDone and rDone > locDone)))
+                local pushThis = (not wantThis) and (
+                    (locRev > rRev)
+                    or (locRev == rRev and not hasPartial and ((rActive and locActive > rActive) or (rDone and locDone > rDone)))
+                )
+
+                if wantThis then
                     table_insert(want.quests, guid)
                     hasWant = true
-                elseif locRev > rRev then
+                elseif pushThis then
                     local payload = merge.BuildQuestsPayload(guid)
                     if payload then
                         send_to_peer(sender, "DATA_QUESTS", payload, replyChannel, bnetIDAccount)
@@ -1675,7 +1717,9 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
             end
             for guid, locAlt in pairs(SfuiDB.alts) do
                 if type(locAlt) == "table" and remoteManifest.quests[guid] == nil
-                    and ((locAlt.activeQuests and next(locAlt.activeQuests)) or (locAlt.djQuests and next(locAlt.djQuests))) then
+                    and ((locAlt.activeQuests and next(locAlt.activeQuests))
+                        or (locAlt.completedQuests and next(locAlt.completedQuests))
+                        or (locAlt.djQuests and next(locAlt.djQuests))) then
                     local payload = merge.BuildQuestsPayload(guid)
                     if payload then
                         send_to_peer(sender, "DATA_QUESTS", payload, replyChannel, bnetIDAccount)
@@ -1955,6 +1999,8 @@ if _G.StaticPopupDialogs then
 end
 
 -- ── Incoming Message Dispatcher ───────────────────────────────────────────────
+local on_local_quests_updated
+
 local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
     if not sender or is_self_character(sender) then return end
     local s = sync.GetSettings()
@@ -2055,12 +2101,25 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
             end
         end
     elseif msgType == "DATA_QUESTS" and s.syncQuests and type(data) == "table" then
-        if merge.MergeQuests(data.guid, data) then
+        local merged, localCompChanged = merge.MergeQuests(data.guid, data)
+        if merged then
             peer.lastSync = now
+            if localCompChanged and on_local_quests_updated then
+                on_local_quests_updated("PEER_QUEST_SYNC")
+            end
         end
     elseif msgType == "DELTA_QUEST_PROG" and s.syncQuests and type(data) == "table" then
-        if merge.MergeQuestProgDelta and merge.MergeQuestProgDelta(data) then
-            peer.lastSync = now
+        if merge.MergeQuestProgDelta then
+            local merged, missingDetails, localCompChanged = merge.MergeQuestProgDelta(data)
+            if merged then
+                peer.lastSync = now
+                if missingDetails and type(data.g) == "string" and data.g ~= "" then
+                    send_to_peer(sender, "WANT", { quests = { data.g } }, channel, bnetIDAccount)
+                end
+                if localCompChanged and on_local_quests_updated then
+                    on_local_quests_updated("PEER_QUEST_SYNC")
+                end
+            end
         end
     elseif msgType == "DATA_DJ_WISHLIST" and s.syncQuests and type(data) == "table" then
         if merge.MergeDJWishlist(data) then
@@ -2346,9 +2405,23 @@ end
 local questDeltaPending = false
 local questsBroadcastPending = false
 local pendingTurnedInQuests = {}
-local function on_local_quests_updated(event, arg1)
-    if event == "QUEST_TURNED_IN" and tonumber(arg1) then
+local pendingAcceptedQuests = {}
+on_local_quests_updated = function(event, arg1, arg2)
+    if event == "UNIT_QUEST_LOG_CHANGED" then
+        if not issecretvalue(arg1) and arg1 ~= "player" then
+            if sfui.tracker and sfui.tracker.RequestRefresh then
+                sfui.tracker.RequestRefresh(0.05)
+            end
+            return
+        end
+    elseif event == "QUEST_TURNED_IN" and not issecretvalue(arg1) and tonumber(arg1) then
         pendingTurnedInQuests[tonumber(arg1)] = true
+    elseif event == "QUEST_ACCEPTED" then
+        local qID = (not issecretvalue(arg2) and tonumber(arg2))
+            or (not issecretvalue(arg1) and tonumber(arg1))
+        if qID and qID > 0 then
+            pendingAcceptedQuests[qID] = true
+        end
     end
     local s = sync.GetSettings()
     if not s.enabled or s.syncQuests == false then return end
@@ -2359,7 +2432,7 @@ local function on_local_quests_updated(event, arg1)
         C_Timer.After(0.35, function()
             questDeltaPending = false
             if merge.ScanActiveQuestsDelta then
-                local delta = merge.ScanActiveQuestsDelta(pendingTurnedInQuests)
+                local delta = merge.ScanActiveQuestsDelta(pendingTurnedInQuests, pendingAcceptedQuests)
                 if delta then
                     sync.Broadcast("DELTA_QUEST_PROG", delta, true, false)
                     if sfui.tracker and sfui.tracker.RequestRefresh then
@@ -2384,19 +2457,20 @@ local function on_local_quests_updated(event, arg1)
                 deferredAfterCombat.quests = true
                 return
             end
-            local myGUID = UnitGUID and UnitGUID("player")
-            if not myGUID then return end
+            local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+                or (UnitGUID and UnitGUID("player"))
+            if not myGUID or issecretvalue(myGUID) then return end
             local anyChanged = false
             if merge.ScanLocalQuestsAndDJ then
                 local scanned = false
                 for qid in pairs(pendingTurnedInQuests) do
-                    local _, chg = merge.ScanLocalQuestsAndDJ(qid)
+                    local _, chg = merge.ScanLocalQuestsAndDJ(qid, pendingAcceptedQuests)
                     if chg then anyChanged = true end
                     pendingTurnedInQuests[qid] = nil
                     scanned = true
                 end
                 if not scanned then
-                    local _, chg = merge.ScanLocalQuestsAndDJ()
+                    local _, chg = merge.ScanLocalQuestsAndDJ(nil, pendingAcceptedQuests)
                     if chg then anyChanged = true end
                 end
             end
@@ -2509,9 +2583,15 @@ local function build_party_guid_and_name_maps()
             local g = UnitGUID and UnitGUID(u)
             local full = sync.FullName(u)
             local n = UnitName and UnitName(u)
-            if g then cachedPartyGuidMap[g] = true end
-            if full and full ~= "" then cachedPartyNameMap[short_name(full):lower()] = true end
-            if n and n ~= "" then cachedPartyNameMap[short_name(n):lower()] = true end
+            if g and not issecretvalue(g) then
+                cachedPartyGuidMap[g] = u
+            end
+            if full and not issecretvalue(full) and full ~= "" then
+                cachedPartyNameMap[short_name(full):lower()] = u
+            end
+            if n and not issecretvalue(n) and n ~= "" then
+                cachedPartyNameMap[short_name(n):lower()] = u
+            end
         end
     end
     return cachedPartyGuidMap, cachedPartyNameMap
@@ -2524,6 +2604,20 @@ local function is_alt_quest_done(alt, questID)
         return true
     end
     return (alt.djQuests and alt.djQuests[questID] == 2) or false
+end
+
+local function is_party_unit_on_quest(partyUnit, questID)
+    if type(partyUnit) ~= "string" or partyUnit == "" or not questID then
+        return false
+    end
+    local C_QuestLog = _G.C_QuestLog
+    if UnitExists and UnitExists(partyUnit) and C_QuestLog and C_QuestLog.IsUnitOnQuest then
+        local onQ = C_QuestLog.IsUnitOnQuest(partyUnit, questID)
+        if not issecretvalue(onQ) and onQ == true then
+            return true
+        end
+    end
+    return false
 end
 
 local function is_objective_text_finished(txt, isFinFlag)
@@ -2553,24 +2647,120 @@ local function has_objective_text_progress(txt, isFinFlag)
     return false
 end
 
-local function is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap)
-    if type(alt) ~= "table" then return false, false, "" end
+local function is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap, firstNameCounts)
+    if type(alt) ~= "table" then return false, false, "", nil end
     -- Another alt on the local account cannot be online/in-party while we are logged into myGUID
     if s and s.accountID and s.accountID ~= "" and alt.accountID and alt.accountID == s.accountID then
         local cleanName = alt_display_name(alt, guid):lower()
-        return false, false, cleanName
+        return false, false, cleanName, nil
     end
     local cleanName = alt_display_name(alt, guid):lower()
-    if cleanName == "" then return false, false, "" end
+    if cleanName == "" then return false, false, "", nil end
     local firstOnly = short_name(alt.name or ""):lower()
-    local allowFirstFallback = (cleanName == firstOnly and firstOnly ~= "")
-    local inParty = (partyGUIDs[guid] == true)
-        or (partyNames[cleanName] == true)
-        or (allowFirstFallback and partyNames[firstOnly] == true)
+    if firstOnly == "" then
+        firstOnly = string_match(cleanName, "^(%S+)") or cleanName
+    end
+    local allowFirstFallback = (firstOnly ~= "") and (
+        cleanName == firstOnly
+        or not firstNameCounts
+        or (firstNameCounts[firstOnly] or 0) <= 1
+    )
+    local partyUnit = (type(partyGUIDs[guid]) == "string" and partyGUIDs[guid])
+        or (type(partyNames[cleanName]) == "string" and partyNames[cleanName])
+        or (allowFirstFallback and type(partyNames[firstOnly]) == "string" and partyNames[firstOnly])
+        or nil
+    local inParty = (partyUnit ~= nil)
+        or (partyGUIDs[guid] ~= nil)
+        or (partyNames[cleanName] ~= nil)
+        or (allowFirstFallback and partyNames[firstOnly] ~= nil)
     local isOnline = inParty
         or (liveMap[cleanName] ~= nil)
         or (allowFirstFallback and liveMap[firstOnly] ~= nil)
-    return inParty, isOnline, cleanName
+    return inParty, isOnline, cleanName, partyUnit
+end
+
+local function is_better_alt_candidate(cand, existing, partyGUIDs)
+    local candExact = (partyGUIDs and partyGUIDs[cand.guid] ~= nil) and true or false
+    local exExact = (partyGUIDs and partyGUIDs[existing.guid] ~= nil) and true or false
+    if candExact ~= exExact then return candExact end
+    if cand.inParty ~= existing.inParty then return cand.inParty end
+    if cand.isOnline ~= existing.isOnline then return cand.isOnline end
+    local candQRev = tonumber(cand.alt.questsRev) or 0
+    local exQRev = tonumber(existing.alt.questsRev) or 0
+    if candQRev ~= exQRev then return candQRev > exQRev end
+    local candUpd = tonumber(cand.alt.lastUpdate) or 0
+    local exUpd = tonumber(existing.alt.lastUpdate) or 0
+    if candUpd ~= exUpd then return candUpd > exUpd end
+    local candHasQ = (type(cand.alt.activeQuests) == "table" and next(cand.alt.activeQuests) ~= nil)
+    local exHasQ = (type(existing.alt.activeQuests) == "table" and next(existing.alt.activeQuests) ~= nil)
+    if candHasQ ~= exHasQ then return candHasQ end
+    return false
+end
+
+local function collect_deduped_synced_alts(s, partyGUIDs, partyNames, liveMap, requireActiveOnly)
+    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+        or (UnitGUID and UnitGUID("player"))
+    if issecretvalue(myGUID) then myGUID = nil end
+
+    local firstNameCounts = {}
+    local seenCleanByFirst = {}
+    for guid, alt in pairs(SfuiDB.alts) do
+        if guid ~= myGUID and type(alt) == "table" then
+            if not (s and s.accountID and s.accountID ~= "" and alt.accountID and alt.accountID == s.accountID) then
+                local cleanName = alt_display_name(alt, guid):lower()
+                if cleanName ~= "" then
+                    local firstOnly = short_name(alt.name or ""):lower()
+                    if firstOnly == "" then
+                        firstOnly = string_match(cleanName, "^(%S+)") or cleanName
+                    end
+                    if firstOnly ~= "" then
+                        local byClean = seenCleanByFirst[firstOnly]
+                        if not byClean then
+                            byClean = {}
+                            seenCleanByFirst[firstOnly] = byClean
+                        end
+                        if not byClean[cleanName] then
+                            byClean[cleanName] = true
+                            firstNameCounts[firstOnly] = (firstNameCounts[firstOnly] or 0) + 1
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local byName = {}
+    for guid, alt in pairs(SfuiDB.alts) do
+        if guid ~= myGUID and type(alt) == "table" then
+            local hasQuestTables = false
+            if requireActiveOnly then
+                hasQuestTables = (type(alt.activeQuests) == "table" or type(alt.completedQuests) == "table")
+            else
+                hasQuestTables = (type(alt.activeQuests) == "table" or type(alt.completedQuests) == "table" or type(alt.djQuests) == "table")
+            end
+            if hasQuestTables then
+                local inParty, isOnline, cleanName, partyUnit = is_synced_alt_party_or_online(
+                    guid, alt, s, partyGUIDs, partyNames, liveMap, firstNameCounts
+                )
+                if cleanName ~= "" then
+                    local cand = {
+                        guid      = guid,
+                        alt       = alt,
+                        cleanName = cleanName,
+                        inParty   = inParty,
+                        isOnline  = isOnline,
+                        partyUnit = partyUnit,
+                    }
+                    local prev = byName[cleanName]
+                    if not prev or is_better_alt_candidate(cand, prev, partyGUIDs) then
+                        byName[cleanName] = cand
+                    end
+                end
+            end
+        end
+    end
+
+    return byName
 end
 
 -- Returns an array of class-colored lowercase character names for synced party
@@ -2585,22 +2775,21 @@ function sync.GetPartyMissingQuestPeers(questID)
 
     local partyGUIDs, partyNames = build_party_guid_and_name_maps()
     local liveMap = build_live_online_map()
-    local myGUID = UnitGUID and UnitGUID("player")
+    local byName = collect_deduped_synced_alts(s, partyGUIDs, partyNames, liveMap, false)
     local missing = nil
-    local seenNames = {}
 
-    for guid, alt in pairs(SfuiDB.alts) do
-        if guid ~= myGUID and type(alt) == "table" and type(alt.activeQuests) == "table" then
-            local inParty, _, cleanName = is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap)
-            if inParty and cleanName ~= "" and not seenNames[cleanName] then
-                seenNames[cleanName] = true
-                local hasActive = (alt.activeQuests[questID] ~= nil)
-                local hasCompleted = is_alt_quest_done(alt, questID)
-                if not hasActive and not hasCompleted then
-                    local colored = format_colored_char_name(alt, cleanName, guid)
-                    missing = missing or {}
-                    missing[#missing + 1] = colored
-                end
+    for cleanName, entry in pairs(byName) do
+        if entry.inParty then
+            local alt = entry.alt
+            local guid = entry.guid
+            local hasActive = (type(alt.activeQuests) == "table" and alt.activeQuests[questID] ~= nil)
+                or (type(alt.djQuests) == "table" and alt.djQuests[questID] == 1)
+                or is_party_unit_on_quest(entry.partyUnit, questID)
+            local hasCompleted = is_alt_quest_done(alt, questID)
+            if not hasActive and not hasCompleted then
+                local colored = format_colored_char_name(alt, cleanName, guid)
+                missing = missing or {}
+                missing[#missing + 1] = colored
             end
         end
     end
@@ -2620,69 +2809,66 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
 
     local partyGUIDs, partyNames = build_party_guid_and_name_maps()
     local liveMap = build_live_online_map()
-    local myGUID = UnitGUID and UnitGUID("player")
+    local byName = collect_deduped_synced_alts(s, partyGUIDs, partyNames, liveMap, false)
     local results = nil
-    local seenNames = {}
 
-    for guid, alt in pairs(SfuiDB.alts) do
-        if guid ~= myGUID and type(alt) == "table" and (type(alt.activeQuests) == "table" or type(alt.djQuests) == "table") then
-            local inParty, isOnline, cleanName = is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap)
-            if cleanName ~= "" and not seenNames[cleanName] then
-                if includeAllAlts or inParty or isOnline then
-                    seenNames[cleanName] = true
-                    local status = "missing"
-                    local objs = nil
-                    local objFinished = nil
-                    local unfinishedObjs = nil
-                    local hasProgress = false
+    for cleanName, entry in pairs(byName) do
+        local inParty = entry.inParty
+        local isOnline = entry.isOnline
+        if includeAllAlts or inParty or isOnline then
+            local alt = entry.alt
+            local guid = entry.guid
+            local status = "missing"
+            local objs = nil
+            local objFinished = nil
+            local unfinishedObjs = nil
+            local hasProgress = false
 
-                    if is_alt_quest_done(alt, questID) then
-                        status = "completed"
-                        hasProgress = true
-                    elseif alt.activeQuests and alt.activeQuests[questID] then
-                        local qEntry = alt.activeQuests[questID]
-                        objs = qEntry.o
-                        objFinished = qEntry.f
-                        if qEntry.c == 1 then
-                            status = "ready"
-                            hasProgress = true
-                        else
-                            status = "active"
-                            if type(objs) == "table" and #objs > 0 then
-                                for idx, oTxt in ipairs(objs) do
-                                    local finFlag = type(objFinished) == "table" and objFinished[idx] or nil
-                                    local isFin = is_objective_text_finished(oTxt, finFlag)
-                                    if has_objective_text_progress(oTxt, finFlag) then
-                                        hasProgress = true
-                                    end
-                                    if not isFin then
-                                        unfinishedObjs = unfinishedObjs or {}
-                                        unfinishedObjs[#unfinishedObjs + 1] = oTxt
-                                    end
-                                end
+            if is_alt_quest_done(alt, questID) then
+                status = "completed"
+                hasProgress = true
+            elseif alt.activeQuests and alt.activeQuests[questID] then
+                local qEntry = alt.activeQuests[questID]
+                objs = qEntry.o
+                objFinished = qEntry.f
+                if qEntry.c == 1 then
+                    status = "ready"
+                    hasProgress = true
+                else
+                    status = "active"
+                    if type(objs) == "table" and #objs > 0 then
+                        for idx, oTxt in ipairs(objs) do
+                            local finFlag = type(objFinished) == "table" and objFinished[idx] or nil
+                            local isFin = is_objective_text_finished(oTxt, finFlag)
+                            if has_objective_text_progress(oTxt, finFlag) then
+                                hasProgress = true
+                            end
+                            if not isFin then
+                                unfinishedObjs = unfinishedObjs or {}
+                                unfinishedObjs[#unfinishedObjs + 1] = oTxt
                             end
                         end
-                    elseif alt.djQuests and alt.djQuests[questID] == 1 then
-                        status = "active"
                     end
-
-                    local colored = format_colored_char_name(alt, cleanName, guid)
-                    results = results or {}
-                    results[#results + 1] = {
-                        guid           = guid,
-                        name           = cleanName,
-                        coloredName    = colored,
-                        class          = alt.class,
-                        inParty        = inParty,
-                        isOnline       = isOnline,
-                        status         = status,
-                        objs           = objs,
-                        objFinished    = objFinished,
-                        unfinishedObjs = unfinishedObjs,
-                        hasProgress    = hasProgress,
-                    }
                 end
+            elseif (alt.djQuests and alt.djQuests[questID] == 1) or is_party_unit_on_quest(entry.partyUnit, questID) then
+                status = "active"
             end
+
+            local colored = format_colored_char_name(alt, cleanName, guid)
+            results = results or {}
+            results[#results + 1] = {
+                guid           = guid,
+                name           = cleanName,
+                coloredName    = colored,
+                class          = alt.class,
+                inParty        = inParty,
+                isOnline       = isOnline,
+                status         = status,
+                objs           = objs,
+                objFinished    = objFinished,
+                unfinishedObjs = unfinishedObjs,
+                hasProgress    = hasProgress,
+            }
         end
     end
 
@@ -2705,25 +2891,21 @@ function sync.GetSyncedPeerClassQuests()
 
     local partyGUIDs, partyNames = build_party_guid_and_name_maps()
     local liveMap = build_live_online_map()
-    local myGUID = UnitGUID and UnitGUID("player")
+    local byName = collect_deduped_synced_alts(s, partyGUIDs, partyNames, liveMap, true)
 
     local activePeers = {}
-    local seenNames = {}
-    for guid, alt in pairs(SfuiDB.alts) do
-        if guid ~= myGUID and type(alt) == "table" and type(alt.activeQuests) == "table" then
-            local inParty, isOnline, cleanName = is_synced_alt_party_or_online(guid, alt, s, partyGUIDs, partyNames, liveMap)
-            if (inParty or isOnline) and cleanName ~= "" and not seenNames[cleanName] then
-                seenNames[cleanName] = true
-                activePeers[#activePeers + 1] = {
-                    guid        = guid,
-                    alt         = alt,
-                    name        = cleanName,
-                    coloredName = format_colored_char_name(alt, cleanName, guid),
-                    class       = alt.class,
-                    inParty     = inParty,
-                    isOnline    = isOnline,
-                }
-            end
+    for cleanName, entry in pairs(byName) do
+        if (entry.inParty or entry.isOnline) and type(entry.alt.activeQuests) == "table" then
+            activePeers[#activePeers + 1] = {
+                guid        = entry.guid,
+                alt         = entry.alt,
+                name        = cleanName,
+                coloredName = format_colored_char_name(entry.alt, cleanName, entry.guid),
+                class       = entry.alt.class,
+                inParty     = entry.inParty,
+                isOnline    = entry.isOnline,
+                partyUnit   = entry.partyUnit,
+            }
         end
     end
 
@@ -2839,6 +3021,7 @@ function sync.GetSyncedPeerClassQuests()
         for _, p in ipairs(activePeers) do
             if p.inParty and p.class == qGroup.classToken then
                 local hasActive = (p.alt.activeQuests and p.alt.activeQuests[qGroup.questID] ~= nil)
+                    or is_party_unit_on_quest(p.partyUnit, qGroup.questID)
                 local hasCompleted = is_alt_quest_done(p.alt, qGroup.questID)
                 if not hasActive and not hasCompleted then
                     missingPeers = missingPeers or {}
@@ -3098,6 +3281,9 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("QUEST_TURNED_IN", on_local_quests_updated)
     sfui.events.RegisterEvent("QUEST_REMOVED", on_local_quests_updated)
     sfui.events.RegisterEvent("QUEST_WATCH_UPDATE", on_local_quests_updated)
+    sfui.events.RegisterEvent("QUEST_WATCH_LIST_CHANGED", on_local_quests_updated)
+    sfui.events.RegisterEvent("QUEST_LOG_CRITERIA_UPDATE", on_local_quests_updated)
+    sfui.events.RegisterEvent("UNIT_QUEST_LOG_CHANGED", on_local_quests_updated)
     sfui.events.RegisterEvent("QUEST_LOG_UPDATE", on_local_quests_updated)
 end
 

@@ -44,6 +44,7 @@ local default_tab_icons = {
     ["objectives"]   = "Interface\\Icons\\Spell_Shadow_DarkRitual",
     ["pets"]         = "Interface\\Icons\\Spell_Shadow_SummonVoidWalker",
     ["portals"]      = "Interface\\Icons\\Spell_Shadow_Teleport",
+    ["recipes"]      = "Interface\\Icons\\INV_Scroll_03",
     ["research"]     = "Interface\\Icons\\Spell_Shadow_TomeOfSacrifice",
     ["ring"]         = "Interface\\Icons\\Spell_Shadow_DeathPact",
     ["sync"]         = "Interface\\Icons\\Spell_Shadow_MindTwisting",

@@ -85,19 +85,12 @@ function paging.GetBar1Paging()
         table_insert(conditions, "[bonusbar:2] 8")
     end
 
-    -- 3. General bonusbar, shapeshift, and multi-bar switching
+    -- 3. Temporary shapeshift bar (Retail)
+    -- Manual actionbar page scrolling ([bar:2]..[bar:10]) is intentionally omitted
+    -- because sfui displays bars 1-10 simultaneously and bar 1 should never scroll pages.
     if sfui.isRetail and _G.GetTempShapeshiftBarIndex then
         table_insert(conditions, "[shapeshift] 13")
     end
-    table_insert(conditions, "[bar:2] 2")
-    table_insert(conditions, "[bar:3] 3")
-    table_insert(conditions, "[bar:4] 4")
-    table_insert(conditions, "[bar:5] 5")
-    table_insert(conditions, "[bar:6] 6")
-    table_insert(conditions, "[bar:7] 7")
-    table_insert(conditions, "[bar:8] 8")
-    table_insert(conditions, "[bar:9] 9")
-    table_insert(conditions, "[bar:10] 10")
 
     -- 4. Default state
     table_insert(conditions, "1")

@@ -34,6 +34,7 @@ local MAX_SOURCE_LINES = 3
 --- Check if an item is a recipe scroll or recipe-related item
 local function OnItemTooltip(tooltip, data)
     if not tooltip or not tooltip.AddLine then return end
+    if SfuiDB and SfuiDB.recipesShowSources == false then return end
     if tooltip.sfuiRecipeSourceDone then return end
 
     local itemID = nil
@@ -151,6 +152,7 @@ local function HookSchematicForm()
     Mixin._sfuiHooked = true
 
     hooksecurefunc(Mixin, "Init", function(self, recipeInfo)
+        if SfuiDB and SfuiDB.recipesShowSources == false then return end
         if not recipeInfo or recipeInfo.learned then return end
         local recipeID = recipeInfo.recipeID
         if not recipeID then return end

@@ -145,7 +145,11 @@ SlashCmdList["SFUI"] = function(msg)
             sfui.portals.Toggle()
         end
     elseif cmd == "recipes" or cmd == "recipe" or cmd == "professions" or cmd == "prof" then
-        if sfui.recipes and sfui.recipes.ToggleBrowser then
+        if arg == "opt" or arg == "options" or arg == "config" or sfui.isRetail then
+            if sfui.toggle_options_panel then
+                sfui.toggle_options_panel("recipes")
+            end
+        elseif sfui.recipes and sfui.recipes.ToggleBrowser then
             sfui.recipes.ToggleBrowser(arg ~= "" and arg or nil)
         end
     elseif cmd == "fish" or cmd == "fishing" or cmd == "atlas" then

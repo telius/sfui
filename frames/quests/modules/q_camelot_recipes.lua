@@ -135,6 +135,42 @@ function sfui.recipes.TogglePinRecipe(spellID)
     return isPinned
 end
 
+function sfui.recipes.ClearPinnedRecipes()
+    local pinned = GetPinnedStorage()
+    local count = 0
+    for k in pairs(pinned) do
+        pinned[k] = nil
+        count = count + 1
+    end
+    if C_TradeSkillUI and C_TradeSkillUI.GetRecipesTracked and C_TradeSkillUI.SetRecipeTracked then
+        for _, isRecraft in ipairs({ false, true }) do
+            local tracked = C_TradeSkillUI.GetRecipesTracked(isRecraft)
+            if tracked then
+                for _, spellID in ipairs(tracked) do
+                    pcall(C_TradeSkillUI.SetRecipeTracked, spellID, false, isRecraft)
+                    count = count + 1
+                end
+            end
+        end
+    end
+    if CamelotRecipesModule and CamelotRecipesModule.MarkDirty then
+        CamelotRecipesModule:MarkDirty(0)
+    end
+    if sfui.tracker and sfui.tracker.RequestRefresh then
+        sfui.tracker.RequestRefresh(0)
+    end
+    if sfui.recipes.browser and sfui.recipes.browser.UpdateList then
+        sfui.recipes.browser.UpdateList()
+    end
+    if ScheduleRecipesSyncBroadcast then
+        ScheduleRecipesSyncBroadcast(true, false)
+    end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_RECIPE_PINNED_CHANGED", nil, false)
+    end
+    return count
+end
+
 -- ─────────────────────────────────────────────────────────
 --  REAGENT RESOLUTION & CROSS-CLIENT SYNC
 -- ─────────────────────────────────────────────────────────
@@ -585,7 +621,7 @@ function CamelotRecipesModule:Init(engine)
 end
 
 function CamelotRecipesModule:IsEnabled()
-    return true
+    return not (SfuiDB and SfuiDB.recipesTrackPinned == false)
 end
 
 function CamelotRecipesModule:OnEvent(event, ...)

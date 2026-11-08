@@ -412,6 +412,8 @@ function sfui.merchant.create_utility_bar(frame)
 
     catalogBtn:SetScript("OnClick", function(self)
         local npcName = UnitName("npc")
+        local issecret = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+        if npcName and issecret and issecret(npcName) then npcName = nil end
         if sfui.recipes and sfui.recipes.OpenBrowserForVendor and npcName then
             sfui.recipes.OpenBrowserForVendor(npcName)
         elseif sfui.recipes and sfui.recipes.ToggleBrowser then
@@ -425,6 +427,8 @@ function sfui.merchant.create_utility_bar(frame)
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:AddLine("recipe catalogue", 1, 1, 1)
             local npcName = UnitName("npc")
+            local issecret = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+            if npcName and issecret and issecret(npcName) then npcName = nil end
             if npcName then
                 GameTooltip:AddLine("click to open the recipe catalogue filtered to recipes sold by " .. npcName:lower() .. ".", 0.2, 0.8, 1, true)
             else
