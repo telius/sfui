@@ -477,23 +477,40 @@ end
 -- On Forever/Camelot (`not sfui.isRetail`), resolves the full "First Last" character name with no realm suffix.
 function sync.FullName(unit)
     unit = unit or "player"
+    local cSecrets = _G.C_Secrets
+    if unit ~= "player" and cSecrets and cSecrets.ShouldUnitIdentityBeSecret and cSecrets.ShouldUnitIdentityBeSecret(unit) then
+        return nil
+    end
+    local issecret = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+    local isSelf = (unit == "player")
+        or (not (cSecrets and cSecrets.ShouldUnitComparisonBeSecret and cSecrets.ShouldUnitComparisonBeSecret(unit, "player"))
+            and _G.UnitIsUnit and _G.UnitIsUnit(unit, "player"))
     if not sfui.isRetail then
-        if (unit == "player" or (_G.UnitIsUnit and _G.UnitIsUnit(unit, "player")))
-            and sfui.common and sfui.common.get_player_display_name then
+        if isSelf and sfui.common and sfui.common.get_player_display_name then
             local pName = sfui.common.get_player_display_name()
-            if pName and pName ~= "" and pName ~= "Unknown" and pName ~= _G.UNKNOWNOBJECT then
-                return resolve_forever_name(pName, nil, UnitGUID and UnitGUID("player")) or pName
+            if pName and not (issecret and issecret(pName)) and pName ~= "" and pName ~= "Unknown" and pName ~= _G.UNKNOWNOBJECT then
+                local pGuid = UnitGUID and UnitGUID("player")
+                if issecret and issecret(pGuid) then pGuid = nil end
+                return resolve_forever_name(pName, nil, pGuid) or pName
             end
         end
-        local uFirst, uSecond = UnitName and UnitName(unit)
+        local uFirst, uSecond
+        if UnitName then
+            uFirst, uSecond = UnitName(unit)
+        end
+        if issecret then
+            if issecret(uFirst) then uFirst = nil end
+            if issecret(uSecond) then uSecond = nil end
+        end
         if uFirst and uFirst ~= "" and uFirst ~= _G.UNKNOWNOBJECT then
             local g = UnitGUID and UnitGUID(unit)
+            if issecret and issecret(g) then g = nil end
             return resolve_forever_name(uFirst, uSecond, g) or uFirst
         end
     end
     local GetUnitName = _G.GetUnitName
     local n = (GetUnitName and GetUnitName(unit, true)) or (UnitName and UnitName(unit))
-    if not n or n == "" or n == _G.UNKNOWNOBJECT then return nil end
+    if not n or (issecret and issecret(n)) or n == "" or n == _G.UNKNOWNOBJECT then return nil end
     return n
 end
 
@@ -1356,8 +1373,6 @@ local function do_raw_reload()
         _G.C_UI.Reload()
     elseif _G.ReloadUI then
         _G.ReloadUI()
-    elseif _G.ConsoleExec then
-        _G.ConsoleExec("reloadui")
     end
 end
 
@@ -1373,9 +1388,7 @@ local function arm_hardware_reload_catcher(sender)
         hwReloadFrame:SetFrameStrata("FULLSCREEN_DIALOG")
         hwReloadFrame:SetFrameLevel(9999)
         hwReloadFrame:EnableMouse(true)
-        hwReloadFrame:EnableMouseWheel(true)
-        hwReloadFrame:EnableKeyboard(true)
-        hwReloadFrame:RegisterForClicks("AnyDown", "AnyUp")
+        hwReloadFrame:RegisterForClicks("AnyUp")
 
         local banner = CreateFrame("Frame", nil, hwReloadFrame, "BackdropTemplate")
         banner:SetSize(400, 52)
@@ -1392,19 +1405,21 @@ local function arm_hardware_reload_catcher(sender)
         local line2 = banner:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         line2:SetPoint("TOP", line1, "BOTTOM", 0, -4)
         line2:SetTextColor(0.9, 0.9, 0.95)
-        line2:SetText("click anywhere or press any key to reload ui")
+        line2:SetText("click anywhere to reload ui")
         hwReloadFrame.line2 = line2
 
         local function trigger_now()
-            hwReloadFrame:Hide()
+            if _G.InCombatLockdown and _G.InCombatLockdown() then
+                sync._pendingRemoteReload = hwReloadFrame.senderName or "peer"
+                hwReloadFrame:Hide()
+                return
+            end
             sync._pendingRemoteReload = false
             do_raw_reload()
+            hwReloadFrame:Hide()
         end
 
         hwReloadFrame:SetScript("OnClick", trigger_now)
-        hwReloadFrame:SetScript("OnMouseDown", trigger_now)
-        hwReloadFrame:SetScript("OnMouseWheel", trigger_now)
-        hwReloadFrame:SetScript("OnKeyDown", trigger_now)
         if sfui.events and sfui.events.RegisterEvent then
             sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
                 if hwReloadFrame and hwReloadFrame:IsShown() then
@@ -1420,18 +1435,11 @@ local function arm_hardware_reload_catcher(sender)
     if hwReloadFrame.line1 then
         hwReloadFrame.line1:SetText("sync: reload requested by " .. cleanSender)
     end
-    if hwReloadFrame.SetPropagateKeyboardInput and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
-        pcall(hwReloadFrame.SetPropagateKeyboardInput, hwReloadFrame, false)
-    end
     hwReloadFrame:Show()
 end
 
 local function execute_local_reload(isRemote, sender)
     if isRemote then
-        if _G.ConsoleIsActive and _G.ConsoleIsActive() and _G.ConsoleExec then
-            _G.ConsoleExec("reloadui")
-            return
-        end
         arm_hardware_reload_catcher(sender)
         return
     end

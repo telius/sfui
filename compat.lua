@@ -106,6 +106,9 @@ sfui.api = {}
 --- Classic/Forever: synthesises a compatible table from UnitAura().
 --- @return table|nil { name, icon, applications, duration, expirationTime, sourceUnit, spellId, isHarmful, auraInstanceID }
 function sfui.api.GetAuraData(unit, index, filter)
+    if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then
+        return nil
+    end
     if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
         return _G.C_UnitAuras.GetAuraDataByIndex(unit, index, filter)
     end
@@ -118,6 +121,9 @@ end
 if not IS_RETAIL and _G.AuraUtil and not (_G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataBySpellName) then
     _G.AuraUtil.FindAuraByName = function(auraName, unit, filter)
         if not auraName then return nil end
+        if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then
+            return nil
+        end
         unit = unit or "player"
         filter = filter or "HELPFUL"
 

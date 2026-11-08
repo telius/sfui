@@ -18,7 +18,16 @@ local GetTime = _G.GetTime
 local GetSpellInfo = _G.GetSpellInfo
 local C_Timer = _G.C_Timer
 local C_UnitAuras = _G.C_UnitAuras
+local C_Secrets = _G.C_Secrets
 local AuraUtil = _G.AuraUtil
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+
+local function AreAurasSecret()
+    if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then
+        return true
+    end
+    return false
+end
 
 local data = sfui.buffs.data
 local entries = nil
@@ -90,6 +99,15 @@ local function ReleasePlayerAuras()
 end
 
 local function RecordActiveAura(name, spellId, duration, expirationTime, applications, icon)
+    if issecretvalue then
+        if issecretvalue(name) then name = nil end
+        if issecretvalue(spellId) then spellId = nil end
+        if issecretvalue(duration) then duration = 0 end
+        if issecretvalue(expirationTime) then expirationTime = 0 end
+        if issecretvalue(applications) then applications = 0 end
+    end
+    if not name and not spellId then return nil end
+
     local r = table.remove(auraRecordPool) or {}
     r.name = name
     r.spellId = spellId
@@ -101,7 +119,7 @@ local function RecordActiveAura(name, spellId, duration, expirationTime, applica
     if spellId then
         activeAurasBySpellID[spellId] = r
     end
-    if name then
+    if type(name) == "string" and name ~= "" then
         activeAurasByName[string_lower(name)] = r
     end
     activeAuraList[#activeAuraList + 1] = r
@@ -123,6 +141,9 @@ end
 
 local function CollectPlayerAuras()
     ReleasePlayerAuras()
+    if AreAurasSecret() or sfui.common.is_in_combat() then
+        return
+    end
 
     if AuraUtil and AuraUtil.ForEachAura then
         AuraUtil.ForEachAura("player", "HELPFUL", nil, AuraCollectorCallback, true)
@@ -149,6 +170,9 @@ local function CollectPlayerAuras()
 end
 
 local function ScanPlayerAura(entry)
+    if AreAurasSecret() then
+        return false, 0, 0, 0, nil
+    end
     local spellIDs = entry.spellIDs
 
     -- 1. Fast path: check C_UnitAuras.GetPlayerAuraBySpellID directly if available
@@ -156,7 +180,10 @@ local function ScanPlayerAura(entry)
         for i = 1, #spellIDs do
             local aura = C_UnitAuras.GetPlayerAuraBySpellID(spellIDs[i])
             if aura then
-                return true, aura.duration or 0, aura.expirationTime or 0, aura.applications or 0, aura.icon
+                local dur = (not (issecretvalue and issecretvalue(aura.duration)) and aura.duration) or 0
+                local exp = (not (issecretvalue and issecretvalue(aura.expirationTime)) and aura.expirationTime) or 0
+                local app = (not (issecretvalue and issecretvalue(aura.applications)) and aura.applications) or 0
+                return true, dur, exp, app, aura.icon
             end
         end
     end
@@ -639,8 +666,8 @@ end
 --- Scans all registered class buffs and populates activeResults
 --- @return table array of scanned reminder records
 function sfui.buffs.scan.RunScan()
-    -- Bypass Blizzard API queries completely during combat or death
-    if sfui.common.is_in_combat() then
+    -- Bypass Blizzard API queries completely during combat, aura secrecy, or death
+    if sfui.common.is_in_combat() or AreAurasSecret() then
         dirty = true
         return activeResults
     end
@@ -742,7 +769,7 @@ end
 
 --- Marks the scan state dirty and schedules a throttled update
 function sfui.buffs.scan.RequestScan()
-    if sfui.common.is_in_combat() then
+    if sfui.common.is_in_combat() or AreAurasSecret() then
         dirty = true
         return
     end
@@ -754,7 +781,7 @@ function sfui.buffs.scan.RequestScan()
     throttleTimer = true
     C_Timer.After(0.08, function()
         throttleTimer = nil
-        if sfui.common.is_in_combat() then
+        if sfui.common.is_in_combat() or AreAurasSecret() then
             dirty = true
             return
         end
@@ -803,6 +830,7 @@ local function InitScanEvents()
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", on_player_unit_change)
     sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING", on_player_unit_change)
     sfui.events.RegisterEvent("MINIMAP_UPDATE_TRACKING", on_knowledge_change)
+    sfui.events.RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED", on_player_unit_change)
 
     -- Periodic safety refresh for temporary weapon enchants and time-expiring buffs
     local cTimer = _G.C_Timer
@@ -834,11 +862,11 @@ local function InitScanEvents()
         end
         sfui.buffs.scan.RequestScan()
 
-        -- Safety delayed retries in case client engine was still in lockdown during event frame
+        -- Safety delayed retries in case client engine was still in lockdown or aura secrecy during event frame
         local cTimer = _G.C_Timer
         if cTimer and cTimer.After then
             cTimer.After(0.15, function()
-                if not sfui.common.is_in_combat() and not InCombatLockdown() then
+                if not sfui.common.is_in_combat() and not InCombatLockdown() and not AreAurasSecret() then
                     sfui.buffs.scan.RequestScan()
                     if sfui.buffs and sfui.buffs.UpdateDisplay then
                         sfui.buffs.UpdateDisplay()
@@ -846,7 +874,7 @@ local function InitScanEvents()
                 end
             end)
             cTimer.After(0.35, function()
-                if not sfui.common.is_in_combat() and not InCombatLockdown() then
+                if not sfui.common.is_in_combat() and not InCombatLockdown() and not AreAurasSecret() then
                     if sfui.buffs and sfui.buffs.UpdateDisplay then
                         sfui.buffs.UpdateDisplay()
                     end

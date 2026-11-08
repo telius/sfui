@@ -314,7 +314,9 @@ if sfui.events then
                 return
             end
             ScanInventoryFoods()
-            if sfui.buffs and sfui.buffs.UpdateDisplay then
+            if sfui.buffs and sfui.buffs.scan and sfui.buffs.scan.RequestScan then
+                sfui.buffs.scan.RequestScan()
+            elseif sfui.buffs and sfui.buffs.UpdateDisplay then
                 sfui.buffs.UpdateDisplay()
             end
         end

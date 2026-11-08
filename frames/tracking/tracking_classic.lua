@@ -94,6 +94,10 @@ local function find_unit_aura(unit, filter, spellID, altSpellID, spellName)
         end
     end
 
+    if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then
+        return nil
+    end
+
     if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
         local fallbackAura = nil
         for i = 1, 40 do

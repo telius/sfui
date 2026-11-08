@@ -201,6 +201,7 @@ frames/professions/filters.lua [AllowLoadGameType camelot, classic]
 frames/professions/progress.lua [AllowLoadGameType camelot, classic]
 frames/professions/rows.lua [AllowLoadGameType camelot, classic]
 frames/professions/browser.lua [AllowLoadGameType camelot, classic]
+frames/professions/reagents.lua [AllowLoadGameType camelot, classic]
 frames/map/providers/pins_recipes.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Library Books

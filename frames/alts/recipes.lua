@@ -174,6 +174,9 @@ local function InvalidateRecipeStatusCache()
     if sfui.recipes and sfui.recipes.browser and sfui.recipes.browser.ClearLearnedCache then
         sfui.recipes.browser.ClearLearnedCache()
     end
+    if sfui.recipes and sfui.recipes.InvalidateReagentCache then
+        sfui.recipes.InvalidateReagentCache()
+    end
 end
 
 --- Check if a recipe ID (itemID or spellID) is marked known for a specific GUID across any realm key
@@ -1447,6 +1450,11 @@ local function SetItemTooltip(tooltip, data)
     end
 
     sfui.recipes.AddAltKnowledgeLines(tooltip, itemID)
+
+    -- Reagent usage ("used in") section (Camelot / Classic: frames/professions/reagents.lua)
+    if sfui.recipes.AddReagentUseLines then
+        sfui.recipes.AddReagentUseLines(tooltip, itemID)
+    end
 end
 
 -- ── Tooltip Registration (Retail & Classic Era Compatible) ────────────────────
@@ -1597,3 +1605,4 @@ sfui.recipes.RequestUpdateAllItems = RequestUpdateAllItems
 sfui.recipes.ScanCurrentTradeSkills = ScanCurrentTradeSkills
 sfui.recipes.AddAltKnowledgeLines = sfui.recipes.AddAltKnowledgeLines
 sfui.recipes.CheckAltEligibility = CheckAltEligibility
+sfui.recipes.GetColoredCharacterName = GetColoredCharacterName

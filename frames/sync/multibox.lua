@@ -50,8 +50,37 @@ local InCombatLockdown = _G.InCombatLockdown
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local FollowUnit = _G.FollowUnit
 local C_Timer = _G.C_Timer
+local C_Secrets = _G.C_Secrets
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
 local GetSubZoneText = _G.GetSubZoneText
 local GetZoneText = _G.GetZoneText
+
+local function is_unit_identity_secret(u)
+    if not u then return false end
+    if C_Secrets and C_Secrets.ShouldUnitIdentityBeSecret and C_Secrets.ShouldUnitIdentityBeSecret(u) then
+        return true
+    end
+    return false
+end
+
+local function safe_unit_guid(u)
+    if not u or not UnitGUID or is_unit_identity_secret(u) then return nil end
+    local g = UnitGUID(u)
+    if issecretvalue and issecretvalue(g) then return nil end
+    return g
+end
+
+local function safe_unit_is_unit(u1, u2)
+    if not u1 or not u2 then return false end
+    if u1 == u2 then return true end
+    if C_Secrets and C_Secrets.ShouldUnitComparisonBeSecret and C_Secrets.ShouldUnitComparisonBeSecret(u1, u2) then
+        return false
+    end
+    if sfui.common and sfui.common.SafeUnitIsUnit then
+        return sfui.common.SafeUnitIsUnit(u1, u2)
+    end
+    return (UnitIsUnit and UnitIsUnit(u1, u2)) or false
+end
 
 -- ── Name Helpers (Forever "First Last" + Retail "Name-Realm" Safe) ────────────
 local cleanKeyCache = {}
@@ -224,7 +253,7 @@ function multibox.FindPartyUnitByName(targetName)
     local maxIdx = isRaid and count or math.min(4, count)
     for i = 1, maxIdx do
         local u = prefix .. i
-        if UnitExists and UnitExists(u) and not (UnitIsUnit and UnitIsUnit(u, "player")) then
+        if UnitExists and UnitExists(u) and not safe_unit_is_unit(u, "player") then
             local n = full_name(u)
             if n and same_char(n, targetName) then
                 return u, cmd_name(n)
@@ -245,8 +274,8 @@ function multibox.HasSyncedPartyMember()
         local u = prefix .. i
         if UnitExists and UnitExists(u)
             and (not _G.UnitIsPlayer or _G.UnitIsPlayer(u))
-            and not (UnitIsUnit and UnitIsUnit(u, "player")) then
-            local g = UnitGUID and UnitGUID(u)
+            and not safe_unit_is_unit(u, "player") then
+            local g = safe_unit_guid(u)
             local n = full_name(u)
             if (g and multibox.IsSyncedCharacter(g)) or (n and multibox.IsSyncedCharacter(n)) then
                 return true
@@ -338,8 +367,8 @@ function multibox.GetSyncedLeaderUnit(preferName)
 
     for i = 1, maxIdx do
         local u = prefix .. i
-        if UnitExists and UnitExists(u) and not (UnitIsUnit and UnitIsUnit(u, "player")) then
-            local g = UnitGUID and UnitGUID(u)
+        if UnitExists and UnitExists(u) and not safe_unit_is_unit(u, "player") then
+            local g = safe_unit_guid(u)
             local n = full_name(u)
             local cName = cmd_name(n)
             if UnitIsGroupLeader and UnitIsGroupLeader(u) then
@@ -904,7 +933,7 @@ local function get_party_member_lookup()
         for i = 1, maxIdx do
             local u = prefix .. i
             if UnitExists and UnitExists(u) then
-                local g = UnitGUID and UnitGUID(u)
+                local g = safe_unit_guid(u)
                 local n = full_name(u)
                 if (g and multibox.IsSyncedCharacter(g)) or (n and multibox.IsSyncedCharacter(n)) then
                     local short = cmd_name(n)
@@ -926,18 +955,21 @@ local function scan_tooltip_lines_for_quest_item(lines, targetItemLower, byName,
     local foundTargetItem = false
     local LINE_TYPE = _G.Enum and _G.Enum.TooltipDataLineType
     for _, line in ipairs(lines) do
-        local raw = (line and line.leftText) or ""
-        local clean = raw:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local cleanLower = string_lower(clean)
-        local itemName, have, need = strip_objective_counts(clean)
-        if LINE_TYPE and line.type == LINE_TYPE.QuestTitle then
-            currentWho = myShort
-        elseif not have and byName[cleanLower] then
-            currentWho = byName[cleanLower]
-        elseif itemName and have and need and string_lower(itemName) == targetItemLower then
-            foundTargetItem = true
-            if currentWho and currentWho ~= myShort and have < need and not sync.IsAway(currentWho) then
-                needsMap[string_lower(currentWho)] = true
+        local raw = line and line.leftText
+        local ltype = line and line.type
+        if type(raw) == "string" and not (issecretvalue and issecretvalue(raw)) then
+            local clean = raw:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", "")
+            local cleanLower = string_lower(clean)
+            local itemName, have, need = strip_objective_counts(clean)
+            if LINE_TYPE and not (issecretvalue and issecretvalue(ltype)) and ltype == LINE_TYPE.QuestTitle then
+                currentWho = myShort
+            elseif not have and byName[cleanLower] then
+                currentWho = byName[cleanLower]
+            elseif itemName and have and need and string_lower(itemName) == targetItemLower then
+                foundTargetItem = true
+                if currentWho and currentWho ~= myShort and have < need and not sync.IsAway(currentWho) then
+                    needsMap[string_lower(currentWho)] = true
+                end
             end
         end
     end
@@ -954,15 +986,21 @@ local function find_others_needing_quest_item(slot, itemName, questID)
     local C_TooltipInfo = _G.C_TooltipInfo
     if C_TooltipInfo then
         local guid = _G.GetLootSourceInfo and _G.GetLootSourceInfo(slot)
+        if issecretvalue and issecretvalue(guid) then
+            guid = nil
+        end
         for _, u in ipairs(CORPSE_UNIT_TOKENS) do
-            if UnitExists and UnitExists(u) and UnitIsDead and UnitIsDead(u) and (not guid or (UnitGUID and UnitGUID(u) == guid)) then
-                if C_TooltipInfo.GetUnit then
-                    local data = C_TooltipInfo.GetUnit(u)
-                    if data and data.lines then
-                        scan_tooltip_lines_for_quest_item(data.lines, targetItemLower, byName, needsMap, myShort)
+            if not is_unit_identity_secret(u) and UnitExists and UnitExists(u) and UnitIsDead and UnitIsDead(u) then
+                local uGuid = safe_unit_guid(u)
+                if not guid or (uGuid and uGuid == guid) then
+                    if C_TooltipInfo.GetUnit then
+                        local data = C_TooltipInfo.GetUnit(u)
+                        if data and data.lines then
+                            scan_tooltip_lines_for_quest_item(data.lines, targetItemLower, byName, needsMap, myShort)
+                        end
                     end
+                    break
                 end
-                break
             end
         end
 
@@ -1054,6 +1092,11 @@ local function on_loot_opened()
         local _, itemName, _, _, _, _, isQuestItem, questId = nil, nil, nil, nil, nil, nil, false, nil
         if _G.GetLootSlotInfo then
             _, itemName, _, _, _, _, isQuestItem, questId = _G.GetLootSlotInfo(slot)
+        end
+        if issecretvalue then
+            if issecretvalue(link) then link = nil end
+            if issecretvalue(itemName) then itemName = nil end
+            if issecretvalue(questId) then questId = nil end
         end
         if link and itemName then
             local _, _, _, _, _, _, _, maxStack, _, _, _, classID = GetItemInfo(link)

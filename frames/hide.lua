@@ -731,12 +731,12 @@ local function GetOrCreateReloadPopup()
     msg:SetText("blizzard edit mode was closed.\na ui reload is recommended to apply layout changes cleanly.")
 
     local reloadBtn = CreatePopupButton(popup, "reload ui", 100, 24, function()
-        popup:Hide()
         if _G.C_UI and _G.C_UI.Reload then
             _G.C_UI.Reload()
         elseif _G.ReloadUI then
             _G.ReloadUI()
         end
+        popup:Hide()
     end)
     reloadBtn:SetPoint("BOTTOMRIGHT", popup, "BOTTOM", -8, 14)
     reloadBtn._borderColor = { 0.2, 0.8, 0.3 }

@@ -513,11 +513,14 @@ function sfui.buffs.OnCombatEnter()
 end
 
 function sfui.buffs.OnCombatLeave()
-    if InCombatLockdown and InCombatLockdown() then
+    local cSecrets = _G.C_Secrets
+    local aurasSecret = cSecrets and cSecrets.ShouldAurasBeSecret and cSecrets.ShouldAurasBeSecret()
+    if (InCombatLockdown and InCombatLockdown()) or aurasSecret then
         local cTimer = _G.C_Timer
         if cTimer and cTimer.After then
             cTimer.After(0.15, function()
-                if not InCombatLockdown() then
+                local stillSecret = cSecrets and cSecrets.ShouldAurasBeSecret and cSecrets.ShouldAurasBeSecret()
+                if not InCombatLockdown() and not stillSecret then
                     sfui.buffs.UpdateDisplay()
                 end
             end)
@@ -548,8 +551,10 @@ function sfui.buffs.UpdateDisplay()
         return
     end
 
-    -- Suppression check: strictly hide in combat
-    local inCombat = sfui.common.is_in_combat() or InCombatLockdown()
+    -- Suppression check: strictly hide in combat or when auras are secret
+    local cSecrets = _G.C_Secrets
+    local aurasSecret = cSecrets and cSecrets.ShouldAurasBeSecret and cSecrets.ShouldAurasBeSecret()
+    local inCombat = sfui.common.is_in_combat() or InCombatLockdown() or aurasSecret
     if inCombat and not isUnlocked and not isTestMode then
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
