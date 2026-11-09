@@ -258,6 +258,20 @@ local function ParkFrameOffscreen(frame, key)
         end
     end
 
+    if (key == "hide_totem_bar" or key == "hide_player_frame") and not (InCombatLockdown and InCombatLockdown()) then
+        local tf = (frame == _G.TotemFrame and frame) or (frame == _G.PlayerFrame and _G.TotemFrame)
+        if tf then
+            if tf.UnregisterAllEvents then
+                tf:UnregisterAllEvents()
+            end
+            if tf.totemPool and tf.totemPool.ReleaseAll then
+                tf.totemPool:ReleaseAll()
+            end
+            if tf.Hide then
+                tf:Hide()
+            end
+        end
+    end
     if frame.SetAlpha and (not frame.GetAlpha or frame:GetAlpha() ~= 0) then
         frame:SetAlpha(0)
     end
@@ -349,6 +363,20 @@ local function SuppressFrame(frame, entry)
         UpdateBarChildren(key, true)
         return
     end
+    if (key == "hide_totem_bar" or key == "hide_player_frame") and not (InCombatLockdown and InCombatLockdown()) then
+        local tf = (frame == _G.TotemFrame and frame) or (frame == _G.PlayerFrame and _G.TotemFrame)
+        if tf then
+            if tf.UnregisterAllEvents then
+                tf:UnregisterAllEvents()
+            end
+            if tf.totemPool and tf.totemPool.ReleaseAll then
+                tf.totemPool:ReleaseAll()
+            end
+            if tf.Hide then
+                tf:Hide()
+            end
+        end
+    end
     if frame.SetAlpha and (not frame.GetAlpha or frame:GetAlpha() ~= 0) then
         frame:SetAlpha(0)
     end
@@ -386,6 +414,18 @@ local function RestoreFrame(frame, entry)
     if key == "hide_micromenu" or key == "hide_bagsbar" then
         RestoreFrameFromOffscreen(frame, key)
         UpdateBarChildren(key, false)
+    end
+    if key == "hide_totem_bar" and frame == _G.TotemFrame and not (InCombatLockdown and InCombatLockdown()) then
+        if frame.RegisterEvent then
+            frame:RegisterEvent("PLAYER_TOTEM_UPDATE")
+            frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+            frame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+            frame:RegisterEvent("PLAYER_TALENT_UPDATE")
+            frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+        end
+        if frame.Update then
+            pcall(frame.Update, frame)
+        end
     end
     if frame.GetAlpha and frame:GetAlpha() ~= 1.0 then
         frame:SetAlpha(1.0)

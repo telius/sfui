@@ -1,27 +1,26 @@
 # changelog
 
-## v1.142 (2026-11-08)
-
-### new features
-
-- **reagent usage tooltips & recipes options tab (`frames/professions/reagents.lua`, `frames/options/tabs/tab_recipes.lua`, `frames/professions/tooltips.lua`, `frames/alts/recipes.lua`, `frames/quests/modules/q_camelot_recipes.lua`, `frames/options/options.lua`, `commands.lua`, `sfui.toc`)**:
-  - added a lazy-indexed reagent usage tooltip engine (`frames/professions/reagents.lua`) for classic/camelot that displays which recipes consume a hovered reagent item, grouped by profession with skill difficulty coloring (`orange` / `yellow` / `green` / `grey` / `can learn`), reagent counts (`xN`), and cross-alt character attribution across local and synced accounts.
-  - holding `shift` while hovering a reagent expands all recipes (including unlearned and non-matching professions).
-  - added a dedicated `recipes` options tab (`frames/options/tabs/tab_recipes.lua`, `/sfui recipes`) consolidating reagent tooltip settings, recipe scroll & crafted item tooltip lines, bag/merchant icon tinting, acquisition sources, world map pins, and objective tracker pinned recipe shopping list controls.
-- **cross-account sync & objective tracker enhancements (`frames/quests/modules/q_camelot_class.lua`, `frames/quests/modules/q_camelot_recipes.lua`, `frames/quests/helpers/q_common.lua`, `frames/quests/helpers/q_tooltip.lua`, `frames/alts/alts.lua`, `frames/sync/sync.lua`, `frames/sync/multibox.lua`)**:
-  - added cross-class synced peer class quest tracking in the objective tracker and synced pinned recipe & shared reagent shopping lists across linked accounts.
-  - added complete character data purging (`sfui.alts.PurgeCharacter`) and full `first last` character name resolution for forever realms across alts, sync, trade, and fishing modules.
+## v1.143 (2026-11-09)
 
 ### improvements & bug fixes
 
-- **quest status synchronization reliability (`frames/sync/sync.lua`, `frames/sync/merge.lua`)**:
-  - added full active quest snapshot reconciliation (`delta.all`), `ScanActiveQuestsDelta(true)` full-resync support on handshake and periodic heartbeats, collapsed quest log header recovery, completed-quest pruning for peer active quests, and live `C_QuestLog.IsUnitOnQuest` party fallback in `GetQuestMemberStates`.
-- **actionbar page scrolling lockdown (`frames/actionbars/paging.lua`, `frames/actionbars/actionbars.lua`)**:
-  - removed manual actionbar page conditionals (`[bar:2]`..`[bar:10]`) from `sfui_Bar1`'s secure state driver so bar 1 only pages for stances, shapeshift forms, stealth, possess, vehicle, and override bars.
-  - automatically resets `ActionBarPage` to `1` and unbinds default `SHIFT-MOUSEWHEELUP` / `SHIFT-MOUSEWHEELDOWN` from `PREVIOUSACTIONPAGE` / `NEXTACTIONPAGE`.
-- **dungeon journal quest chains (`data/dj_camelot.lua`)**:
-  - added prerequisite quest chain definitions and step coordinates for `95216` (*the new plague* — requires 3-part *a recipe for death* chain `447` → `450` → `451`), `92422` (*the wrath of rath'mael* — requires 2-part *rear guard patrol* chain `356` → `99156`), and `1491` (*smart drinks* — requires `865` *raptor horns*).
-- **secret value & ui theme safety (`frames/themes/engine.lua`, `frames/professions/contacts.lua`, `frames/merchant/merchant_utility.lua`, `frames/sync/quests.lua`, `frames/sync/multibox.lua`, `frames/reminders/buffs_scan.lua`, `frames/bars/threat.lua`, `frames/tracking/trackedbars.lua`)**:
-  - fixed `ApplyCloseButtonStyle` and `ApplyButtonStyle` in `frames/themes/engine.lua` when styling `UIPanelCloseButton` instances under non-atlas themes.
-  - guarded `UnitName`, `UnitGUID`, loot links, and aura slots against secret values across `frames/professions/contacts.lua`, `frames/merchant/merchant_utility.lua`, `frames/sync/quests.lua`, `frames/sync/multibox.lua`, and `frames/reminders/buffs_scan.lua`.
-  - fixed threat bar overlap with attached tracked bars above the health bar.
+- **recipe vendor source accuracy & database compilation (`frames/professions/sources.lua`, `data/recipes_camelot.lua`, `scripts/sync-recipes.py`)**:
+  - corrected recipe vendor attributions for `enchant 2h weapon - lesser intellect` (`6349`), moving it off lilly in silverpine forest and mapping it to authentic classic trainers/vendors (`nata dawnstrider` in thunder bluff, `kithas` in orgrimmar, `leo sarn` in silverpine forest, and `tilli thistlefuzz` in ironforge).
+  - corrected lilly's curated inventory to chest formulas (`enchant chest - minor/lesser intellect`) and mana/wizard oils.
+  - pruned 20 non-vendor world/chest drop recipes mistakenly classified as limited vendor stock from `sfui.recipes.LIMITED_RECIPE_ITEMS` and `sfui.recipes.CURATED_LIMITED_VENDORS`.
+  - fixed a sourcemore parser bug in `scripts/sync-recipes.py` that erroneously tagged creature drop mobs and dungeon bosses (`mekgineer thermaplugg`, `general drakkisath`, `ras frostwhisper`, `darkmaster gandling`, `dragonmaw scout`, etc.) as vendors on dual-source `[2, 5]` recipes.
+  - resolved id collisions in `REPUTATION_RECIPES` and `SPECIALIZATION_RECIPES` in `scripts/sync-recipes.py`, ensuring reputation standings and specializations map strictly to valid spells without polluting unrelated recipes.
+  - added `VENDOR_FACTIONS` so contested-zone vendors have explicit faction tags for host-faction safety checks (`sfui.recipes.IsSourceHostile`).
+  - recompiled `data/recipes_camelot.lua` with updated source pools and verified syntax.
+- **multibox loot & quest item secret-value protection (`frames/sync/multibox.lua`, `common.lua`)**:
+  - exported `sfui.common.issecretvalue` in `common.lua` and added defensive `is_secret(v)` guards throughout `frames/sync/multibox.lua`.
+  - prevents `"attempt to compare a secret string value"` errors during `LOOT_OPENED` corpse tooltip scanning on restricted loot and tainted execution contexts.
+- **themes close button robustness (`frames/themes/engine.lua`)**:
+  - safeguarded `fs.SetTextColor` and `sfs.SetTextColor` invocations in `ApplyCloseButtonStyle` and `OnEnter`/`OnLeave` hooks with method presence checks to eliminate `"attempt to call a nil value"` on non-standard close buttons.
+- **quest tracker shift-click untrack & link separation (`common.lua`, `frames/quests/helpers/q_common.lua`, `frames/quests/modules/q_camelot.lua`, `frames/quests/modules/q_camelot_class.lua`, `frames/quests/modules/q_quests.lua`, `frames/quests/modules/q_worldquests.lua`, `frames/quests/engine/q_layout.lua`)**:
+  - resolved keybind conflict between shift-clicking to untrack/hide quests vs. inserting item/quest links into active chat edit boxes.
+  - shift-clicking a quest row now seamlessly prioritizes inserting chat links when an edit box is focused, while untracking/hiding when no edit box is active.
+  - added untrack and hide support for class quests and camelot milestone quests.
+- **totem bar instance secret safety & performance (`frames/bars/totembar.lua`, `frames/hide.lua`, `frames/tracking/tracking_classic.lua`, `frames/bars/swing_classic.lua`, `frames/tracking/trackedbars.lua`, `frames/gear/hammer.lua`)**:
+  - secured totem slot queries and duration formatting against secret values during instance combat.
+  - throttled and event-driven updates for classic totem bar, swing timers, and tracked bars, significantly lowering per-frame cpu usage in instances.

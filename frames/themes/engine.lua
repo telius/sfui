@@ -2296,8 +2296,8 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
             end
         end
 
-        local fs = btn:GetFontString() or btn._sfuiCloseFS
-        if not fs and btn.CreateFontString then
+        local fs = (btn.GetFontString and btn:GetFontString()) or btn._sfuiCloseFS
+        if (not fs or not fs.SetTextColor) and btn.CreateFontString then
             fs = btn:CreateFontString(nil, "OVERLAY", (sfui.config and sfui.config.font) or "GameFontNormal")
             fs:SetPoint("CENTER", 0, 0)
             local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
@@ -2306,9 +2306,9 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
             if btn.SetFontString then btn:SetFontString(fs) end
             btn._sfuiCloseFS = fs
         end
-        if fs then
-            fs:Show()
-            fs:SetText("X")
+        if fs and fs.SetTextColor then
+            if fs.Show then fs:Show() end
+            if fs.SetText then fs:SetText("X") end
             if activeID == "camelot" then
                 fs:SetTextColor(1.0, 0.85, 0.55, 1)
             elseif activeID == "oldgod" then
@@ -2329,43 +2329,43 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
             btn:HookScript("OnEnter", function(self)
                 if self.isThemedClose then return end
                 local aID = sfui.theme.GetActiveThemeID()
-                local sfs = self:GetFontString() or self._sfuiCloseFS
+                local sfs = (self.GetFontString and self:GetFontString()) or self._sfuiCloseFS
                 if aID == "camelot" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.90, 0.75, 0.40, 1.0) end
-                    if sfs then sfs:SetTextColor(1.0, 0.95, 0.70, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(1.0, 0.95, 0.70, 1.0) end
                 elseif aID == "oldgod" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.85, 0.45, 1.00, 1.0) end
-                    if sfs then sfs:SetTextColor(1.0, 0.70, 1.0, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(1.0, 0.70, 1.0, 1.0) end
                 elseif aID == "fallensanctum" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.114, 0.949, 0.776, 1.0) end
-                    if sfs then sfs:SetTextColor(0.114, 0.949, 0.776, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(0.114, 0.949, 0.776, 1.0) end
                 elseif aID == "maw" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.40, 0.90, 0.95, 1.0) end
-                    if sfs then sfs:SetTextColor(0.40, 0.90, 0.95, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(0.40, 0.90, 0.95, 1.0) end
                 elseif aID == "necrolord" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.35, 0.85, 0.55, 1.0) end
-                    if sfs then sfs:SetTextColor(0.35, 0.85, 0.55, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(0.35, 0.85, 0.55, 1.0) end
                 end
             end)
             btn:HookScript("OnLeave", function(self)
                 if self.isThemedClose then return end
                 local aID = sfui.theme.GetActiveThemeID()
-                local sfs = self:GetFontString() or self._sfuiCloseFS
+                local sfs = (self.GetFontString and self:GetFontString()) or self._sfuiCloseFS
                 if aID == "camelot" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.65, 0.50, 0.25, 1.0) end
-                    if sfs then sfs:SetTextColor(1.0, 0.85, 0.55, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(1.0, 0.85, 0.55, 1.0) end
                 elseif aID == "oldgod" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.45, 0.22, 0.65, 1.0) end
-                    if sfs then sfs:SetTextColor(0.85, 0.65, 1.00, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(0.85, 0.65, 1.00, 1.0) end
                 elseif aID == "fallensanctum" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.65, 0.15, 0.15, 1.0) end
-                    if sfs then sfs:SetTextColor(0.95, 0.65, 0.65, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(0.95, 0.65, 0.65, 1.0) end
                 elseif aID == "maw" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.25, 0.45, 0.55, 1.0) end
-                    if sfs then sfs:SetTextColor(0.75, 0.85, 0.90, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(0.75, 0.85, 0.90, 1.0) end
                 elseif aID == "necrolord" then
                     if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.30, 0.65, 0.40, 1.0) end
-                    if sfs then sfs:SetTextColor(0.84, 0.82, 0.73, 1.0) end
+                    if sfs and sfs.SetTextColor then sfs:SetTextColor(0.84, 0.82, 0.73, 1.0) end
                 end
             end)
         end

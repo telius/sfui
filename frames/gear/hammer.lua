@@ -17,6 +17,7 @@ local C_TradeSkillUI             = _G.C_TradeSkillUI
 local C_ProfSpecs                = _G.C_ProfSpecs
 local GetInventoryItemLink = sfui.common.get_inventory_item_link
 local GetInventoryItemDurability = _G.GetInventoryItemDurability
+local issecretvalue              = _G.issecretvalue or (sfui.common and sfui.common.issecretvalue)
 local ipairs, tonumber, tostring = ipairs, tonumber, tostring
 local math_floor                 = math.floor
 local wipe                       = _G.wipe or table.wipe
@@ -921,6 +922,7 @@ function sfui.hammer.print_hammer_status(debugMode)
 end
 
 local function on_hammer_cast_end(event, unit, _, spellID)
+    if issecretvalue and (issecretvalue(unit) or issecretvalue(spellID)) then return end
     if unit == "player" then
         local _, _, _, hammerItemID = sfui.hammer.has_repair_hammer()
         local hammerSpellID

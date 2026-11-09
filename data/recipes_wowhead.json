@@ -6270,11 +6270,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -6291,7 +6286,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 249886,
@@ -6302,11 +6302,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -6323,7 +6318,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 249887,
@@ -6334,11 +6334,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -6355,7 +6350,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 249888,
@@ -6366,11 +6366,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -6387,7 +6382,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 249889,
@@ -6398,11 +6398,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -6419,7 +6414,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 249890,
@@ -6430,11 +6430,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -6451,7 +6446,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 250173,
@@ -6659,11 +6659,6 @@
         "source": [
           2
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -6680,7 +6675,12 @@
             "z": 17
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 250188,
@@ -6726,12 +6726,12 @@
         "source": [
           2
         ],
+        "sm_checked": true,
         "envChange": {
           "status": "new",
           "labels": [],
           "lines": []
-        },
-        "sm_checked": true
+        }
       },
       {
         "id": 263511,
@@ -17472,11 +17472,6 @@
         "skill": 290,
         "level": 58,
         "quality": 2,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "n": "Scarlet Alchemist",
@@ -17484,7 +17479,12 @@
             "ti": 240785,
             "z": 16236
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 13501,
@@ -18021,11 +18021,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -18042,7 +18037,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 250365,
@@ -18053,11 +18053,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -18074,7 +18069,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 250366,
@@ -18085,11 +18085,6 @@
         "source": [
           2
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -18113,7 +18108,12 @@
             "z": 85
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 250367,
@@ -18124,11 +18124,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -18145,7 +18140,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 250368,
@@ -18179,11 +18179,6 @@
         "source": [
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "t": 1,
@@ -18200,7 +18195,12 @@
             "z": 44
           }
         ],
-        "sm_checked": true
+        "sm_checked": true,
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 250370,
@@ -53398,6 +53398,37 @@
         "source": [
           5
         ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 3012,
+            "n": "Nata Dawnstrider",
+            "st": "vendor",
+            "z": 1638
+          },
+          {
+            "t": 1,
+            "ti": 3346,
+            "n": "Kithas",
+            "st": "vendor",
+            "z": 1637
+          },
+          {
+            "t": 1,
+            "ti": 5158,
+            "n": "Tilli Thistlefuzz",
+            "st": "vendor",
+            "z": 1537
+          },
+          {
+            "t": 1,
+            "ti": 5758,
+            "n": "Leo Sarn",
+            "st": "vendor",
+            "z": 130
+          }
+        ],
+        "sm_checked": true,
         "envChange": {
           "status": "updated",
           "labels": [
@@ -53420,6 +53451,20 @@
         "source": [
           2
         ],
+        "sourcemore": [
+          {
+            "t": 2,
+            "ti": 152608,
+            "n": "Kolkar's Booty",
+            "z": 17
+          },
+          {
+            "t": 2,
+            "ti": 75295,
+            "n": "Large Iron Bound Chest"
+          }
+        ],
+        "sm_checked": true,
         "envChange": {
           "status": "updated",
           "labels": [
@@ -53457,6 +53502,23 @@
         "source": [
           5
         ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 3012,
+            "n": "Nata Dawnstrider",
+            "st": "vendor",
+            "z": 1638
+          },
+          {
+            "t": 1,
+            "ti": 3537,
+            "n": "Zixil",
+            "st": "vendor",
+            "z": 267
+          }
+        ],
+        "sm_checked": true,
         "envChange": {
           "status": "updated",
           "labels": [
@@ -53479,6 +53541,20 @@
         "source": [
           2
         ],
+        "sourcemore": [
+          {
+            "t": 2,
+            "ti": 3642,
+            "n": "Kolkars' Booty",
+            "z": 17
+          },
+          {
+            "t": 2,
+            "ti": 75298,
+            "n": "Large Solid Chest"
+          }
+        ],
+        "sm_checked": true,
         "envChange": {
           "status": "updated",
           "labels": [
@@ -53502,6 +53578,33 @@
           2,
           5
         ],
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 3954,
+            "n": "Dalria",
+            "st": "vendor",
+            "z": 331
+          },
+          {
+            "t": 1,
+            "ti": 12043,
+            "n": "Kulwia",
+            "st": "vendor",
+            "z": 406
+          },
+          {
+            "t": 2,
+            "ti": 74447,
+            "n": "Large Iron Bound Chest"
+          },
+          {
+            "t": 2,
+            "ti": 75295,
+            "n": "Large Iron Bound Chest"
+          }
+        ],
+        "sm_checked": true,
         "envChange": {
           "status": "updated",
           "labels": [
@@ -68362,6 +68465,15 @@
         "skill": 135,
         "level": 25,
         "quality": 2,
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Sneed",
+            "t": 1,
+            "ti": 643,
+            "z": 1581
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -68371,16 +68483,7 @@
             "Effects added"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Sneed",
-            "t": 1,
-            "ti": 643,
-            "z": 1581
-          }
-        ]
+        }
       },
       {
         "id": 215153,
@@ -95373,17 +95476,17 @@
           2,
           5
         ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        },
         "sourcemore": [
           {
             "dd": -1,
             "z": 719
           }
-        ]
+        ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 252799,
@@ -120188,6 +120291,11 @@
         "skill": 280,
         "level": 1,
         "quality": 3,
+        "sourcemore": [
+          {
+            "z": 16236
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120199,12 +120307,7 @@
             "Effects reworded"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "z": 16236
-          }
-        ]
+        }
       },
       {
         "id": 239149,

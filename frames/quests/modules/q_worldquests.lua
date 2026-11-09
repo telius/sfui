@@ -212,8 +212,15 @@ function WorldQuestsModule:BuildBlocks(container)
                         if TryInsertQuestLink(questID, nil, title) then
                             return
                         end
-                        if C_QuestLog and C_QuestLog.RemoveQuestWatch then
-                            C_QuestLog.RemoveQuestWatch(questID)
+                        if QuestCommon and QuestCommon.UntrackQuest then
+                            QuestCommon.UntrackQuest(questID)
+                        else
+                            if C_QuestLog and C_QuestLog.RemoveWorldQuestWatch then
+                                C_QuestLog.RemoveWorldQuestWatch(questID)
+                            end
+                            if C_QuestLog and C_QuestLog.RemoveQuestWatch then
+                                C_QuestLog.RemoveQuestWatch(questID)
+                            end
                         end
                         sfui.tracker.RequestRefresh(0.05)
                         return

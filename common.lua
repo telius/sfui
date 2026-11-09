@@ -3,6 +3,7 @@ sfui = sfui or {}
 sfui.common = sfui.common or {}
 
 local issecretvalue = _G.issecretvalue or function() return false end
+sfui.common.issecretvalue = issecretvalue
 
 function sfui.common.print(msg, ...)
     local prefix = (sfui.config and sfui.config.prefix) or "|cff6600ffsfui:|r"
@@ -147,10 +148,10 @@ local C_Spell_RequestLoadSpellData     = C_Spell.RequestLoadSpellData
 -- Returns unified spell info table or nil
 -- Compatible with both modern C_Spell.GetSpellInfo (table) and legacy _G.GetSpellInfo (multi-return)
 function sfui.common.get_spell_info(spellID)
-    if not spellID then return nil end
+    if issecretvalue(spellID) or not spellID then return nil end
     if C_Spell_GetSpellInfo then
         local info = C_Spell_GetSpellInfo(spellID)
-        if info then
+        if info and not issecretvalue(info) and not issecretvalue(info.name) then
             return {
                 name     = info.name,
                 icon     = info.iconID or info.originalIconID,
@@ -163,7 +164,7 @@ function sfui.common.get_spell_info(spellID)
     end
     if _G.GetSpellInfo then
         local name, _, icon, castTime, minRange, maxRange, id = _G.GetSpellInfo(spellID)
-        if name then
+        if not issecretvalue(name) and name then
             return {
                 name     = name,
                 icon     = icon,
@@ -179,38 +180,41 @@ end
 
 -- Returns spell name string or nil
 function sfui.common.get_spell_name(spellID)
-    if not spellID then return nil end
+    if issecretvalue(spellID) or not spellID then return nil end
     if C_Spell_GetSpellName then
         local name = C_Spell_GetSpellName(spellID)
-        if name and name ~= "" then return name end
+        if not issecretvalue(name) and name and name ~= "" then return name end
     end
     if C_Spell_GetSpellInfo then
         local info = C_Spell_GetSpellInfo(spellID)
-        if info and info.name and info.name ~= "" then return info.name end
+        if info and not issecretvalue(info) and not issecretvalue(info.name) and info.name and info.name ~= "" then
+            return info.name
+        end
     end
     if _G.GetSpellInfo then
         local name = _G.GetSpellInfo(spellID)
-        if name and name ~= "" then return name end
+        if not issecretvalue(name) and name and name ~= "" then return name end
     end
     return nil
 end
 
 -- Returns spell icon texture (fileID/path) or nil
 function sfui.common.get_spell_icon(spellID)
-    if not spellID then return nil end
+    if issecretvalue(spellID) or not spellID then return nil end
     if C_Spell_GetSpellTexture then
         local icon = C_Spell_GetSpellTexture(spellID)
-        if icon then return icon end
+        if not issecretvalue(icon) and icon then return icon end
     end
     if C_Spell_GetSpellInfo then
         local info = C_Spell_GetSpellInfo(spellID)
-        if info and (info.iconID or info.originalIconID) then
-            return info.iconID or info.originalIconID
+        if info and not issecretvalue(info) then
+            local icon = info.iconID or info.originalIconID
+            if not issecretvalue(icon) and icon then return icon end
         end
     end
     if _G.GetSpellTexture then
         local icon = _G.GetSpellTexture(spellID)
-        if icon then return icon end
+        if not issecretvalue(icon) and icon then return icon end
     end
     return nil
 end
@@ -222,10 +226,10 @@ local _spellIdToNameCache = {}
 --- @param unit string
 --- @return boolean|nil inRange returns true if in range, false if out of range, nil if invalid/unknown
 function sfui.common.is_spell_in_range(spell, unit)
-    if not spell or not unit then return nil end
+    if issecretvalue(spell) or issecretvalue(unit) or not spell or not unit then return nil end
     if C_Spell and C_Spell.IsSpellInRange then
         local inRange = C_Spell.IsSpellInRange(spell, unit)
-        if inRange ~= nil and not issecretvalue(inRange) then
+        if not issecretvalue(inRange) and inRange ~= nil then
             return inRange == true
         end
     elseif _G.IsSpellInRange then
@@ -1908,19 +1912,12 @@ function sfui.common.insert_link_to_chat(link)
         return true
     end
 
-    -- 3. Modified click handler fallback
-    if _G.HandleModifiedItemClick and _G.HandleModifiedItemClick(link) then
-        return true
-    end
-
-    -- 4. Active chat edit box direct insert
+    -- 3. Active chat edit box direct insert (must be actively open, not a deactivated IM-mode box)
     local activeChat = (_G.ChatFrameUtil and _G.ChatFrameUtil.GetActiveWindow and _G.ChatFrameUtil.GetActiveWindow())
         or (_G.ChatEdit_GetActiveWindow and _G.ChatEdit_GetActiveWindow())
         or _G.ACTIVE_CHAT_EDIT_BOX
-        or
-        (_G.LAST_ACTIVE_CHAT_EDIT_BOX and (_G.LAST_ACTIVE_CHAT_EDIT_BOX:IsShown() or _G.LAST_ACTIVE_CHAT_EDIT_BOX:IsVisible()) and _G.LAST_ACTIVE_CHAT_EDIT_BOX)
 
-    if activeChat and (activeChat:IsShown() or activeChat:IsVisible()) and activeChat.Insert then
+    if activeChat and activeChat:IsVisible() and activeChat.Insert then
         activeChat:Insert(link)
         if activeChat.SetFocus then
             activeChat:SetFocus()
@@ -1928,14 +1925,14 @@ function sfui.common.insert_link_to_chat(link)
         return true
     end
 
-    -- 5. Macro text frame
-    if _G.MacroFrameText and _G.MacroFrameText:IsShown() and _G.MacroFrameText:HasFocus() then
+    -- 4. Macro text frame (must be visible on screen and focused)
+    if _G.MacroFrameText and _G.MacroFrameText:IsVisible() and _G.MacroFrameText:HasFocus() then
         _G.MacroFrameText:Insert(link)
         return true
     end
 
-    -- 6. Communities chat edit box
-    if _G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown() and _G.CommunitiesFrame.ChatEditBox:HasFocus() then
+    -- 5. Communities chat edit box (must be visible on screen and focused)
+    if _G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsVisible() and _G.CommunitiesFrame.ChatEditBox:HasFocus() then
         _G.CommunitiesFrame.ChatEditBox:Insert(link)
         return true
     end

@@ -79,6 +79,7 @@ sfui.recipes.FormatMoneyShort = FormatMoneyShort
 -- Note: Drops, quest rewards, and trainer recipes must NEVER be included here.
 sfui.recipes.LIMITED_RECIPE_ITEMS = {
     -- alchemy
+    [5640]  = true, -- recipe: rage potion
     [5642]  = true, -- recipe: free action potion
     [5643]  = true, -- recipe: great rage potion
     [6053]  = true, -- recipe: holy protection potion
@@ -96,23 +97,21 @@ sfui.recipes.LIMITED_RECIPE_ITEMS = {
     [14634] = true, -- recipe: frost oil
 
     -- tailoring
-    [4346]  = true, -- pattern: heavy woolen cloak
     [4355]  = true, -- pattern: icy cloak
     [5771]  = true, -- pattern: red linen bag
     [5772]  = true, -- pattern: red woolen bag
     [6270]  = true, -- pattern: blue linen vest
+    [6272]  = true, -- pattern: blue linen robe
+    [6274]  = true, -- pattern: blue overalls
     [6275]  = true, -- pattern: greater adept's robe
     [6401]  = true, -- pattern: dark silk shirt
     [7087]  = true, -- pattern: crimson silk cloak
     [7088]  = true, -- pattern: crimson silk robe
     [7089]  = true, -- pattern: azure silk cloak
-    [10300] = true, -- pattern: red mageweave vest
-    [10301] = true, -- pattern: white bandit mask
-    [10302] = true, -- pattern: red mageweave pants
+    [7114]  = true, -- pattern: azure silk gloves
     [10311] = true, -- pattern: orange martial shirt
     [10314] = true, -- pattern: lavender mageweave shirt
     [10317] = true, -- pattern: pink mageweave shirt
-    [10320] = true, -- pattern: red mageweave headband
     [10321] = true, -- pattern: tuxedo shirt
     [10323] = true, -- pattern: tuxedo pants
     [10325] = true, -- pattern: white wedding dress
@@ -125,29 +124,23 @@ sfui.recipes.LIMITED_RECIPE_ITEMS = {
     [14488] = true, -- pattern: runecloth boots
     [14526] = true, -- pattern: mooncloth
     [14630] = true, -- pattern: enchanter's cowl
+    [21358] = true, -- pattern: soul pouch
+    [22307] = true, -- pattern: enchanted mageweave pouch
     [22308] = true, -- pattern: enchanted runecloth bag
 
     -- blacksmithing
     [6047]  = true, -- plans: golden scale coif
     [7995]  = true, -- plans: mithril plate bracers
+    [10858] = true, -- plans: solid iron maul
     [12162] = true, -- plans: hardened iron shortsword
     [12163] = true, -- plans: moonsteel broadsword
     [12164] = true, -- plans: massive iron axe
+    [12698] = true, -- plans: dawnbringer shoulders
 
     -- engineering
-    [4408]  = true, -- schematic: mechanical squirrel
-    [4409]  = true, -- schematic: small seaforium charge
-    [4410]  = true, -- schematic: shadow goggles
-    [4411]  = true, -- schematic: flame deflector
-    [4412]  = true, -- schematic: moonsight rifle
-    [4413]  = true, -- schematic: discombobulator ray
-    [4414]  = true, -- schematic: portable bronze mortar
-    [4416]  = true, -- schematic: goblin land mine
-    [4417]  = true, -- schematic: large seaforium charge
     [7560]  = true, -- schematic: gnomish universal remote
     [7561]  = true, -- schematic: goblin jumper cables
     [7742]  = true, -- schematic: gnomish cloaking device
-    [10601] = true, -- schematic: bright-eye goggles
     [10602] = true, -- schematic: deadly scope
     [10607] = true, -- schematic: deepdive helmet
     [10609] = true, -- schematic: mithril mechanical dragonling
@@ -155,17 +148,30 @@ sfui.recipes.LIMITED_RECIPE_ITEMS = {
     [13309] = true, -- schematic: lovingly crafted boomstick
     [13310] = true, -- schematic: accurate scope
     [13311] = true, -- schematic: mechanical dragonling
+    [14639] = true, -- schematic: minor recombobulator
     [16041] = true, -- schematic: thorium grenade
     [16042] = true, -- schematic: thorium widget
     [16046] = true, -- schematic: masterwork target dummy
+    [16047] = true, -- schematic: thorium tube
     [16050] = true, -- schematic: delicate arcanite converter
+    [18648] = true, -- schematic: green firework
+    [18649] = true, -- schematic: blue firework
+    [18650] = true, -- schematic: ez-thro dynamite ii
     [18652] = true, -- schematic: gyrofreeze ice reflector
     [18656] = true, -- schematic: powerful seaforium charge
 
     -- leatherworking
-    [7288]  = true, -- pattern: rugged leather pants
+    [5786]  = true, -- pattern: murloc scale belt
+    [5787]  = true, -- pattern: murloc scale breastplate
+    [5788]  = true, -- pattern: thick murloc armor
+    [5789]  = true, -- pattern: murloc scale bracers
+    [5973]  = true, -- pattern: barbaric leggings
     [7289]  = true, -- pattern: black whelp cloak
+    [7451]  = true, -- pattern: green whelp bracers
+    [7613]  = true, -- pattern: green leather armor
+    [8385]  = true, -- pattern: turtle scale gloves
     [8409]  = true, -- pattern: nightscape shoulders
+    [14635] = true, -- pattern: gem-studded leather belt
     [15725] = true, -- pattern: wicked leather gauntlets
     [15726] = true, -- pattern: green dragonscale breastplate
     [15734] = true, -- pattern: living shoulders
@@ -174,19 +180,20 @@ sfui.recipes.LIMITED_RECIPE_ITEMS = {
     [15741] = true, -- pattern: stormshroud pants
     [15756] = true, -- pattern: runic leather headband
     [15758] = true, -- pattern: devilsaur gauntlets
+    [18731] = true, -- pattern: heavy leather ball
+    [18949] = true, -- pattern: barbaric bracers
 
     -- enchanting
+    [6342]  = true, -- formula: enchant chest - minor intellect
+    [6346]  = true, -- formula: enchant chest - lesser intellect
     [6349]  = true, -- formula: enchant 2h weapon - lesser intellect
-    [6375]  = true, -- formula: enchant bracer - lesser spirit
     [6377]  = true, -- formula: enchant boots - minor agility
-    [11038] = true, -- formula: enchant 2h weapon - lesser spirit
     [11039] = true, -- formula: enchant cloak - minor agility
     [11101] = true, -- formula: enchant bracer - lesser strength
     [11163] = true, -- formula: enchant bracer - lesser deflection
-    [11164] = true, -- formula: enchant weapon - lesser beastslayer
-    [11165] = true, -- formula: enchant weapon - lesser elemental slayer
+    [11223] = true, -- formula: enchant bracer - deflection
     [16217] = true, -- formula: enchant shield - greater stamina
-    [16221] = true, -- formula: enchant chest - major health
+    [16221] = true, -- formula: enchant chest - major stamina
     [16224] = true, -- formula: enchant cloak - superior defense
     [16243] = true, -- formula: runed arcanite rod
 }
@@ -343,6 +350,11 @@ end
 --- Curated authentic coordinates and faction affinities for limited stock recipe vendors
 sfui.recipes.CURATED_LIMITED_VENDORS = {
     -- Alchemy
+    [5640] = { -- Recipe: Holy Protection Potion
+        { name = "hula'mahi", zone = "the barrens", mapID = 1413, x = 0.486, y = 0.584, faction = "horde" },
+        { name = "kzixx", zone = "duskwood", mapID = 1431, x = 0.818, y = 0.198, faction = "neutral" },
+        { name = "xandar goodbeard", zone = "loch modan", mapID = 1439, x = 0.358, y = 0.486, faction = "alliance" },
+    },
     [5642] = { -- Recipe: Free Action Potion
         { name = "kor'jus", zone = "the barrens", mapID = 1413, x = 0.522, y = 0.318, faction = "horde" },
         { name = "ulthir", zone = "darnassus", mapID = 1457, x = 0.560, y = 0.246, faction = "alliance" },
@@ -351,6 +363,37 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
     [5643] = { -- Recipe: Great Rage Potion
         { name = "hagrus", zone = "orgrimmar", mapID = 1454, x = 0.468, y = 0.460, faction = "horde" },
         { name = "ulthir", zone = "darnassus", mapID = 1457, x = 0.560, y = 0.246, faction = "alliance" },
+    },
+    [6053] = { -- Recipe: Holy Protection Potion
+        { name = "hula'mahi", zone = "the barrens", mapID = 1413, x = 0.486, y = 0.584, faction = "horde" },
+        { name = "kzixx", zone = "duskwood", mapID = 1431, x = 0.818, y = 0.198, faction = "neutral" },
+        { name = "xandar goodbeard", zone = "loch modan", mapID = 1439, x = 0.358, y = 0.486, faction = "alliance" },
+    },
+    [6054] = { -- Recipe: Shadow Protection Potion
+        { name = "christoph jeffcoat", zone = "hillsbrad foothills", mapID = 1424, x = 0.624, y = 0.190, faction = "horde" },
+        { name = "harklan moongrove", zone = "ashenvale", mapID = 1440, x = 0.508, y = 0.670, faction = "alliance" },
+    },
+    [6055] = { -- Recipe: Fire Protection Potion
+        { name = "jeeda", zone = "stonetalon mountains", mapID = 1442, x = 0.476, y = 0.616, faction = "horde" },
+        { name = "nandar branson", zone = "hillsbrad foothills", mapID = 1424, x = 0.508, y = 0.570, faction = "alliance" },
+    },
+    [6056] = { -- Recipe: Frost Protection Potion
+        { name = "glyx brewright", zone = "stranglethorn vale", mapID = 1434, x = 0.282, y = 0.780, faction = "neutral" },
+        { name = "drovnar strongbrew", zone = "arathi highlands", mapID = 1417, x = 0.464, y = 0.470, faction = "alliance" },
+    },
+    [6057] = { -- Recipe: Nature Protection Potion
+        { name = "glyx brewright", zone = "stranglethorn vale", mapID = 1434, x = 0.282, y = 0.780, faction = "neutral" },
+        { name = "bronk", zone = "feralas", mapID = 1444, x = 0.760, y = 0.434, faction = "horde" },
+        { name = "logannas", zone = "feralas", mapID = 1444, x = 0.326, y = 0.438, faction = "alliance" },
+        { name = "alchemist pestlezugg", zone = "tanaris", mapID = 1446, x = 0.508, y = 0.270, faction = "neutral" },
+    },
+    [6068] = { -- Recipe: Shadow Oil
+        { name = "bliztik", zone = "duskwood", mapID = 1431, x = 0.180, y = 0.544, faction = "neutral" },
+        { name = "montarr", zone = "thousand needles", mapID = 1441, x = 0.452, y = 0.506, faction = "horde" },
+    },
+    [9300] = { -- Recipe: Potion of Demon Slaying
+        { name = "raxikl", zone = "swamp of sorrows", mapID = 1435, x = 0.448, y = 0.566, faction = "horde" },
+        { name = "nina lightbrew", zone = "blasted lands", mapID = 1419, x = 0.668, y = 0.184, faction = "alliance" },
     },
     [9301] = { -- Recipe: Elixir of Shadow Power
         { name = "algernon", zone = "undercity", mapID = 1458, x = 0.518, y = 0.746, faction = "horde" },
@@ -367,7 +410,7 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
         { name = "algernon", zone = "undercity", mapID = 1458, x = 0.518, y = 0.746, faction = "horde" },
         { name = "ulthir", zone = "darnassus", mapID = 1457, x = 0.560, y = 0.246, faction = "alliance" },
     },
-    [13478] = { -- Recipe: Elixir of Greater Defense (Elixir of Superior Defense)
+    [13478] = { -- Recipe: Elixir of Superior Defense
         { name = "soolie berryfizz", zone = "ironforge", mapID = 1455, x = 0.666, y = 0.544, faction = "alliance" },
         { name = "kor'jus", zone = "the barrens", mapID = 1413, x = 0.522, y = 0.318, faction = "horde" },
     },
@@ -376,54 +419,80 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
     },
 
     -- Tailoring
-    [4346] = { -- Pattern: Heavy Woolen Cloak
-        { name = "banalash", zone = "swamp of sorrows", mapID = 1435, x = 0.446, y = 0.566, faction = "horde" },
-        { name = "jennabink powerseam", zone = "wetlands", mapID = 1437, x = 0.080, y = 0.558, faction = "alliance" },
+    [4355] = { -- Pattern: Icy Cloak
+        { name = "qia", zone = "winterspring", mapID = 1452, x = 0.612, y = 0.372, faction = "neutral" },
+        { name = "himmik", zone = "winterspring", mapID = 1452, x = 0.614, y = 0.390, faction = "neutral" },
     },
     [5771] = { -- Pattern: Red Linen Bag
         { name = "ralen", zone = "the barrens", mapID = 1413, x = 0.450, y = 0.594, faction = "horde" },
+        { name = "mahu", zone = "thunder bluff", mapID = 1456, x = 0.438, y = 0.446, faction = "horde" },
+        { name = "millie gregorian", zone = "undercity", mapID = 1458, x = 0.706, y = 0.302, faction = "horde" },
         { name = "jennabink powerseam", zone = "wetlands", mapID = 1437, x = 0.080, y = 0.558, faction = "alliance" },
+        { name = "outfitter eric", zone = "ironforge", mapID = 1455, x = 0.432, y = 0.290, faction = "alliance" },
     },
     [5772] = { -- Pattern: Red Woolen Bag
         { name = "ralen", zone = "the barrens", mapID = 1413, x = 0.450, y = 0.594, faction = "horde" },
+        { name = "mahu", zone = "thunder bluff", mapID = 1456, x = 0.438, y = 0.446, faction = "horde" },
+        { name = "millie gregorian", zone = "undercity", mapID = 1458, x = 0.706, y = 0.302, faction = "horde" },
         { name = "jennabink powerseam", zone = "wetlands", mapID = 1437, x = 0.080, y = 0.558, faction = "alliance" },
+        { name = "outfitter eric", zone = "ironforge", mapID = 1455, x = 0.432, y = 0.290, faction = "alliance" },
     },
     [6270] = { -- Pattern: Blue Linen Vest
         { name = "ralen", zone = "the barrens", mapID = 1413, x = 0.450, y = 0.594, faction = "horde" },
+        { name = "borya", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.512, faction = "horde" },
         { name = "jennabink powerseam", zone = "wetlands", mapID = 1437, x = 0.080, y = 0.558, faction = "alliance" },
+        { name = "alexandra bolero", zone = "stormwind city", mapID = 1453, x = 0.534, y = 0.816, faction = "alliance" },
+    },
+    [6272] = { -- Pattern: Blue Linen Robe
+        { name = "mahu", zone = "thunder bluff", mapID = 1456, x = 0.438, y = 0.446, faction = "horde" },
+        { name = "millie gregorian", zone = "undercity", mapID = 1458, x = 0.706, y = 0.302, faction = "horde" },
+        { name = "alexandra bolero", zone = "stormwind city", mapID = 1453, x = 0.534, y = 0.816, faction = "alliance" },
+        { name = "wenna silkbeard", zone = "wetlands", mapID = 1437, x = 0.256, y = 0.258, faction = "alliance" },
+        { name = "zixil", zone = "hillsbrad foothills", mapID = 1424, x = 0.504, y = 0.508, faction = "neutral" },
+    },
+    [6274] = { -- Pattern: Blue Overalls
+        { name = "borya", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.512, faction = "horde" },
+        { name = "ralen", zone = "the barrens", mapID = 1413, x = 0.450, y = 0.594, faction = "horde" },
+        { name = "valdemar stormseeker", zone = "loch modan", mapID = 1439, x = 0.436, y = 0.500, faction = "alliance" },
     },
     [6275] = { -- Pattern: Greater Adept's Robe
         { name = "mahu", zone = "thunder bluff", mapID = 1456, x = 0.438, y = 0.446, faction = "horde" },
+        { name = "veena", zone = "stonetalon mountains", mapID = 1442, x = 0.476, y = 0.614, faction = "horde" },
         { name = "jennabink powerseam", zone = "wetlands", mapID = 1437, x = 0.080, y = 0.558, faction = "alliance" },
+        { name = "wenna silkbeard", zone = "wetlands", mapID = 1437, x = 0.256, y = 0.258, faction = "alliance" },
+        { name = "sheri zipstitch", zone = "duskwood", mapID = 1431, x = 0.756, y = 0.454, faction = "alliance" },
+        { name = "ranik", zone = "the barrens", mapID = 1413, x = 0.618, y = 0.388, faction = "neutral" },
     },
     [6401] = { -- Pattern: Dark Silk Shirt
         { name = "mallory", zone = "silverpine forest", mapID = 1421, x = 0.432, y = 0.408, faction = "horde" },
         { name = "sherman femmel", zone = "duskwood", mapID = 1431, x = 0.758, y = 0.460, faction = "alliance" },
+        { name = "lyranne feathersong", zone = "ashenvale", mapID = 1440, x = 0.348, y = 0.496, faction = "alliance" },
     },
     [7087] = { -- Pattern: Crimson Silk Cloak
         { name = "mahu", zone = "thunder bluff", mapID = 1456, x = 0.438, y = 0.446, faction = "horde" },
         { name = "jennabink powerseam", zone = "wetlands", mapID = 1437, x = 0.080, y = 0.558, faction = "alliance" },
+        { name = "viznik goldgrubber", zone = "thousand needles", mapID = 1441, x = 0.782, y = 0.756, faction = "neutral" },
     },
     [7088] = { -- Pattern: Crimson Silk Robe
         { name = "super-seller 680", zone = "desolace", mapID = 1443, x = 0.406, y = 0.792, faction = "neutral" },
+        { name = "xizk goodstitch", zone = "stranglethorn vale", mapID = 1434, x = 0.286, y = 0.768, faction = "neutral" },
+        { name = "vizzklick", zone = "tanaris", mapID = 1446, x = 0.510, y = 0.274, faction = "neutral" },
     },
     [7089] = { -- Pattern: Azure Silk Cloak
         { name = "jun'ha", zone = "arathi highlands", mapID = 1417, x = 0.728, y = 0.364, faction = "horde" },
         { name = "borya", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.512, faction = "horde" },
         { name = "alexandra bolero", zone = "stormwind city", mapID = 1453, x = 0.534, y = 0.816, faction = "alliance" },
+        { name = "wenna silkbeard", zone = "wetlands", mapID = 1437, x = 0.256, y = 0.258, faction = "alliance" },
     },
-    [10300] = { -- Pattern: Red Mageweave Vest
-        { name = "outfitter eric", zone = "ironforge", mapID = 1455, x = 0.432, y = 0.290, faction = "alliance" },
-    },
-    [10301] = { -- Pattern: White Bandit Mask
-        { name = "muuran", zone = "desolace", mapID = 1443, x = 0.556, y = 0.566, faction = "horde" },
-        { name = "xizk goodstitch", zone = "stranglethorn vale", mapID = 1434, x = 0.286, y = 0.768, faction = "neutral" },
-    },
-    [10302] = { -- Pattern: Red Mageweave Pants
-        { name = "outfitter eric", zone = "ironforge", mapID = 1455, x = 0.432, y = 0.290, faction = "alliance" },
+    [7114] = { -- Pattern: Azure Silk Gloves
+        { name = "borya", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.512, faction = "horde" },
+        { name = "millie gregorian", zone = "undercity", mapID = 1458, x = 0.706, y = 0.302, faction = "horde" },
+        { name = "wenna silkbeard", zone = "wetlands", mapID = 1437, x = 0.256, y = 0.258, faction = "alliance" },
+        { name = "eylenaa", zone = "darnassus", mapID = 1457, x = 0.642, y = 0.214, faction = "alliance" },
     },
     [10311] = { -- Pattern: Orange Martial Shirt
         { name = "mahu", zone = "thunder bluff", mapID = 1456, x = 0.438, y = 0.446, faction = "horde" },
+        { name = "kireena", zone = "desolace", mapID = 1443, x = 0.510, y = 0.534, faction = "horde" },
         { name = "alexandra bolero", zone = "stormwind city", mapID = 1453, x = 0.534, y = 0.816, faction = "alliance" },
     },
     [10314] = { -- Pattern: Lavender Mageweave Shirt
@@ -433,9 +502,6 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
     [10317] = { -- Pattern: Pink Mageweave Shirt
         { name = "outfitter eric", zone = "ironforge", mapID = 1455, x = 0.432, y = 0.290, faction = "alliance" },
         { name = "borya", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.512, faction = "horde" },
-    },
-    [10320] = { -- Pattern: Red Mageweave Headband
-        { name = "outfitter eric", zone = "ironforge", mapID = 1455, x = 0.432, y = 0.290, faction = "alliance" },
     },
     [10321] = { -- Pattern: Tuxedo Shirt
         { name = "outfitter eric", zone = "ironforge", mapID = 1455, x = 0.432, y = 0.290, faction = "alliance" },
@@ -474,11 +540,23 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
     [14526] = { -- Pattern: Mooncloth
         { name = "qia", zone = "winterspring", mapID = 1452, x = 0.612, y = 0.372, faction = "neutral" },
     },
+    [14627] = { -- Pattern: Bright Yellow Shirt
+        { name = "danielle zipstitch", zone = "duskwood", mapID = 1431, x = 0.758, y = 0.456, faction = "alliance" },
+    },
     [14630] = { -- Pattern: Enchanter's Cowl
         { name = "xizk goodstitch", zone = "stranglethorn vale", mapID = 1434, x = 0.286, y = 0.768, faction = "neutral" },
+        { name = "vizzklick", zone = "tanaris", mapID = 1446, x = 0.510, y = 0.274, faction = "neutral" },
+    },
+    [21358] = { -- Pattern: Soul Pouch
+        { name = "qia", zone = "winterspring", mapID = 1452, x = 0.612, y = 0.372, faction = "neutral" },
+    },
+    [22307] = { -- Pattern: Enchanted Mageweave Pouch
+        { name = "borya", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.512, faction = "horde" },
+        { name = "eylenaa", zone = "darnassus", mapID = 1457, x = 0.642, y = 0.214, faction = "alliance" },
     },
     [22308] = { -- Pattern: Enchanted Runecloth Bag
         { name = "vi'el", zone = "winterspring", mapID = 1452, x = 0.588, y = 0.598, faction = "neutral" },
+        { name = "qia", zone = "winterspring", mapID = 1452, x = 0.612, y = 0.372, faction = "neutral" },
     },
 
     -- Blacksmithing
@@ -489,9 +567,18 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
         { name = "harggan", zone = "the hinterlands", mapID = 1425, x = 0.134, y = 0.440, faction = "alliance" },
         { name = "gharash", zone = "swamp of sorrows", mapID = 1435, x = 0.470, y = 0.546, faction = "horde" },
     },
+    [10858] = { -- Plans: Solid Iron Maul
+        { name = "muuran", zone = "desolace", mapID = 1443, x = 0.556, y = 0.566, faction = "horde" },
+        { name = "jannos ironwill", zone = "arathi highlands", mapID = 1417, x = 0.460, y = 0.476, faction = "alliance" },
+        { name = "fradd swiftgear", zone = "wetlands", mapID = 1437, x = 0.264, y = 0.258, faction = "alliance" },
+        { name = "jazzrik", zone = "badlands", mapID = 1418, x = 0.424, y = 0.528, faction = "neutral" },
+    },
     [12162] = { -- Plans: Hardened Iron Shortsword
         { name = "kzixx", zone = "duskwood", mapID = 1431, x = 0.818, y = 0.198, faction = "neutral" },
         { name = "jaquilina dramet", zone = "stranglethorn vale", mapID = 1434, x = 0.358, y = 0.106, faction = "neutral" },
+        { name = "zarena cromwind", zone = "stranglethorn vale", mapID = 1434, x = 0.276, y = 0.778, faction = "neutral" },
+        { name = "grizzlowe", zone = "thousand needles", mapID = 1441, x = 0.780, y = 0.770, faction = "neutral" },
+        { name = "janet hommers", zone = "desolace", mapID = 1443, x = 0.662, y = 0.066, faction = "alliance" },
     },
     [12163] = { -- Plans: Moonsteel Broadsword
         { name = "zarena cromwind", zone = "stranglethorn vale", mapID = 1434, x = 0.276, y = 0.778, faction = "neutral" },
@@ -500,11 +587,15 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
         { name = "vharr", zone = "stranglethorn vale", mapID = 1434, x = 0.322, y = 0.278, faction = "horde" },
         { name = "jaquilina dramet", zone = "stranglethorn vale", mapID = 1434, x = 0.358, y = 0.106, faction = "neutral" },
     },
+    [12698] = { -- Plans: Dawn's Edge
+        { name = "harggan", zone = "the hinterlands", mapID = 1425, x = 0.134, y = 0.440, faction = "alliance" },
+        { name = "uthrk", zone = "stranglethorn vale", mapID = 1434, x = 0.316, y = 0.280, faction = "horde" },
+    },
 
     -- Engineering
     [7560] = { -- Schematic: Gnomish Universal Remote
         { name = "gearcutter cogspinner", zone = "ironforge", mapID = 1455, x = 0.678, y = 0.430, faction = "alliance" },
-        { name = "sovik", zone = "orgrimmar", mapID = 1454, x = 0.756, y = 0.252, faction = "horde" },
+        { name = "jinky twizzlefixxit", zone = "thousand needles", mapID = 1441, x = 0.776, y = 0.778, faction = "neutral" },
     },
     [7561] = { -- Schematic: Goblin Jumper Cables
         { name = "gearcutter cogspinner", zone = "ironforge", mapID = 1455, x = 0.678, y = 0.430, faction = "alliance" },
@@ -517,9 +608,10 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
     [10602] = { -- Schematic: Deadly Scope
         { name = "gearcutter cogspinner", zone = "ironforge", mapID = 1455, x = 0.678, y = 0.430, faction = "alliance" },
         { name = "sovik", zone = "orgrimmar", mapID = 1454, x = 0.756, y = 0.252, faction = "horde" },
+        { name = "crazk sparks", zone = "stranglethorn vale", mapID = 1434, x = 0.282, y = 0.766, faction = "neutral" },
     },
     [10607] = { -- Schematic: Deepdive Helmet
-        { name = "jabbey", zone = "tanaris", mapID = 1446, x = 0.670, y = 0.224, faction = "neutral" },
+        { name = "jubie gadgetspring", zone = "azshara", mapID = 1447, x = 0.452, y = 0.908, faction = "neutral" },
     },
     [10609] = { -- Schematic: Mithril Mechanical Dragonling
         { name = "ruppo zipcoil", zone = "the hinterlands", mapID = 1425, x = 0.344, y = 0.378, faction = "neutral" },
@@ -527,30 +619,56 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
     [13308] = { -- Schematic: Ice Deflector
         { name = "kireena", zone = "desolace", mapID = 1443, x = 0.510, y = 0.534, faction = "horde" },
         { name = "gearcutter cogspinner", zone = "ironforge", mapID = 1455, x = 0.678, y = 0.430, faction = "alliance" },
+        { name = "super-seller 680", zone = "desolace", mapID = 1443, x = 0.406, y = 0.792, faction = "neutral" },
     },
     [13309] = { -- Schematic: Lovingly Crafted Boomstick
         { name = "gearcutter cogspinner", zone = "ironforge", mapID = 1455, x = 0.678, y = 0.430, faction = "alliance" },
+        { name = "fradd swiftgear", zone = "wetlands", mapID = 1437, x = 0.264, y = 0.258, faction = "alliance" },
         { name = "sovik", zone = "orgrimmar", mapID = 1454, x = 0.756, y = 0.252, faction = "horde" },
     },
     [13310] = { -- Schematic: Accurate Scope
         { name = "mazk snipeshot", zone = "stranglethorn vale", mapID = 1434, x = 0.284, y = 0.752, faction = "neutral" },
+        { name = "vendor-tron 1000", zone = "desolace", mapID = 1443, x = 0.602, y = 0.382, faction = "neutral" },
     },
     [13311] = { -- Schematic: Mechanical Dragonling
         { name = "gnaz blunderflame", zone = "stranglethorn vale", mapID = 1434, x = 0.510, y = 0.352, faction = "neutral" },
     },
+    [14639] = { -- Schematic: Minor Recombobulator
+        { name = "ranik", zone = "the barrens", mapID = 1413, x = 0.618, y = 0.388, faction = "neutral" },
+        { name = "sheri zipstitch", zone = "duskwood", mapID = 1431, x = 0.756, y = 0.454, faction = "alliance" },
+        { name = "veena", zone = "stonetalon mountains", mapID = 1442, x = 0.476, y = 0.614, faction = "horde" },
+    },
     [16041] = { -- Schematic: Thorium Grenade
         { name = "gearcutter cogspinner", zone = "ironforge", mapID = 1455, x = 0.678, y = 0.430, faction = "alliance" },
         { name = "sovik", zone = "orgrimmar", mapID = 1454, x = 0.756, y = 0.252, faction = "horde" },
+        { name = "xizzer fizzbolt", zone = "winterspring", mapID = 1452, x = 0.608, y = 0.386, faction = "neutral" },
     },
     [16042] = { -- Schematic: Thorium Widget
         { name = "gearcutter cogspinner", zone = "ironforge", mapID = 1455, x = 0.678, y = 0.430, faction = "alliance" },
         { name = "sovik", zone = "orgrimmar", mapID = 1454, x = 0.756, y = 0.252, faction = "horde" },
+        { name = "xizzer fizzbolt", zone = "winterspring", mapID = 1452, x = 0.608, y = 0.386, faction = "neutral" },
     },
     [16046] = { -- Schematic: Masterwork Target Dummy
         { name = "xizzer fizzbolt", zone = "winterspring", mapID = 1452, x = 0.608, y = 0.386, faction = "neutral" },
     },
+    [16047] = { -- Schematic: Thorium Tube
+        { name = "xizzer fizzbolt", zone = "winterspring", mapID = 1452, x = 0.608, y = 0.386, faction = "neutral" },
+        { name = "wizbang cranktoggle", zone = "un'goro crater", mapID = 1449, x = 0.438, y = 0.088, faction = "neutral" },
+    },
     [16050] = { -- Schematic: Delicate Arcanite Converter
         { name = "xizzer fizzbolt", zone = "winterspring", mapID = 1452, x = 0.608, y = 0.386, faction = "neutral" },
+    },
+    [18648] = { -- Schematic: Green Firework
+        { name = "crazk sparks", zone = "stranglethorn vale", mapID = 1434, x = 0.282, y = 0.766, faction = "neutral" },
+        { name = "sly garrett", zone = "undercity", mapID = 1458, x = 0.680, y = 0.380, faction = "horde" },
+    },
+    [18649] = { -- Schematic: Blue Firework
+        { name = "gearcutter cogspinner", zone = "ironforge", mapID = 1455, x = 0.678, y = 0.430, faction = "alliance" },
+        { name = "jinky twizzlefixxit", zone = "thousand needles", mapID = 1441, x = 0.776, y = 0.778, faction = "neutral" },
+    },
+    [18650] = { -- Schematic: EZ-Thro Dynamite II
+        { name = "gnaz blunderflame", zone = "stranglethorn vale", mapID = 1434, x = 0.510, y = 0.352, faction = "neutral" },
+        { name = "sovik", zone = "orgrimmar", mapID = 1454, x = 0.756, y = 0.252, faction = "horde" },
     },
     [18652] = { -- Schematic: Gyrofreeze Ice Reflector
         { name = "xizzer fizzbolt", zone = "winterspring", mapID = 1452, x = 0.608, y = 0.386, faction = "neutral" },
@@ -560,19 +678,60 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
     },
 
     -- Leatherworking
+    [5786] = { -- Pattern: Murloc Scale Belt
+        { name = "mallenali", zone = "loch modan", mapID = 1439, x = 0.442, y = 0.494, faction = "alliance" },
+        { name = "naal mistsong", zone = "thunder bluff", mapID = 1456, x = 0.510, y = 0.526, faction = "horde" },
+        { name = "zixil", zone = "hillsbrad foothills", mapID = 1424, x = 0.504, y = 0.508, faction = "neutral" },
+    },
+    [5787] = { -- Pattern: Murloc Scale Breastplate
+        { name = "mallenali", zone = "loch modan", mapID = 1439, x = 0.442, y = 0.494, faction = "alliance" },
+        { name = "zixil", zone = "hillsbrad foothills", mapID = 1424, x = 0.504, y = 0.508, faction = "neutral" },
+    },
+    [5788] = { -- Pattern: Thick Murloc Armor
+        { name = "clyde ranthal", zone = "redridge mountains", mapID = 1433, x = 0.838, y = 0.708, faction = "alliance" },
+        { name = "michalii", zone = "hillsbrad foothills", mapID = 1424, x = 0.624, y = 0.200, faction = "horde" },
+    },
+    [5789] = { -- Pattern: Murloc Scale Bracers
+        { name = "blizrik buckshot", zone = "tanaris", mapID = 1446, x = 0.508, y = 0.276, faction = "neutral" },
+        { name = "haren kanmae", zone = "stranglethorn vale", mapID = 1434, x = 0.284, y = 0.744, faction = "neutral" },
+    },
+    [5973] = { -- Pattern: Barbaric Leggings
+        { name = "kriggon talsone", zone = "westfall", mapID = 1436, x = 0.362, y = 0.900, faction = "alliance" },
+        { name = "muuran", zone = "desolace", mapID = 1443, x = 0.556, y = 0.566, faction = "horde" },
+        { name = "vzars", zone = "thousand needles", mapID = 1441, x = 0.456, y = 0.512, faction = "horde" },
+    },
     [7289] = { -- Pattern: Black Whelp Cloak
-        { name = "bliztik", zone = "duskwood", mapID = 1431, x = 0.180, y = 0.544, faction = "neutral" },
+        { name = "clyde ranthal", zone = "redridge mountains", mapID = 1433, x = 0.838, y = 0.708, faction = "alliance" },
+    },
+    [7451] = { -- Pattern: Green Whelp Bracers
+        { name = "george candarte", zone = "hillsbrad foothills", mapID = 1424, x = 0.918, y = 0.382, faction = "horde" },
+        { name = "tamar", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.454, faction = "horde" },
+        { name = "wenna silkbeard", zone = "wetlands", mapID = 1437, x = 0.256, y = 0.258, faction = "alliance" },
+    },
+    [7613] = { -- Pattern: Green Leather Armor
+        { name = "george candarte", zone = "hillsbrad foothills", mapID = 1424, x = 0.918, y = 0.382, faction = "horde" },
+        { name = "tamar", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.454, faction = "horde" },
+        { name = "wenna silkbeard", zone = "wetlands", mapID = 1437, x = 0.256, y = 0.258, faction = "alliance" },
+    },
+    [8385] = { -- Pattern: Turtle Scale Gloves
+        { name = "androd fadran", zone = "arathi highlands", mapID = 1417, x = 0.450, y = 0.468, faction = "alliance" },
+        { name = "tunkk", zone = "arathi highlands", mapID = 1417, x = 0.748, y = 0.344, faction = "horde" },
+        { name = "vendor-tron 1000", zone = "desolace", mapID = 1443, x = 0.602, y = 0.382, faction = "neutral" },
     },
     [8409] = { -- Pattern: Nightscape Shoulders
         { name = "jandia", zone = "thousand needles", mapID = 1441, x = 0.460, y = 0.514, faction = "horde" },
         { name = "pratt mcgrubben", zone = "feralas", mapID = 1444, x = 0.306, y = 0.428, faction = "alliance" },
+    },
+    [14635] = { -- Pattern: Gem-studded Leather Belt
+        { name = "blizrik buckshot", zone = "tanaris", mapID = 1446, x = 0.508, y = 0.276, faction = "neutral" },
+        { name = "rikqiz", zone = "stranglethorn vale", mapID = 1434, x = 0.284, y = 0.760, faction = "neutral" },
     },
     [15725] = { -- Pattern: Wicked Leather Gauntlets
         { name = "leonard porter", zone = "western plaguelands", mapID = 1422, x = 0.430, y = 0.844, faction = "alliance" },
         { name = "werg thickblade", zone = "tirisfal glades", mapID = 1420, x = 0.832, y = 0.686, faction = "horde" },
     },
     [15726] = { -- Pattern: Green Dragonscale Breastplate
-        { name = "masat t'andr", zone = "swamp of sorrows", mapID = 1435, x = 0.264, y = 0.316, faction = "neutral" },
+        { name = "masat t'andr", zone = "swamp of sorrows", mapID = 1435, x = 0.264, y = 0.316, faction = "alliance" },
     },
     [15734] = { -- Pattern: Living Shoulders
         { name = "jangdor swiftstrider", zone = "feralas", mapID = 1444, x = 0.744, y = 0.428, faction = "horde" },
@@ -592,26 +751,42 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
         { name = "jase farlane", zone = "eastern plaguelands", mapID = 1423, x = 0.748, y = 0.518, faction = "neutral" },
     },
     [15758] = { -- Pattern: Devilsaur Gauntlets
-        { name = "nergul", zone = "un'goro crater", mapID = 1449, x = 0.434, y = 0.080, faction = "neutral" },
+        { name = "nergal", zone = "un'goro crater", mapID = 1449, x = 0.434, y = 0.080, faction = "neutral" },
+    },
+    [18731] = { -- Pattern: Heavy Leather Ball
+        { name = "bombus finesindle", zone = "ironforge", mapID = 1455, x = 0.604, y = 0.336, faction = "alliance" },
+        { name = "tamar", zone = "orgrimmar", mapID = 1454, x = 0.630, y = 0.454, faction = "horde" },
+    },
+    [18949] = { -- Pattern: Barbaric Bracers
+        { name = "harklan moongrove", zone = "ashenvale", mapID = 1440, x = 0.508, y = 0.670, faction = "alliance" },
+        { name = "whuut", zone = "desolace", mapID = 1443, x = 0.562, y = 0.598, faction = "horde" },
+        { name = "vendor-tron 1000", zone = "desolace", mapID = 1443, x = 0.602, y = 0.382, faction = "neutral" },
     },
 
     -- Enchanting
-    [6349] = { -- Formula: Enchant 2H Weapon - Lesser Intellect
+    [6342] = { -- Formula: Enchant Chest - Minor Intellect
         { name = "kithas", zone = "orgrimmar", mapID = 1454, x = 0.538, y = 0.380, faction = "horde" },
+        { name = "nata dawnstrider", zone = "thunder bluff", mapID = 1456, x = 0.466, y = 0.388, faction = "horde" },
         { name = "lilly", zone = "silverpine forest", mapID = 1421, x = 0.430, y = 0.508, faction = "horde" },
         { name = "tharynn bouden", zone = "elwynn forest", mapID = 1429, x = 0.420, y = 0.672, faction = "alliance" },
+        { name = "tilli thistlefuzz", zone = "ironforge", mapID = 1455, x = 0.608, y = 0.442, faction = "alliance" },
     },
-    [6375] = { -- Formula: Enchant Bracer - Lesser Spirit
-        { name = "kulwia", zone = "stonetalon mountains", mapID = 1442, x = 0.454, y = 0.594, faction = "horde" },
-        { name = "dalria", zone = "ashenvale", mapID = 1440, x = 0.350, y = 0.520, faction = "alliance" },
+    [6346] = { -- Formula: Enchant Chest - Lesser Intellect
+        { name = "kithas", zone = "orgrimmar", mapID = 1454, x = 0.538, y = 0.380, faction = "horde" },
+        { name = "nata dawnstrider", zone = "thunder bluff", mapID = 1456, x = 0.466, y = 0.388, faction = "horde" },
+        { name = "lilly", zone = "silverpine forest", mapID = 1421, x = 0.430, y = 0.508, faction = "horde" },
+        { name = "gina macgregor", zone = "westfall", mapID = 1436, x = 0.576, y = 0.540, faction = "alliance" },
+        { name = "tilli thistlefuzz", zone = "ironforge", mapID = 1455, x = 0.608, y = 0.442, faction = "alliance" },
+    },
+    [6349] = { -- Formula: Enchant 2H Weapon - Lesser Intellect
+        { name = "kithas", zone = "orgrimmar", mapID = 1454, x = 0.538, y = 0.380, faction = "horde" },
+        { name = "nata dawnstrider", zone = "thunder bluff", mapID = 1456, x = 0.466, y = 0.388, faction = "horde" },
+        { name = "leo sarn", zone = "silverpine forest", mapID = 1421, x = 0.538, y = 0.822, faction = "horde" },
+        { name = "tilli thistlefuzz", zone = "ironforge", mapID = 1455, x = 0.608, y = 0.442, faction = "alliance" },
     },
     [6377] = { -- Formula: Enchant Boots - Minor Agility
-        { name = "kulwia", zone = "stonetalon mountains", mapID = 1442, x = 0.454, y = 0.594, faction = "horde" },
-        { name = "dalria", zone = "ashenvale", mapID = 1440, x = 0.350, y = 0.520, faction = "alliance" },
-    },
-    [11038] = { -- Formula: Enchant 2H Weapon - Lesser Spirit
-        { name = "hula'mahi", zone = "the barrens", mapID = 1413, x = 0.514, y = 0.302, faction = "horde" },
-        { name = "mythrin'dir", zone = "darnassus", mapID = 1457, x = 0.606, y = 0.190, faction = "alliance" },
+        { name = "nata dawnstrider", zone = "thunder bluff", mapID = 1456, x = 0.466, y = 0.388, faction = "horde" },
+        { name = "zixil", zone = "hillsbrad foothills", mapID = 1424, x = 0.504, y = 0.508, faction = "neutral" },
     },
     [11039] = { -- Formula: Enchant Cloak - Minor Agility
         { name = "kulwia", zone = "stonetalon mountains", mapID = 1442, x = 0.454, y = 0.594, faction = "horde" },
@@ -625,19 +800,15 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
         { name = "keena", zone = "arathi highlands", mapID = 1417, x = 0.740, y = 0.326, faction = "horde" },
         { name = "drovnar strongbrew", zone = "arathi highlands", mapID = 1417, x = 0.464, y = 0.470, faction = "alliance" },
     },
-    [11164] = { -- Formula: Enchant Weapon - Lesser Beastslayer
-        { name = "tunkk", zone = "arathi highlands", mapID = 1417, x = 0.748, y = 0.344, faction = "horde" },
-        { name = "hammon karwn", zone = "arathi highlands", mapID = 1417, x = 0.464, y = 0.474, faction = "alliance" },
-    },
-    [11165] = { -- Formula: Enchant Weapon - Lesser Elemental Slayer
-        { name = "tunkk", zone = "arathi highlands", mapID = 1417, x = 0.748, y = 0.344, faction = "horde" },
-        { name = "hammon karwn", zone = "arathi highlands", mapID = 1417, x = 0.464, y = 0.474, faction = "alliance" },
+    [11223] = { -- Formula: Enchant Bracer - Deflection
+        { name = "blizrik buckshot", zone = "tanaris", mapID = 1446, x = 0.508, y = 0.276, faction = "neutral" },
+        { name = "hula'mahi", zone = "the barrens", mapID = 1413, x = 0.486, y = 0.584, faction = "horde" },
     },
     [16217] = { -- Formula: Enchant Shield - Greater Stamina
         { name = "daniel bartlett", zone = "undercity", mapID = 1458, x = 0.642, y = 0.376, faction = "horde" },
         { name = "mythrin'dir", zone = "darnassus", mapID = 1457, x = 0.606, y = 0.190, faction = "alliance" },
     },
-    [16221] = { -- Formula: Enchant Chest - Major Health
+    [16221] = { -- Formula: Enchant Chest - Major Stamina
         { name = "qia", zone = "winterspring", mapID = 1452, x = 0.612, y = 0.372, faction = "neutral" },
     },
     [16224] = { -- Formula: Enchant Cloak - Superior Defense
@@ -645,6 +816,55 @@ sfui.recipes.CURATED_LIMITED_VENDORS = {
     },
     [16243] = { -- Formula: Runed Arcanite Rod
         { name = "lorelae wintersong", zone = "moonglade", mapID = 1450, x = 0.484, y = 0.400, faction = "neutral" },
+    },
+    [20752] = { -- Formula: Minor Mana Oil
+        { name = "kithas", zone = "orgrimmar", mapID = 1454, x = 0.538, y = 0.380, faction = "horde" },
+        { name = "lilly", zone = "silverpine forest", mapID = 1421, x = 0.430, y = 0.508, faction = "horde" },
+        { name = "tharynn bouden", zone = "elwynn forest", mapID = 1429, x = 0.420, y = 0.672, faction = "alliance" },
+        { name = "dawn brightstar", zone = "stormwind city", mapID = 1453, x = 0.428, y = 0.642, faction = "alliance" },
+    },
+    [20753] = { -- Formula: Lesser Wizard Oil
+        { name = "kithas", zone = "orgrimmar", mapID = 1454, x = 0.538, y = 0.380, faction = "horde" },
+        { name = "nata dawnstrider", zone = "thunder bluff", mapID = 1456, x = 0.466, y = 0.388, faction = "horde" },
+        { name = "daniel bartlett", zone = "undercity", mapID = 1458, x = 0.642, y = 0.376, faction = "horde" },
+        { name = "tilli thistlefuzz", zone = "ironforge", mapID = 1455, x = 0.608, y = 0.442, faction = "alliance" },
+        { name = "mythrin'dir", zone = "darnassus", mapID = 1457, x = 0.606, y = 0.190, faction = "alliance" },
+    },
+    [20754] = { -- Formula: Lesser Mana Oil
+        { name = "kithas", zone = "orgrimmar", mapID = 1454, x = 0.538, y = 0.380, faction = "horde" },
+        { name = "hagrus", zone = "orgrimmar", mapID = 1454, x = 0.468, y = 0.460, faction = "horde" },
+        { name = "mythrin'dir", zone = "darnassus", mapID = 1457, x = 0.606, y = 0.190, faction = "alliance" },
+    },
+    [20755] = { -- Formula: Wizard Oil
+        { name = "kulwia", zone = "stonetalon mountains", mapID = 1442, x = 0.454, y = 0.594, faction = "horde" },
+        { name = "dalria", zone = "ashenvale", mapID = 1440, x = 0.350, y = 0.520, faction = "alliance" },
+        { name = "blizrik buckshot", zone = "tanaris", mapID = 1446, x = 0.508, y = 0.276, faction = "neutral" },
+    },
+    [20758] = { -- Formula: Minor Wizard Oil
+        { name = "kithas", zone = "orgrimmar", mapID = 1454, x = 0.538, y = 0.380, faction = "horde" },
+        { name = "nata dawnstrider", zone = "thunder bluff", mapID = 1456, x = 0.466, y = 0.388, faction = "horde" },
+        { name = "daniel bartlett", zone = "undercity", mapID = 1458, x = 0.642, y = 0.376, faction = "horde" },
+        { name = "lilly", zone = "silverpine forest", mapID = 1421, x = 0.430, y = 0.508, faction = "horde" },
+        { name = "tharynn bouden", zone = "elwynn forest", mapID = 1429, x = 0.420, y = 0.672, faction = "alliance" },
+        { name = "dawn brightstar", zone = "stormwind city", mapID = 1453, x = 0.428, y = 0.642, faction = "alliance" },
+        { name = "tilli thistlefuzz", zone = "ironforge", mapID = 1455, x = 0.608, y = 0.442, faction = "alliance" },
+        { name = "mythrin'dir", zone = "darnassus", mapID = 1457, x = 0.606, y = 0.190, faction = "alliance" },
+    },
+
+    -- First Aid
+    [16112] = { -- Manual: Heavy Silk Bandage
+        { name = "deneb walker", zone = "arathi highlands", mapID = 1417, x = 0.270, y = 0.588, faction = "alliance" },
+        { name = "malygen", zone = "felwood", mapID = 1448, x = 0.622, y = 0.256, faction = "alliance" },
+        { name = "zen'balai", zone = "swamp of sorrows", mapID = 1435, x = 0.466, y = 0.570, faction = "horde" },
+        { name = "bale", zone = "felwood", mapID = 1448, x = 0.348, y = 0.532, faction = "horde" },
+        { name = "jaquilina dramet", zone = "stranglethorn vale", mapID = 1434, x = 0.358, y = 0.106, faction = "neutral" },
+        { name = "vendor-tron 1000", zone = "desolace", mapID = 1443, x = 0.602, y = 0.382, faction = "neutral" },
+    },
+    [16113] = { -- Manual: Mageweave Bandage
+        { name = "deneb walker", zone = "arathi highlands", mapID = 1417, x = 0.270, y = 0.588, faction = "alliance" },
+        { name = "malygen", zone = "felwood", mapID = 1448, x = 0.622, y = 0.256, faction = "alliance" },
+        { name = "zen'balai", zone = "swamp of sorrows", mapID = 1435, x = 0.466, y = 0.570, faction = "horde" },
+        { name = "bale", zone = "felwood", mapID = 1448, x = 0.348, y = 0.532, faction = "horde" },
     },
 }
 
@@ -985,7 +1205,7 @@ function sfui.recipes.GetSource(id)
     if recipe.sources then
         local isLimItem = (recipe.recipeItemID and sfui.recipes.LIMITED_RECIPE_ITEMS and sfui.recipes.LIMITED_RECIPE_ITEMS[recipe.recipeItemID]) and true or nil
         for _, s in ipairs(recipe.sources) do
-            local isGenericDrop = (s.type == "drop") and ((not s.name) or s.name == "world / creature drop")
+            local isGenericDrop = (s.type == "drop") and ((not s.name) or s.name == "world / creature drop" or s.name == "zone drop")
             local isHostile = sfui.recipes.IsSourceHostile(s)
             local isGenericVendorWithCurated = (s.type == "vendor") and ((not s.name) or s.name == "vendor") and (#result.sources > 0)
             if not isHostile and not (isGenericDrop and #result.sources > 0) and not isGenericVendorWithCurated then

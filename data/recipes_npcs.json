@@ -596,10 +596,11 @@
   },
   "5783": {
     "npcID": 5783,
-    "mapID": 1414,
-    "mapName": "kalimdor",
-    "x": 0.518,
-    "y": 0.554
+    "mapID": 1413,
+    "mapName": "the barrens",
+    "zoneID": 17,
+    "x": 0.462,
+    "y": 0.364
   },
   "12956": {
     "npcID": 12956,
@@ -1578,5 +1579,69 @@
     "zoneID": 3428,
     "x": null,
     "y": null
+  },
+  "3012": {
+    "npcID": 3012,
+    "mapID": 1456,
+    "mapName": "thunder bluff",
+    "zoneID": 1638,
+    "x": 0.466,
+    "y": 0.388
+  },
+  "3346": {
+    "npcID": 3346,
+    "mapID": 1454,
+    "mapName": "orgrimmar",
+    "zoneID": 1637,
+    "x": 0.538,
+    "y": 0.38
+  },
+  "3954": {
+    "npcID": 3954,
+    "mapID": 1440,
+    "mapName": "ashenvale",
+    "zoneID": 331,
+    "x": 0.35,
+    "y": 0.52
+  },
+  "5158": {
+    "npcID": 5158,
+    "mapID": 1455,
+    "mapName": "ironforge",
+    "zoneID": 1537,
+    "x": 0.608,
+    "y": 0.442
+  },
+  "5758": {
+    "npcID": 5758,
+    "mapID": 1421,
+    "mapName": "silverpine forest",
+    "zoneID": 130,
+    "x": 0.538,
+    "y": 0.822
+  },
+  "12043": {
+    "npcID": 12043,
+    "mapID": 1442,
+    "mapName": "stonetalon mountains",
+    "zoneID": 406,
+    "x": 0.454,
+    "y": 0.594
+  },
+  "248196": {
+    "npcID": 248196,
+    "mapID": 1413,
+    "mapName": "the barrens",
+    "zoneID": 17,
+    "x": 0.514,
+    "y": 0.302
+  },
+  "256729": {
+    "npcID": 256729,
+    "mapID": 1433,
+    "mapName": "redridge mountains",
+    "zoneID": 44,
+    "x": 0.27,
+    "y": 0.45
   }
 }

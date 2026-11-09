@@ -46,29 +46,34 @@ local function UntrackSection(sec)
             -- Quests & World Quests
             if b.questID and b.questID > 0 then
                 local qID = b.questID
-                if C_QuestLog and C_QuestLog.RemoveQuestWatch then
-                    C_QuestLog.RemoveQuestWatch(qID)
-                end
-                if C_QuestLog and C_QuestLog.RemoveWorldQuestWatch then
-                    C_QuestLog.RemoveWorldQuestWatch(qID)
-                end
-                if _G.RemoveQuestWatch then
-                    local idx = b.questLogIndex
-                    if not idx or idx <= 0 then
-                        if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
-                            idx = C_QuestLog.GetLogIndexForQuestID(qID)
-                        elseif _G.GetQuestLogIndexByID then
-                            idx = _G.GetQuestLogIndexByID(qID)
+                local questCommon = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest
+                if questCommon and questCommon.UntrackQuest then
+                    questCommon.UntrackQuest(qID, b.questLogIndex)
+                else
+                    if C_QuestLog and C_QuestLog.RemoveQuestWatch then
+                        C_QuestLog.RemoveQuestWatch(qID)
+                    end
+                    if C_QuestLog and C_QuestLog.RemoveWorldQuestWatch then
+                        C_QuestLog.RemoveWorldQuestWatch(qID)
+                    end
+                    if _G.RemoveQuestWatch then
+                        local idx = b.questLogIndex
+                        if not idx or idx <= 0 then
+                            if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+                                idx = C_QuestLog.GetLogIndexForQuestID(qID)
+                            elseif _G.GetQuestLogIndexByID then
+                                idx = _G.GetQuestLogIndexByID(qID)
+                            end
+                        end
+                        if idx and idx > 0 then
+                            _G.RemoveQuestWatch(idx)
                         end
                     end
-                    if idx and idx > 0 then
-                        _G.RemoveQuestWatch(idx)
-                    end
-                end
-                if sfui.map and sfui.map.SetSuperTrackedQuestID then
-                    local curSuper = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
-                    if curSuper and curSuper == qID then
-                        sfui.map.SetSuperTrackedQuestID(0)
+                    if sfui.map and sfui.map.SetSuperTrackedQuestID then
+                        local curSuper = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
+                        if curSuper and curSuper == qID then
+                            sfui.map.SetSuperTrackedQuestID(0)
+                        end
                     end
                 end
             end
@@ -235,7 +240,12 @@ local function UntrackSection(sec)
             end
 
             if not isH and qID and qID > 0 then
-                if C_QuestLog and C_QuestLog.IsQuestWatched then
+                local questCommon = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest
+                if questCommon and questCommon.IsQuestWatched then
+                    isWatched = questCommon.IsQuestWatched(qID, i)
+                elseif C_QuestLog and C_QuestLog.GetQuestWatchType then
+                    isWatched = (C_QuestLog.GetQuestWatchType(qID) ~= nil)
+                elseif C_QuestLog and C_QuestLog.IsQuestWatched then
                     isWatched = C_QuestLog.IsQuestWatched(qID)
                 elseif _G.IsQuestWatched then
                     isWatched = _G.IsQuestWatched(i)
@@ -268,12 +278,16 @@ local function UntrackSection(sec)
                         end
                     end
                     if match then
-                        if C_QuestLog and C_QuestLog.RemoveQuestWatch then C_QuestLog.RemoveQuestWatch(qID) end
-                        if _G.RemoveQuestWatch then _G.RemoveQuestWatch(i) end
-                        if sfui.map and sfui.map.SetSuperTrackedQuestID then
-                            local curSuper = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
-                            if curSuper and curSuper == qID then
-                                sfui.map.SetSuperTrackedQuestID(0)
+                        if questCommon and questCommon.UntrackQuest then
+                            questCommon.UntrackQuest(qID, i)
+                        else
+                            if C_QuestLog and C_QuestLog.RemoveQuestWatch then C_QuestLog.RemoveQuestWatch(qID) end
+                            if _G.RemoveQuestWatch then _G.RemoveQuestWatch(i) end
+                            if sfui.map and sfui.map.SetSuperTrackedQuestID then
+                                local curSuper = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
+                                if curSuper and curSuper == qID then
+                                    sfui.map.SetSuperTrackedQuestID(0)
+                                end
                             end
                         end
                     end

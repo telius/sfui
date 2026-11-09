@@ -55,8 +55,17 @@ local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecret
 local GetSubZoneText = _G.GetSubZoneText
 local GetZoneText = _G.GetZoneText
 
+local function is_secret(v)
+    if v == nil then return false end
+    if issecretvalue and issecretvalue(v) then return true end
+    if _G.issecretvalue and _G.issecretvalue(v) then return true end
+    if sfui.common and sfui.common.issecretvalue and sfui.common.issecretvalue(v) then return true end
+    return false
+end
+
 local function is_unit_identity_secret(u)
     if not u then return false end
+    if is_secret(u) then return true end
     if C_Secrets and C_Secrets.ShouldUnitIdentityBeSecret and C_Secrets.ShouldUnitIdentityBeSecret(u) then
         return true
     end
@@ -66,7 +75,7 @@ end
 local function safe_unit_guid(u)
     if not u or not UnitGUID or is_unit_identity_secret(u) then return nil end
     local g = UnitGUID(u)
-    if issecretvalue and issecretvalue(g) then return nil end
+    if is_secret(g) then return nil end
     return g
 end
 
@@ -950,22 +959,24 @@ end
 local CORPSE_UNIT_TOKENS = { "softinteract", "mouseover", "target" }
 
 local function scan_tooltip_lines_for_quest_item(lines, targetItemLower, byName, needsMap, myShort)
-    if type(lines) ~= "table" then return false end
+    if type(lines) ~= "table" or not targetItemLower or targetItemLower == "" then return false end
     local currentWho = nil
     local foundTargetItem = false
     local LINE_TYPE = _G.Enum and _G.Enum.TooltipDataLineType
     for _, line in ipairs(lines) do
         local raw = line and line.leftText
         local ltype = line and line.type
-        if type(raw) == "string" and not (issecretvalue and issecretvalue(raw)) then
+        if is_secret(raw) or is_secret(ltype) then
+            -- Safely ignore secret strings / secret line types from Blizzard engine
+        elseif type(raw) == "string" then
             local clean = raw:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", "")
             local cleanLower = string_lower(clean)
             local itemName, have, need = strip_objective_counts(clean)
-            if LINE_TYPE and not (issecretvalue and issecretvalue(ltype)) and ltype == LINE_TYPE.QuestTitle then
+            if LINE_TYPE and ltype == LINE_TYPE.QuestTitle then
                 currentWho = myShort
             elseif not have and byName[cleanLower] then
                 currentWho = byName[cleanLower]
-            elseif itemName and have and need and string_lower(itemName) == targetItemLower then
+            elseif itemName and have and need and not is_secret(itemName) and string_lower(itemName) == targetItemLower then
                 foundTargetItem = true
                 if currentWho and currentWho ~= myShort and have < need and not sync.IsAway(currentWho) then
                     needsMap[string_lower(currentWho)] = true
@@ -977,16 +988,17 @@ local function scan_tooltip_lines_for_quest_item(lines, targetItemLower, byName,
 end
 
 local function find_others_needing_quest_item(slot, itemName, questID)
+    if is_secret(itemName) or is_secret(questID) or not itemName or itemName == "" then return {} end
     local byName = get_party_member_lookup()
     local myShort = cmd_name(full_name("player") or "")
     local myShortLower = string_lower(myShort)
-    local targetItemLower = string_lower(itemName or "")
+    local targetItemLower = string_lower(itemName)
     local needsMap = {}
 
     local C_TooltipInfo = _G.C_TooltipInfo
     if C_TooltipInfo then
         local guid = _G.GetLootSourceInfo and _G.GetLootSourceInfo(slot)
-        if issecretvalue and issecretvalue(guid) then
+        if is_secret(guid) then
             guid = nil
         end
         for _, u in ipairs(CORPSE_UNIT_TOKENS) do
@@ -1093,11 +1105,9 @@ local function on_loot_opened()
         if _G.GetLootSlotInfo then
             _, itemName, _, _, _, _, isQuestItem, questId = _G.GetLootSlotInfo(slot)
         end
-        if issecretvalue then
-            if issecretvalue(link) then link = nil end
-            if issecretvalue(itemName) then itemName = nil end
-            if issecretvalue(questId) then questId = nil end
-        end
+        if is_secret(link) then link = nil end
+        if is_secret(itemName) then itemName = nil end
+        if is_secret(questId) then questId = nil end
         if link and itemName then
             local _, _, _, _, _, _, _, maxStack, _, _, _, classID = GetItemInfo(link)
             local isQuest = isQuestItem or (questId and questId > 0) or (classID == questClass)

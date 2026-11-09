@@ -1983,7 +1983,7 @@ function sfui.trackedbars.initialize()
     sfui.trackedbars._cdDurCache = _cdDurCache
 
     sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(_, _, _, castSid)
-        if not castSid then return end
+        if not castSid or (issecretvalue and issecretvalue(castSid)) then return end
         SyncWithBlizzard()
         -- spellID arg is always plain — safe to use directly.
         local dur = _cdDurCache[castSid]

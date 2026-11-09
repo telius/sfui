@@ -363,12 +363,16 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
         end
 
         -- Untrack quest
-        recentlyWatched[questID] = nil
-        manualExpanded[questID] = nil
-        if C_QuestLog and C_QuestLog.RemoveQuestWatch then
-            C_QuestLog.RemoveQuestWatch(questID)
-        elseif _G.RemoveQuestWatch and questLogIndex then
-            _G.RemoveQuestWatch(questLogIndex)
+        if QuestCommon and QuestCommon.UntrackQuest then
+            QuestCommon.UntrackQuest(questID, questLogIndex, recentlyWatched, manualExpanded)
+        else
+            recentlyWatched[questID] = nil
+            manualExpanded[questID] = nil
+            if C_QuestLog and C_QuestLog.RemoveQuestWatch then
+                C_QuestLog.RemoveQuestWatch(questID)
+            elseif _G.RemoveQuestWatch and questLogIndex then
+                _G.RemoveQuestWatch(questLogIndex)
+            end
         end
         sfui.tracker.RequestRefresh(0.05)
         return
@@ -449,13 +453,28 @@ function CamelotQuestsModule:OnEvent(event, ...)
         sfui.tracker.RequestRefresh(0.05)
     elseif event == "QUEST_WATCH_LIST_CHANGED" then
         if questID and questID > 0 then
-            if added == false then
+            if not added then
+                if QuestCommon and QuestCommon.recentlyWatched then
+                    QuestCommon.recentlyWatched[questID] = nil
+                end
                 recentlyWatched[questID] = nil
                 manualExpanded[questID] = nil
+            end
+        elseif C_QuestLog and C_QuestLog.GetQuestWatchType then
+            for qID in pairs(recentlyWatched) do
+                if C_QuestLog.GetQuestWatchType(qID) == nil then
+                    recentlyWatched[qID] = nil
+                    if QuestCommon and QuestCommon.recentlyWatched then
+                        QuestCommon.recentlyWatched[qID] = nil
+                    end
+                end
             end
         end
     elseif event == "QUEST_TURNED_IN" or event == "QUEST_REMOVED" then
         if questID and questID > 0 then
+            if QuestCommon and QuestCommon.recentlyWatched then
+                QuestCommon.recentlyWatched[questID] = nil
+            end
             recentlyWatched[questID] = nil
             manualExpanded[questID] = nil
         end

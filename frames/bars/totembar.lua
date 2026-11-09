@@ -306,34 +306,54 @@ end
 local function RefreshSpellBookCache()
     wipe(knownSpellsCache)
 
-    -- 1. Modern / Camelot C_SpellBook slot inspection
+    -- 1. Modern / Forever C_SpellBook inspection (bounded by skill lines, no pcall)
     if C_SpellBook and C_SpellBook.GetSpellBookItemName then
         local bank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 1
-        for slot = 1, 300 do
-            local ok, name = pcall(C_SpellBook.GetSpellBookItemName, slot, bank)
-            if ok and name and name ~= "" then
-                knownSpellsCache[name] = true
-                knownSpellsCache[StripRank(name)] = true
-            end
-            if C_SpellBook.GetSpellBookItemType then
-                local tOk, _, _, spellID = pcall(C_SpellBook.GetSpellBookItemType, slot, bank)
-                if tOk and spellID and spellID > 0 then
-                    knownSpellsCache[spellID] = true
+        local maxSlot = 0
+        if C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo then
+            local numLines = C_SpellBook.GetNumSpellBookSkillLines() or 0
+            for i = 1, numLines do
+                local info = C_SpellBook.GetSpellBookSkillLineInfo(i)
+                if info and info.itemIndexOffset and info.numSpellBookItems then
+                    local lineEnd = info.itemIndexOffset + info.numSpellBookItems
+                    if lineEnd > maxSlot then
+                        maxSlot = lineEnd
+                    end
                 end
             end
         end
+        if maxSlot <= 0 then
+            maxSlot = 200
+        end
+        for slot = 1, maxSlot do
+            local name = C_SpellBook.GetSpellBookItemName(slot, bank)
+            if name and not (issecretvalue and issecretvalue(name)) and name ~= "" then
+                knownSpellsCache[name] = true
+                knownSpellsCache[StripRank(name)] = true
+                if C_SpellBook.GetSpellBookItemType then
+                    local _, _, spellID = C_SpellBook.GetSpellBookItemType(slot, bank)
+                    if spellID and not (issecretvalue and issecretvalue(spellID)) and spellID > 0 then
+                        knownSpellsCache[spellID] = true
+                    end
+                end
+            elseif maxSlot == 200 and not name then
+                break
+            end
+        end
+        return
     end
 
-    -- 2. Classic GetSpellBookItemName inspection
+    -- 2. Legacy GetSpellBookItemName fallback
     if GetSpellBookItemName then
         local bookType = BOOKTYPE_SPELL or "spell"
-        for slot = 1, 300 do
-            local ok, name, _, spellID = pcall(GetSpellBookItemName, slot, bookType)
-            if ok and name and name ~= "" then
+        for slot = 1, 200 do
+            local name, _, spellID = GetSpellBookItemName(slot, bookType)
+            if not name then break end
+            if not (issecretvalue and issecretvalue(name)) and name ~= "" then
                 knownSpellsCache[name] = true
                 knownSpellsCache[StripRank(name)] = true
             end
-            if ok and spellID and spellID > 0 then
+            if spellID and not (issecretvalue and issecretvalue(spellID)) and spellID > 0 then
                 knownSpellsCache[spellID] = true
             end
         end
@@ -348,29 +368,26 @@ local function IsTotemKnown(totemName)
         return true
     end
 
-    -- Check learned spell ID APIs (classic client)
+    -- Check learned spell ID APIs
     local id = TOTEM_SPELL_IDS[totemName]
     if id then
         if knownSpellsCache[id] then
+            knownSpellsCache[totemName] = true
             return true
         end
 
         local locName = sfui.common.get_spell_name(id)
         if locName and (knownSpellsCache[locName] or knownSpellsCache[StripRank(locName)]) then
+            knownSpellsCache[totemName] = true
             return true
         end
 
-        if C_SpellBook and C_SpellBook.IsSpellKnown then
-            local ok, known = pcall(C_SpellBook.IsSpellKnown, id)
-            if ok and known then return true end
-        end
-        if IsPlayerSpell then
-            local ok, known = pcall(IsPlayerSpell, id)
-            if ok and known then return true end
-        end
-        if IsSpellKnown then
-            local ok, known = pcall(IsSpellKnown, id)
-            if ok and known then return true end
+        if (C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id))
+            or (IsPlayerSpell and IsPlayerSpell(id))
+            or (IsSpellKnown and IsSpellKnown(id)) then
+            knownSpellsCache[id] = true
+            knownSpellsCache[totemName] = true
+            return true
         end
     end
 
@@ -410,7 +427,7 @@ end
 local function SafeTotemInfo(slot)
     if not GetTotemInfo then return false end
     local haveTotem, name, startTime, duration, icon = GetTotemInfo(slot)
-    if issecretvalue and (issecretvalue(haveTotem) or issecretvalue(name) or issecretvalue(startTime) or issecretvalue(duration)) then
+    if issecretvalue and (issecretvalue(haveTotem) or issecretvalue(name) or issecretvalue(startTime) or issecretvalue(duration) or issecretvalue(icon)) then
         return nil
     end
     if haveTotem and name and name ~= "" then
@@ -518,6 +535,8 @@ local statePool = {}
 local deferredArm = {}  -- element -> totemName (deferred if scrolled in combat)
 local deferredSeqUpdate = false
 local deferredSettingsUpdate = false
+local lastPlayerCastTime = 0
+local lastElementClickTime = {}
 
 local isUnlocked = false
 
@@ -610,12 +629,9 @@ local function GetElementTimeLeft(element, state, now)
     local slot = ELEMENT_SLOT[element]
     local fnTimeLeft = _G.GetTotemTimeLeft
     if slot and fnTimeLeft then
-        local ok, tl = pcall(fnTimeLeft, slot)
-        if ok and tl and not (issecretvalue and issecretvalue(tl)) then
-            local num = tonumber(tl)
-            if num and num > 0 then
-                return num
-            end
+        local tl = fnTimeLeft(slot)
+        if not (issecretvalue and issecretvalue(tl)) and type(tl) == "number" and tl > 0 then
+            return tl
         end
     end
     if state and state.duration and state.startTime then
@@ -925,9 +941,11 @@ local function UpdateSequence()
     end
 end
 
-local function RefreshAllArming()
+local function RefreshAllArming(skipCacheRefresh)
     if InCombatLockdown and InCombatLockdown() then return end
-    RefreshSpellBookCache()
+    if not skipCacheRefresh then
+        RefreshSpellBookCache()
+    end
     for _, element in ipairs(ELEMENTS) do
         local chosen = deferredArm[element] or (SfuiDB and SfuiDB.totembar and SfuiDB.totembar.selectedTotems and SfuiDB.totembar.selectedTotems[element])
         deferredArm[element] = nil
@@ -1029,22 +1047,45 @@ end
 -- ---------------------------------------------------------------------------
 -- Combat Handlers
 -- ---------------------------------------------------------------------------
+local CreateTotemBar
+
 local function OnCombatStart()
 end
 
 local function OnCombatEnd()
+    if not bar then
+        CreateTotemBar()
+    end
     if deferredSettingsUpdate or deferredSeqUpdate or next(deferredArm) then
         deferredSettingsUpdate = false
         deferredSeqUpdate = false
         sfui.totembar.ApplySettings()
+    end
+    for slot = 1, 4 do
+        local element = SLOT_TO_ELEMENT[slot]
+        if element then
+            local present, name, startTime, duration = SafeTotemInfo(slot)
+            if present == false then
+                SetInactive(element)
+            elseif present == true then
+                local current = activeState[element]
+                local activeName = (name and name ~= "") and name or (current and current.name) or DEFAULT_TOTEMS[element]
+                local activeStart, activeDur = SanitizeTimeAndDuration(activeName, startTime, duration, current)
+                SetActive(element, activeName, activeStart, activeDur)
+            end
+        end
     end
 end
 
 -- ---------------------------------------------------------------------------
 -- Build Main Totem Bar
 -- ---------------------------------------------------------------------------
-local function CreateTotemBar()
+function CreateTotemBar()
     if bar then return end
+    if InCombatLockdown and InCombatLockdown() then
+        deferredSettingsUpdate = true
+        return
+    end
 
     local cfg = (SfuiDB and SfuiDB.totembar) or {}
     local bSize = cfg.size or 36
@@ -1136,6 +1177,10 @@ local function CreateTotemBar()
             if down then return end
             if clickedBtn == "RightButton" then
                 SetInactive(element)
+            else
+                local now = GetTime()
+                lastPlayerCastTime = now
+                lastElementClickTime[element] = now
             end
         end)
 
@@ -1192,6 +1237,11 @@ local function CreateTotemBar()
 
         seqBtn:HookScript("OnLeave", function()
             sfui.common.hide_tooltip()
+        end)
+
+        seqBtn:HookScript("PostClick", function(_, _, down)
+            if down then return end
+            lastPlayerCastTime = GetTime()
         end)
     end
 
@@ -1318,14 +1368,24 @@ end
 -- Event Handlers
 -- ---------------------------------------------------------------------------
 local function OnSpellcastSucceeded(_, unit, castGUID, spellID)
-    if unit ~= "player" then return end
+    if not (issecretvalue and issecretvalue(unit)) and unit ~= "player" then return end
 
-    local id = type(spellID) == "number" and spellID or (type(castGUID) == "number" and castGUID)
+    local now = GetTime()
+    lastPlayerCastTime = now
+
+    local id = nil
+    if not (issecretvalue and issecretvalue(spellID)) and type(spellID) == "number" then
+        id = spellID
+    elseif not (issecretvalue and issecretvalue(castGUID)) and type(castGUID) == "number" then
+        id = castGUID
+    end
+
     local spellName = id and sfui.common.get_spell_name(id)
-    if not spellName or spellName == "" then
-        if type(castGUID) == "string" and TOTEM_ELEMENT[castGUID] then
+    if not spellName or (issecretvalue and issecretvalue(spellName)) or spellName == "" then
+        spellName = nil
+        if not (issecretvalue and issecretvalue(castGUID)) and type(castGUID) == "string" and TOTEM_ELEMENT[castGUID] then
             spellName = castGUID
-        elseif type(spellID) == "string" and TOTEM_ELEMENT[spellID] then
+        elseif not (issecretvalue and issecretvalue(spellID)) and type(spellID) == "string" and TOTEM_ELEMENT[spellID] then
             spellName = spellID
         end
     end
@@ -1339,11 +1399,12 @@ local function OnSpellcastSucceeded(_, unit, castGUID, spellID)
     local element = TOTEM_ELEMENT[spellName]
     if element then
         local duration = TOTEM_DURATIONS[spellName] or 120
-        SetActive(element, spellName, GetTime(), duration)
+        SetActive(element, spellName, now, duration)
     end
 end
 
 local function OnPlayerTotemUpdate(_, slot)
+    if issecretvalue and issecretvalue(slot) then return end
     slot = tonumber(slot)
     if not slot or slot < 1 or slot > 4 then return end
 
@@ -1358,15 +1419,59 @@ local function OnPlayerTotemUpdate(_, slot)
         local activeName = (name and name ~= "") and name or (current and current.name) or DEFAULT_TOTEMS[element]
         local activeStart, activeDur = SanitizeTimeAndDuration(activeName, startTime, duration, current)
         SetActive(element, activeName, activeStart, activeDur)
+    else
+        -- present == nil: GetTotemInfo returned secret values (e.g. inside an instance).
+        -- PLAYER_TOTEM_UPDATE slot is non-secret: if a player spellcast or totem click just
+        -- occurred on this tick, activate the selected totem for this slot; otherwise if the
+        -- slot updated with no recent player cast, the existing totem expired or was destroyed.
+        local now = GetTime()
+        local recentCast = (now - (lastPlayerCastTime or 0)) <= 0.35
+            or (lastElementClickTime[element] and (now - lastElementClickTime[element]) <= 0.35)
+        if recentCast then
+            local btn = buttons[element]
+            local activeName = (btn and btn.selectedTotem)
+                or (activeState[element] and activeState[element].name)
+                or GetDefaultTotemForElement(element)
+            local activeDur = TOTEM_DURATIONS[activeName] or 120
+            SetActive(element, activeName, now, activeDur)
+        elseif activeState[element] then
+            SetInactive(element)
+        end
     end
-    -- present == nil: secret value in combat, leave prediction running safely
+end
+
+local _scratchActiveTotem = { applications = 1 }
+
+function sfui.totembar.GetActiveTotemByName(spellName)
+    if not spellName or (issecretvalue and issecretvalue(spellName)) or spellName == "" then return nil end
+    local now = GetTime()
+    local nameLen = #spellName
+    for i = 1, #ELEMENTS do
+        local st = activeState[ELEMENTS[i]]
+        if st and st.name and st.duration and st.startTime then
+            if st.name == spellName or st.name:sub(1, nameLen) == spellName then
+                local exp = st.startTime + st.duration
+                if exp > now then
+                    _scratchActiveTotem.name           = spellName
+                    _scratchActiveTotem.icon           = GetIconForTotem(st.name)
+                    _scratchActiveTotem.duration       = st.duration
+                    _scratchActiveTotem.expirationTime = exp
+                    _scratchActiveTotem.applications   = 1
+                    return _scratchActiveTotem
+                end
+            end
+        end
+    end
+    return nil
 end
 
 local function OnPlayerEnteringWorld()
-    RefreshSpellBookCache()
-    CreateTotemBar()
+    if not bar then
+        CreateTotemBar()
+    else
+        sfui.totembar.ApplySettings()
+    end
     if not InCombatLockdown() then
-        RefreshAllArming()
         if SfuiDB and SfuiDB.totembar and SfuiDB.totembar.keybind then
             local k1 = sfui.totembar.GetBoundKey()
             if not k1 or k1 == "" then
@@ -1403,6 +1508,19 @@ function sfui.totembar.ApplySettings()
     if cfg.enabled == false then
         bar:Hide()
         return
+    end
+
+    local blizzTotemFrame = _G.TotemFrame
+    if blizzTotemFrame then
+        if blizzTotemFrame.UnregisterAllEvents then
+            blizzTotemFrame:UnregisterAllEvents()
+        end
+        if blizzTotemFrame.totemPool and blizzTotemFrame.totemPool.ReleaseAll then
+            blizzTotemFrame.totemPool:ReleaseAll()
+        end
+        if blizzTotemFrame.Hide then
+            blizzTotemFrame:Hide()
+        end
     end
 
     RefreshSpellBookCache()
@@ -1519,8 +1637,7 @@ function sfui.totembar.ApplySettings()
     end
 
     UpdateActiveColors()
-    RefreshAllArming()
-    UpdateSequence()
+    RefreshAllArming(true)
 end
 
 function sfui.totembar.GetBoundKey()

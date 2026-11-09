@@ -134,39 +134,43 @@ EVENT_MAP = {
 
 SPECIALIZATION_RECIPES = {
     # Engineering: Goblin Engineering
-    3968: "goblin engineering",   # Goblin Land Mine
-    8895: "goblin engineering",   # Goblin Rocket Boots
-    9273: "goblin engineering",   # Goblin Jumper Cables
-    12715: "goblin engineering",  # Goblin Rocket Fuel Recipe
-    12716: "goblin engineering",  # Goblin Mortar
-    12717: "goblin engineering",  # Goblin Mining Helmet
-    12718: "goblin engineering",  # Goblin Construction Helmet
-    12755: "goblin engineering",  # Goblin Bomb Dispenser
-    12758: "goblin engineering",  # Goblin Rocket Helmet
-    12760: "goblin engineering",  # Goblin Sapper Charge
-    12908: "goblin engineering",  # Goblin Dragon Gun
-    23078: "goblin engineering",  # Goblin Jumper Cables XL
-    23486: "goblin engineering",  # Dimensional Ripper - Everlook
-    1266936: "goblin engineering",
-    1266938: "goblin engineering",
+    12715: "goblin engineering",
+    12716: "goblin engineering",
+    12717: "goblin engineering",
+    12718: "goblin engineering",
+    12754: "goblin engineering",
+    12755: "goblin engineering",
+    12758: "goblin engineering",
+    12759: "goblin engineering",
+    12760: "goblin engineering",
+    12761: "goblin engineering",
+    12762: "goblin engineering",
+    12763: "goblin engineering",
+    23077: "goblin engineering",
+    23078: "goblin engineering",
+    23079: "goblin engineering",
+    23080: "goblin engineering",
+    23081: "goblin engineering",
 
     # Engineering: Gnomish Engineering
-    3971: "gnomish engineering",   # Gnomish Cloaking Device
-    9269: "gnomish engineering",   # Gnomish Universal Remote
-    12714: "gnomish engineering",  # Gnomish Goggles
-    12759: "gnomish engineering",  # Gnomish Death Ray
-    12897: "gnomish engineering",  # Gnomish Goggles
-    12899: "gnomish engineering",  # Gnomish Shrink Ray
-    12902: "gnomish engineering",  # Gnomish Net-o-Matic Projector
-    12903: "gnomish engineering",  # Gnomish Harm Prevention Belt
-    12905: "gnomish engineering",  # Gnomish Rocket Boots
-    12906: "gnomish engineering",  # Gnomish Battle Chicken
-    12907: "gnomish engineering",  # Gnomish Mind Control Cap
-    23082: "gnomish engineering",  # World Enlarger
-    23489: "gnomish engineering",  # Ultrasafe Transporter - Gadgetzan
-    1266924: "gnomish engineering",
-    1266935: "gnomish engineering",
-    1266937: "gnomish engineering",
+    12719: "gnomish engineering",
+    12720: "gnomish engineering",
+    12722: "gnomish engineering",
+    12723: "gnomish engineering",
+    12724: "gnomish engineering",
+    12725: "gnomish engineering",
+    12726: "gnomish engineering",
+    12727: "gnomish engineering",
+    12728: "gnomish engineering",
+    12729: "gnomish engineering",
+    12730: "gnomish engineering",
+    12756: "gnomish engineering",
+    12757: "gnomish engineering",
+    23070: "gnomish engineering",
+    23071: "gnomish engineering",
+    23074: "gnomish engineering",
+    23075: "gnomish engineering",
+    23076: "gnomish engineering",
     1266939: "gnomish engineering",
 
     # Blacksmithing: Armorsmith
@@ -175,27 +179,11 @@ SPECIALIZATION_RECIPES = {
     16656: "armorsmith",  # Radiant Boots
     16659: "armorsmith",  # Radiant Circlet
     16660: "armorsmith",  # Dawnbringer Shoulders
-    20853: "armorsmith",  # Fiery Chain Girdle
-    20854: "armorsmith",  # Dark Iron Bracers
-    20855: "armorsmith",  # Dark Iron Helm
-    20857: "armorsmith",  # Fiery Chain Shoulders
-    20872: "armorsmith",  # Fiery Chain Girdle
-    20873: "armorsmith",  # Fiery Chain Shoulders
     20874: "armorsmith",  # Dark Iron Bracers
     20876: "armorsmith",  # Dark Iron Leggings
-    20890: "armorsmith",  # Dark Iron Reaver
     23636: "armorsmith",  # Dark Iron Helm
     23637: "armorsmith",  # Dark Iron Gauntlets
-    24136: "armorsmith",  # Bloodsoul Breastplate
-    24137: "armorsmith",  # Bloodsoul Shoulders
-    24138: "armorsmith",  # Bloodsoul Gauntlets
-    24395: "armorsmith",  # Bloodsoul Gauntlets
-    24396: "armorsmith",  # Bloodsoul Shoulders
-    24397: "armorsmith",  # Bloodsoul Breastplate
     24399: "armorsmith",  # Dark Iron Boots
-    28242: "armorsmith",  # Ironvine Bracers
-    28243: "armorsmith",  # Ironvine Belt
-    28244: "armorsmith",  # Ironvine Breastplate
     28461: "armorsmith",  # Ironvine Breastplate
     28462: "armorsmith",  # Ironvine Gloves
     28463: "armorsmith",  # Ironvine Belt
@@ -207,56 +195,57 @@ SPECIALIZATION_RECIPES = {
     16978: "weaponsmith", # Blazing Rapier
     16983: "weaponsmith", # Serenity
     16984: "weaponsmith", # Volcanic Hammer
+    20890: "weaponsmith", # Dark Iron Reaver
     20897: "weaponsmith", # Dark Iron Destroyer
-    20950: "weaponsmith", # Sulfuron Hammer
     21161: "weaponsmith", # Sulfuron Hammer
-    23624: "weaponsmith", # Dawn's Edge
     23653: "weaponsmith", # Nightfall
+
+    # Blacksmithing: Master Swordsmith
+    16990: "master swordsmith", # Corruption
+    16991: "master swordsmith", # Dark Iron Sunderer
+    23626: "master swordsmith", # Blackguard
+
+    # Blacksmithing: Master Axesmith
+    17006: "master axesmith",   # Annihilator
+    17007: "master axesmith",   # Dark Iron Destroyer
+
+    # Blacksmithing: Master Hammersmith
+    17013: "master hammersmith", # Hammer of the Titans
+    17014: "master hammersmith", # Masterwork Stormhammer
 
     # Leatherworking: Dragonscale Leatherworking
     10619: "dragonscale leatherworking",  # Dragonscale Gauntlets
     10650: "dragonscale leatherworking",  # Dragonscale Breastplate
     19050: "dragonscale leatherworking",  # Green Dragonscale Breastplate
     19054: "dragonscale leatherworking",  # Red Dragonscale Breastplate
-    19060: "dragonscale leatherworking",  # Green Dragonscale Leggings
-    19077: "dragonscale leatherworking",  # Blue Dragonscale Breastplate
-    19085: "dragonscale leatherworking",  # Black Dragonscale Breastplate
-    19089: "dragonscale leatherworking",  # Blue Dragonscale Shoulders
-    19094: "dragonscale leatherworking",  # Black Dragonscale Shoulders
-    19107: "dragonscale leatherworking",  # Black Dragonscale Leggings
-    20855: "dragonscale leatherworking",  # Black Dragonscale Boots
-    24654: "dragonscale leatherworking",  # Blue Dragonscale Leggings
+    19057: "dragonscale leatherworking",  # Blue Dragonscale Breastplate
+    19059: "dragonscale leatherworking",  # Black Dragonscale Breastplate
+    19060: "dragonscale leatherworking",  # Black Dragonscale Shoulders
     24655: "dragonscale leatherworking",  # Green Dragonscale Gauntlets
-    24849: "dragonscale leatherworking",  # Sandstalker Bracers
-    24850: "dragonscale leatherworking",  # Sandstalker Gauntlets
-    24851: "dragonscale leatherworking",  # Sandstalker Breastplate
+    24703: "dragonscale leatherworking",  # Dreamscale Breastplate
+    28222: "dragonscale leatherworking",  # Icy Scale Breastplate
+    28223: "dragonscale leatherworking",  # Icy Scale Gauntlets
+    28224: "dragonscale leatherworking",  # Icy Scale Bracers
 
     # Leatherworking: Elemental Leatherworking
-    16661: "elemental leatherworking",  # Storm Gauntlets (moved from Armorsmith in Forever)
-    16746: "elemental leatherworking",  # Invulnerable Mail (moved from Armorsmith in Forever)
-    19061: "elemental leatherworking",  # Living Shoulders
-    19067: "elemental leatherworking",  # Stormshroud Pants
-    19078: "elemental leatherworking",  # Living Leggings
-    19079: "elemental leatherworking",  # Stormshroud Armor
-    19090: "elemental leatherworking",  # Stormshroud Shoulders
-    19095: "elemental leatherworking",  # Living Breastplate
-    20761: "elemental leatherworking",  # Molten Helm
-    20768: "elemental leatherworking",  # Corehound Boots
-    20853: "elemental leatherworking",  # Corehound Boots
-    20854: "elemental leatherworking",  # Molten Helm
-    23630: "elemental leatherworking",  # Lava Belt
-    23707: "elemental leatherworking",  # Lava Belt
-    24846: "elemental leatherworking",  # Spitfire Bracers
-    24847: "elemental leatherworking",  # Spitfire Gauntlets
-    24848: "elemental leatherworking",  # Spitfire Breastplate
-    26279: "elemental leatherworking",  # Stormshroud Gloves
+    10630: "elemental leatherworking",  # Gauntlets of the Sea
+    10632: "elemental leatherworking",  # Helm of Fire
+    19052: "elemental leatherworking",  # Living Breastplate
+    19055: "elemental leatherworking",  # Volcanic Leggings
+    19058: "elemental leatherworking",  # Stormshroud Armor
+    19062: "elemental leatherworking",  # Stormshroud Shoulders
+    19063: "elemental leatherworking",  # Stormshroud Gloves
+    19064: "elemental leatherworking",  # Volcanic Breastplate
+    19065: "elemental leatherworking",  # Volcanic Shoulders
+    24654: "elemental leatherworking",  # Living Leggings
+    28219: "elemental leatherworking",  # Polar Tunic
+    28220: "elemental leatherworking",  # Polar Gloves
+    28221: "elemental leatherworking",  # Polar Bracers
 
     # Leatherworking: Tribal Leatherworking
     10621: "tribal leatherworking",  # Wolfshead Helm
     10647: "tribal leatherworking",  # Feathered Breastplate
-    16650: "tribal leatherworking",  # Wildthorn Mail (moved from Armorsmith in Forever)
-    16728: "tribal leatherworking",  # Helm of the Great Chief (moved from Armorsmith in Forever)
-    19062: "tribal leatherworking",  # Ironfeather Shoulders
+    19051: "tribal leatherworking",  # Chitinous Vest
     19066: "tribal leatherworking",  # Frostsaber Boots
     19068: "tribal leatherworking",  # Warbear Harness
     19074: "tribal leatherworking",  # Frostsaber Leggings
@@ -268,9 +257,9 @@ SPECIALIZATION_RECIPES = {
     19104: "tribal leatherworking",  # Frostsaber Tunic
     23703: "tribal leatherworking",  # Might of the Timbermaw
     23704: "tribal leatherworking",  # Timbermaw Brawlers
-    24121: "tribal leatherworking",  # Primal Batskin Jerkin
-    24122: "tribal leatherworking",  # Primal Batskin Gloves
-    24123: "tribal leatherworking",  # Primal Batskin Bracers
+    24355: "tribal leatherworking",  # Primal Batskin Jerkin
+    24356: "tribal leatherworking",  # Primal Batskin Bracers
+    24357: "tribal leatherworking",  # Primal Batskin Gloves
     28472: "tribal leatherworking",  # Bramblewood Helm
     28473: "tribal leatherworking",  # Bramblewood Boots
     28474: "tribal leatherworking",  # Bramblewood Belt
@@ -348,233 +337,92 @@ IGNORED_SPELLS = {
 REPUTATION_RECIPES = {
     # Thorium Brotherhood (Lokhtos Darkbargainer, BRD Grim Guzzler, npc 12944)
     # Friendly
-    11479: { "faction": "thorium brotherhood", "standing": "friendly" }, # transmute: iron to gold
-    9303:  { "faction": "thorium brotherhood", "standing": "friendly" },
+    20872: { "faction": "thorium brotherhood", "standing": "friendly", "tokens": "dark iron ore x10" }, # fiery chain girdle
+    20874: { "faction": "thorium brotherhood", "standing": "friendly", "tokens": "dark iron ore x15" }, # dark iron bracers
+    20854: { "faction": "thorium brotherhood", "standing": "friendly", "tokens": "dark iron ore x10" }, # molten helm
+    20849: { "faction": "thorium brotherhood", "standing": "friendly", "tokens": "dark iron ore x10" }, # flarecore gloves
+    20853: { "faction": "thorium brotherhood", "standing": "friendly", "tokens": "dark iron ore x10" }, # corehound boots
     # Honored
-    20872: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x10" }, # fiery chain girdle
-    17049: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x10" },
-    20874: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x15" }, # dark iron bracers
-    17051: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x15" },
-    13898: { "faction": "thorium brotherhood", "standing": "honored" }, # enchant weapon - fiery weapon
-    20008: { "faction": "thorium brotherhood", "standing": "honored" },
-    16214: { "faction": "thorium brotherhood", "standing": "honored" },
-    20854: { "faction": "thorium brotherhood", "standing": "honored" }, # molten helm
-    20761: { "faction": "thorium brotherhood", "standing": "honored" },
-    17022: { "faction": "thorium brotherhood", "standing": "honored" },
-    20849: { "faction": "thorium brotherhood", "standing": "honored" }, # flarecore gloves
-    20766: { "faction": "thorium brotherhood", "standing": "honored" },
-    17023: { "faction": "thorium brotherhood", "standing": "honored" },
-    20853: { "faction": "thorium brotherhood", "standing": "honored" }, # corehound boots
-    20768: { "faction": "thorium brotherhood", "standing": "honored" },
-    17025: { "faction": "thorium brotherhood", "standing": "honored" },
+    20873: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x20" },  # fiery chain shoulders
+    20876: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x30" },  # dark iron leggings
+    20890: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x30" },  # dark iron reaver
+    20848: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x20" },  # flarecore mantle
+    23707: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x20" },  # lava belt
+    24399: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "lava core x2" },       # dark iron boots
+    23666: { "faction": "thorium brotherhood", "standing": "honored", "tokens": "dark iron ore x20" },  # flarecore robe
     # Revered
-    23636: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x20" }, # dark iron helm
-    20855: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x20" },
-    17052: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x20" },
-    20897: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x25" }, # dark iron destroyer
-    20856: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x25" },
-    17053: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x25" },
-    20873: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x20" }, # fiery chain shoulders
-    20857: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x20" },
-    17050: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x20" },
-    23666: { "faction": "thorium brotherhood", "standing": "revered" }, # flarecore robe
-    20770: { "faction": "thorium brotherhood", "standing": "revered" },
-    17024: { "faction": "thorium brotherhood", "standing": "revered" },
-    20848: { "faction": "thorium brotherhood", "standing": "revered" }, # flarecore mantle
-    24136: { "faction": "thorium brotherhood", "standing": "revered" },
-    19448: { "faction": "thorium brotherhood", "standing": "revered" },
-    23707: { "faction": "thorium brotherhood", "standing": "revered" }, # lava belt
-    23630: { "faction": "thorium brotherhood", "standing": "revered" },
-    19219: { "faction": "thorium brotherhood", "standing": "revered" },
+    23636: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x20" },  # dark iron helm
+    20897: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x25" },  # dark iron destroyer
+    23637: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "blood of the mountain x2" }, # dark iron gauntlets
+    23667: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x25" },  # flarecore leggings
+    23708: { "faction": "thorium brotherhood", "standing": "revered", "tokens": "dark iron ore x25" },  # chromatic cloak
     # Exalted
-    20876: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "dark iron ore x30" }, # dark iron leggings
-    20874: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "dark iron ore x30" },
-    17059: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "dark iron ore x30" },
-    20890: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "dark iron ore x30" }, # dark iron reaver
-    17060: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "dark iron ore x30" },
-    21161: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "sulfuron ingot" },    # sulfuron hammer
-    20950: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "sulfuron ingot" },
-    17161: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "sulfuron ingot" },
-    23637: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "blood of the mountain x2" }, # dark iron gauntlets
-    23628: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "blood of the mountain x2" },
-    19207: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "blood of the mountain x2" },
-    23653: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "fiery core x2" },    # nightfall
-    23629: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "fiery core x2" },
-    19206: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "fiery core x2" },
-    24138: { "faction": "thorium brotherhood", "standing": "exalted" }, # bloodsoul gauntlets
-    24395: { "faction": "thorium brotherhood", "standing": "exalted" },
-    19776: { "faction": "thorium brotherhood", "standing": "exalted" },
-    24137: { "faction": "thorium brotherhood", "standing": "exalted" }, # bloodsoul shoulders
-    24396: { "faction": "thorium brotherhood", "standing": "exalted" },
-    19777: { "faction": "thorium brotherhood", "standing": "exalted" },
-    24136: { "faction": "thorium brotherhood", "standing": "exalted" }, # bloodsoul breastplate
-    24397: { "faction": "thorium brotherhood", "standing": "exalted" },
-    19778: { "faction": "thorium brotherhood", "standing": "exalted" },
-    24399: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "lava core x2" },     # dark iron boots
-    20040: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "lava core x2" },
-    23667: { "faction": "thorium brotherhood", "standing": "exalted" }, # flarecore leggings
-    24137: { "faction": "thorium brotherhood", "standing": "exalted" },
-    19449: { "faction": "thorium brotherhood", "standing": "exalted" },
+    21161: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "sulfuron ingot" },     # sulfuron hammer
+    23653: { "faction": "thorium brotherhood", "standing": "exalted", "tokens": "fiery core x2" },     # nightfall
 
     # Timbermaw Hold (Meilosh, Felwood, npc 11557)
     # Friendly
     19068: { "faction": "timbermaw hold", "standing": "friendly" }, # warbear harness
-    19097: { "faction": "timbermaw hold", "standing": "friendly" },
-    15760: { "faction": "timbermaw hold", "standing": "friendly" },
     19080: { "faction": "timbermaw hold", "standing": "friendly" }, # warbear woolies
-    19098: { "faction": "timbermaw hold", "standing": "friendly" },
-    15761: { "faction": "timbermaw hold", "standing": "friendly" },
-    23802: { "faction": "timbermaw hold", "standing": "friendly" }, # enchant bracer - healing power
-    23801: { "faction": "timbermaw hold", "standing": "friendly" },
-    19442: { "faction": "timbermaw hold", "standing": "friendly" },
-    17561: { "faction": "timbermaw hold", "standing": "friendly" }, # transmute earth to water
-    17562: { "faction": "timbermaw hold", "standing": "friendly" },
-    13484: { "faction": "timbermaw hold", "standing": "friendly" },
     # Honored
-    23628: { "faction": "timbermaw hold", "standing": "honored" }, # heavy timbermaw belt
-    24387: { "faction": "timbermaw hold", "standing": "honored" },
-    19767: { "faction": "timbermaw hold", "standing": "honored" },
-    23629: { "faction": "timbermaw hold", "standing": "honored" }, # heavy timbermaw boots
-    23663: { "faction": "timbermaw hold", "standing": "honored" }, # mantle of the timbermaw
-    24389: { "faction": "timbermaw hold", "standing": "honored" },
-    19769: { "faction": "timbermaw hold", "standing": "honored" },
-    23704: { "faction": "timbermaw hold", "standing": "honored" }, # timbermaw brawlers
-    24390: { "faction": "timbermaw hold", "standing": "honored" },
-    19770: { "faction": "timbermaw hold", "standing": "honored" },
-    27837: { "faction": "timbermaw hold", "standing": "honored" }, # enchant 2h weapon - agility
-    22392: { "faction": "timbermaw hold", "standing": "honored" },
+    23628: { "faction": "timbermaw hold", "standing": "honored" },  # heavy timbermaw belt
+    23629: { "faction": "timbermaw hold", "standing": "honored" },  # heavy timbermaw boots
+    23663: { "faction": "timbermaw hold", "standing": "honored" },  # mantle of the timbermaw
+    23704: { "faction": "timbermaw hold", "standing": "honored" },  # timbermaw brawlers
+    27837: { "faction": "timbermaw hold", "standing": "honored" },  # enchant 2h weapon - agility
     # Revered
-    23662: { "faction": "timbermaw hold", "standing": "revered" }, # wisdom of the timbermaw
-    23800: { "faction": "timbermaw hold", "standing": "revered" }, # enchant weapon - agility
-    19445: { "faction": "timbermaw hold", "standing": "revered" },
-    17559: { "faction": "timbermaw hold", "standing": "revered" }, # transmute air to fire
-    17565: { "faction": "timbermaw hold", "standing": "revered" },
-    13482: { "faction": "timbermaw hold", "standing": "revered" },
-    # Exalted
-    23703: { "faction": "timbermaw hold", "standing": "exalted" }, # might of the timbermaw
-    24391: { "faction": "timbermaw hold", "standing": "exalted" },
-    19771: { "faction": "timbermaw hold", "standing": "exalted" },
-
-    # Zandalar Tribe (Rin'wosho the Vahiti, Yojamba Isle, npc 14921)
-    # Friendly
-    24356: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # bloodvine goggles
-    20000: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" },
-    24093: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # bloodvine boots
-    24357: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" },
-    19764: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" },
-    24123: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # primal batskin bracers
-    24360: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" },
-    19767: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" },
-    24365: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # mageblood elixir
-    19779: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" },
-    24366: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # greater dreamless sleep potion
-    20011: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" },
-    # Honored
-    24092: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # bloodvine leggings
-    24358: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },
-    19765: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },
-    24122: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # primal batskin gloves
-    24361: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },
-    19768: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },
-    24368: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # major troll's blood elixir
-    20012: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },
-    24367: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # living action potion
-    20013: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },
-    # Revered
-    24091: { "faction": "zandalar tribe", "standing": "revered", "tokens": "zandalar honor token" },  # bloodvine vest
-    24359: { "faction": "zandalar tribe", "standing": "revered", "tokens": "zandalar honor token" },
-    19766: { "faction": "zandalar tribe", "standing": "revered", "tokens": "zandalar honor token" },
-    24121: { "faction": "zandalar tribe", "standing": "revered", "tokens": "zandalar honor token" },  # primal batskin jerkin
-    24362: { "faction": "zandalar tribe", "standing": "revered", "tokens": "zandalar honor token" },
-    19769: { "faction": "zandalar tribe", "standing": "revered", "tokens": "zandalar honor token" },
+    23662: { "faction": "timbermaw hold", "standing": "revered" },  # wisdom of the timbermaw
+    23800: { "faction": "timbermaw hold", "standing": "revered" },  # enchant weapon - agility
+    17561: { "faction": "timbermaw hold", "standing": "revered" },  # transmute earth to water
 
     # Argent Dawn (Quartermaster Miranda Breechlock, Light's Hope Chapel, npc 11039)
     # Friendly
-    7934:  { "faction": "argent dawn", "standing": "friendly", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # powerful anti-venom
+    17559: { "faction": "argent dawn", "standing": "friendly", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # transmute: air to fire
+    16223: { "faction": "argent dawn", "standing": "friendly", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # enchant bracer - mana regeneration
     # Honored
-    23632: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # girdle of the dawn
-    24388: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 },
-    19768: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 },
-    23633: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # gloves of the dawn
-    23705: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # dawn treaders
-    23706: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # golden mantle of the dawn
-    23664: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # argent boots
-    23665: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # argent shoulders
+    23701: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 },  # dawn's reach
+    23802: { "faction": "argent dawn", "standing": "honored", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 },  # enchant bracer - healing power
     # Revered
-    23801: { "faction": "argent dawn", "standing": "revered", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 }, # enchant bracer - mana regeneration
-    # Exalted / Craftsman's Writs (Light's Hope Chapel)
-    28242: { "faction": "argent dawn", "standing": "exalted" }, # icebane breastplate
-    22756: { "faction": "argent dawn", "standing": "exalted" },
-    28243: { "faction": "argent dawn", "standing": "exalted" }, # icebane gauntlets
-    22757: { "faction": "argent dawn", "standing": "exalted" },
-    28244: { "faction": "argent dawn", "standing": "exalted" }, # icebane bracers
-    22758: { "faction": "argent dawn", "standing": "exalted" },
-    28219: { "faction": "argent dawn", "standing": "exalted" }, # polar tunic
-    28220: { "faction": "argent dawn", "standing": "exalted" }, # polar gloves
-    28221: { "faction": "argent dawn", "standing": "exalted" }, # polar bracers
-    28222: { "faction": "argent dawn", "standing": "exalted" }, # icy scale breastplate
-    28223: { "faction": "argent dawn", "standing": "exalted" }, # icy scale gauntlets
-    28224: { "faction": "argent dawn", "standing": "exalted" }, # icy scale bracers
-    28205: { "faction": "argent dawn", "standing": "exalted" }, # glacial gloves
-    28207: { "faction": "argent dawn", "standing": "exalted" }, # glacial vest
-    28208: { "faction": "argent dawn", "standing": "exalted" }, # glacial cloak
-    28209: { "faction": "argent dawn", "standing": "exalted" }, # glacial wrists
+    23702: { "faction": "argent dawn", "standing": "revered", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 },  # golden mantle of the dawn
+    # Exalted
+    23703: { "faction": "argent dawn", "standing": "exalted", "npcID": 11039, "npcName": "quartermaster miranda breechlock", "zone": "eastern plaguelands", "mapID": 1423, "x": 0.816, "y": 0.578 },  # dawn's edgings
 
-    # Cenarion Circle (Aelgeth 15176 / Vargus 15179 in Silithus Cenarion Hold)
+    # Zandalar Tribe (Rin'wosho the Trader, Yojamba Isle, Stranglethorn Vale, npc 14921)
     # Friendly
-    24849: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # sandstalker bracers
-    24900: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    20576: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    24847: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # spitfire gauntlets
-    24901: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    20577: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    28462: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15179, "npcName": "vargus", "zone": "silithus", "mapID": 1451, "x": 0.498, "y": 0.364 }, # ironvine gloves
-    28473: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # bramblewood boots
-    28245: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    22759: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    28482: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # sylvan shoulders
-    28248: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    22762: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    25078: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant gloves - fire power
-    20726: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    25074: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant gloves - frost power
-    25081: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant cloak - greater fire resistance
-    25086: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant cloak - dodge
+    24136: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # bloodsoul breastplate
+    24137: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # bloodsoul shoulders
+    24138: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # bloodsoul gauntlets
+    24357: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # primal batskin gloves
+    24356: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # primal batskin bracers
+    24355: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # primal batskin jerkin
+    24395: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # darksoul shoulders
+    24396: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # darksoul leggings
+    24397: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # darksoul breastplate
+    24266: { "faction": "zandalar tribe", "standing": "friendly", "tokens": "zandalar honor token" }, # greater dreamless sleep potion
     # Honored
-    24846: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # spitfire bracers
-    24902: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    20578: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    24850: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # sandstalker gauntlets
-    24903: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    20579: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    28463: { "faction": "cenarion circle", "standing": "honored", "npcID": 15179, "npcName": "vargus", "zone": "silithus", "mapID": 1451, "x": 0.498, "y": 0.364 }, # ironvine belt
-    28474: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # bramblewood belt
-    28246: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    22760: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    28481: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # sylvan crown
-    28249: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    22763: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    25079: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant gloves - healing power
-    25080: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant gloves - superior agility
-    25083: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant cloak - stealth
+    24365: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # bloodvine vest
+    24366: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # bloodvine leggings
+    24367: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # bloodvine boots
+    24267: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # mageblood potion
+    24268: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # living action potion
+    24398: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # gurubashi mojo madness
+    24407: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # brilliant wizard oil
+    24408: { "faction": "zandalar tribe", "standing": "honored", "tokens": "zandalar honor token" },  # brilliant mana oil
+
+    # Cenarion Circle (Cenarion Hold, Silithus)
+    # Friendly
+    25072: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15179, "npcName": "mishta", "zone": "silithus", "mapID": 1451, "x": 0.498, "y": 0.364 }, # sandstalker bracers
+    25075: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15419, "npcName": "kania", "zone": "silithus", "mapID": 1451, "x": 0.520, "y": 0.392 }, # spitfire bracers
+    25081: { "faction": "cenarion circle", "standing": "friendly", "npcID": 15176, "npcName": "vargus", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # ironvine belt
+    # Honored
+    25073: { "faction": "cenarion circle", "standing": "honored", "npcID": 15179, "npcName": "mishta", "zone": "silithus", "mapID": 1451, "x": 0.498, "y": 0.364 },  # sandstalker gauntlets
+    25076: { "faction": "cenarion circle", "standing": "honored", "npcID": 15419, "npcName": "kania", "zone": "silithus", "mapID": 1451, "x": 0.520, "y": 0.392 },  # spitfire gauntlets
+    25082: { "faction": "cenarion circle", "standing": "honored", "npcID": 15176, "npcName": "vargus", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },  # ironvine gloves
+    25124: { "faction": "cenarion circle", "standing": "honored" }, # transmute: elemental fire
     # Revered
-    24848: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # spitfire breastplate
-    24904: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    20580: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    24851: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # sandstalker breastplate
-    24905: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    20581: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    28461: { "faction": "cenarion circle", "standing": "revered", "npcID": 15179, "npcName": "vargus", "zone": "silithus", "mapID": 1451, "x": 0.498, "y": 0.364 }, # ironvine breastplate
-    28472: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # bramblewood helm
-    28247: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    22761: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    28480: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # sylvan vest
-    28250: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    22764: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    25082: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant cloak - greater nature resistance
-    20733: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
-    25084: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 }, # enchant cloak - subtlety
-    20735: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "aelgeth", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },
+    25074: { "faction": "cenarion circle", "standing": "revered", "npcID": 15179, "npcName": "mishta", "zone": "silithus", "mapID": 1451, "x": 0.498, "y": 0.364 },  # sandstalker breastplate
+    25077: { "faction": "cenarion circle", "standing": "revered", "npcID": 15419, "npcName": "kania", "zone": "silithus", "mapID": 1451, "x": 0.520, "y": 0.392 },  # spitfire breastplate
+    25083: { "faction": "cenarion circle", "standing": "revered", "npcID": 15176, "npcName": "vargus", "zone": "silithus", "mapID": 1451, "x": 0.512, "y": 0.388 },  # ironvine breastplate
 }
 
 UNIQUE_ENCOUNTER_SOURCES = {
@@ -605,6 +453,90 @@ UNIQUE_ENCOUNTER_SOURCES = {
             "zone": "silithus",
         }
     ],
+}
+
+
+KNOWN_DROP_MOBS = {
+    423, 441, 1032, 1036, 1853, 2103, 2368, 3715, 3783, 6427, 7800, 10339, 10363, 10508
+}
+
+VENDOR_FACTIONS = {
+    # Wetlands
+    "wenna silkbeard": "alliance",
+    # Arathi Highlands
+    "androd fadran": "alliance",
+    "drovnar strongbrew": "alliance",
+    "hammon karwn": "alliance",
+    "deneb walker": "alliance",
+    "tunkk": "horde",
+    "keena": "horde",
+    # Duskwood
+    "danielle zipstitch": "alliance",
+    "sherman femmel": "alliance",
+    "sheri zipstitch": "alliance",
+    # Redridge Mountains
+    "clyde ranthal": "alliance",
+    # Hillsbrad Foothills
+    "christoph jeffcoat": "horde",
+    "nandar branson": "alliance",
+    "george candarte": "horde",
+    "michalii": "horde",
+    # Ashenvale
+    "harklan moongrove": "alliance",
+    "dalria": "alliance",
+    # Stonetalon Mountains
+    "kulwia": "horde",
+    "jeeda": "horde",
+    "veena": "horde",
+    # Desolace
+    "kireena": "horde",
+    "muuran": "horde",
+    "whuut": "horde",
+    # Thousand Needles
+    "jandia": "horde",
+    "montarr": "horde",
+    "vzars": "horde",
+    # Feralas
+    "pratt mcgrubben": "alliance",
+    "logannas": "alliance",
+    "jangdor swiftstrider": "horde",
+    "bronk": "horde",
+    # The Hinterlands
+    "harggan": "alliance",
+    # Swamp of Sorrows
+    "gharash": "horde",
+    "raxikl": "horde",
+    "zen'balai": "horde",
+    "masat t'andr": "alliance",
+    # Stranglethorn Vale
+    "vharr": "horde",
+    "uthrk": "horde",
+    # Western Plaguelands
+    "leonard porter": "alliance",
+    # Tirisfal Glades
+    "werg thickblade": "horde",
+    # Felwood
+    "malygen": "alliance",
+    "bale": "horde",
+    # Blasted Lands
+    "nina lightbrew": "alliance",
+    # Loch Modan
+    "xandar goodbeard": "alliance",
+    "mallenali": "alliance",
+    "valdemar stormseeker": "alliance",
+    # Westfall
+    "kriggon talsone": "alliance",
+    "gina macgregor": "alliance",
+    # The Barrens
+    "kor'jus": "horde",
+    "hula'mahi": "horde",
+    "ralen": "horde",
+    # Silverpine Forest
+    "leo sarn": "horde",
+    "lilly": "horde",
+    "mallory": "horde",
+    # Elwynn Forest
+    "tharynn bouden": "alliance",
 }
 
 WOWHEAD_ZONES = {
@@ -1384,7 +1316,19 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
                     if sm_type == 1: # NPC
                         npc_loc = npc_cache.get(str(sm_id), {})
                         z = npc_loc.get("mapName") or zone_name
-                        s_type = sm.get("st") or ("vendor" if (5 in item_sources) else ("drop" if (2 in item_sources) else "trainer"))
+                        is_drop_mob = (
+                            sm.get("dd") is not None
+                            or sm.get("bd") is not None
+                            or sm_id in KNOWN_DROP_MOBS
+                        )
+                        if is_drop_mob:
+                            s_type = "drop"
+                        elif sm.get("st") == "vendor" or 5 in item_sources:
+                            s_type = "vendor"
+                        elif 2 in item_sources:
+                            s_type = "drop"
+                        else:
+                            s_type = sm.get("st") or "trainer" 
                         s_record = {
                             "type": s_type,
                             "name": sm_name.lower(),
@@ -1394,6 +1338,9 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
                             "x": npc_loc.get("x"),
                             "y": npc_loc.get("y"),
                         }
+                        v_fac = VENDOR_FACTIONS.get(sm_name.lower())
+                        if v_fac:
+                            s_record["faction"] = v_fac
                         sources.append(s_record)
                     elif sm_type == 2: # GameObject / Cache / Chest
                         s_record = {
@@ -1420,11 +1367,24 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
                         }
                         sources.append(s_record)
                     elif zone_name:
-                        s_record = {
-                            "type": "drop",
-                            "name": "zone drop",
-                            "zone": zone_name,
-                        }
+                        if 5 in item_sources and 2 not in item_sources:
+                            s_record = {
+                                "type": "vendor",
+                                "name": "vendor",
+                                "zone": zone_name,
+                            }
+                        elif 4 in item_sources and 2 not in item_sources:
+                            s_record = {
+                                "type": "quest",
+                                "name": "quest",
+                                "zone": zone_name,
+                            }
+                        else:
+                            s_record = {
+                                "type": "drop",
+                                "name": "zone drop",
+                                "zone": zone_name,
+                            }
                         sources.append(s_record)
 
 
@@ -1475,10 +1435,8 @@ def sync(prof_list: list = None, refresh: bool = False, skip_npcs: bool = False,
                 if dyn_spec:
                     rec_data["spec"] = dyn_spec
 
-            # Reputation recipe enrichment (by spell_id, recipe_item_id, or dynamic rep_cache)
+            # Reputation recipe enrichment (by spell_id or dynamic rep_cache, avoiding item ID collisions)
             rep_info = REPUTATION_RECIPES.get(spell_id)
-            if not rep_info and recipe_item_id:
-                rep_info = REPUTATION_RECIPES.get(recipe_item_id)
             if not rep_info and recipe_item_id and str(recipe_item_id) in rep_cache:
                 dyn_rep = rep_cache[str(recipe_item_id)]
                 if dyn_rep.get("faction") and dyn_rep.get("standing"):

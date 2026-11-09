@@ -89,12 +89,14 @@ function QuestCommon.GetQuestProgressDetails(questID, questLogIndex, isComplete,
     return false, ""
 end
 
+local sharedRecentlyWatched = {}
+QuestCommon.recentlyWatched = sharedRecentlyWatched
+
 --- @param questID number
 --- @param questLogIndex number|nil classic quest log index
 --- @param recentlyWatched table|nil module cache of watches added this session
 function QuestCommon.IsQuestWatched(questID, questLogIndex, recentlyWatched)
     if not questID or questID <= 0 then return false end
-    if recentlyWatched and recentlyWatched[questID] then return true end
     if C_QuestLog and C_QuestLog.GetQuestWatchType then
         local wt = C_QuestLog.GetQuestWatchType(questID)
         if wt ~= nil then return true end
@@ -106,7 +108,44 @@ function QuestCommon.IsQuestWatched(questID, questLogIndex, recentlyWatched)
     if _G.IsQuestWatched then
         if questLogIndex and _G.IsQuestWatched(questLogIndex) then return true end
     end
+    if (recentlyWatched and recentlyWatched[questID]) or sharedRecentlyWatched[questID] then
+        return true
+    end
     return false
+end
+
+function QuestCommon.UntrackQuest(questID, questLogIndex, recentlyWatched, manualExpanded)
+    if not questID or questID <= 0 then return end
+    sharedRecentlyWatched[questID] = nil
+    if recentlyWatched then recentlyWatched[questID] = nil end
+    if manualExpanded then manualExpanded[questID] = nil end
+
+    if C_QuestLog and C_QuestLog.RemoveQuestWatch then
+        C_QuestLog.RemoveQuestWatch(questID)
+    end
+    if C_QuestLog and C_QuestLog.RemoveWorldQuestWatch then
+        C_QuestLog.RemoveWorldQuestWatch(questID)
+    end
+    if _G.RemoveQuestWatch then
+        local idx = questLogIndex
+        if not idx or idx <= 0 then
+            if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+                idx = C_QuestLog.GetLogIndexForQuestID(questID)
+            elseif _G.GetQuestLogIndexByID then
+                idx = _G.GetQuestLogIndexByID(questID)
+            end
+        end
+        if idx and idx > 0 then
+            _G.RemoveQuestWatch(idx)
+        end
+    end
+    if _G.C_SuperTrack and _G.C_SuperTrack.GetSuperTrackedQuestID and _G.C_SuperTrack.GetSuperTrackedQuestID() == questID then
+        if sfui.map and sfui.map.SetSuperTrackedQuestID then
+            sfui.map.SetSuperTrackedQuestID(0)
+        elseif _G.C_SuperTrack.SetSuperTrackedQuestID then
+            _G.C_SuperTrack.SetSuperTrackedQuestID(0)
+        end
+    end
 end
 
 function QuestCommon.IsWorldQuest(questID)
@@ -159,6 +198,7 @@ function QuestCommon.AutoTrackQuest(questID, questLogIndex, recentlyWatched, pen
     elseif _G.AddQuestWatch and questLogIndex then
         _G.AddQuestWatch(questLogIndex)
     end
+    sharedRecentlyWatched[questID] = true
     if recentlyWatched then recentlyWatched[questID] = true end
     return true
 end
@@ -175,13 +215,15 @@ function QuestCommon.TryInsertQuestLink(questID, questLogIndex, questTitle, ques
         end
     end
 
-    -- 2. detect an open chat / input box
+    -- 2. detect an actively open & focused chat / input box
+    -- note: CommunitiesFrame.ChatEditBox:IsShown() is true even when CommunitiesFrame is hidden;
+    -- always check :IsVisible() and :HasFocus() so closed panels never swallow shift-clicks.
     local activeChat = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
         or (_G.ChatEdit_GetActiveWindow and _G.ChatEdit_GetActiveWindow())
         or _G.ACTIVE_CHAT_EDIT_BOX
-    local isChatOpen = (activeChat and (activeChat:IsShown() or activeChat:IsVisible()))
-        or (_G.MacroFrameText and _G.MacroFrameText:IsShown())
-        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsShown())
+    local isChatOpen = (activeChat and activeChat:IsVisible())
+        or (_G.MacroFrameText and _G.MacroFrameText:IsVisible() and _G.MacroFrameText:HasFocus())
+        or (_G.CommunitiesFrame and _G.CommunitiesFrame.ChatEditBox and _G.CommunitiesFrame.ChatEditBox:IsVisible() and _G.CommunitiesFrame.ChatEditBox:HasFocus())
 
     if not isChatOpen then
         return false

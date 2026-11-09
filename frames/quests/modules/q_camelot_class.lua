@@ -147,7 +147,7 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     if not questID then return end
 
     -- 1. Click-to-complete (Auto-complete / Talk quests)
-    if canClickToComplete then
+    if canClickToComplete and mouseButton ~= "RightButton" and not (IsControlKeyDown and IsControlKeyDown()) and not (IsAltKeyDown and IsAltKeyDown()) and not (IsShiftKeyDown and IsShiftKeyDown()) then
         if InCombatLockdown and InCombatLockdown() then return end
         if _G.ShowQuestComplete then
             _G.ShowQuestComplete(questLogIndex or questID)
@@ -240,12 +240,16 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
             return
         end
 
-        recentlyWatched[questID] = nil
-        manualExpanded[questID] = nil
-        if C_QuestLog and C_QuestLog.RemoveQuestWatch then
-            C_QuestLog.RemoveQuestWatch(questID)
-        elseif _G.RemoveQuestWatch and questLogIndex then
-            _G.RemoveQuestWatch(questLogIndex)
+        if QuestCommon and QuestCommon.UntrackQuest then
+            QuestCommon.UntrackQuest(questID, questLogIndex, recentlyWatched, manualExpanded)
+        else
+            recentlyWatched[questID] = nil
+            manualExpanded[questID] = nil
+            if C_QuestLog and C_QuestLog.RemoveQuestWatch then
+                C_QuestLog.RemoveQuestWatch(questID)
+            elseif _G.RemoveQuestWatch and questLogIndex then
+                _G.RemoveQuestWatch(questLogIndex)
+            end
         end
         sfui.tracker.RequestRefresh(0.05)
         return
@@ -385,13 +389,28 @@ function CamelotClassQuestsModule:OnEvent(event, ...)
         sfui.tracker.RequestRefresh(0.05)
     elseif event == "QUEST_WATCH_LIST_CHANGED" then
         if questID and questID > 0 then
-            if added == false then
+            if not added then
+                if QuestCommon and QuestCommon.recentlyWatched then
+                    QuestCommon.recentlyWatched[questID] = nil
+                end
                 recentlyWatched[questID] = nil
                 manualExpanded[questID] = nil
+            end
+        elseif C_QuestLog and C_QuestLog.GetQuestWatchType then
+            for qID in pairs(recentlyWatched) do
+                if C_QuestLog.GetQuestWatchType(qID) == nil then
+                    recentlyWatched[qID] = nil
+                    if QuestCommon and QuestCommon.recentlyWatched then
+                        QuestCommon.recentlyWatched[qID] = nil
+                    end
+                end
             end
         end
     elseif event == "QUEST_REMOVED" or event == "QUEST_TURNED_IN" then
         if questID and questID > 0 then
+            if QuestCommon and QuestCommon.recentlyWatched then
+                QuestCommon.recentlyWatched[questID] = nil
+            end
             recentlyWatched[questID] = nil
             manualExpanded[questID] = nil
         end
@@ -691,6 +710,8 @@ function CamelotClassQuestsModule:BuildBlocks(container)
                             if b.isRemotePeerQuest then
                                 hiddenRemoteQuests[b.questID] = true
                                 manualExpanded[b.questID] = nil
+                            elseif QuestCommon and QuestCommon.UntrackQuest then
+                                QuestCommon.UntrackQuest(b.questID, b.questLogIndex, recentlyWatched, manualExpanded)
                             else
                                 recentlyWatched[b.questID] = nil
                                 manualExpanded[b.questID] = nil

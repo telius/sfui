@@ -19,6 +19,7 @@ local C_Spell = _G.C_Spell
 local C_UnitAuras = _G.C_UnitAuras
 local GetTime = _G.GetTime
 local GetTotemInfo = _G.GetTotemInfo
+local issecretvalue = _G.issecretvalue or (common and common.issecretvalue)
 local UnitExists = _G.UnitExists
 local UnitHasVehicleUI = _G.UnitHasVehicleUI
 local UnitInVehicle = _G.UnitInVehicle
@@ -102,13 +103,20 @@ local function find_unit_aura(unit, filter, spellID, altSpellID, spellName)
         local fallbackAura = nil
         for i = 1, 40 do
             local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
-            if not aura then break end
+            if not aura or (issecretvalue and issecretvalue(aura)) then break end
             local sID = aura.spellId
-            if (spellID and sID == spellID) or (altSpellID and sID == altSpellID) or (spellName and aura.name == spellName) then
-                if unit ~= "target" or aura.sourceUnit == "player" or aura.isFromPlayerOrPlayerPet then
-                    return aura
-                elseif not fallbackAura then
-                    fallbackAura = aura
+            local aName = aura.name
+            if not (issecretvalue and (issecretvalue(sID) or issecretvalue(aName))) then
+                if (spellID and sID == spellID) or (altSpellID and sID == altSpellID) or (spellName and aName == spellName) then
+                    local srcUnit = aura.sourceUnit
+                    local isFromPlayer = aura.isFromPlayerOrPlayerPet
+                    local fromMe = (not (issecretvalue and issecretvalue(srcUnit)) and srcUnit == "player")
+                        or (not (issecretvalue and issecretvalue(isFromPlayer)) and isFromPlayer == true)
+                    if unit ~= "target" or fromMe then
+                        return aura
+                    elseif not fallbackAura then
+                        fallbackAura = aura
+                    end
                 end
             end
         end
@@ -117,19 +125,20 @@ local function find_unit_aura(unit, filter, spellID, altSpellID, spellName)
         local fallbackAura = nil
         for i = 1, 40 do
             local name, icon, count, dispelType, duration, expirationTime, source, _, _, sID = _G.UnitAura(unit, i, filter)
+            if issecretvalue and (issecretvalue(name) or issecretvalue(sID)) then break end
             if not name then break end
             if (spellID and sID == spellID) or (altSpellID and sID == altSpellID) or (spellName and name == spellName) then
                 local auraTable = {
                     name = name,
                     icon = icon,
-                    applications = count or 0,
+                    applications = (not (issecretvalue and issecretvalue(count)) and count) or 0,
                     dispelName = dispelType,
-                    duration = duration or 0,
-                    expirationTime = expirationTime or 0,
+                    duration = (not (issecretvalue and issecretvalue(duration)) and duration) or 0,
+                    expirationTime = (not (issecretvalue and issecretvalue(expirationTime)) and expirationTime) or 0,
                     sourceUnit = source,
                     spellId = sID,
                 }
-                if unit ~= "target" or source == "player" then
+                if unit ~= "target" or (not (issecretvalue and issecretvalue(source)) and source == "player") then
                     return auraTable
                 elseif not fallbackAura then
                     fallbackAura = auraTable
@@ -143,22 +152,37 @@ local function find_unit_aura(unit, filter, spellID, altSpellID, spellName)
 end
 
 local function find_totem_aura(spellName)
-    if not GetTotemInfo or not spellName or spellName == "" then return nil end
-    for slot = 1, 4 do
-        local haveTotem, totemName, startTime, duration, icon = GetTotemInfo(slot)
-        if haveTotem and totemName and totemName ~= "" and duration and duration > 0 then
-            if totemName == spellName or string.find(totemName, "^" .. spellName, 1, false) then
-                local now = GetTime()
-                local exp = (startTime or 0) + duration
-                if exp > now then
-                    scratchTotemAura.name = spellName
-                    scratchTotemAura.icon = icon
-                    scratchTotemAura.duration = duration
-                    scratchTotemAura.expirationTime = exp
-                    scratchTotemAura.applications = 1
-                    return scratchTotemAura
+    if not spellName or (issecretvalue and issecretvalue(spellName)) or spellName == "" then return nil end
+    if GetTotemInfo then
+        for slot = 1, 4 do
+            local haveTotem, totemName, startTime, duration, icon = GetTotemInfo(slot)
+            if not (issecretvalue and (issecretvalue(haveTotem) or issecretvalue(totemName) or issecretvalue(startTime) or issecretvalue(duration) or issecretvalue(icon))) then
+                if haveTotem and totemName and totemName ~= "" and duration and duration > 0 then
+                    if totemName == spellName or string.find(totemName, "^" .. spellName, 1, false) then
+                        local now = GetTime()
+                        local exp = (startTime or 0) + duration
+                        if exp > now then
+                            scratchTotemAura.name = spellName
+                            scratchTotemAura.icon = icon
+                            scratchTotemAura.duration = duration
+                            scratchTotemAura.expirationTime = exp
+                            scratchTotemAura.applications = 1
+                            return scratchTotemAura
+                        end
+                    end
                 end
             end
+        end
+    end
+    if sfui.totembar and sfui.totembar.GetActiveTotemByName then
+        local fallback = sfui.totembar.GetActiveTotemByName(spellName)
+        if fallback then
+            scratchTotemAura.name = fallback.name
+            scratchTotemAura.icon = fallback.icon
+            scratchTotemAura.duration = fallback.duration
+            scratchTotemAura.expirationTime = fallback.expirationTime
+            scratchTotemAura.applications = fallback.applications or 1
+            return scratchTotemAura
         end
     end
     return nil

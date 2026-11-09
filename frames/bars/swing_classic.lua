@@ -25,6 +25,7 @@ local UnitRangedDamage = _G.UnitRangedDamage
 local C_CombatLog = _G.C_CombatLog
 local C_Spell = _G.C_Spell
 local Enum = _G.Enum
+local issecretvalue = _G.issecretvalue or (common and common.issecretvalue)
 local select, pairs, ipairs, tonumber = select, pairs, ipairs, tonumber
 
 local SWING_MAIN_HAND = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand) or 0
@@ -348,6 +349,7 @@ local function OnClassicCombatLogEvent()
 end
 
 local function OnClassicSpellcastSucceeded(_, unitTarget, _, spellID)
+    if issecretvalue and (issecretvalue(unitTarget) or issecretvalue(spellID)) then return end
     if unitTarget and unitTarget ~= "player" then return end
     local sid = tonumber(spellID)
     if not sid then return end
