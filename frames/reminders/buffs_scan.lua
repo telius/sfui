@@ -41,6 +41,8 @@ local activeAurasBySpellID = {}
 local activeAurasByName = {}
 local dirty = true
 local throttleTimer = nil
+local lastResultCount = -1
+local prevResultKeys = {}
 
 local function RefreshSpellKnowledge()
     entries = (data.GetAllEntries and data.GetAllEntries()) or data.GetClassEntries()
@@ -250,7 +252,8 @@ local function ScanPlayerAura(entry)
                     return true, aura.duration or 0, aura.expirationTime or 0, aura.applications or 0, aura.icon
                 end
             elseif AuraUtil and AuraUtil.FindAuraByName then
-                local ok, name, icon, count, _, duration, expTime = pcall(AuraUtil.FindAuraByName, sName, "player", "HELPFUL")
+                local ok, name, icon, count, _, duration, expTime = pcall(AuraUtil.FindAuraByName, sName, "player",
+                    "HELPFUL")
                 if ok and name then
                     return true, duration or 0, expTime or 0, count or 0, icon
                 end
@@ -387,11 +390,16 @@ local function GetActiveWeaponEnchantName(slot, enchantID)
                 local txt = line and line.leftText
                 if txt then
                     local lower = txt:lower()
-                    if lower:find("rockbiter", 1, true) then return "Rockbiter Weapon"
-                    elseif lower:find("flametongue", 1, true) then return "Flametongue Weapon"
-                    elseif lower:find("frostbrand", 1, true) then return "Frostbrand Weapon"
-                    elseif lower:find("windfury", 1, true) then return "Windfury Weapon"
-                    elseif lower:find("earthliving", 1, true) then return "Earthliving Weapon"
+                    if lower:find("rockbiter", 1, true) then
+                        return "Rockbiter Weapon"
+                    elseif lower:find("flametongue", 1, true) then
+                        return "Flametongue Weapon"
+                    elseif lower:find("frostbrand", 1, true) then
+                        return "Frostbrand Weapon"
+                    elseif lower:find("windfury", 1, true) then
+                        return "Windfury Weapon"
+                    elseif lower:find("earthliving", 1, true) then
+                        return "Earthliving Weapon"
                     end
                 end
             end
@@ -412,11 +420,16 @@ local function GetActiveWeaponEnchantName(slot, enchantID)
                 local txt = fsL:GetText()
                 if txt then
                     local lower = txt:lower()
-                    if lower:find("rockbiter", 1, true) then return "Rockbiter Weapon"
-                    elseif lower:find("flametongue", 1, true) then return "Flametongue Weapon"
-                    elseif lower:find("frostbrand", 1, true) then return "Frostbrand Weapon"
-                    elseif lower:find("windfury", 1, true) then return "Windfury Weapon"
-                    elseif lower:find("earthliving", 1, true) then return "Earthliving Weapon"
+                    if lower:find("rockbiter", 1, true) then
+                        return "Rockbiter Weapon"
+                    elseif lower:find("flametongue", 1, true) then
+                        return "Flametongue Weapon"
+                    elseif lower:find("frostbrand", 1, true) then
+                        return "Frostbrand Weapon"
+                    elseif lower:find("windfury", 1, true) then
+                        return "Windfury Weapon"
+                    elseif lower:find("earthliving", 1, true) then
+                        return "Earthliving Weapon"
                     end
                 end
             end
@@ -471,7 +484,8 @@ local function ScanWeaponEnchant(entry)
         return true, 0, 0, 0, nil
     end
 
-    local pClass = sfui.buffs.playerClass or (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
+    local pClass = sfui.buffs.playerClass or
+    (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
 
     if entry.isFishingLure then
         local isPole = sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped()
@@ -480,7 +494,8 @@ local function ScanWeaponEnchant(entry)
         end
         local hasMH, expSec, chargesMH = GetSlotWeaponEnchant(16)
         local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
-        local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
+        local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and
+        sfui.fishing_data.FindBestLureInBags(skillRank)
         local lureIcon = nil
         if bestLure and bestLure.itemID then
             lureIcon = (sfui.common and sfui.common.get_item_instant_info and select(5, sfui.common.get_item_instant_info(bestLure.itemID)))
@@ -630,7 +645,8 @@ end
 
 local function ScanTracking(entry, disabledBuffs)
     -- Check if both gathering tracking spells are currently known and enabled in options
-    local minKnownAndEnabled = knownCache["tracking_minerals"] and not (disabledBuffs and disabledBuffs["tracking_minerals"])
+    local minKnownAndEnabled = knownCache["tracking_minerals"] and
+    not (disabledBuffs and disabledBuffs["tracking_minerals"])
     local herbKnownAndEnabled = knownCache["tracking_herbs"] and not (disabledBuffs and disabledBuffs["tracking_herbs"])
     local bothGathering = minKnownAndEnabled and herbKnownAndEnabled
 
@@ -741,7 +757,8 @@ function sfui.buffs.scan.RunScan()
                 rec.expirationTime = expTime or 0
                 rec.duration = duration or 0
                 rec.charges = charges or 0
-                rec.icon = icon or (entry.spellIDs and data.ResolveTexture(entry.spellIDs[1], entry.fallbackIcon)) or entry.fallbackIcon
+                rec.icon = icon or (entry.spellIDs and data.ResolveTexture(entry.spellIDs[1], entry.fallbackIcon)) or
+                entry.fallbackIcon
                 rec.activeEnchant = extraData
             end
         end
@@ -753,9 +770,41 @@ function sfui.buffs.scan.RunScan()
     end
 
     dirty = false
-    if sfui.ring and sfui.ring.request_rebuild then
-        sfui.ring.request_rebuild("specs")
+
+    -- Only notify the radial ring provider if the active reminder results actually changed
+    local resultsChanged = (lastResultCount ~= count)
+    if not resultsChanged then
+        for i = 1, count do
+            local rec = activeResults[i]
+            local prev = prevResultKeys[i]
+            if not rec or not prev or rec.entry.key ~= prev.key or rec.isMissing ~= prev.isMissing or rec.isExpiring ~= prev.isExpiring then
+                resultsChanged = true
+                break
+            end
+        end
     end
+
+    if resultsChanged then
+        lastResultCount = count
+        for i = 1, count do
+            local rec = activeResults[i]
+            local p = prevResultKeys[i]
+            if not p then
+                p = {}
+                prevResultKeys[i] = p
+            end
+            p.key = rec.entry.key
+            p.isMissing = rec.isMissing
+            p.isExpiring = rec.isExpiring
+        end
+        for i = count + 1, #prevResultKeys do
+            prevResultKeys[i] = nil
+        end
+        if sfui.ring and sfui.ring.request_rebuild then
+            sfui.ring.request_rebuild("specs")
+        end
+    end
+
     return activeResults
 end
 
@@ -906,5 +955,3 @@ function sfui.buffs.scan.GetDebugInfo()
     _scanDebug.auraPoolCount = #auraRecordPool
     return _scanDebug
 end
-
-

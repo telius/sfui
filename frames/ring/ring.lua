@@ -1,46 +1,46 @@
-local addonName, addon = ...
-sfui = sfui or {}
-sfui.ring = sfui.ring or {}
+local addonName, addon     = ...
+sfui                       = sfui or {}
+sfui.ring                  = sfui.ring or {}
 
-local ring = sfui.ring
+local ring                 = sfui.ring
 
-local GetBindingKey           = _G.GetBindingKey
-local SetBinding              = _G.SetBinding
-local SaveBindings            = _G.SaveBindings
-local GetCurrentBindingSet    = _G.GetCurrentBindingSet
-local InCombatLockdown        = _G.InCombatLockdown
-local C_Timer                 = _G.C_Timer
-local pairs                   = _G.pairs
-local next                    = _G.next
-local wipe                    = _G.wipe
+local GetBindingKey        = _G.GetBindingKey
+local SetBinding           = _G.SetBinding
+local SaveBindings         = _G.SaveBindings
+local GetCurrentBindingSet = _G.GetCurrentBindingSet
+local InCombatLockdown     = _G.InCombatLockdown
+local C_Timer              = _G.C_Timer
+local pairs                = _G.pairs
+local next                 = _G.next
+local wipe                 = _G.wipe
 
-local providers = {}
-local cachedSlots = {}
-local registeredEvents = {}
+local providers            = {}
+local cachedSlots          = {}
+local registeredEvents     = {}
 
 local function is_hunter_in_camelot()
     local isCam = (sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot))
     local pClass = (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
-                   or (_G.UnitClass and select(2, _G.UnitClass("player")))
+        or (_G.UnitClass and select(2, _G.UnitClass("player")))
     return not not (isCam and pClass == "HUNTER")
 end
 
 -- ── 1. Configuration & Module Registration ──────────────────────────────────
 local defaults = {
-    enabled     = true,
-    animations  = true,
-    radius      = 95,
-    deadzone    = 28,
-    slot_size   = 40,
-    show_labels = true,
-    show_cooldowns = true,
-    sound_cues  = true,
+    enabled                    = true,
+    animations                 = true,
+    radius                     = 95,
+    deadzone                   = 28,
+    slot_size                  = 40,
+    show_labels                = true,
+    show_cooldowns             = true,
+    sound_cues                 = true,
     quest_include_chests       = true,
     quest_include_knowledge    = true,
     quest_include_collectibles = true,
     quest_max_slices           = 14,
-    custom_slots = {},
-    bindings    = {
+    custom_slots               = {},
+    bindings                   = {
         specs         = "ALT-X",
         utility       = "ALT-C",
         tracking      = "ALT-F",
@@ -76,6 +76,8 @@ end
 
 --- schedule a debounced rebuild for a ring, coalescing rapid events.
 --- in combat, rebuilds are paused until combat ends.
+--- if the ring is not currently open, the rebuild is marked dirty and deferred
+--- until the ring is actually requested, eliminating background cpu cycles.
 --- @param ringID string|nil
 function ring.request_rebuild(ringID)
     if ringID then
@@ -90,7 +92,12 @@ function ring.request_rebuild(ringID)
         return
     end
 
-    schedule_flush()
+    -- If the live ring is currently open, schedule an immediate live rebuild to update visible slices.
+    -- Otherwise, keep it marked pending and rebuild on-demand in get_ring_slots when opened.
+    local live = sfui.ring.live
+    if live and live.is_open and live.is_open() then
+        schedule_flush()
+    end
 end
 
 --- register a content provider for radial rings.
@@ -129,6 +136,7 @@ end
 --- @param ringID string|nil
 function ring.rebuild(ringID)
     if ringID then
+        pendingRebuilds[ringID] = nil
         local def = providers[ringID]
         if def and def.build then
             local slots = cachedSlots[ringID] or {}
@@ -150,7 +158,7 @@ end
 --- @param ringID string
 --- @return table, string
 function ring.get_ring_slots(ringID)
-    if not cachedSlots[ringID] then
+    if not cachedSlots[ringID] or pendingRebuilds[ringID] then
         ring.rebuild(ringID)
     end
     local def = providers[ringID]
@@ -401,4 +409,5 @@ function sfui.ring_debug_info()
     _ringDebug.boundCount       = boundCount
     return _ringDebug
 end
+
 sfui.ring.GetDebugInfo = sfui.ring_debug_info

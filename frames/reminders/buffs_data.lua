@@ -131,6 +131,14 @@ local function IsAnySpellKnown(spellIDs)
 end
 sfui.buffs.data.IsAnySpellKnown = IsAnySpellKnown
 
+local PALADIN_PROT_BASE_IDS = { 1486, 14862, 66, 2 }
+local PALADIN_PROT_SPELLS = {
+    20925, 20927, 20928, 27179,                      -- Holy Shield
+    20911, 20912, 20913, 20914, 27168, 25899, 27169, -- Blessing / Greater Blessing of Sanctuary
+    31935, 32699, 32700, 48827,                      -- Avenger's Shield
+    53600,                                           -- Shield of Righteousness
+}
+
 --- Checks whether the current character is a Protection Paladin.
 --- Evaluates Camelot spec ID (14862), Retail spec ID (66), dominant tree index (2),
 --- classic talent spec info, assigned group tank role, or signature protection talents.
@@ -177,10 +185,8 @@ local function IsProtectionPaladin()
     local SfuiDB = _G.SfuiDB
     if SfuiDB and SfuiDB.gear then
         local gDB = SfuiDB.gear
-        local checkIDs = {
-            1486, 14862, 66, 2,
-        }
-        for _, id in ipairs(checkIDs) do
+        for i = 1, #PALADIN_PROT_BASE_IDS do
+            local id = PALADIN_PROT_BASE_IDS[i]
             local db = gDB[id]
             if db then
                 local cRole = db.classic_role and db.classic_role:lower()
@@ -215,13 +221,7 @@ local function IsProtectionPaladin()
         if isTank then return true end
     end
 
-    local protSpells = {
-        20925, 20927, 20928, 27179, -- Holy Shield
-        20911, 20912, 20913, 20914, 27168, 25899, 27169, -- Blessing / Greater Blessing of Sanctuary
-        31935, 32699, 32700, 48827, -- Avenger's Shield
-        53600, -- Shield of Righteousness
-    }
-    if IsAnySpellKnown(protSpells) then
+    if IsAnySpellKnown(PALADIN_PROT_SPELLS) then
         return true
     end
 
@@ -375,7 +375,7 @@ end
 sfui.buffs.pets = sfui.buffs.pets or {}
 
 local HUNTER_PET_SPELLS = {
-    { id = 883, fallbackName = "call pet", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 1, minLevel = 10 },
+    { id = 883,   fallbackName = "call pet",   fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 1, minLevel = 10 },
     { id = 83242, fallbackName = "call pet 2", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 2, minLevel = 18 },
     { id = 83243, fallbackName = "call pet 3", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 3, minLevel = 42 },
     { id = 83244, fallbackName = "call pet 4", fallbackIcon = "Interface\\Icons\\Ability_Hunter_Pet_Cat", index = 4, minLevel = 62 },
@@ -383,11 +383,11 @@ local HUNTER_PET_SPELLS = {
 }
 
 local WARLOCK_PET_SPELLS = {
-    { id = 688, fallbackName = "summon imp", cleanName = "imp", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonImp", minLevel = 1 },
-    { id = 697, fallbackName = "summon voidwalker", cleanName = "voidwalker", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonVoidWalker", minLevel = 8 },
-    { id = 712, fallbackName = "summon succubus", cleanName = "succubus", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonSuccubus", minLevel = 20 },
-    { id = 691, fallbackName = "summon felhunter", cleanName = "felhunter", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelHunter", minLevel = 30 },
-    { id = 30146, fallbackName = "summon felguard", cleanName = "felguard", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelGuard", minLevel = 10, demonologyOnly = true },
+    { id = 688,   fallbackName = "summon imp",        cleanName = "imp",        fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonImp",        minLevel = 1 },
+    { id = 697,   fallbackName = "summon voidwalker", cleanName = "voidwalker", fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonVoidWalker", minLevel = 8 },
+    { id = 712,   fallbackName = "summon succubus",   cleanName = "succubus",   fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonSuccubus",   minLevel = 20 },
+    { id = 691,   fallbackName = "summon felhunter",  cleanName = "felhunter",  fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelHunter",  minLevel = 30 },
+    { id = 30146, fallbackName = "summon felguard",   cleanName = "felguard",   fallbackIcon = "Interface\\Icons\\Spell_Shadow_SummonFelGuard",   minLevel = 10, demonologyOnly = true },
 }
 
 local function IsDemonologyWarlock()
@@ -604,7 +604,8 @@ local function GetBestCastSpell(entry, activeEnchantName)
 
     if entry.isFishingLure then
         local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
-        local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
+        local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and
+        sfui.fishing_data.FindBestLureInBags(skillRank)
         if bestLure then
             local icon = (sfui.common and sfui.common.get_item_instant_info and select(5, sfui.common.get_item_instant_info(bestLure.itemID)))
                 or (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(bestLure.itemID))
@@ -680,12 +681,12 @@ local CLASS_BUFFS = {
             spellIDs = {
                 465, 10290, 643, 10291, 10292, 10293, 27149, -- Devotion
                 7294, 10298, 10299, 10300, 10301, 27150,     -- Retribution
-                19746,                                         -- Concentration
-                19876, 19895, 19896, 27151,                   -- Shadow Res
-                19888, 19897, 19898, 27152,                   -- Frost Res
-                19891, 19899, 19900, 27153,                   -- Fire Res
-                20218,                                         -- Sanctity
-                32223,                                         -- Crusader
+                19746,                                       -- Concentration
+                19876, 19895, 19896, 27151,                  -- Shadow Res
+                19888, 19897, 19898, 27152,                  -- Frost Res
+                19891, 19899, 19900, 27153,                  -- Fire Res
+                20218,                                       -- Sanctity
+                32223,                                       -- Crusader
             },
             names = {
                 "Devotion Aura", "Retribution Aura", "Concentration Aura",
@@ -702,10 +703,10 @@ local CLASS_BUFFS = {
             spellIDs = {
                 19740, 19834, 19835, 19836, 19837, 19838, 25291, 27140, 25782, 25916, -- Might
                 19742, 19850, 19852, 19853, 19854, 25290, 27142, 25894, 25918, 27143, -- Wisdom
-                20217, 25898,                                                           -- Kings
-                20911, 20912, 20913, 20914, 27168, 25899, 27169,                       -- Sanctuary
-                19977, 19978, 19979, 27144, 25890, 27145,                               -- Light
-                1038, 25895,                                                            -- Salvation
+                20217, 25898,                                                         -- Kings
+                20911, 20912, 20913, 20914, 27168, 25899, 27169,                      -- Sanctuary
+                19977, 19978, 19979, 27144, 25890, 27145,                             -- Light
+                1038, 25895,                                                          -- Salvation
             },
             names = {
                 "Blessing of Might", "Greater Blessing of Might",
@@ -742,12 +743,12 @@ local CLASS_BUFFS = {
             type = "aura_group",
             spellIDs = {
                 13165, 14318, 14319, 14320, 14321, 14322, 25296, 27044, -- Hawk
-                13163,                                                   -- Monkey
-                13159,                                                   -- Pack
-                5118,                                                    -- Cheetah
-                13161,                                                   -- Beast
-                20043, 20190, 27045,                                     -- Wild
-                34074,                                                   -- Viper
+                13163,                                                  -- Monkey
+                13159,                                                  -- Pack
+                5118,                                                   -- Cheetah
+                13161,                                                  -- Beast
+                20043, 20190, 27045,                                    -- Wild
+                34074,                                                  -- Viper
             },
             names = {
                 "Aspect of the Hawk", "Aspect of the Monkey", "Aspect of the Pack",
@@ -851,8 +852,8 @@ local CLASS_BUFFS = {
             type = "aura_group",
             spellIDs = {
                 324, 325, 905, 945, 8134, 10431, 10432, 25469, 25472, -- Lightning Shield
-                24398, 33736, 33737,                                   -- Water Shield
-                974, 32593, 32594,                                     -- Earth Shield
+                24398, 33736, 33737,                                  -- Water Shield
+                974, 32593, 32594,                                    -- Earth Shield
             },
             names = { "Lightning Shield", "Water Shield", "Earth Shield" },
             threshold = 60,
@@ -950,7 +951,7 @@ local CLASS_BUFFS = {
             type = "aura_group",
             spellIDs = {
                 687, 696, 706, 1086, 11733, 11734, 11735, 27260, -- Demon Skin / Demon Armor
-                28176, 28189,                                      -- Fel Armor
+                28176, 28189,                                    -- Fel Armor
             },
             names = { "Demon Skin", "Demon Armor", "Fel Armor" },
             threshold = 300,
@@ -1115,4 +1116,3 @@ function sfui.buffs.data.GetAllEntries()
 
     return result
 end
-
