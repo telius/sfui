@@ -805,6 +805,9 @@ local function InitScanEvents()
     end
 
     local function on_knowledge_change()
+        if sfui.talents and sfui.talents.invalidate_protection_paladin_cache then
+            sfui.talents.invalidate_protection_paladin_cache()
+        end
         if sfui.buffs.pets and sfui.buffs.pets.InvalidatePetCache then
             sfui.buffs.pets.InvalidatePetCache()
         end
@@ -842,13 +845,19 @@ local function InitScanEvents()
         end)
     end
 
-    -- Talent & spell changes
+    -- Talent, spec, & spell changes
     sfui.events.RegisterEvent("SPELLS_CHANGED", on_knowledge_change)
     sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", on_knowledge_change)
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_knowledge_change)
     sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", on_knowledge_change)
     sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_knowledge_change)
     sfui.events.RegisterEvent("PET_STABLE_UPDATE", on_knowledge_change)
+    sfui.events.RegisterEvent("PLAYER_ROLES_ASSIGNED", on_knowledge_change)
+    sfui.events.RegisterEvent("GROUP_ROSTER_UPDATE", on_knowledge_change)
+    if sfui.events.RegisterMessage then
+        sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", on_knowledge_change)
+        sfui.events.RegisterMessage("SFUI_GEAR_ROLE_CHANGED", on_knowledge_change)
+    end
 
     -- Combat state transitions
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
@@ -886,6 +895,7 @@ local function InitScanEvents()
     -- Spec changes broadcasted by sfui.talents (talents_camelot.lua)
     if sfui.events.RegisterMessage then
         sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", on_knowledge_change)
+        sfui.events.RegisterMessage("SFUI_GEAR_ROLE_CHANGED", on_knowledge_change)
     end
 end
 InitScanEvents()

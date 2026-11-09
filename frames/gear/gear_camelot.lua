@@ -752,6 +752,16 @@ function sfui.gear.SelectClassicRole(specID, rKey)
         sfui.highest.ClearValidationCache()
         sfui.highest.ClearCache()
     end
+    if sfui.talents and sfui.talents.invalidate_protection_paladin_cache then
+        sfui.talents.invalidate_protection_paladin_cache()
+    end
+    if sfui.buffs and sfui.buffs.scan and sfui.buffs.scan.RefreshSpellKnowledge then
+        sfui.buffs.scan.RefreshSpellKnowledge()
+        sfui.buffs.scan.RequestScan()
+    end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_GEAR_ROLE_CHANGED", specID, rKey)
+    end
     sfui.gear.UpdateStatUI()
     sfui.gear.Update()
 

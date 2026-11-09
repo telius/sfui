@@ -131,14 +131,100 @@ local function IsAnySpellKnown(spellIDs)
 end
 sfui.buffs.data.IsAnySpellKnown = IsAnySpellKnown
 
---- Checks whether the current character is a Protection Paladin (spec ID 14862 from resolver)
+--- Checks whether the current character is a Protection Paladin.
+--- Evaluates Camelot spec ID (14862), Retail spec ID (66), dominant tree index (2),
+--- classic talent spec info, assigned group tank role, or signature protection talents.
 local function IsProtectionPaladin()
+    if playerClass ~= "PALADIN" then return false end
+
     local talents = sfui.talents
+    if talents and talents.is_protection_paladin then
+        return talents.is_protection_paladin()
+    end
+
     if talents then
         local specID = (talents.get_current_spec_id and talents.get_current_spec_id())
             or (talents._specResolver and talents._specResolver())
-        return specID == 14862
+        if specID == 14862 or specID == 66 then
+            return true
+        end
+
+        local specIdx = talents.get_current_spec_index and talents.get_current_spec_index()
+        if specIdx == 2 then
+            return true
+        end
+
+        if talents.get_classic_talent_spec_info then
+            local specInfo = talents.get_classic_talent_spec_info()
+            if specInfo then
+                if specInfo.dominantTree == 2 or specInfo.equivSpecID == 66
+                    or (specInfo.name and specInfo.name:lower() == "protection")
+                    or specInfo.role == "TANK" or specInfo.classicRole == "TANK" then
+                    return true
+                end
+            end
+        end
     end
+
+    if _G.GetSpecialization then
+        local specIdx = _G.GetSpecialization()
+        if specIdx == 2 then
+            return true
+        end
+    end
+
+    -- Check Gear Manager configured role
+    local SfuiDB = _G.SfuiDB
+    if SfuiDB and SfuiDB.gear then
+        local gDB = SfuiDB.gear
+        local checkIDs = {
+            1486, 14862, 66, 2,
+        }
+        for _, id in ipairs(checkIDs) do
+            local db = gDB[id]
+            if db then
+                local cRole = db.classic_role and db.classic_role:lower()
+                if cRole == "prot" or cRole == "tank" or db.role == "TANK" or db.is_tank then
+                    return true
+                end
+            end
+        end
+    end
+
+    if sfui.gear and sfui.gear.GetClassicRole then
+        local gRole = sfui.gear.GetClassicRole(1486, SfuiDB and SfuiDB.gear and SfuiDB.gear[1486])
+        if gRole and (gRole == "prot" or gRole == "tank") then
+            return true
+        end
+    end
+
+    if _G.SfuiGearManagerFrame and _G.SfuiGearManagerFrame.activeSpecID then
+        local activeSpec = _G.SfuiGearManagerFrame.activeSpecID
+        if activeSpec == 14862 or activeSpec == 66 then
+            return true
+        end
+    end
+
+    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
+    if assignedRole == "TANK" then
+        return true
+    end
+
+    if _G.GetLFGRoles then
+        local _, isTank = _G.GetLFGRoles()
+        if isTank then return true end
+    end
+
+    local protSpells = {
+        20925, 20927, 20928, 27179, -- Holy Shield
+        20911, 20912, 20913, 20914, 27168, 25899, 27169, -- Blessing / Greater Blessing of Sanctuary
+        31935, 32699, 32700, 48827, -- Avenger's Shield
+        53600, -- Shield of Righteousness
+    }
+    if IsAnySpellKnown(protSpells) then
+        return true
+    end
+
     return false
 end
 sfui.buffs.data.IsProtectionPaladin = IsProtectionPaladin

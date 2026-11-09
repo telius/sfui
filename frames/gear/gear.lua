@@ -922,6 +922,13 @@ gearFrame:SetScript("OnShow", function(self)
         if sfui.gear.UpdateFlavorUI and f.specUIs[specID] then
             sfui.gear.UpdateFlavorUI(f.specUIs[specID], specID, SfuiDB.gear and SfuiDB.gear[specID])
         end
+        if sfui.talents and sfui.talents.invalidate_protection_paladin_cache then
+            sfui.talents.invalidate_protection_paladin_cache()
+        end
+        if sfui.buffs and sfui.buffs.scan and sfui.buffs.scan.RefreshSpellKnowledge then
+            sfui.buffs.scan.RefreshSpellKnowledge()
+            sfui.buffs.scan.RequestScan()
+        end
         sfui.gear.UpdateStatUI()
     end
 

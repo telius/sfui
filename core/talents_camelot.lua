@@ -432,16 +432,29 @@ local function get_classic_talent_spec_info(vSpecID, classFilename)
         dominantTree = curSpecIdx
     end
 
+    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
+    if assignedRole and assignedRole ~= "NONE" then
+        if assignedRole == "TANK" then
+            defaultRole = "TANK"
+        elseif assignedRole == "HEALER" then
+            defaultRole = "HEAL"
+        end
+    end
+
     -- Untalented (0 talent points spent): return class-level defaults
     if totalPoints == 0 then
+        local untalentedDom = curSpecIdx or dominantTree or 1
+        if vSpecID == 1486 and defaultRole == "TANK" then
+            untalentedDom = 2
+        end
         return {
-            name         = className,
-            icon         = classIcon,
+            name         = (vSpecID == 1486 and defaultRole == "TANK" and "protection") or className,
+            icon         = (vSpecID == 1486 and defaultRole == "TANK" and 236264) or classIcon,
             classicRole  = defaultRole,
             role         = (defaultRole == "TANK" and "TANK") or (defaultRole == "HEAL" and "HEALER") or "DAMAGER",
-            equivSpecID  = nil,
+            equivSpecID  = (vSpecID == 1486 and defaultRole == "TANK" and 66) or nil,
             totalPoints  = 0,
-            dominantTree = curSpecIdx or dominantTree or 1,
+            dominantTree = untalentedDom,
         }
     end
 
@@ -516,6 +529,9 @@ local function CamelotSpecResolver()
     local role = (specInfo and specInfo.role) or "DAMAGER"
 
     if specInfo and specInfo.totalPoints == 0 then
+        if vSpecID == 1486 and role == "TANK" then
+            return 14862, 2, "TANK"
+        end
         return vSpecID, 0, role
     end
 

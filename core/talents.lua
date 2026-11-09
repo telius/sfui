@@ -70,6 +70,7 @@ local cachedSpecRole      = nil
 local cachedPlayerSpecs   = nil
 local cachedPlayerSpecIDs = nil
 local cachedIsBear        = nil
+local cachedIsProtPally   = nil
 
 -- Pluggable provider hooks registered by talents_standard.lua and talents_camelot.lua
 sfui.talents._specResolver           = nil
@@ -86,6 +87,7 @@ function sfui.talents.set_cached_spec(specID, specIndex, specRole)
     cachedSpecRole  = specRole
     if changed then
         cachedIsBear = nil
+        cachedIsProtPally = nil
         sfui.colors.invalidate_spec_color_cache()
         sfui.common.invalidate_panels_cache()
         sfui.highest.ClearValidationCache()
@@ -97,6 +99,7 @@ end
 
 function sfui.talents.update_cached_spec_id()
     cachedIsBear = nil
+    cachedIsProtPally = nil
     if sfui.talents._specResolver then
         local sID, sIdx, sRole = sfui.talents._specResolver()
         sfui.talents.set_cached_spec(sID, sIdx, sRole)
@@ -416,6 +419,142 @@ function sfui.talents.is_feral_spec(specID)
     return false
 end
 sfui.common.is_feral_spec = sfui.talents.is_feral_spec
+
+--- Checks whether the specified or current character is a Protection Paladin.
+--- Evaluates Camelot spec ID (14862), Retail spec ID (66), dominant tree index (2),
+--- classic talent spec info, assigned group tank role, or signature protection talents.
+--- @param specID number|nil
+--- @return boolean
+function sfui.talents.is_protection_paladin(specID)
+    local pClass = sfui.talents.get_player_class()
+    if pClass ~= "PALADIN" then return false end
+
+    if not specID and cachedIsProtPally ~= nil then
+        return cachedIsProtPally
+    end
+
+    local sID = specID or (cachedSpecID ~= 0 and cachedSpecID) or sfui.talents.get_current_spec_id()
+    if sID == 14862 or sID == 66 then
+        if not specID then cachedIsProtPally = true end
+        return true
+    end
+
+    local sIdx = (not specID and cachedSpecIndex ~= 0 and cachedSpecIndex)
+        or (sfui.talents.get_current_spec_index and sfui.talents.get_current_spec_index())
+    if sIdx == 2 then
+        if not specID then cachedIsProtPally = true end
+        return true
+    end
+
+    if _G.GetSpecialization then
+        local specIdx = _G.GetSpecialization()
+        if specIdx == 2 then
+            if not specID then cachedIsProtPally = true end
+            return true
+        end
+    end
+
+    -- 3. Classic talent spec info
+    if sfui.talents.get_classic_talent_spec_info then
+        local specInfo = sfui.talents.get_classic_talent_spec_info()
+        if specInfo then
+            if specInfo.dominantTree == 2 or specInfo.equivSpecID == 66
+                or (specInfo.name and specInfo.name:lower() == "protection")
+                or specInfo.role == "TANK" or specInfo.classicRole == "TANK" then
+                if not specID then cachedIsProtPally = true end
+                return true
+            end
+        end
+    end
+
+    -- 4. Gear Manager configured role / active spec
+    if SfuiDB and SfuiDB.gear then
+        local gDB = SfuiDB.gear
+        local checkIDs = {
+            specID,
+            sID,
+            1486, 14862, 66, 2,
+        }
+        for _, id in ipairs(checkIDs) do
+            local db = id and gDB[id]
+            if db then
+                local cRole = db.classic_role and db.classic_role:lower()
+                if cRole == "prot" or cRole == "tank" or db.role == "TANK" or db.is_tank then
+                    if not specID then cachedIsProtPally = true end
+                    return true
+                end
+            end
+        end
+    end
+
+    if sfui.gear and sfui.gear.GetClassicRole then
+        local gRole = sfui.gear.GetClassicRole(sID, SfuiDB and SfuiDB.gear and SfuiDB.gear[sID])
+        if gRole and (gRole == "prot" or gRole == "tank") then
+            if not specID then cachedIsProtPally = true end
+            return true
+        end
+    end
+
+    if _G.SfuiGearManagerFrame and _G.SfuiGearManagerFrame.activeSpecID then
+        local activeSpec = _G.SfuiGearManagerFrame.activeSpecID
+        if activeSpec == 14862 or activeSpec == 66 then
+            if not specID then cachedIsProtPally = true end
+            return true
+        end
+    end
+
+    -- 5. Group assigned role
+    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
+    if assignedRole == "TANK" then
+        if not specID then cachedIsProtPally = true end
+        return true
+    end
+
+    -- LFG / Dungeon Finder Tank role
+    if _G.GetLFGRoles then
+        local _, isTank = _G.GetLFGRoles()
+        if isTank then
+            if not specID then cachedIsProtPally = true end
+            return true
+        end
+    end
+    if _G.LFDQueueFrame_GetRoles then
+        local ok, _, isTank = pcall(_G.LFDQueueFrame_GetRoles)
+        if ok and isTank then
+            if not specID then cachedIsProtPally = true end
+            return true
+        end
+    end
+
+    -- Signature Protection talents (Holy Shield, Blessing of Sanctuary, etc.)
+    local protSpells = {
+        20925, 20927, 20928, 27179, -- Holy Shield
+        20911, 20912, 20913, 20914, 27168, 25899, 27169, -- Blessing / Greater Blessing of Sanctuary
+        31935, 32699, 32700, 48827, -- Avenger's Shield
+        53600, -- Shield of Righteousness
+    }
+    local isPlayerSpell = _G.IsPlayerSpell
+    local isSpellKnown = _G.IsSpellKnown
+    local resolver = sfui.talents._talentKnownResolver
+    for i = 1, #protSpells do
+        local pid = protSpells[i]
+        if (isPlayerSpell and isPlayerSpell(pid))
+            or (isSpellKnown and isSpellKnown(pid))
+            or (resolver and resolver(pid)) then
+            if not specID then cachedIsProtPally = true end
+            return true
+        end
+    end
+
+    if not specID then cachedIsProtPally = false end
+    return false
+end
+sfui.common.is_protection_paladin = sfui.talents.is_protection_paladin
+
+function sfui.talents.invalidate_protection_paladin_cache()
+    cachedIsProtPally = nil
+end
+sfui.common.invalidate_protection_paladin_cache = sfui.talents.invalidate_protection_paladin_cache
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Global Event Routing & Cache Invalidation
