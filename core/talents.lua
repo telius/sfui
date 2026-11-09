@@ -1,7 +1,7 @@
-local addonName, addon         = ...
-sfui                           = sfui or {}
-sfui.talents                   = sfui.talents or {}
-sfui.common                    = sfui.common or {}
+local addonName, addon = ...
+sfui = sfui or {}
+sfui.talents = sfui.talents or {}
+sfui.common = sfui.common or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/core/talents.lua
@@ -9,30 +9,30 @@ sfui.common                    = sfui.common or {}
 --  Shared Foundation & Central Spec State Coordinator
 -- ══════════════════════════════════════════════════════════════════════════════
 
-local _G                       = _G
-local UnitClass                = _G.UnitClass
+local _G = _G
+local UnitClass = _G.UnitClass
 local type, tonumber, tostring = _G.type, _G.tonumber, _G.tostring
-local pairs, ipairs            = _G.pairs, _G.ipairs
-local select                   = _G.select
+local pairs, ipairs = _G.pairs, _G.ipairs
+local select = _G.select
 
-local CLASS_NAMES_TO_ID        = {
-    WARRIOR     = 1,
-    PALADIN     = 2,
-    HUNTER      = 3,
-    ROGUE       = 4,
-    PRIEST      = 5,
-    DEATHKNIGHT = 6,
-    SHAMAN      = 7,
-    MAGE        = 8,
-    WARLOCK     = 9,
-    MONK        = 10,
-    DRUID       = 11,
-    DEMONHUNTER = 12,
-    EVOKER      = 13,
+local CLASS_NAMES_TO_ID = {
+    WARRIOR      = 1,
+    PALADIN      = 2,
+    HUNTER       = 3,
+    ROGUE        = 4,
+    PRIEST       = 5,
+    DEATHKNIGHT  = 6,
+    SHAMAN       = 7,
+    MAGE         = 8,
+    WARLOCK      = 9,
+    MONK         = 10,
+    DRUID        = 11,
+    DEMONHUNTER  = 12,
+    EVOKER       = 13,
 }
 
-local cachedPlayerClass        = nil
-local cachedPlayerClassID      = 0
+local cachedPlayerClass   = nil
+local cachedPlayerClassID = 0
 
 --- Returns the authoritative player class ID (1..13)
 function sfui.talents.get_player_class_id()
@@ -50,7 +50,6 @@ function sfui.talents.get_player_class_id()
     end
     return 0
 end
-
 sfui.common.get_player_class_id = sfui.talents.get_player_class_id
 
 --- Returns the cached player class filename and ID (e.g., "WARRIOR", 1)
@@ -60,30 +59,29 @@ function sfui.talents.get_player_class()
     end
     return cachedPlayerClass, cachedPlayerClassID
 end
-
-sfui.common.get_player_class          = sfui.talents.get_player_class
+sfui.common.get_player_class = sfui.talents.get_player_class
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Central Specialization State & Provider Registry
 -- ────────────────────────────────────────────────────────────────────────────
-local cachedSpecID                    = 0
-local cachedSpecIndex                 = 0
-local cachedSpecRole                  = nil
-local cachedPlayerSpecs               = nil
-local cachedPlayerSpecIDs             = nil
-local cachedIsBear                    = nil
-local cachedIsProtPally               = nil
+local cachedSpecID        = 0
+local cachedSpecIndex     = 0
+local cachedSpecRole      = nil
+local cachedPlayerSpecs   = nil
+local cachedPlayerSpecIDs = nil
+local cachedIsBear        = nil
+local cachedIsProtPally   = nil
 
 -- Pluggable provider hooks registered by talents_standard.lua and talents_camelot.lua
-sfui.talents._specResolver            = nil
-sfui.talents._specsCacheBuilder       = nil
-sfui.talents._talentKnownResolver     = nil
+sfui.talents._specResolver           = nil
+sfui.talents._specsCacheBuilder      = nil
+sfui.talents._talentKnownResolver    = nil
 sfui.talents._specColorOptionsBuilder = nil
-sfui.talents._lootSpecResolver        = nil
+sfui.talents._lootSpecResolver       = nil
 
 function sfui.talents.set_cached_spec(specID, specIndex, specRole)
-    local oldID     = cachedSpecID
-    local changed   = (cachedSpecID ~= specID) or (cachedSpecIndex ~= specIndex) or (cachedSpecRole ~= specRole)
+    local oldID = cachedSpecID
+    local changed = (cachedSpecID ~= specID) or (cachedSpecIndex ~= specIndex) or (cachedSpecRole ~= specRole)
     cachedSpecID    = specID or 0
     cachedSpecIndex = specIndex or 0
     cachedSpecRole  = specRole
@@ -117,7 +115,6 @@ function sfui.talents.get_current_spec_id()
     end
     return cachedSpecID
 end
-
 sfui.common.get_current_spec_id = sfui.talents.get_current_spec_id
 sfui.common.update_cached_spec_id = sfui.talents.update_cached_spec_id
 sfui.common.invalidate_spec_cache = sfui.talents.invalidate_spec_cache
@@ -127,7 +124,6 @@ sfui.common.invalidate_spec_cache = sfui.talents.invalidate_spec_cache
 function sfui.talents.get_dominant_spec_id()
     return sfui.talents.get_current_spec_id()
 end
-
 sfui.common.get_dominant_spec_id = sfui.talents.get_dominant_spec_id
 
 --- Returns the current spec index (1..4 on Retail, or 1..3 dominant tree on Classic)
@@ -137,7 +133,6 @@ function sfui.talents.get_current_spec_index()
     end
     return cachedSpecIndex
 end
-
 sfui.common.get_current_spec_index = sfui.talents.get_current_spec_index
 
 --- Returns effective loot specialization ID
@@ -147,14 +142,12 @@ function sfui.talents.get_effective_loot_spec_id()
     end
     return sfui.talents.get_current_spec_id(), true
 end
-
 sfui.common.get_effective_loot_spec_id = sfui.talents.get_effective_loot_spec_id
 
 function sfui.talents.invalidate_player_specs_cache()
     cachedPlayerSpecs   = nil
     cachedPlayerSpecIDs = nil
 end
-
 sfui.common.invalidate_player_specs_cache = sfui.talents.invalidate_player_specs_cache
 
 function sfui.talents.get_player_specs()
@@ -167,7 +160,6 @@ function sfui.talents.get_player_specs()
     end
     return {}, {}
 end
-
 sfui.common.get_player_specs = sfui.talents.get_player_specs
 
 --- Returns spec options specifically for spec colors UI.
@@ -177,7 +169,6 @@ function sfui.talents.get_spec_color_options()
     end
     return sfui.talents.get_player_specs()
 end
-
 sfui.common.get_spec_color_options = sfui.talents.get_spec_color_options
 
 local C_Spec = _G.C_SpecializationInfo or {}
@@ -187,8 +178,7 @@ function sfui.talents.get_spec_info(specID)
     if not specID or specID == 0 then return nil end
     local bridge = sfui.talents.SPEC_BRIDGE and sfui.talents.SPEC_BRIDGE[specID]
     if bridge then
-        return bridge.retailID or bridge.specID, bridge.name, nil, bridge.icon,
-            (bridge.isTank and "TANK") or (bridge.isHealer and "HEALER") or "DAMAGER", 1
+        return bridge.retailID or bridge.specID, bridge.name, nil, bridge.icon, (bridge.isTank and "TANK") or (bridge.isHealer and "HEALER") or "DAMAGER", 1
     end
     local specs = sfui.talents.get_player_specs()
     if specs and specs[specID] then
@@ -197,15 +187,13 @@ function sfui.talents.get_spec_info(specID)
     end
     if sfui.talents.CLASSIC_SPEC_LOOKUP and sfui.talents.CLASSIC_SPEC_LOOKUP[specID] then
         local c = sfui.talents.CLASSIC_SPEC_LOOKUP[specID]
-        return c.specID, c.name, nil, c.icon,
-            (c.role == "TANK" and "TANK") or (c.role == "HEAL" and "HEALER") or "DAMAGER", 1
+        return c.specID, c.name, nil, c.icon, (c.role == "TANK" and "TANK") or (c.role == "HEAL" and "HEALER") or "DAMAGER", 1
     end
     if GetSpecializationInfoByID then
         return GetSpecializationInfoByID(specID)
     end
     return nil
 end
-
 sfui.common.get_spec_info = sfui.talents.get_spec_info
 
 function sfui.talents.get_spec_name(specID)
@@ -225,7 +213,6 @@ function sfui.talents.get_spec_name(specID)
     end
     return "Spec " .. specID
 end
-
 sfui.common.get_spec_name = sfui.talents.get_spec_name
 
 function sfui.talents.get_spec_icon(specID)
@@ -245,7 +232,6 @@ function sfui.talents.get_spec_icon(specID)
     end
     return nil
 end
-
 sfui.common.get_spec_icon = sfui.talents.get_spec_icon
 
 local GetSpecializationRole = C_Spec.GetSpecializationRole or _G.GetSpecializationRole
@@ -261,12 +247,9 @@ function sfui.talents.get_spec_role(specIDorIndex)
             return sdb.role
         elseif sdb.classic_role then
             local cr = sdb.classic_role:lower()
-            if cr == "tank" or cr == "bear" or cr == "prot" then
-                return "TANK"
-            elseif cr == "heal" or cr == "resto" or cr == "holy" or cr == "disc" then
-                return "HEALER"
-            else
-                return "DAMAGER"
+            if cr == "tank" or cr == "bear" or cr == "prot" then return "TANK"
+            elseif cr == "heal" or cr == "resto" or cr == "holy" or cr == "disc" then return "HEALER"
+            else return "DAMAGER"
             end
         elseif sdb.is_tank or sdb.armor_ilvl_prio then
             return "TANK"
@@ -304,7 +287,6 @@ function sfui.talents.get_spec_role(specIDorIndex)
     end
     return "DAMAGER"
 end
-
 sfui.common.get_spec_role = sfui.talents.get_spec_role
 
 --- Checks if a talent or spell is active/known by the player.
@@ -317,7 +299,6 @@ function sfui.talents.is_talent_known(targetSpellID)
     if _G.IsSpellKnown and _G.IsSpellKnown(targetSpellID) then return true end
     return false
 end
-
 sfui.common.is_talent_known = sfui.talents.is_talent_known
 
 --- Checks whether the player is a Rogue and has learned the Dual Wield passive ability (spell ID 674).
@@ -332,7 +313,6 @@ function sfui.talents.is_rogue_dual_wield_known()
     if level < 10 then return false end
     return sfui.talents.is_talent_known(674)
 end
-
 sfui.common.is_rogue_dual_wield_known = sfui.talents.is_rogue_dual_wield_known
 
 --- Checks whether the current character is in Bear form spec.
@@ -406,13 +386,11 @@ function sfui.talents.is_bear_form_spec()
     cachedIsBear = false
     return false
 end
-
 sfui.common.is_bear_form_spec = sfui.talents.is_bear_form_spec
 
 function sfui.talents.invalidate_bear_cache()
     cachedIsBear = nil
 end
-
 sfui.common.invalidate_bear_cache = sfui.talents.invalidate_bear_cache
 
 --- Checks whether the specified or current spec represents Feral or Guardian.
@@ -440,15 +418,14 @@ function sfui.talents.is_feral_spec(specID)
 
     return false
 end
-
 sfui.common.is_feral_spec = sfui.talents.is_feral_spec
 
 local PALADIN_PROT_BASE_IDS = { 1486, 14862, 66, 2 }
 local PALADIN_PROT_SPELLS = {
-    20925, 20927, 20928, 27179,                      -- Holy Shield
+    20925, 20927, 20928, 27179, -- Holy Shield
     20911, 20912, 20913, 20914, 27168, 25899, 27169, -- Blessing / Greater Blessing of Sanctuary
-    31935, 32699, 32700, 48827,                      -- Avenger's Shield
-    53600,                                           -- Shield of Righteousness
+    31935, 32699, 32700, 48827, -- Avenger's Shield
+    53600, -- Shield of Righteousness
 }
 
 --- Checks whether the specified or current character is a Protection Paladin.
@@ -585,13 +562,11 @@ function sfui.talents.is_protection_paladin(specID)
     if not specID then cachedIsProtPally = false end
     return false
 end
-
 sfui.common.is_protection_paladin = sfui.talents.is_protection_paladin
 
 function sfui.talents.invalidate_protection_paladin_cache()
     cachedIsProtPally = nil
 end
-
 sfui.common.invalidate_protection_paladin_cache = sfui.talents.invalidate_protection_paladin_cache
 
 -- ────────────────────────────────────────────────────────────────────────────
