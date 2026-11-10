@@ -1,26 +1,18 @@
 # changelog
 
-## v1.143 (2026-11-09)
+## v1.144 (2026-11-10)
 
-### improvements & bug fixes
+### new features & improvements
 
-- **recipe vendor source accuracy & database compilation (`frames/professions/sources.lua`, `data/recipes_camelot.lua`, `scripts/sync-recipes.py`)**:
-  - corrected recipe vendor attributions for `enchant 2h weapon - lesser intellect` (`6349`), moving it off lilly in silverpine forest and mapping it to authentic classic trainers/vendors (`nata dawnstrider` in thunder bluff, `kithas` in orgrimmar, `leo sarn` in silverpine forest, and `tilli thistlefuzz` in ironforge).
-  - corrected lilly's curated inventory to chest formulas (`enchant chest - minor/lesser intellect`) and mana/wizard oils.
-  - pruned 20 non-vendor world/chest drop recipes mistakenly classified as limited vendor stock from `sfui.recipes.LIMITED_RECIPE_ITEMS` and `sfui.recipes.CURATED_LIMITED_VENDORS`.
-  - fixed a sourcemore parser bug in `scripts/sync-recipes.py` that erroneously tagged creature drop mobs and dungeon bosses (`mekgineer thermaplugg`, `general drakkisath`, `ras frostwhisper`, `darkmaster gandling`, `dragonmaw scout`, etc.) as vendors on dual-source `[2, 5]` recipes.
-  - resolved id collisions in `REPUTATION_RECIPES` and `SPECIALIZATION_RECIPES` in `scripts/sync-recipes.py`, ensuring reputation standings and specializations map strictly to valid spells without polluting unrelated recipes.
-  - added `VENDOR_FACTIONS` so contested-zone vendors have explicit faction tags for host-faction safety checks (`sfui.recipes.IsSourceHostile`).
-  - recompiled `data/recipes_camelot.lua` with updated source pools and verified syntax.
-- **multibox loot & quest item secret-value protection (`frames/sync/multibox.lua`, `common.lua`)**:
-  - exported `sfui.common.issecretvalue` in `common.lua` and added defensive `is_secret(v)` guards throughout `frames/sync/multibox.lua`.
-  - prevents `"attempt to compare a secret string value"` errors during `LOOT_OPENED` corpse tooltip scanning on restricted loot and tainted execution contexts.
-- **themes close button robustness (`frames/themes/engine.lua`)**:
-  - safeguarded `fs.SetTextColor` and `sfs.SetTextColor` invocations in `ApplyCloseButtonStyle` and `OnEnter`/`OnLeave` hooks with method presence checks to eliminate `"attempt to call a nil value"` on non-standard close buttons.
-- **quest tracker shift-click untrack & link separation (`common.lua`, `frames/quests/helpers/q_common.lua`, `frames/quests/modules/q_camelot.lua`, `frames/quests/modules/q_camelot_class.lua`, `frames/quests/modules/q_quests.lua`, `frames/quests/modules/q_worldquests.lua`, `frames/quests/engine/q_layout.lua`)**:
-  - resolved keybind conflict between shift-clicking to untrack/hide quests vs. inserting item/quest links into active chat edit boxes.
-  - shift-clicking a quest row now seamlessly prioritizes inserting chat links when an edit box is focused, while untracking/hiding when no edit box is active.
-  - added untrack and hide support for class quests and camelot milestone quests.
-- **totem bar instance secret safety & performance (`frames/bars/totembar.lua`, `frames/hide.lua`, `frames/tracking/tracking_classic.lua`, `frames/bars/swing_classic.lua`, `frames/tracking/trackedbars.lua`, `frames/gear/hammer.lua`)**:
-  - secured totem slot queries and duration formatting against secret values during instance combat.
-  - throttled and event-driven updates for classic totem bar, swing timers, and tracked bars, significantly lowering per-frame cpu usage in instances.
+- **camelot dungeon journal interactive maps, world map overlay & routes (`frames/dungeonjournal/dj_map.lua`, `frames/dungeonjournal/dungeonjournal.lua`, `frames/dungeonjournal/dj_bosses.lua`, `frames/dungeonjournal/dj_quests.lua`, `frames/map/providers/pins_dungeonjournal.lua`, `data/dj_camelot.lua`, `data/dj_maps_camelot.lua`, `media/dungeonmaps/`, `sfui.toc`)**:
+  - integrated self-contained pre-patched classic dungeon floor maps and custom forever dungeon maps (`ruins of lordaeron`, `darkwhisper gorge`, `mount hyjal`, `outland`, `timbermaw hold`, `uldamar`, `winterveil vale`, and full `wailing caverns` map) across `30` mapped dungeons.
+  - added a new `map` tab (set as the default tab when opening the dungeon journal) featuring multi-floor selector pills, `181` interactive boss pins with loot/ability tooltips and shift-click chat links, `49` in-dungeon quest pins, floor transition/entrance markers, and a collapsible travel route guide (`sfui.dj_camelot.routes`).
+  - added an automatic world map (`m` key) in-dungeon overlay that displays the active dungeon floor map, boss pins, quest pins, and live player position arrow when opening the world map inside a mapped instance.
+  - added `locate on map` buttons to boss cards in the `bosses` tab and quest rows in the `quests` tab, supporting both in-dungeon map pin highlighting and external zone questgiver / turn-in world map waypoints.
+  - expanded `data/dj_camelot.lua` with boss rosters and loot tables for `ruins of lordaeron`, `uldamar`, and `winterveil vale`.
+- **paladin righteous fury gearset-only reminder (`frames/reminders/buffs_data.lua`, `frames/reminders/buffs_scan.lua`, `core/talents.lua`, `frames/gear/gear.lua`, `frames/gear/gear_camelot.lua`, `frames/gear/engine.lua`)**:
+  - updated the paladin `righteous_fury` (`25780`) buff reminder check so it evaluates only whether the protection gearset is active (`prot` / `tank` role in the gear manager or an equipped protection set in `C_EquipmentSet`), regardless of talent specialization, protection spells, or group/lfg role.
+  - synchronized gear manager role switches, equipment set swaps (`EQUIPMENT_SETS_CHANGED`, `EQUIPMENT_SWAP_FINISHED`, `SFUI_GEAR_ROLE_CHANGED`), and naked mode toggles to immediately refresh buff reminder eligibility and scan auras.
+- **buff scanner & radial ring cpu/memory optimizations (`frames/reminders/buffs_scan.lua`, `frames/ring/ring.lua`, `core/talents.lua`)**:
+  - pre-computed lowercased buff and spellbook names once in `RefreshSpellKnowledge` to eliminate per-scan string allocations during aura checks.
+  - added scan result change detection (`prevResultKeys`) in `sfui.buffs.scan.RunScan` and deferred radial ring rebuilds (`sfui.ring.request_rebuild`) via a dirty flag while the ring is closed, avoiding background bag scans on routine aura updates.

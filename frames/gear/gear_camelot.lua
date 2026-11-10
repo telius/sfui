@@ -716,6 +716,15 @@ function sfui.gear.SelectClassicRole(specID, rKey)
             clb.armor_ilvl_prio = sdb.armor_ilvl_prio
             clb.is_healer = sdb.is_healer
         end
+        if bridge.retailID and bridge.retailID ~= specID and SfuiDB.gear[bridge.retailID] then
+            local rb = SfuiDB.gear[bridge.retailID]
+            rb.user_selected_role = true
+            rb.classic_role = rKey
+            rb.role = sdb.role
+            rb.is_tank = sdb.is_tank
+            rb.armor_ilvl_prio = sdb.armor_ilvl_prio
+            rb.is_healer = sdb.is_healer
+        end
     end
 
     local defOrder = sfui.gear.GetDefaultStats and sfui.gear.GetDefaultStats(numID, rKey)

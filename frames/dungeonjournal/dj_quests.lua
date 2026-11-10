@@ -504,7 +504,7 @@ local function RenderQuestDetail(quest, dungeon)
                         local y = c.y
                         if x and x > 1 then x = x / 100 end
                         if y and y > 1 then y = y / 100 end
-                        return c.mapID, x, y, "chain_step", currentStep
+                        return c.mapID, x, y, "chain_step", currentStep, c.detail
                     end
                 end
             end
@@ -517,7 +517,7 @@ local function RenderQuestDetail(quest, dungeon)
                 local y = c.y
                 if x and x > 1 then x = x / 100 end
                 if y and y > 1 then y = y / 100 end
-                return c.mapID, x, y, "quest"
+                return c.mapID, x, y, "quest", nil, c.detail
             end
 
             -- 2. Quest log API map (if quest is in log)
@@ -548,10 +548,27 @@ local function RenderQuestDetail(quest, dungeon)
         end
         info.ResolveQuestMapCoords = ResolveQuestMapCoords
 
+        local function FindTurninSpot(q)
+            if not q then return nil end
+            local spots = sfui.dj_camelot and sfui.dj_camelot.turninSpots
+            if not spots then return nil end
+            if q.id and spots[q.id] then return spots[q.id] end
+            local turninLower = q.turnin and q.turnin:lower() or ""
+            if turninLower ~= "" then
+                for _, sp in ipairs(spots) do
+                    if sp.targetName and turninLower:find(sp.targetName:lower(), 1, true) then
+                        return sp
+                    end
+                end
+            end
+            return nil
+        end
+
         -- Show on Map button
         local mapBtn = CreateFrame("Button", nil, info, "BackdropTemplate")
         info.mapBtn = mapBtn
-        mapBtn:SetSize(130, 22)
+        mapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        mapBtn:SetSize(124, 22)
         local mfs = mapBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         mapBtn.fs = mfs
         mfs:SetPoint("CENTER")
@@ -574,7 +591,7 @@ local function RenderQuestDetail(quest, dungeon)
             GameTooltip:ClearLines()
             GameTooltip:AddLine("show on map", accent[1], accent[2], accent[3])
             local q = detailContent.activeQuest
-            local mapID, x, y, src, step = ResolveQuestMapCoords(q)
+            local mapID, x, y, src, step, detail = ResolveQuestMapCoords(q)
             if src == "chain_step" and step then
                 GameTooltip:AddLine(
                 string_format("opens map and places a waypoint at current step: %s (%s).",
@@ -586,11 +603,18 @@ local function RenderQuestDetail(quest, dungeon)
             else
                 GameTooltip:AddLine("opens the world map for this dungeon's zone.", 1, 1, 1, true)
             end
+            if detail and detail ~= "" then
+                GameTooltip:AddLine("location: " .. tostring(detail):lower(), 0.75, 0.85, 1.0, true)
+            end
             if mapID and C_Map and C_Map.GetMapInfo then
                 local minfo = C_Map.GetMapInfo(mapID)
                 if minfo and minfo.name then
                     GameTooltip:AddLine(string_format("|cff888888zone: %s|r", tostring(minfo.name):lower()))
                 end
+            end
+            local turninSpot = FindTurninSpot(q)
+            if turninSpot then
+                GameTooltip:AddLine("right-click: mark turn-in npc on world map", 0.55, 0.95, 0.65, true)
             end
             GameTooltip:Show()
         end)
@@ -600,9 +624,17 @@ local function RenderQuestDetail(quest, dungeon)
             GameTooltip:Hide()
         end)
 
-        mapBtn:SetScript("OnClick", function()
+        mapBtn:SetScript("OnClick", function(_, mouseBtn)
             local q = detailContent.activeQuest
             if not q or not q.id then return end
+
+            if mouseBtn == "RightButton" then
+                local turninSpot = FindTurninSpot(q)
+                if turninSpot and sfui.dj_map and sfui.dj_map.OpenWorldMapSpot then
+                    sfui.dj_map.OpenWorldMapSpot(turninSpot, q.turnin or q.name or "turn-in")
+                    return
+                end
+            end
 
             local mapID, x, y, src, step = ResolveQuestMapCoords(q)
             if not mapID then return end
@@ -665,6 +697,49 @@ local function RenderQuestDetail(quest, dungeon)
                 end
             end
         end)
+
+        -- Show on Dungeon Map button (for quests with in-dungeon pins)
+        local djMapBtn = CreateFrame("Button", nil, info, "BackdropTemplate")
+        info.djMapBtn = djMapBtn
+        djMapBtn:SetSize(124, 22)
+        local dmfs = djMapBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        djMapBtn.fs = dmfs
+        dmfs:SetPoint("CENTER")
+        dmfs:SetText("dungeon map")
+
+        if sfui.theme and sfui.theme.ApplyButtonStyle then
+            sfui.theme.ApplyButtonStyle(djMapBtn, false)
+            sfui.theme.RegisterButton(djMapBtn, false)
+        else
+            common.apply_flat_backdrop(djMapBtn, { 0.10, 0.10, 0.14, 0.9 })
+            djMapBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+            dmfs:SetTextColor(accent[1], accent[2], accent[3], 1)
+        end
+
+        djMapBtn:SetScript("OnEnter", function(self)
+            if not self._sfuiCamelotBg then
+                self:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+            end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText("show on dungeon map", accent[1], accent[2], accent[3])
+            GameTooltip:AddLine("switch to the dungeon map tab and highlight this quest's objective or npc location.", 0.85, 0.85, 0.85, true)
+            GameTooltip:Show()
+        end)
+        djMapBtn:SetScript("OnLeave", function(self)
+            if not self._sfuiCamelotBg then
+                self:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+            end
+            GameTooltip:Hide()
+        end)
+        djMapBtn:SetScript("OnClick", function()
+            GameTooltip:Hide()
+            local q = detailContent.activeQuest
+            local d = GetCurrentDungeon()
+            if q and d and sfui.dj_map and sfui.dj_map.FocusQuest then
+                sfui.dj_map.FocusQuest(nil, d, q.id, q.name)
+            end
+        end)
+        djMapBtn:Hide()
 
         -- Divider between text details and item rewards
         local div = info:CreateTexture(nil, "ARTWORK")
@@ -898,7 +973,7 @@ local function RenderQuestDetail(quest, dungeon)
         if info.syncText then info.syncText:Hide() end
     end
 
-    -- 5. Action Buttons (Share Quest & Show on Map)
+    -- 5. Action Buttons (Share Quest, Show on Map, Dungeon Map)
     local hasShare = CanShareQuestNow(quest.id, quest)
     local resolveFn = info.ResolveQuestMapCoords
     local hasMap = resolveFn and (resolveFn(quest) ~= nil)
@@ -908,12 +983,16 @@ local function RenderQuestDetail(quest, dungeon)
         ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id]))
         hasMap = (qcoords ~= nil) or (GetCurrentDungeon() ~= nil)
     end
+    local hasDjMap = (dungeon and sfui.dj_map and sfui.dj_map.FindQuestMapSpot
+        and sfui.dj_map.FindQuestMapSpot(dungeon, quest.id, quest.name)) ~= nil
 
+    local prevBtn = nil
     if info.shareBtn then
         if hasShare then
             info.shareBtn:ClearAllPoints()
             info.shareBtn:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
             info.shareBtn:Show()
+            prevBtn = info.shareBtn
         else
             info.shareBtn:Hide()
         end
@@ -922,18 +1001,34 @@ local function RenderQuestDetail(quest, dungeon)
     if info.mapBtn then
         if hasMap then
             info.mapBtn:ClearAllPoints()
-            if hasShare and info.shareBtn:IsShown() then
-                info.mapBtn:SetPoint("LEFT", info.shareBtn, "RIGHT", 8, 0)
+            if prevBtn then
+                info.mapBtn:SetPoint("LEFT", prevBtn, "RIGHT", 6, 0)
             else
                 info.mapBtn:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
             end
             info.mapBtn:Show()
+            prevBtn = info.mapBtn
         else
             info.mapBtn:Hide()
         end
     end
 
-    if (hasShare and info.shareBtn:IsShown()) or (hasMap and info.mapBtn:IsShown()) then
+    if info.djMapBtn then
+        if hasDjMap then
+            info.djMapBtn:ClearAllPoints()
+            if prevBtn then
+                info.djMapBtn:SetPoint("LEFT", prevBtn, "RIGHT", 6, 0)
+            else
+                info.djMapBtn:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
+            end
+            info.djMapBtn:Show()
+            prevBtn = info.djMapBtn
+        else
+            info.djMapBtn:Hide()
+        end
+    end
+
+    if prevBtn then
         currY = currY + 22 + 10
     end
 
@@ -1464,12 +1559,25 @@ function sfui.dungeonjournal.FocusQuest(questID)
     local dungeon   = GetCurrentDungeon()
     local allQuests = dungeon and dungeon.quests or {}
     local quests    = GetFilteredQuests(allQuests)
+    local foundIdx  = nil
     for idx, q in ipairs(quests) do
-        if q.id == questID then
-            selectedQuestIndex = idx
-            DJ_DB().lastQuest = idx
-            RefreshQuestView()
-            return
+        if q.id == questID or (q.chainStart and q.chainStart.id == questID) then
+            foundIdx = idx
+            break
         end
+        if q.chain then
+            for _, s in ipairs(q.chain) do
+                if s.id == questID then
+                    foundIdx = idx
+                    break
+                end
+            end
+            if foundIdx then break end
+        end
+    end
+    if foundIdx then
+        selectedQuestIndex = foundIdx
+        DJ_DB().lastQuest = foundIdx
+        RefreshQuestView()
     end
 end

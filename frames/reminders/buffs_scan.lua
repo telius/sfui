@@ -879,7 +879,7 @@ local function InitScanEvents()
         end)
     end
 
-    -- Talent, spec, & spell changes
+    -- Talent, spec, gearset, & spell changes
     sfui.events.RegisterEvent("SPELLS_CHANGED", on_knowledge_change)
     sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", on_knowledge_change)
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_knowledge_change)
@@ -888,6 +888,8 @@ local function InitScanEvents()
     sfui.events.RegisterEvent("PET_STABLE_UPDATE", on_knowledge_change)
     sfui.events.RegisterEvent("PLAYER_ROLES_ASSIGNED", on_knowledge_change)
     sfui.events.RegisterEvent("GROUP_ROSTER_UPDATE", on_knowledge_change)
+    sfui.events.RegisterEvent("EQUIPMENT_SETS_CHANGED", on_knowledge_change)
+    sfui.events.RegisterEvent("EQUIPMENT_SWAP_FINISHED", on_knowledge_change)
     if sfui.events.RegisterMessage then
         sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", on_knowledge_change)
         sfui.events.RegisterMessage("SFUI_GEAR_ROLE_CHANGED", on_knowledge_change)
@@ -925,12 +927,6 @@ local function InitScanEvents()
             end)
         end
     end)
-
-    -- Spec changes broadcasted by sfui.talents (talents_camelot.lua)
-    if sfui.events.RegisterMessage then
-        sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", on_knowledge_change)
-        sfui.events.RegisterMessage("SFUI_GEAR_ROLE_CHANGED", on_knowledge_change)
-    end
 end
 InitScanEvents()
 

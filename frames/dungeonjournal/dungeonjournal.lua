@@ -56,17 +56,18 @@ local theme                         = sfui.theme
 
 local frame                         = nil -- main window (lazy-created)
 local sidebarFrame                  = nil
+local mapPanel                      = nil
 local bossPanel                     = nil
 local questPanel                    = nil
 
 local selectedDungeonID             = nil -- dungeon id string
-local selectedMode                  = "bosses" -- "bosses" | "quests"
+local selectedMode                  = "map" -- "map" | "bosses" | "quests"
 local selectedTab                   = "dungeons" -- "dungeons" | "raids"
 
 -- ─── SavedVariables helpers ───────────────────────────────────────────────────
 sfui.db.RegisterDefaults("dungeonjournal", {
     lastDungeon         = nil,
-    lastMode            = "bosses",
+    lastMode            = "map",
     lastTab             = "dungeons",
     questFaction        = "all",
     lastBoss            = 1,
@@ -1046,13 +1047,45 @@ local function SetTabButtonTextColor(btn, color)
     end
 end
 
+local function HasDungeonMap(dungeon)
+    local d = dungeon or GetCurrentDungeon()
+    return (d and sfui.dj_map and sfui.dj_map.HasMap and sfui.dj_map.HasMap(d)) == true
+end
+
+local function GetEffectiveMode()
+    if selectedMode == "map" and not HasDungeonMap() then
+        return "bosses"
+    end
+    return selectedMode
+end
+
+local function RefreshMapView()
+    if not mapPanel or not mapPanel:IsShown() then return end
+    if sfui.dj_map and sfui.dj_map.Render then
+        sfui.dj_map.Render(frame, GetCurrentDungeon())
+    end
+end
+
 local function UpdateTabHighlights()
     if not frame then return end
+    local effMode = GetEffectiveMode()
+    local hasMap  = HasDungeonMap()
+    if frame.mapTab then
+        frame.mapTab:SetAlpha(hasMap and 1.0 or 0.35)
+        if hasMap then
+            frame.mapTab:Enable()
+        else
+            frame.mapTab:Disable()
+        end
+    end
     if theme.ApplyTabStyle then
         theme.ApplyTabStyle(frame.dungeonTabBtn, selectedTab == "dungeons")
         theme.ApplyTabStyle(frame.raidTabBtn, selectedTab == "raids")
-        theme.ApplyTabStyle(frame.bossesTab, selectedMode == "bosses")
-        theme.ApplyTabStyle(frame.questsTab, selectedMode == "quests")
+        if frame.mapTab then
+            theme.ApplyTabStyle(frame.mapTab, effMode == "map")
+        end
+        theme.ApplyTabStyle(frame.bossesTab, effMode == "bosses")
+        theme.ApplyTabStyle(frame.questsTab, effMode == "quests")
     else
         local pal    = theme.GetPalette()
         local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
@@ -1066,34 +1099,44 @@ local function UpdateTabHighlights()
             local ra = (selectedTab == "raids") and accent or dim
             SetTabButtonTextColor(frame.raidTabBtn, ra)
         end
+        if frame.mapTab then
+            local ma = (effMode == "map") and accent or dim
+            SetTabButtonTextColor(frame.mapTab, ma)
+        end
         if frame.bossesTab then
-            local ba = (selectedMode == "bosses") and accent or dim
+            local ba = (effMode == "bosses") and accent or dim
             SetTabButtonTextColor(frame.bossesTab, ba)
         end
         if frame.questsTab then
-            local qa = (selectedMode == "quests") and accent or dim
+            local qa = (effMode == "quests") and accent or dim
             SetTabButtonTextColor(frame.questsTab, qa)
         end
     end
 end
 
--- ─── Mode switching ──────────────────────────────────────────────────────────
-local function SetMode(mode)
-    selectedMode = mode or "bosses"
-    DJ_DB().lastMode = selectedMode
-
+local function SyncActivePanel()
     if not frame then return end
-
-    if bossPanel then bossPanel:SetShown(selectedMode == "bosses") end
-    if questPanel then questPanel:SetShown(selectedMode == "quests") end
+    local effMode = GetEffectiveMode()
+    if mapPanel then mapPanel:SetShown(effMode == "map") end
+    if bossPanel then bossPanel:SetShown(effMode == "bosses") end
+    if questPanel then questPanel:SetShown(effMode == "quests") end
 
     UpdateTabHighlights()
 
-    if selectedMode == "bosses" and RefreshBossView then
+    if effMode == "map" then
+        RefreshMapView()
+    elseif effMode == "bosses" and RefreshBossView then
         RefreshBossView()
-    elseif selectedMode == "quests" and RefreshQuestView then
+    elseif effMode == "quests" and RefreshQuestView then
         RefreshQuestView()
     end
+end
+
+-- ─── Mode switching ──────────────────────────────────────────────────────────
+local function SetMode(mode)
+    selectedMode = mode or "map"
+    DJ_DB().lastMode = selectedMode
+    SyncActivePanel()
 end
 
 local function SetTab(tab)
@@ -1129,17 +1172,18 @@ local function SetTab(tab)
         DJ_DB().lastDungeon = selectedDungeonID
     end
 
-    UpdateTabHighlights()
-
     if RefreshSidebar then RefreshSidebar() end
-    if selectedMode == "bosses" and RefreshBossView then
-        RefreshBossView()
-    elseif selectedMode == "quests" and RefreshQuestView then
-        RefreshQuestView()
-    end
+    SyncActivePanel()
 end
 
 local function GetCurrentInstanceDungeon()
+    if sfui.dj_camelot and sfui.dj_camelot.GetCurrentInstanceDungeon then
+        local dID, flIdx = sfui.dj_camelot.GetCurrentInstanceDungeon()
+        if dID then
+            local d = FindDungeon(dID) or (sfui.dj_camelot.GetDungeonByName and sfui.dj_camelot.GetDungeonByName(dID))
+            if d then return d, flIdx end
+        end
+    end
     if not IsInInstance then return nil end
     local inInstance, instanceType = IsInInstance()
     if not inInstance or (instanceType ~= "party" and instanceType ~= "raid") then
@@ -1164,7 +1208,7 @@ function sfui.dungeonjournal.SelectDungeon(dungeonID, mode, forceShowAll)
         DJ_DB().lastTab = tab
     end
 
-    if mode and (mode == "bosses" or mode == "quests") then
+    if mode and (mode == "map" or mode == "bosses" or mode == "quests") then
         selectedMode = mode
         DJ_DB().lastMode = mode
     end
@@ -1181,16 +1225,8 @@ function sfui.dungeonjournal.SelectDungeon(dungeonID, mode, forceShowAll)
     if not frame then sfui.dungeonjournal.CreateFrame() end
     if not frame:IsShown() then frame:Show() end
 
-    UpdateTabHighlights()
-    if bossPanel then bossPanel:SetShown(selectedMode == "bosses") end
-    if questPanel then questPanel:SetShown(selectedMode == "quests") end
-
     if RefreshSidebar then RefreshSidebar() end
-    if selectedMode == "bosses" and RefreshBossView then
-        RefreshBossView()
-    elseif selectedMode == "quests" and RefreshQuestView then
-        RefreshQuestView()
-    end
+    SyncActivePanel()
 end
 
 function sfui.dungeonjournal.OpenToDungeon(dungeonID, mode)
@@ -1266,11 +1302,7 @@ function sfui.dungeonjournal.SetSelectedDungeonID(dungeonID)
     DJ_DB().lastDungeon = dungeonID
     DJ_DB().lastBoss    = 1
     DJ_DB().lastQuest   = 1
-    if selectedMode == "bosses" and RefreshBossView then
-        RefreshBossView()
-    elseif selectedMode == "quests" and RefreshQuestView then
-        RefreshQuestView()
-    end
+    SyncActivePanel()
 end
 
 function sfui.dungeonjournal.GetSelectedMode()
@@ -1327,9 +1359,13 @@ end
 function sfui.dungeonjournal.CreateFrame()
     if frame then return frame end
 
-    local saved       = DJ_DB()
+    local saved = DJ_DB()
+    if not saved.mapTabMigrated then
+        saved.mapTabMigrated = true
+        saved.lastMode = "map"
+    end
     selectedDungeonID = saved.lastDungeon or nil
-    selectedMode      = saved.lastMode or "bosses"
+    selectedMode      = saved.lastMode or "map"
     selectedTab       = saved.lastTab or "dungeons"
 
     -- ── Main window ───────────────────────────────────────────────────────────
@@ -1725,9 +1761,15 @@ function sfui.dungeonjournal.CreateFrame()
         return btn
     end
 
-    frame.bossesTab = MakeModeTab("bosses & loot", nil, 106)
+    frame.mapTab    = MakeModeTab("map", nil, 68)
+    frame.bossesTab = MakeModeTab("bosses & loot", frame.mapTab, 106)
     frame.questsTab = MakeModeTab("quests", frame.bossesTab, 80)
 
+    frame.mapTab:SetScript("OnClick", function()
+        if HasDungeonMap() then
+            SetMode("map")
+        end
+    end)
     frame.bossesTab:SetScript("OnClick", function() SetMode("bosses") end)
     frame.questsTab:SetScript("OnClick", function() SetMode("quests") end)
 
@@ -1746,11 +1788,17 @@ function sfui.dungeonjournal.CreateFrame()
     contentArea:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_W + 16, sidebarY)
     contentArea:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8, 8)
 
+    -- ── Map panel container ────────────────────────────────────────────────────
+    mapPanel = CreateFrame("Frame", nil, contentArea)
+    frame.mapPanel = mapPanel
+    mapPanel:SetAllPoints(contentArea)
+    mapPanel:Hide()
+
     -- ── Boss panel container ───────────────────────────────────────────────────
     bossPanel = CreateFrame("Frame", nil, contentArea)
     frame.bossPanel = bossPanel
     bossPanel:SetAllPoints(contentArea)
-    bossPanel:Show()
+    bossPanel:Hide()
 
     -- ── Quest panel container ──────────────────────────────────────────────────
     questPanel = CreateFrame("Frame", nil, contentArea)
@@ -1823,10 +1871,12 @@ function sfui.dungeonjournal.Toggle()
         frame:Show()
 
         -- In-Instance Auto-Detection
+        local activeFloor = nil
         if DJ_DB().autoDetectInstance ~= false then
-            local activeDungeon = GetCurrentInstanceDungeon()
+            local activeDungeon, flIdx = GetCurrentInstanceDungeon()
             if activeDungeon then
                 selectedDungeonID   = activeDungeon.id
+                activeFloor         = flIdx
                 selectedTab         = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
                 "raids" or "dungeons"
                 DJ_DB().lastDungeon = selectedDungeonID
@@ -1862,15 +1912,14 @@ function sfui.dungeonjournal.Toggle()
             DJ_DB().lastDungeon = selectedDungeonID
         end
 
-        UpdateTabHighlights()
-        if bossPanel then bossPanel:SetShown(selectedMode == "bosses") end
-        if questPanel then questPanel:SetShown(selectedMode == "quests") end
+        -- Default to map tab when opening a mapped dungeon
+        selectedMode = "map"
+        DJ_DB().lastMode = "map"
 
         if RefreshSidebar then RefreshSidebar() end
-        if selectedMode == "bosses" and RefreshBossView then
-            RefreshBossView()
-        elseif selectedMode == "quests" and RefreshQuestView then
-            RefreshQuestView()
+        SyncActivePanel()
+        if activeFloor and frame.mapPanel and frame.mapPanel.ctrl and frame.mapPanel:IsShown() then
+            frame.mapPanel.ctrl:SetFloor(activeFloor)
         end
     end
 end
@@ -1896,10 +1945,12 @@ function sfui.dungeonjournal.Open()
         frame:Show()
 
         -- In-Instance Auto-Detection
+        local activeFloor = nil
         if DJ_DB().autoDetectInstance ~= false then
-            local activeDungeon = GetCurrentInstanceDungeon()
+            local activeDungeon, flIdx = GetCurrentInstanceDungeon()
             if activeDungeon then
                 selectedDungeonID   = activeDungeon.id
+                activeFloor         = flIdx
                 selectedTab         = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
                 "raids" or "dungeons"
                 DJ_DB().lastDungeon = selectedDungeonID
@@ -1935,15 +1986,13 @@ function sfui.dungeonjournal.Open()
             DJ_DB().lastDungeon = selectedDungeonID
         end
 
-        UpdateTabHighlights()
-        if bossPanel then bossPanel:SetShown(selectedMode == "bosses") end
-        if questPanel then questPanel:SetShown(selectedMode == "quests") end
+        selectedMode = "map"
+        DJ_DB().lastMode = "map"
 
         if RefreshSidebar then RefreshSidebar() end
-        if selectedMode == "bosses" and RefreshBossView then
-            RefreshBossView()
-        elseif selectedMode == "quests" and RefreshQuestView then
-            RefreshQuestView()
+        SyncActivePanel()
+        if activeFloor and frame.mapPanel and frame.mapPanel.ctrl and frame.mapPanel:IsShown() then
+            frame.mapPanel.ctrl:SetFloor(activeFloor)
         end
     end
 end
@@ -1999,11 +2048,7 @@ end
 
 function sfui.dungeonjournal.Rebuild()
     if RefreshSidebar then RefreshSidebar() end
-    if selectedMode == "bosses" and RefreshBossView then
-        RefreshBossView()
-    elseif selectedMode == "quests" and RefreshQuestView then
-        RefreshQuestView()
-    end
+    SyncActivePanel()
 end
 
 -- ─── Backward compatibility aliases ──────────────────────────────────────────
@@ -2036,16 +2081,11 @@ end
 if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
         if frame and frame:IsShown() then
-            UpdateTabHighlights()
             if sfui.theme and sfui.theme.ApplyWindowStyle then
                 sfui.theme.ApplyWindowStyle(frame)
             end
             if RefreshSidebar then RefreshSidebar() end
-            if selectedMode == "bosses" and RefreshBossView then
-                RefreshBossView()
-            elseif selectedMode == "quests" and RefreshQuestView then
-                RefreshQuestView()
-            end
+            SyncActivePanel()
         end
     end)
 end

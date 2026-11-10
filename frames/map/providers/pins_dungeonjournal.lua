@@ -226,6 +226,10 @@ local function OnEnterQuestGroup(pin, tooltip, pinData)
         if q.pickup and q.pickup ~= "" then
             tooltip:AddLine("starts from: " .. q.pickup, 0.85, 0.85, 0.85)
         end
+        local qCoords = sfui.dj_camelot and sfui.dj_camelot.GetQuestCoords and q.id and sfui.dj_camelot.GetQuestCoords(q.id)
+        if qCoords and qCoords.detail and qCoords.detail ~= "" then
+            tooltip:AddLine("location: " .. tostring(qCoords.detail):lower(), 0.75, 0.85, 1.0, true)
+        end
         if underlevel then
             tooltip:AddLine(string_format("requires level: %d  (your level %d)", minLvl, playerLevel), 1, 0.35, 0.35)
             tooltip:AddLine("status: |cffff4444locked (level requirement not met)|r", 1, 0.35, 0.35)

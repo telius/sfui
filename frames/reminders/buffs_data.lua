@@ -131,98 +131,68 @@ local function IsAnySpellKnown(spellIDs)
 end
 sfui.buffs.data.IsAnySpellKnown = IsAnySpellKnown
 
-local PALADIN_PROT_BASE_IDS = { 1486, 14862, 66, 2 }
-local PALADIN_PROT_SPELLS = {
-    20925, 20927, 20928, 27179, -- Holy Shield
-    20911, 20912, 20913, 20914, 27168, 25899, 27169, -- Blessing / Greater Blessing of Sanctuary
-    31935, 32699, 32700, 48827, -- Avenger's Shield
-    53600, -- Shield of Righteousness
-}
+local PALADIN_GEAR_IDS = { 1486, 14862, 14861, 14863, 66, 65, 70, 2 }
 
---- Checks whether the current character is a Protection Paladin.
---- Evaluates Camelot spec ID (14862), Retail spec ID (66), dominant tree index (2),
---- classic talent spec info, assigned group tank role, or signature protection talents.
+--- Checks whether the Protection gearset is currently active for a Paladin.
+--- Evaluates only the Gear Manager role / equipped gearset, ignoring talent spec.
 local function IsProtectionPaladin()
     if playerClass ~= "PALADIN" then return false end
+
+    if sfui.gear and sfui.gear.isNakedPaused and sfui.gear.isNakedPaused() then
+        return false
+    end
 
     local talents = sfui.talents
     if talents and talents.is_protection_paladin then
         return talents.is_protection_paladin()
     end
 
-    if talents then
-        local specID = (talents.get_current_spec_id and talents.get_current_spec_id())
-            or (talents._specResolver and talents._specResolver())
-        if specID == 14862 or specID == 66 then
-            return true
-        end
-
-        local specIdx = talents.get_current_spec_index and talents.get_current_spec_index()
-        if specIdx == 2 then
-            return true
-        end
-
-        if talents.get_classic_talent_spec_info then
-            local specInfo = talents.get_classic_talent_spec_info()
-            if specInfo then
-                if specInfo.dominantTree == 2 or specInfo.equivSpecID == 66
-                    or (specInfo.name and specInfo.name:lower() == "protection")
-                    or specInfo.role == "TANK" or specInfo.classicRole == "TANK" then
-                    return true
-                end
-            end
-        end
-    end
-
-    if _G.GetSpecialization then
-        local specIdx = _G.GetSpecialization()
-        if specIdx == 2 then
-            return true
-        end
-    end
-
-    -- Check Gear Manager configured role
     local SfuiDB = _G.SfuiDB
-    if SfuiDB and SfuiDB.gear then
-        local gDB = SfuiDB.gear
-        for i = 1, #PALADIN_PROT_BASE_IDS do
-            local id = PALADIN_PROT_BASE_IDS[i]
-            local db = gDB[id]
-            if db then
-                local cRole = db.classic_role and db.classic_role:lower()
-                if cRole == "prot" or cRole == "tank" or db.role == "TANK" or db.is_tank then
-                    return true
-                end
+    local gDB = SfuiDB and SfuiDB.gear
+    if gDB then
+        local activeSpec = (_G.SfuiGearManagerFrame and _G.SfuiGearManagerFrame.activeSpecID)
+            or (talents and talents.get_current_spec_id and talents.get_current_spec_id())
+        local primaryDB = (activeSpec and gDB[activeSpec]) or gDB[1486]
+        if primaryDB and primaryDB.classic_role then
+            local cRole = primaryDB.classic_role:lower()
+            return cRole == "prot" or cRole == "tank"
+        end
+
+        for i = 1, #PALADIN_GEAR_IDS do
+            local db = gDB[PALADIN_GEAR_IDS[i]]
+            if db and db.classic_role then
+                local cRole = db.classic_role:lower()
+                return cRole == "prot" or cRole == "tank"
             end
         end
     end
 
-    if sfui.gear and sfui.gear.GetClassicRole then
-        local gRole = sfui.gear.GetClassicRole(1486, SfuiDB and SfuiDB.gear and SfuiDB.gear[1486])
-        if gRole and (gRole == "prot" or gRole == "tank") then
-            return true
+    local C_EquipmentSet = _G.C_EquipmentSet
+    if C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs and C_EquipmentSet.GetEquipmentSetInfo then
+        local protPvE, protPvP
+        if gDB then
+            local protDB = gDB[14862] or gDB[66] or gDB[1486]
+            if protDB then
+                protPvE = protDB.pve_set and protDB.pve_set ~= "" and protDB.pve_set:lower() or nil
+                protPvP = protDB.pvp_set and protDB.pvp_set ~= "" and protDB.pvp_set:lower() or nil
+            end
         end
-    end
 
-    if _G.SfuiGearManagerFrame and _G.SfuiGearManagerFrame.activeSpecID then
-        local activeSpec = _G.SfuiGearManagerFrame.activeSpecID
-        if activeSpec == 14862 or activeSpec == 66 then
-            return true
+        local setIDs = C_EquipmentSet.GetEquipmentSetIDs()
+        if setIDs then
+            for i = 1, #setIDs do
+                local name, _, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(setIDs[i])
+                if isEquipped and type(name) == "string" and name ~= "" then
+                    local lowerName = name:lower()
+                    if lowerName == "prot" or lowerName == "protection" or lowerName == "tank"
+                        or lowerName:find("^prot", 1, false) or lowerName:find("^tank", 1, false)
+                        or (protPvE and lowerName == protPvE)
+                        or (protPvP and lowerName == protPvP) then
+                        return true
+                    end
+                end
+            end
         end
-    end
-
-    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
-    if assignedRole == "TANK" then
-        return true
-    end
-
-    if _G.GetLFGRoles then
-        local _, isTank = _G.GetLFGRoles()
-        if isTank then return true end
-    end
-
-    if IsAnySpellKnown(PALADIN_PROT_SPELLS) then
-        return true
     end
 
     return false

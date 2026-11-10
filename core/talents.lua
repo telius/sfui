@@ -420,142 +420,82 @@ function sfui.talents.is_feral_spec(specID)
 end
 sfui.common.is_feral_spec = sfui.talents.is_feral_spec
 
-local PALADIN_PROT_BASE_IDS = { 1486, 14862, 66, 2 }
-local PALADIN_PROT_SPELLS = {
-    20925, 20927, 20928, 27179, -- Holy Shield
-    20911, 20912, 20913, 20914, 27168, 25899, 27169, -- Blessing / Greater Blessing of Sanctuary
-    31935, 32699, 32700, 48827, -- Avenger's Shield
-    53600, -- Shield of Righteousness
-}
+local PALADIN_GEAR_IDS = { 1486, 14862, 14861, 14863, 66, 65, 70, 2 }
 
---- Checks whether the specified or current character is a Protection Paladin.
---- Evaluates Camelot spec ID (14862), Retail spec ID (66), dominant tree index (2),
---- classic talent spec info, assigned group tank role, or signature protection talents.
+--- Checks whether the Protection gearset is currently active for a Paladin.
+--- Evaluates only the Gear Manager role / equipped gearset, ignoring talent spec.
 --- @param specID number|nil
 --- @return boolean
 function sfui.talents.is_protection_paladin(specID)
     local pClass = sfui.talents.get_player_class()
     if pClass ~= "PALADIN" then return false end
 
+    if sfui.gear and sfui.gear.isNakedPaused and sfui.gear.isNakedPaused() then
+        cachedIsProtPally = false
+        return false
+    end
+
     if not specID and cachedIsProtPally ~= nil then
         return cachedIsProtPally
     end
 
     local sID = specID or (cachedSpecID ~= 0 and cachedSpecID) or sfui.talents.get_current_spec_id()
-    if sID == 14862 or sID == 66 then
-        if not specID then cachedIsProtPally = true end
-        return true
-    end
+    local SfuiDB = _G.SfuiDB
+    local gDB = SfuiDB and SfuiDB.gear
 
-    local sIdx = (not specID and cachedSpecIndex ~= 0 and cachedSpecIndex)
-        or (sfui.talents.get_current_spec_index and sfui.talents.get_current_spec_index())
-    if sIdx == 2 then
-        if not specID then cachedIsProtPally = true end
-        return true
-    end
+    -- 1. Check SFUI Gear Manager selected role (prot / ret / holy)
+    if gDB then
+        local activeSpec = (_G.SfuiGearManagerFrame and _G.SfuiGearManagerFrame.activeSpecID) or sID
+        local primaryDB = (specID and gDB[specID])
+            or (activeSpec and gDB[activeSpec])
+            or (sID and gDB[sID])
+            or gDB[1486]
 
-    if _G.GetSpecialization then
-        local specIdx = _G.GetSpecialization()
-        if specIdx == 2 then
-            if not specID then cachedIsProtPally = true end
-            return true
+        if primaryDB and primaryDB.classic_role then
+            local cRole = primaryDB.classic_role:lower()
+            local isProt = (cRole == "prot" or cRole == "tank")
+            if not specID then cachedIsProtPally = isProt end
+            return isProt
         end
-    end
 
-    -- 3. Classic talent spec info
-    if sfui.talents.get_classic_talent_spec_info then
-        local specInfo = sfui.talents.get_classic_talent_spec_info()
-        if specInfo then
-            if specInfo.dominantTree == 2 or specInfo.equivSpecID == 66
-                or (specInfo.name and specInfo.name:lower() == "protection")
-                or specInfo.role == "TANK" or specInfo.classicRole == "TANK" then
-                if not specID then cachedIsProtPally = true end
-                return true
+        for i = 1, #PALADIN_GEAR_IDS do
+            local db = gDB[PALADIN_GEAR_IDS[i]]
+            if db and db.classic_role then
+                local cRole = db.classic_role:lower()
+                local isProt = (cRole == "prot" or cRole == "tank")
+                if not specID then cachedIsProtPally = isProt end
+                return isProt
             end
         end
     end
 
-    -- 4. Gear Manager configured role / active spec
-    if SfuiDB and SfuiDB.gear then
-        local gDB = SfuiDB.gear
-        if specID and gDB[specID] then
-            local db = gDB[specID]
-            local cRole = db.classic_role and db.classic_role:lower()
-            if cRole == "prot" or cRole == "tank" or db.role == "TANK" or db.is_tank then
-                return true
+    -- 2. Check Blizzard Equipment Manager equipped gearset (C_EquipmentSet)
+    local C_EquipmentSet = _G.C_EquipmentSet
+    if C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs and C_EquipmentSet.GetEquipmentSetInfo then
+        local protPvE, protPvP
+        if gDB then
+            local protDB = gDB[14862] or gDB[66] or gDB[1486]
+            if protDB then
+                protPvE = protDB.pve_set and protDB.pve_set ~= "" and protDB.pve_set:lower() or nil
+                protPvP = protDB.pvp_set and protDB.pvp_set ~= "" and protDB.pvp_set:lower() or nil
             end
         end
-        if sID and gDB[sID] then
-            local db = gDB[sID]
-            local cRole = db.classic_role and db.classic_role:lower()
-            if cRole == "prot" or cRole == "tank" or db.role == "TANK" or db.is_tank then
-                if not specID then cachedIsProtPally = true end
-                return true
-            end
-        end
-        for i = 1, #PALADIN_PROT_BASE_IDS do
-            local id = PALADIN_PROT_BASE_IDS[i]
-            local db = gDB[id]
-            if db then
-                local cRole = db.classic_role and db.classic_role:lower()
-                if cRole == "prot" or cRole == "tank" or db.role == "TANK" or db.is_tank then
-                    if not specID then cachedIsProtPally = true end
-                    return true
+
+        local setIDs = C_EquipmentSet.GetEquipmentSetIDs()
+        if setIDs then
+            for i = 1, #setIDs do
+                local name, _, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(setIDs[i])
+                if isEquipped and type(name) == "string" and name ~= "" then
+                    local lowerName = name:lower()
+                    if lowerName == "prot" or lowerName == "protection" or lowerName == "tank"
+                        or lowerName:find("^prot", 1, false) or lowerName:find("^tank", 1, false)
+                        or (protPvE and lowerName == protPvE)
+                        or (protPvP and lowerName == protPvP) then
+                        if not specID then cachedIsProtPally = true end
+                        return true
+                    end
                 end
             end
-        end
-    end
-
-    if sfui.gear and sfui.gear.GetClassicRole then
-        local gRole = sfui.gear.GetClassicRole(sID, SfuiDB and SfuiDB.gear and SfuiDB.gear[sID])
-        if gRole and (gRole == "prot" or gRole == "tank") then
-            if not specID then cachedIsProtPally = true end
-            return true
-        end
-    end
-
-    if _G.SfuiGearManagerFrame and _G.SfuiGearManagerFrame.activeSpecID then
-        local activeSpec = _G.SfuiGearManagerFrame.activeSpecID
-        if activeSpec == 14862 or activeSpec == 66 then
-            if not specID then cachedIsProtPally = true end
-            return true
-        end
-    end
-
-    -- 5. Group assigned role
-    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
-    if assignedRole == "TANK" then
-        if not specID then cachedIsProtPally = true end
-        return true
-    end
-
-    -- LFG / Dungeon Finder Tank role
-    if _G.GetLFGRoles then
-        local _, isTank = _G.GetLFGRoles()
-        if isTank then
-            if not specID then cachedIsProtPally = true end
-            return true
-        end
-    end
-    if _G.LFDQueueFrame_GetRoles then
-        local ok, _, isTank = pcall(_G.LFDQueueFrame_GetRoles)
-        if ok and isTank then
-            if not specID then cachedIsProtPally = true end
-            return true
-        end
-    end
-
-    -- Signature Protection talents (Holy Shield, Blessing of Sanctuary, etc.)
-    local isPlayerSpell = _G.IsPlayerSpell
-    local isSpellKnown = _G.IsSpellKnown
-    local resolver = sfui.talents._talentKnownResolver
-    for i = 1, #PALADIN_PROT_SPELLS do
-        local pid = PALADIN_PROT_SPELLS[i]
-        if (isPlayerSpell and isPlayerSpell(pid))
-            or (isSpellKnown and isSpellKnown(pid))
-            or (resolver and resolver(pid)) then
-            if not specID then cachedIsProtPally = true end
-            return true
         end
     end
 

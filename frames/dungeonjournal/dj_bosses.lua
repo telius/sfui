@@ -756,6 +756,9 @@ local function RenderLoot(boss, dungeon)
                     bossHeaderFrame.portraitFrame:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.75)
                     bossHeaderFrame.portraitFrame:Show()
                 end
+                if bossHeaderFrame.mapBtn then
+                    bossHeaderFrame.mapBtn:Hide()
+                end
             else
                 local hasWish = GetBossWishlistInfo(boss)
                 local wishTag = hasWish and "  |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:16:16:0:0|t" or ""
@@ -795,6 +798,16 @@ local function RenderLoot(boss, dungeon)
                     bossHeaderFrame.portraitFrame:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.75)
                     bossHeaderFrame.portraitFrame:Show()
                 end
+                if bossHeaderFrame.mapBtn then
+                    local spot = sfui.dj_map and sfui.dj_map.FindBossMapSpot and sfui.dj_map.FindBossMapSpot(dungeon, boss.name)
+                    if spot then
+                        bossHeaderFrame.mapBtn.bossName = boss.name
+                        bossHeaderFrame.mapBtn.dungeon = dungeon
+                        bossHeaderFrame.mapBtn:Show()
+                    else
+                        bossHeaderFrame.mapBtn:Hide()
+                    end
+                end
             end
         else
             bossHeaderFrame.name:SetText("select an encounter")
@@ -806,6 +819,9 @@ local function RenderLoot(boss, dungeon)
             end
             if bossHeaderFrame.portraitFrame then
                 bossHeaderFrame.portraitFrame:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.6)
+            end
+            if bossHeaderFrame.mapBtn then
+                bossHeaderFrame.mapBtn:Hide()
             end
         end
     end
@@ -1300,8 +1316,37 @@ local function OnFrameCreated(arg1, arg2)
 
     local dropCountText = bossHeaderFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     bossHeaderFrame.count = dropCountText
-    dropCountText:SetPoint("BOTTOMRIGHT", bossHeaderFrame, "BOTTOMRIGHT", 0, 6)
+    dropCountText:SetPoint("BOTTOMRIGHT", bossHeaderFrame, "BOTTOMRIGHT", 0, 4)
     dropCountText:SetJustifyH("RIGHT")
+
+    local mapBtn = CreateFrame("Button", nil, bossHeaderFrame, "BackdropTemplate")
+    bossHeaderFrame.mapBtn = mapBtn
+    mapBtn:SetSize(96, 20)
+    mapBtn:SetPoint("TOPRIGHT", bossHeaderFrame, "TOPRIGHT", 0, -2)
+    local mfs = mapBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    mapBtn.fs = mfs
+    mfs:SetPoint("CENTER")
+    mfs:SetText("show on map")
+    if sfui.theme and sfui.theme.ApplyButtonStyle then
+        sfui.theme.ApplyButtonStyle(mapBtn, false)
+        sfui.theme.RegisterButton(mapBtn, false)
+    else
+        common.apply_flat_backdrop(mapBtn, { 0.10, 0.10, 0.14, 0.9 }, { 0.24, 0.24, 0.28, 1 })
+    end
+    mapBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("show on dungeon map", 1, 0.82, 0)
+        GameTooltip:AddLine("switch to the map tab and highlight this boss encounter.", 0.85, 0.85, 0.85, true)
+        GameTooltip:Show()
+    end)
+    mapBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    mapBtn:SetScript("OnClick", function(self)
+        GameTooltip:Hide()
+        if self.dungeon and self.bossName and sfui.dj_map and sfui.dj_map.FocusBoss then
+            sfui.dj_map.FocusBoss(nil, self.dungeon, self.bossName)
+        end
+    end)
+    mapBtn:Hide()
 
     -- Divider under boss header
     local div = detailContainer:CreateTexture(nil, "ARTWORK")

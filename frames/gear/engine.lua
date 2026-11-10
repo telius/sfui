@@ -103,6 +103,13 @@ function sfui.gear.SetNakedPaused(paused, silent)
             sfui.gear.StopUnequipDurabilityItems()
         end
     end
+    if sfui.talents and sfui.talents.invalidate_protection_paladin_cache then
+        sfui.talents.invalidate_protection_paladin_cache()
+    end
+    if sfui.buffs and sfui.buffs.scan and sfui.buffs.scan.RefreshSpellKnowledge then
+        sfui.buffs.scan.RefreshSpellKnowledge()
+        sfui.buffs.scan.RequestScan()
+    end
     sfui.gear.UpdateStatUI()
 end
 
