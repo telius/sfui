@@ -2000,6 +2000,7 @@ end
 
 -- ── Incoming Message Dispatcher ───────────────────────────────────────────────
 local on_local_quests_updated
+local notify_peer_quest_completed
 
 local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
     if not sender or is_self_character(sender) then return end
@@ -2110,9 +2111,12 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
         end
     elseif msgType == "DELTA_QUEST_PROG" and s.syncQuests and type(data) == "table" then
         if merge.MergeQuestProgDelta then
-            local merged, missingDetails, localCompChanged = merge.MergeQuestProgDelta(data)
+            local merged, missingDetails, localCompChanged, completedEvents = merge.MergeQuestProgDelta(data)
             if merged then
                 peer.lastSync = now
+                if completedEvents and notify_peer_quest_completed then
+                    notify_peer_quest_completed(sender, data.g, completedEvents)
+                end
                 if missingDetails and type(data.g) == "string" and data.g ~= "" then
                     send_to_peer(sender, "WANT", { quests = { data.g } }, channel, bnetIDAccount)
                 end
@@ -2555,6 +2559,51 @@ local function format_colored_char_name(alt, fallbackName, guid)
         return "|c" .. hex .. cleanName .. "|r"
     end
     return cleanName
+end
+
+notify_peer_quest_completed = function(sender, guid, completedEvents)
+    if type(completedEvents) ~= "table" or #completedEvents == 0 then return end
+    local s = sync.GetSettings()
+    if not s or not s.enabled or s.mbAutoQuest == false then return end
+    if sync.IsAway and sync.IsAway() then return end
+
+    local alt = (SfuiDB and type(SfuiDB.alts) == "table" and guid) and SfuiDB.alts[guid] or nil
+    local coloredPeer = format_colored_char_name(alt, sender, guid)
+    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+        or (UnitGUID and UnitGUID("player"))
+    local myAlt = (SfuiDB and type(SfuiDB.alts) == "table" and myGUID and not issecretvalue(myGUID)) and SfuiDB.alts[myGUID] or nil
+    local anyNotified = false
+
+    for _, ev in ipairs(completedEvents) do
+        local qID = tonumber(ev and ev.id)
+        local title = ev and ev.title
+        if qID and type(title) == "string" and title ~= "" then
+            local suppress = false
+            if ev.kind == "turnin" then
+                if pendingTurnedInQuests[qID]
+                    or (myAlt and myAlt.completedQuests and myAlt.completedQuests[qID] == 1)
+                    or (_G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted and _G.C_QuestLog.IsQuestFlaggedCompleted(qID))
+                    or (sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(qID)) then
+                    suppress = true
+                end
+            end
+            if not suppress then
+                local action = (ev.kind == "turnin") and "turned in quest" or "completed quest"
+                local msg = string_format("%s %s: |cffffd100%s|r", coloredPeer, action, string_lower(title))
+                if _G.UIErrorsFrame and _G.UIErrorsFrame.AddMessage then
+                    _G.UIErrorsFrame:AddMessage(msg, 0.25, 1.0, 0.45, 1.0)
+                end
+                if sfui.common and sfui.common.print then
+                    sfui.common.print("sync: " .. msg)
+                end
+                anyNotified = true
+            end
+        end
+    end
+
+    if anyNotified and (not sync.IsLead or sync.IsLead()) and _G.PlaySound then
+        _G.PlaySound((_G.SOUNDKIT and _G.SOUNDKIT.UI_QUEST_ROLLING_FORWARD_01) or 6199, "Master")
+    end
 end
 
 local cachedPartyGuidMap = {}

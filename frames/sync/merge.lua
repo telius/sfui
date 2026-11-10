@@ -1227,6 +1227,17 @@ function merge.ScanActiveQuestsDelta(turnedInMap, acceptedMap)
 
     normalize_alt_quest_tables(alt)
     local prevActive = alt.activeQuests or {}
+    local hadPrevScan = (alt.questsRev ~= nil) or (next(prevActive) ~= nil)
+    local justAccepted = nil
+    if type(acceptedMap) == "table" then
+        for qid in pairs(acceptedMap) do
+            local nID = tonumber(qid)
+            if nID and nID > 0 then
+                justAccepted = justAccepted or {}
+                justAccepted[nID] = true
+            end
+        end
+    end
     local activeQuests, numQuests, maxQuests = scan_current_active_quests(prevActive, acceptedMap)
     if type(acceptedMap) == "table" then
         for qid in pairs(acceptedMap) do
@@ -1239,12 +1250,31 @@ function merge.ScanActiveQuestsDelta(turnedInMap, acceptedMap)
     local removed = {}
     local completed = {}
     local completedSeen = {}
+    local newlyReady = {}
+    local hasNewlyReady = false
+    local newlyTurnedIn = {}
+    local hasNewlyTurnedIn = false
 
     alt.completedQuests = alt.completedQuests or {}
     alt.djQuests = alt.djQuests or {}
     local djSet = get_dj_quest_id_set()
+    local C_QuestLog = _G.C_QuestLog
 
-    local function record_completed(cID)
+    local function resolve_quest_title(cID)
+        local prev = prevActive[cID]
+        if type(prev) == "table" and type(prev.t) == "string" and prev.t ~= "" then
+            return prev.t
+        end
+        if C_QuestLog and C_QuestLog.GetTitleForQuestID then
+            local t = C_QuestLog.GetTitleForQuestID(cID)
+            if type(t) == "string" and t ~= "" then
+                return t
+            end
+        end
+        return nil
+    end
+
+    local function record_completed(cID, isLiveTurnIn)
         cID = tonumber(cID)
         if not cID or cID <= 0 then return end
         alt.completedQuests[cID] = 1
@@ -1255,11 +1285,18 @@ function merge.ScanActiveQuestsDelta(turnedInMap, acceptedMap)
             completedSeen[cID] = true
             completed[#completed + 1] = cID
         end
+        if isLiveTurnIn then
+            local t = resolve_quest_title(cID)
+            if t and t ~= "" then
+                newlyTurnedIn[cID] = t
+                hasNewlyTurnedIn = true
+            end
+        end
     end
 
     if type(turnedInMap) == "table" then
         for qid in pairs(turnedInMap) do
-            record_completed(qid)
+            record_completed(qid, true)
             turnedInMap[qid] = nil
         end
     end
@@ -1267,9 +1304,21 @@ function merge.ScanActiveQuestsDelta(turnedInMap, acceptedMap)
     local allActive = {}
     for qID, qEntry in pairs(activeQuests) do
         allActive[#allActive + 1] = qID
-        if not quest_entry_equal(prevActive[qID], qEntry) then
+        local prev = prevActive[qID]
+        if not quest_entry_equal(prev, qEntry) then
             updated[qID] = deep_copy(qEntry)
             hasUpdated = true
+        end
+        if qEntry.c == 1 then
+            local wasIncomplete = (type(prev) == "table" and prev._partial ~= 1 and prev.c ~= 1)
+                or (prev == nil and ((justAccepted and justAccepted[qID]) or hadPrevScan))
+            if wasIncomplete then
+                local t = (type(qEntry.t) == "string" and qEntry.t ~= "" and qEntry.t) or resolve_quest_title(qID)
+                if t and t ~= "" then
+                    newlyReady[qID] = t
+                    hasNewlyReady = true
+                end
+            end
         end
         if djSet and djSet[qID] and alt.djQuests[qID] ~= 1 then
             alt.djQuests[qID] = 1
@@ -1280,7 +1329,7 @@ function merge.ScanActiveQuestsDelta(turnedInMap, acceptedMap)
     for qID in pairs(prevActive) do
         if activeQuests[qID] == nil then
             if is_local_quest_completed(qID) then
-                record_completed(qID)
+                record_completed(qID, true)
             else
                 removed[#removed + 1] = qID
                 if djSet and djSet[qID] and alt.djQuests[qID] == 1 and alt.completedQuests[qID] ~= 1 then
@@ -1318,15 +1367,19 @@ function merge.ScanActiveQuestsDelta(turnedInMap, acceptedMap)
         u   = hasUpdated and updated or nil,
         rem = #removed > 0 and removed or nil,
         d   = #completed > 0 and completed or nil,
+        rdy = hasNewlyReady and newlyReady or nil,
+        ti  = hasNewlyTurnedIn and newlyTurnedIn or nil,
     }
 end
 
+local notifiedReadyByPeer = {}
+
 function merge.MergeQuestProgDelta(delta)
-    if type(delta) ~= "table" or type(delta.g) ~= "string" then return false, false, false end
+    if type(delta) ~= "table" or type(delta.g) ~= "string" then return false, false, false, nil end
     local guid = delta.g
     local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
         or (UnitGUID and UnitGUID("player"))
-    if guid == myGUID then return false, false, false end
+    if guid == myGUID then return false, false, false, nil end
 
     SfuiDB = SfuiDB or {}
     SfuiDB.alts = SfuiDB.alts or {}
@@ -1359,27 +1412,58 @@ function merge.MergeQuestProgDelta(delta)
     alt.completedQuests = alt.completedQuests or {}
     alt.djQuests = alt.djQuests or {}
     local djSet = get_dj_quest_id_set()
+    local C_QuestLog = _G.C_QuestLog
+    local peerReadySeen = notifiedReadyByPeer[guid]
+    if not peerReadySeen then
+        peerReadySeen = {}
+        notifiedReadyByPeer[guid] = peerReadySeen
+    end
+    local completedEvents = nil
+    local eventSeen = nil
+
+    local function push_event(qID, rawTitle, kind)
+        qID = tonumber(qID)
+        if not qID or qID <= 0 then return end
+        if eventSeen and eventSeen[qID] then return end
+        local title = (type(rawTitle) == "string" and rawTitle ~= "") and rawTitle or nil
+        if not title and type(alt.activeQuests[qID]) == "table" and type(alt.activeQuests[qID].t) == "string" and alt.activeQuests[qID].t ~= "" then
+            title = alt.activeQuests[qID].t
+        end
+        if not title and C_QuestLog and C_QuestLog.GetTitleForQuestID then
+            local t = C_QuestLog.GetTitleForQuestID(qID)
+            if type(t) == "string" and t ~= "" then
+                title = t
+            end
+        end
+        if not title or title == "" then return end
+        eventSeen = eventSeen or {}
+        eventSeen[qID] = true
+        completedEvents = completedEvents or {}
+        completedEvents[#completedEvents + 1] = {
+            id    = qID,
+            title = title,
+            kind  = kind,
+        }
+    end
+
+    if type(delta.rdy) == "table" then
+        for rawID, title in pairs(delta.rdy) do
+            local nID = tonumber(rawID)
+            if nID and not peerReadySeen[nID] then
+                peerReadySeen[nID] = true
+                push_event(nID, title, "complete")
+            end
+        end
+    end
 
     if type(delta.rem) == "table" then
         for _, qid in ipairs(delta.rem) do
             local nID = tonumber(qid)
             if nID then
                 alt.activeQuests[nID] = nil
+                peerReadySeen[nID] = nil
                 if alt.djQuests[nID] == 1 and alt.completedQuests[nID] ~= 1 then
                     alt.djQuests[nID] = nil
-                end
-            end
-        end
-    end
-
-    if type(delta.d) == "table" then
-        for _, qid in ipairs(delta.d) do
-            local nID = tonumber(qid)
-            if nID then
-                alt.activeQuests[nID] = nil
-                alt.completedQuests[nID] = 1
-                if djSet and djSet[nID] then
-                    alt.djQuests[nID] = 2
                 end
             end
         end
@@ -1389,9 +1473,43 @@ function merge.MergeQuestProgDelta(delta)
         for k, v in pairs(delta.u) do
             local nID = tonumber(k)
             if nID and type(v) == "table" then
+                local prev = alt.activeQuests[nID]
+                if v.c == 1 and type(prev) == "table" and prev._partial ~= 1 and prev.c ~= 1 and not peerReadySeen[nID] then
+                    peerReadySeen[nID] = true
+                    push_event(nID, v.t or prev.t, "complete")
+                elseif v.c ~= 1 then
+                    peerReadySeen[nID] = nil
+                end
                 alt.activeQuests[nID] = deep_copy(v)
                 if djSet and djSet[nID] then
                     alt.djQuests[nID] = 1
+                end
+            end
+        end
+    end
+
+    if type(delta.ti) == "table" then
+        for rawID, title in pairs(delta.ti) do
+            local nID = tonumber(rawID)
+            if nID and not peerReadySeen[nID] then
+                push_event(nID, title, "turnin")
+            end
+        end
+    end
+
+    if type(delta.d) == "table" then
+        for _, qid in ipairs(delta.d) do
+            local nID = tonumber(qid)
+            if nID then
+                local prev = alt.activeQuests[nID]
+                if not peerReadySeen[nID] and type(prev) == "table" and prev._partial ~= 1 and prev.c ~= 1 and prev.t then
+                    push_event(nID, prev.t, "turnin")
+                end
+                alt.activeQuests[nID] = nil
+                peerReadySeen[nID] = nil
+                alt.completedQuests[nID] = 1
+                if djSet and djSet[nID] then
+                    alt.djQuests[nID] = 2
                 end
             end
         end
@@ -1444,7 +1562,7 @@ function merge.MergeQuestProgDelta(delta)
             sfui.dungeonjournal.Rebuild()
         end
     end
-    return true, missingDetails, localCompChanged
+    return true, missingDetails, localCompChanged, completedEvents
 end
 
 function merge.ScanLocalQuestsAndDJ(justCompletedQuestID, acceptedMap)
@@ -1621,10 +1739,18 @@ function merge.MergeQuests(guid, incomingData)
     end
     if type(incomingData.activeQuests) == "table" then
         local normActive = {}
+        local peerReadySeen = notifiedReadyByPeer[guid]
+        if not peerReadySeen then
+            peerReadySeen = {}
+            notifiedReadyByPeer[guid] = peerReadySeen
+        end
         for k, v in pairs(incomingData.activeQuests) do
             local qid = tonumber(k)
             if qid and type(v) == "table" then
                 normActive[qid] = deep_copy(v)
+                if v.c == 1 then
+                    peerReadySeen[qid] = true
+                end
             end
         end
         alt.activeQuests = normActive

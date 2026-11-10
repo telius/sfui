@@ -238,7 +238,7 @@ sfui.options.RegisterTab({
         local cb_mb_quest = create_checkbox(panel, "auto-quest, abandon & dialog sync",
             function() return sync.GetSettings().mbAutoQuest ~= false end,
             function(v) set_sync_setting("mbAutoQuest", v) end,
-            "auto-accepts and turns in quests, syncs quest abandon, picks smart quest rewards, and mirrors lead gossip/dialog choices.")
+            "auto-accepts quests, turns in quests without item rewards, syncs quest abandon, mirrors lead gossip/dialog choices, and notifies when a peer completes a quest.")
         cb_mb_quest:SetPoint("TOPLEFT", cb_mb_follow, "BOTTOMLEFT", 0, -6)
 
         local cb_mb_taxi = create_checkbox(panel, "sync flight master destinations",

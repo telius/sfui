@@ -546,25 +546,21 @@ local function drain_pending_dialogs()
             elseif p.verb == "turnin" then
                 if _G.QuestFrameRewardPanel and _G.QuestFrameRewardPanel:IsShown() and _G.GetQuestReward then
                     local numChoices = (_G.GetNumQuestChoices and _G.GetNumQuestChoices()) or 0
-                    if numChoices <= 1 then
-                        table_remove(pendingDialogChoices, idx)
+                    local numRewards = (_G.GetNumQuestRewards and _G.GetNumQuestRewards()) or 0
+                    table_remove(pendingDialogChoices, idx)
+                    if numChoices == 0 and numRewards == 0 then
                         replayingDialog = true
-                        _G.GetQuestReward(numChoices == 1 and 1 or nil)
+                        _G.GetQuestReward(nil)
                         replayingDialog = false
                         return true
-                    else
-                        local autoIdx, hintIdx = resolve_auto_quest_reward(numChoices, p.rewardID)
-                        table_remove(pendingDialogChoices, idx)
-                        if autoIdx then
-                            replayingDialog = true
-                            _G.GetQuestReward(autoIdx)
-                            replayingDialog = false
-                            return true
-                        elseif hintIdx then
+                    elseif numChoices > 1 then
+                        local _, hintIdx = resolve_auto_quest_reward(numChoices, p.rewardID)
+                        if hintIdx then
                             highlight_reward_choice(hintIdx)
-                            return true
                         end
+                        return true
                     end
+                    return true
                 elseif _G.QuestFrameProgressPanel and _G.QuestFrameProgressPanel:IsShown() then
                     -- Multi-step catch-up: step through CompleteQuest(), keep `turnin` queued for QUEST_COMPLETE
                     if _G.IsQuestCompletable and _G.IsQuestCompletable() and _G.CompleteQuest then
@@ -752,13 +748,12 @@ local function on_quest_complete()
     if not should_automate_quests() then return end
     if retry_pending_dialogs() then return end
     local numChoices = (_G.GetNumQuestChoices and _G.GetNumQuestChoices()) or 0
-    if numChoices <= 1 and _G.GetQuestReward then
-        _G.GetQuestReward(numChoices == 1 and 1 or nil)
+    local numRewards = (_G.GetNumQuestRewards and _G.GetNumQuestRewards()) or 0
+    if numChoices == 0 and numRewards == 0 and _G.GetQuestReward then
+        _G.GetQuestReward(nil)
     elseif numChoices > 1 then
-        local autoIdx, hintIdx = resolve_auto_quest_reward(numChoices, nil)
-        if autoIdx and not sync.IsLead() and _G.GetQuestReward then
-            _G.GetQuestReward(autoIdx)
-        elseif hintIdx then
+        local _, hintIdx = resolve_auto_quest_reward(numChoices, nil)
+        if hintIdx then
             highlight_reward_choice(hintIdx)
         end
     end
