@@ -1437,6 +1437,10 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
             if igs[key] ~= nil then return igs[key] else return defaults[key] end
         end, function(val)
             igs[key] = val
+            if key == "trackBuffs" then
+                if common.invalidate_panels_cache then common.invalidate_panels_cache() end
+                if sfui.cdm and sfui.cdm.RefreshLayout then sfui.cdm.RefreshLayout() end
+            end
             UpdateAll()
         end, tooltip)
         cb:SetPoint("TOPLEFT", x or 0, y)
@@ -1518,6 +1522,8 @@ function sfui.trackedoptions.GenerateGlobalSettingsControls(parent)
     s2y = s2y - 28
     MakeCheck(s2c, "Hide While in Vehicle UI", "hideInVehicle", "Global default: Hide panels while using vehicle UI.", 0,
         s2y)
+    MakeCheck(s2c, "track buffs", "trackBuffs",
+        "global default: display active self-buff durations on cooldown icons (disabled by default).", 240, s2y)
     s2y = s2y - 28
 
     MakeCheck(s2c, "Show Background", "showBackground", "Show a dark background behind the icon panel.", 0, s2y)
@@ -1640,8 +1646,12 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             return false
         end, function(val)
             panel[key] = val
+            common.invalidate_panels_cache()
             if sfui.trackedoptions.UpdatePreview then sfui.trackedoptions.UpdatePreview() end
             sfui.trackedicons.Update()
+            if key == "trackBuffs" and sfui.cdm and sfui.cdm.RefreshLayout then
+                sfui.cdm.RefreshLayout()
+            end
         end, tooltip)
         cb:SetPoint("TOPLEFT", x or 0, y)
         return cb
@@ -1688,6 +1698,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     PCheck(s1c, "Hide While Mounted", "hideMounted", "Hide this panel when mounted (including Dragonriding).", 150, s1y)
     s1y = s1y - 28
     PCheck(s1c, "Hide While in Vehicle UI", "hideInVehicle", "Hide this panel when using vehicle UI.", 0, s1y)
+    PCheck(s1c, "track buffs", "trackBuffs",
+        "display active self-buff durations on this panel's icons (disabled by default).", 150, s1y)
     s1y = s1y - 28
 
 
@@ -1778,7 +1790,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     -- ═══════════════════════════════════
     -- SECTION 4: INDIVIDUAL ICON OVERRIDES
     -- ═══════════════════════════════════
-    if (sfui.isRetail or sfui.isEra) and panel.entries and #(panel.entries) > 0 then
+    if (sfui.isRetail or sfui.isEra or sfui.isCamelot) and panel.entries and #(panel.entries) > 0 then
         local classID = sfui.common.get_player_class_id()
         -- Per Blizzard source, calling without args defaults to player config/spec
         local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}
@@ -1811,21 +1823,24 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
             local name = ""
             local nid = tonumber(id)
+            local rowCdID = entry.cooldownID or (typeHint == "cooldown" and nid) or nil
+            local rowCdInfo = rowCdID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo and C_CooldownViewer.GetCooldownViewerCooldownInfo(rowCdID) or nil
 
             if nid then
                 if typeHint == "item" then
                     name = C_Item.GetItemNameByID(nid) or ("item: " .. nid)
-                elseif typeHint == "spell" then
+                elseif typeHint == "spell" and not rowCdID then
                     name = C_Spell.GetSpellName(nid) or ("spell: " .. nid)
                 else
                     -- Resolve 'cooldown' type to its underlying name
-                    local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(nid)
-                    if cdInfo then
-                        if cdInfo.spellID and cdInfo.spellID > 0 then
-                            name = C_Spell.GetSpellName(cdInfo.spellID) or ("spell: " .. cdInfo.spellID)
-                        elseif cdInfo.itemID and cdInfo.itemID > 0 then
-                            name = C_Item.GetItemNameByID(cdInfo.itemID) or ("item: " .. cdInfo.itemID)
+                    if rowCdInfo then
+                        if rowCdInfo.spellID and rowCdInfo.spellID > 0 then
+                            name = C_Spell.GetSpellName(rowCdInfo.spellID) or ("spell: " .. rowCdInfo.spellID)
+                        elseif rowCdInfo.itemID and rowCdInfo.itemID > 0 then
+                            name = C_Item.GetItemNameByID(rowCdInfo.itemID) or ("item: " .. rowCdInfo.itemID)
                         end
+                    elseif entry.spellID and entry.spellID > 0 then
+                        name = C_Spell.GetSpellName(entry.spellID) or ("spell: " .. entry.spellID)
                     end
                 end
             end
@@ -1953,15 +1968,31 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             end
 
             -- Aura & Alert toggles
+            local rowAuraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
+            local isForeverSeal = (rowAuraResolver and rowAuraResolver.IsForeverSealEntry and rowAuraResolver.IsForeverSealEntry(entry, rowCdInfo)) or false
             local auraCb = common.create_checkbox(row, "aura", function()
-                return entry.type == "buff" or entry.type == "debuff" or entry.trackAsAura
+                if entry.settings and entry.settings.trackBuffs ~= nil then
+                    return entry.settings.trackBuffs == true
+                end
+                return isForeverSeal
             end, function(val)
-                entry.trackAsAura = val
-                entry.type = val and "buff" or "spell"
+                if not entry.settings then entry.settings = {} end
+                if isForeverSeal then
+                    entry.settings.trackBuffs = (val == true)
+                else
+                    entry.settings.trackBuffs = val or nil
+                end
+                entry.trackAsAura = val or nil
+                if not entry.cooldownID then
+                    entry.type = val and "buff" or "spell"
+                end
+                if sfui.trackedicons and sfui.trackedicons.InvalidateConfigCache then
+                    sfui.trackedicons.InvalidateConfigCache()
+                end
                 common.invalidate_panels_cache()
                 sfui.trackedicons.MarkDirty(true)
                 sfui.trackedicons.Update()
-            end, "treat this spell as a buff: shows its stack count on the icon.")
+            end, "opt in to buff tracking for this icon: displays active buff duration and stack count (enabled by default for forever paladin seals).")
 
             local alertCb = common.create_checkbox(row, "alert", function()
                 return entry.settings and entry.settings.glowWhenMissing == true

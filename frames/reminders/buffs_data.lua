@@ -27,7 +27,7 @@ sfui.buffs.data.ResolveSpellName = ResolveSpellName
 local function ResolveTexture(spellID, fallback)
     if spellID then
         local tex = sfui.common.get_spell_icon(spellID)
-        if tex then return tex end
+        if tex ~= nil and tex ~= "" and tex ~= 0 then return tex end
     end
     return fallback or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
@@ -339,6 +339,82 @@ function sfui.buffs.data.GetBestShamanImbue(slot, activeEnchantName)
     return "Rockbiter Weapon", "Interface\\Icons\\Spell_Nature_RockBiter", 8017
 end
 
+local cachedShamanImbues = {}
+function sfui.buffs.data.GetAvailableShamanImbues()
+    _G.wipe(cachedShamanImbues)
+    if playerClass ~= "SHAMAN" then return cachedShamanImbues end
+    local order = { "rockbiter", "flametongue", "frostbrand", "windfury", "earthliving" }
+    for i = 1, #order do
+        local key = order[i]
+        local def = SHAMAN_IMBUE_DATA[key]
+        local name, icon, id = GetHighestKnownRank(def)
+        if name and id then
+            cachedShamanImbues[#cachedShamanImbues + 1] = {
+                key = key,
+                id = id,
+                spellName = name,
+                displayName = def.displayName or name:lower(),
+                icon = icon or def.icon,
+            }
+        end
+    end
+    return cachedShamanImbues
+end
+
+function sfui.buffs.data.CycleShamanImbue(slot, delta)
+    local all = sfui.buffs.data.GetAvailableShamanImbues()
+    if not all or #all <= 1 then return nil end
+
+    local cfg = SfuiDB and SfuiDB.buffReminders
+    local pref = (slot == 17) and (cfg and cfg.shamanImbueOH) or (cfg and cfg.shamanImbueMH)
+    local curName = sfui.buffs.data.GetBestShamanImbue(slot or 16)
+    local curIdx = 1
+    for i = 1, #all do
+        if (pref and all[i].key == pref) or (curName and all[i].spellName == curName) then
+            curIdx = i
+            break
+        end
+    end
+
+    local nextIdx = curIdx + (delta > 0 and 1 or -1)
+    if nextIdx > #all then
+        nextIdx = 1
+    elseif nextIdx < 1 then
+        nextIdx = #all
+    end
+
+    local chosen = all[nextIdx]
+    if chosen then
+        SfuiDB = SfuiDB or {}
+        SfuiDB.buffReminders = SfuiDB.buffReminders or {}
+        local targetKey = (slot == 17) and "weapon_oh" or "weapon_mh"
+        if slot == 17 then
+            SfuiDB.buffReminders.shamanImbueOH = chosen.key
+        else
+            SfuiDB.buffReminders.shamanImbueMH = chosen.key
+        end
+        if sfui.buffs.scan and sfui.buffs.scan.GetResults then
+            local results = sfui.buffs.scan.GetResults()
+            if results then
+                for i = 1, #results do
+                    local rec = results[i]
+                    if rec and rec.entry and rec.entry.key == targetKey then
+                        rec.icon = chosen.icon
+                    end
+                end
+            end
+        end
+        if sfui.buffs.UpdateDisplay then
+            sfui.buffs.UpdateDisplay()
+        end
+        if sfui.ring and sfui.ring.request_rebuild then
+            sfui.ring.request_rebuild("specs")
+        end
+        return chosen
+    end
+    return nil
+end
+
 -- ─────────────────────────────────────────────────────────────
 --  PET REMINDER MANAGEMENT (HUNTER & WARLOCK)
 -- ─────────────────────────────────────────────────────────────
@@ -513,6 +589,10 @@ end
 function sfui.buffs.pets.CyclePet(delta)
     local cur, all = sfui.buffs.pets.GetSelectedPet()
     if not all or #all <= 1 then
+        sfui.buffs.pets.InvalidatePetCache()
+        cur, all = sfui.buffs.pets.GetSelectedPet()
+    end
+    if not all or #all <= 1 then
         return cur
     end
 
@@ -543,8 +623,322 @@ function sfui.buffs.pets.CyclePet(delta)
         end
         SfuiDB.buffReminders.selectedPet[playerClass] = chosen.id
 
+        if sfui.buffs.scan and sfui.buffs.scan.GetResults then
+            local results = sfui.buffs.scan.GetResults()
+            if results then
+                for i = 1, #results do
+                    local rec = results[i]
+                    if rec and rec.entry and rec.entry.type == "pet" then
+                        rec.icon = chosen.icon
+                    end
+                end
+            end
+        end
         if sfui.buffs and sfui.buffs.UpdateDisplay then
             sfui.buffs.UpdateDisplay()
+        end
+        if sfui.ring and sfui.ring.request_rebuild then
+            sfui.ring.request_rebuild("specs")
+        end
+        return chosen
+    end
+    return cur
+end
+
+-- ─────────────────────────────────────────────────────────────
+--  PALADIN AURA & BLESSING SELECTION (SCROLLABLE)
+-- ─────────────────────────────────────────────────────────────
+sfui.buffs.paladin = sfui.buffs.paladin or {}
+
+local PALADIN_AURA_SPELLS = {
+    {
+        key = "devotion",
+        name = "Devotion Aura",
+        displayName = "devotion aura",
+        icon = "Interface\\Icons\\Spell_Holy_DevotionAura",
+        ids = { 465, 10290, 643, 10291, 10292, 10293, 27149 },
+    },
+    {
+        key = "retribution",
+        name = "Retribution Aura",
+        displayName = "retribution aura",
+        icon = "Interface\\Icons\\Spell_Holy_AuraOfLight",
+        ids = { 7294, 10298, 10299, 10300, 10301, 27150 },
+    },
+    {
+        key = "concentration",
+        name = "Concentration Aura",
+        displayName = "concentration aura",
+        icon = "Interface\\Icons\\Spell_Holy_MindSooth",
+        ids = { 19746 },
+    },
+    {
+        key = "shadow_res",
+        name = "Shadow Resistance Aura",
+        displayName = "shadow resistance aura",
+        icon = "Interface\\Icons\\Spell_Shadow_SealOfKings",
+        ids = { 19876, 19895, 19896, 27151 },
+    },
+    {
+        key = "frost_res",
+        name = "Frost Resistance Aura",
+        displayName = "frost resistance aura",
+        icon = "Interface\\Icons\\Spell_Frost_WizardMark",
+        ids = { 19888, 19897, 19898, 27152 },
+    },
+    {
+        key = "fire_res",
+        name = "Fire Resistance Aura",
+        displayName = "fire resistance aura",
+        icon = "Interface\\Icons\\Spell_Fire_SealOfFire",
+        ids = { 19891, 19899, 19900, 27153 },
+    },
+    {
+        key = "sanctity",
+        name = "Sanctity Aura",
+        displayName = "sanctity aura",
+        icon = "Interface\\Icons\\Spell_Holy_MindVision",
+        ids = { 20218 },
+    },
+    {
+        key = "crusader",
+        name = "Crusader Aura",
+        displayName = "crusader aura",
+        icon = "Interface\\Icons\\Spell_Holy_CrusaderAura",
+        ids = { 32223 },
+    },
+}
+
+local PALADIN_BLESSING_SPELLS = {
+    {
+        key = "might",
+        name = "Blessing of Might",
+        displayName = "blessing of might",
+        icon = "Interface\\Icons\\Spell_Holy_FistOfJustice",
+        ids = { 19740, 19834, 19835, 19836, 19837, 19838, 25291, 27140 },
+    },
+    {
+        key = "wisdom",
+        name = "Blessing of Wisdom",
+        displayName = "blessing of wisdom",
+        icon = "Interface\\Icons\\Spell_Holy_SealOfWisdom",
+        ids = { 19742, 19850, 19852, 19853, 19854, 25290, 27142 },
+    },
+    {
+        key = "kings",
+        name = "Blessing of Kings",
+        displayName = "blessing of kings",
+        icon = "Interface\\Icons\\Spell_Magic_MageArmor",
+        ids = { 20217 },
+    },
+    {
+        key = "sanctuary",
+        name = "Blessing of Sanctuary",
+        displayName = "blessing of sanctuary",
+        icon = "Interface\\Icons\\Spell_Nature_LightningShield",
+        ids = { 20911, 20912, 20913, 20914, 27168 },
+    },
+    {
+        key = "light",
+        name = "Blessing of Light",
+        displayName = "blessing of light",
+        icon = "Interface\\Icons\\Spell_Holy_PrayerOfHealing02",
+        ids = { 19977, 19978, 19979, 27144 },
+    },
+    {
+        key = "salvation",
+        name = "Blessing of Salvation",
+        displayName = "blessing of salvation",
+        icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation",
+        ids = { 1038 },
+    },
+}
+
+local aurasDirty = true
+local blessingsDirty = true
+local cachedAvailableAuras = {}
+local cachedAvailableBlessings = {}
+local cachedSelectedAura = nil
+local cachedSelectedBlessing = nil
+
+function sfui.buffs.paladin.InvalidateCache()
+    aurasDirty = true
+    blessingsDirty = true
+    cachedSelectedAura = nil
+    cachedSelectedBlessing = nil
+end
+
+local function BuildAvailablePaladinList(defs, out)
+    _G.wipe(out)
+    if playerClass ~= "PALADIN" then
+        return out
+    end
+    for i = 1, #defs do
+        local def = defs[i]
+        local spellName, spellIcon, spellID = GetHighestKnownRank(def)
+        if spellName and spellID then
+            out[#out + 1] = {
+                key = def.key,
+                id = spellID,
+                spellName = spellName,
+                displayName = def.displayName or spellName:lower(),
+                icon = spellIcon or def.icon,
+            }
+        end
+    end
+    return out
+end
+
+function sfui.buffs.paladin.GetAvailableAuras()
+    if not aurasDirty and #cachedAvailableAuras > 0 then
+        return cachedAvailableAuras
+    end
+    BuildAvailablePaladinList(PALADIN_AURA_SPELLS, cachedAvailableAuras)
+    aurasDirty = false
+    return cachedAvailableAuras
+end
+
+function sfui.buffs.paladin.GetAvailableBlessings()
+    if not blessingsDirty and #cachedAvailableBlessings > 0 then
+        return cachedAvailableBlessings
+    end
+    BuildAvailablePaladinList(PALADIN_BLESSING_SPELLS, cachedAvailableBlessings)
+    blessingsDirty = false
+    return cachedAvailableBlessings
+end
+
+function sfui.buffs.paladin.GetSelectedAura()
+    local all = sfui.buffs.paladin.GetAvailableAuras()
+    if not all or #all == 0 then
+        cachedSelectedAura = nil
+        return nil, all
+    end
+    if cachedSelectedAura and not aurasDirty then
+        return cachedSelectedAura, all
+    end
+    local db = SfuiDB and SfuiDB.buffReminders
+    local saved = db and db.selectedPaladinAura
+    if saved then
+        for i = 1, #all do
+            if all[i].key == saved or all[i].id == saved or all[i].spellName == saved then
+                cachedSelectedAura = all[i]
+                return cachedSelectedAura, all
+            end
+        end
+    end
+    cachedSelectedAura = all[1]
+    return cachedSelectedAura, all
+end
+
+function sfui.buffs.paladin.GetSelectedBlessing()
+    local all = sfui.buffs.paladin.GetAvailableBlessings()
+    if not all or #all == 0 then
+        cachedSelectedBlessing = nil
+        return nil, all
+    end
+    if cachedSelectedBlessing and not blessingsDirty then
+        return cachedSelectedBlessing, all
+    end
+    local db = SfuiDB and SfuiDB.buffReminders
+    local saved = db and db.selectedPaladinBlessing
+    if saved then
+        for i = 1, #all do
+            if all[i].key == saved or all[i].id == saved or all[i].spellName == saved then
+                cachedSelectedBlessing = all[i]
+                return cachedSelectedBlessing, all
+            end
+        end
+    end
+    cachedSelectedBlessing = all[1]
+    return cachedSelectedBlessing, all
+end
+
+local function CyclePaladinOption(cur, all, delta)
+    if not all or #all <= 1 then
+        return cur
+    end
+    local curIndex = 1
+    if cur then
+        for i = 1, #all do
+            if all[i].key == cur.key then
+                curIndex = i
+                break
+            end
+        end
+    end
+    local nextIndex = curIndex + (delta > 0 and 1 or -1)
+    if nextIndex > #all then
+        nextIndex = 1
+    elseif nextIndex < 1 then
+        nextIndex = #all
+    end
+    return all[nextIndex]
+end
+
+function sfui.buffs.paladin.CycleAura(delta)
+    local cur, all = sfui.buffs.paladin.GetSelectedAura()
+    if not all or #all <= 1 then
+        aurasDirty = true
+        cachedSelectedAura = nil
+        cur, all = sfui.buffs.paladin.GetSelectedAura()
+    end
+    local chosen = CyclePaladinOption(cur, all, delta)
+    if chosen then
+        cachedSelectedAura = chosen
+        SfuiDB = SfuiDB or {}
+        SfuiDB.buffReminders = SfuiDB.buffReminders or {}
+        SfuiDB.buffReminders.selectedPaladinAura = chosen.key
+        if sfui.buffs.scan and sfui.buffs.scan.GetResults then
+            local results = sfui.buffs.scan.GetResults()
+            if results then
+                for i = 1, #results do
+                    local rec = results[i]
+                    if rec and rec.entry and rec.entry.key == "aura" then
+                        rec.icon = chosen.icon
+                    end
+                end
+            end
+        end
+        if sfui.buffs and sfui.buffs.UpdateDisplay then
+            sfui.buffs.UpdateDisplay()
+        end
+        if sfui.ring and sfui.ring.request_rebuild then
+            sfui.ring.request_rebuild("specs")
+        end
+        return chosen
+    end
+    return cur
+end
+
+function sfui.buffs.paladin.CycleBlessing(delta)
+    local cur, all = sfui.buffs.paladin.GetSelectedBlessing()
+    if not all or #all <= 1 then
+        blessingsDirty = true
+        cachedSelectedBlessing = nil
+        cur, all = sfui.buffs.paladin.GetSelectedBlessing()
+    end
+    local chosen = CyclePaladinOption(cur, all, delta)
+    if chosen then
+        cachedSelectedBlessing = chosen
+        SfuiDB = SfuiDB or {}
+        SfuiDB.buffReminders = SfuiDB.buffReminders or {}
+        SfuiDB.buffReminders.selectedPaladinBlessing = chosen.key
+        if sfui.buffs.scan and sfui.buffs.scan.GetResults then
+            local results = sfui.buffs.scan.GetResults()
+            if results then
+                for i = 1, #results do
+                    local rec = results[i]
+                    if rec and rec.entry and rec.entry.key == "blessing" then
+                        rec.icon = chosen.icon
+                    end
+                end
+            end
+        end
+        if sfui.buffs and sfui.buffs.UpdateDisplay then
+            sfui.buffs.UpdateDisplay()
+        end
+        if sfui.ring and sfui.ring.request_rebuild then
+            sfui.ring.request_rebuild("specs")
         end
         return chosen
     end
@@ -557,6 +951,9 @@ end
 --- @return string|nil, string|nil, number|nil
 local function GetBestCastSpell(entry, activeEnchantName)
     if not entry then return nil end
+    if entry.type == "party_blessing" then
+        return entry.castSpellName, entry.castIcon, entry.castSpellID
+    end
     if entry.castSpell then
         if type(entry.castSpell) == "function" then
             return entry.castSpell(entry, activeEnchantName)
@@ -569,6 +966,28 @@ local function GetBestCastSpell(entry, activeEnchantName)
         local spellName, spellIcon, spellID = sfui.buffs.data.GetBestShamanImbue(entry.slot or 16, activeEnchantName)
         if spellName then
             return spellName, spellIcon, spellID
+        end
+    end
+
+    if playerClass == "PALADIN" and sfui.buffs.paladin then
+        if entry.key == "aura" and sfui.buffs.paladin.GetSelectedAura then
+            local selectedAura = sfui.buffs.paladin.GetSelectedAura()
+            if selectedAura then
+                return selectedAura.spellName, selectedAura.icon, selectedAura.id
+            end
+        elseif entry.key == "blessing" and sfui.buffs.paladin.GetSelectedBlessing then
+            local selectedBlessing = sfui.buffs.paladin.GetSelectedBlessing()
+            if selectedBlessing then
+                return selectedBlessing.spellName, selectedBlessing.icon, selectedBlessing.id
+            end
+        end
+    end
+
+    if (entry.key == "consumable_weapon_mh" or entry.key == "consumable_weapon_oh" or entry.key == "poison_mh" or entry.key == "poison_oh")
+        and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedWeaponOil then
+        local selectedOil = sfui.buffs.consumables.GetSelectedWeaponOil(entry.slot or 16)
+        if selectedOil then
+            return selectedOil.name, selectedOil.icon or entry.fallbackIcon, selectedOil.itemID
         end
     end
 
@@ -685,7 +1104,7 @@ local CLASS_BUFFS = {
                 "Blessing of Light", "Greater Blessing of Light",
                 "Blessing of Salvation", "Greater Blessing of Salvation",
             },
-            threshold = 300,
+            threshold = 60,
             fallbackIcon = "Interface\\Icons\\Spell_Holy_FistOfJustice",
         },
         {

@@ -257,6 +257,7 @@ frames/quests/q_mythic.lua [AllowLoadGameType standard]
 # Reminders
 frames/reminders/buffs_data.lua [AllowLoadGameType camelot, classic]
 frames/reminders/buffs_consumables.lua [AllowLoadGameType camelot, classic]
+frames/reminders/buffs_party.lua [AllowLoadGameType camelot, classic]
 frames/reminders/buffs_scan.lua [AllowLoadGameType camelot, classic]
 frames/reminders/buffs.lua [AllowLoadGameType camelot, classic]
 

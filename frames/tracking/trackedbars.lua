@@ -714,7 +714,7 @@ sfui.trackedbars.UpdateAppearance = function() sfui.trackedbars.SetBarTexture() 
 -- creates a frame to mirror. these bars are driven by the shared aura resolver instead:
 -- the aura's duration object feeds StatusBar:SetTimerDuration and a DurationTextBinding,
 -- so the bar and timer text animate natively and secret values are never inspected.
-local auraResolver = sfui.tracking and sfui.tracking.auras
+local auraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
 local _durationFormatter
 local _zeroDuration
 
@@ -1115,6 +1115,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     -- Fallback 2: Try Aura Data via Instance ID
     if not currentStacks and common.HasAuraInstanceID(blizzFrame.auraInstanceID)
        and not (issecretvalue and issecretvalue(blizzFrame.auraInstanceID))
+       and not (C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret())
        and (not auraResolver or not auraResolver.CanAccessUnitAuras or auraResolver.CanAccessUnitAuras())
        and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
         local unit = blizzFrame.auraDataUnit or "player"
@@ -1782,8 +1783,8 @@ local function _OnTrackedBarsUpdate(elapsed)
     -- 1. Structure / Visibility Sync
     if sfui.trackedbars.isDirty then
         local now = GetTime()
-        -- Throttle structural re-scans to at least 0.1s apart while keeping self-driven aura switches responsive.
-        local minCooldown = inCombat and 0.15 or 0.1
+        -- On Forever, keep self-driven seal switches responsive; on Retail, use lean OOC/combat throttle.
+        local minCooldown = sfui.isCamelot and (inCombat and 0.15 or 0.1) or (inCombat and 0.25 or 1.0)
         if _numShownBars == 0 or (now - _lastOOCSyncTime) >= minCooldown then
             sfui.trackedbars.isDirty = false
             _lastOOCSyncTime = now

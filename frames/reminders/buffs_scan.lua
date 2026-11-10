@@ -19,7 +19,6 @@ local GetSpellInfo = _G.GetSpellInfo
 local C_Timer = _G.C_Timer
 local C_UnitAuras = _G.C_UnitAuras
 local C_Secrets = _G.C_Secrets
-local AuraUtil = _G.AuraUtil
 local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
 
 local function AreAurasSecret()
@@ -45,6 +44,9 @@ local lastResultCount = -1
 local prevResultKeys = {}
 
 local function RefreshSpellKnowledge()
+    if sfui.buffs.paladin and sfui.buffs.paladin.InvalidateCache then
+        sfui.buffs.paladin.InvalidateCache()
+    end
     entries = (data.GetAllEntries and data.GetAllEntries()) or data.GetClassEntries()
     for i = 1, #entries do
         local entry = entries[i]
@@ -128,39 +130,29 @@ local function RecordActiveAura(name, spellId, duration, expirationTime, applica
     return r
 end
 
-local function AuraCollectorCallback(auraData)
-    if auraData then
-        RecordActiveAura(
-            auraData.name,
-            auraData.spellId,
-            auraData.duration,
-            auraData.expirationTime,
-            auraData.applications,
-            auraData.icon
-        )
-    end
-end
-
 local function CollectPlayerAuras()
     ReleasePlayerAuras()
     if AreAurasSecret() or sfui.common.is_in_combat() then
         return
     end
 
-    if AuraUtil and AuraUtil.ForEachAura then
-        AuraUtil.ForEachAura("player", "HELPFUL", nil, AuraCollectorCallback, true)
-    elseif C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+    -- Never call AuraUtil.ForEachAura here: it invokes C_UnitAuras.GetAuraSlots(),
+    -- which lacks SecretWhenUnitAuraRestricted and throws a C++ error if any slot is secret.
+    if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+        local checkIndexSecret = C_Secrets and C_Secrets.ShouldUnitAuraIndexBeSecret
         for i = 1, 40 do
-            local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
-            if not aura then break end
-            RecordActiveAura(
-                aura.name,
-                aura.spellId,
-                aura.duration,
-                aura.expirationTime,
-                aura.applications,
-                aura.icon
-            )
+            if not (checkIndexSecret and checkIndexSecret("player", i, "HELPFUL")) then
+                local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
+                if not aura then break end
+                RecordActiveAura(
+                    aura.name,
+                    aura.spellId,
+                    aura.duration,
+                    aura.expirationTime,
+                    aura.applications,
+                    aura.icon
+                )
+            end
         end
     elseif _G.UnitAura then
         for i = 1, 40 do
@@ -179,13 +171,17 @@ local function ScanPlayerAura(entry)
 
     -- 1. Fast path: check C_UnitAuras.GetPlayerAuraBySpellID directly if available
     if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and spellIDs then
+        local checkSpellSecret = C_Secrets and C_Secrets.ShouldSpellAuraBeSecret
         for i = 1, #spellIDs do
-            local aura = C_UnitAuras.GetPlayerAuraBySpellID(spellIDs[i])
-            if aura then
-                local dur = (not (issecretvalue and issecretvalue(aura.duration)) and aura.duration) or 0
-                local exp = (not (issecretvalue and issecretvalue(aura.expirationTime)) and aura.expirationTime) or 0
-                local app = (not (issecretvalue and issecretvalue(aura.applications)) and aura.applications) or 0
-                return true, dur, exp, app, aura.icon
+            local sID = spellIDs[i]
+            if not (checkSpellSecret and checkSpellSecret(sID)) then
+                local aura = C_UnitAuras.GetPlayerAuraBySpellID(sID)
+                if aura then
+                    local dur = (not (issecretvalue and issecretvalue(aura.duration)) and aura.duration) or 0
+                    local exp = (not (issecretvalue and issecretvalue(aura.expirationTime)) and aura.expirationTime) or 0
+                    local app = (not (issecretvalue and issecretvalue(aura.applications)) and aura.applications) or 0
+                    return true, dur, exp, app, aura.icon
+                end
             end
         end
     end
@@ -230,32 +226,20 @@ local function ScanPlayerAura(entry)
         end
     end
 
-    -- 6. Fallback: cached active auras / sfui.api / safe Aura lookup
-    local spellNames = entry.names
-    if spellNames then
-        for j = 1, #spellNames do
-            local sName = spellNames[j]
-            local lowerSName = string_lower(sName)
-            local a = activeAurasByName[lowerSName]
-            if a then
+    -- 6. Pattern fallback for Paladin blessings and auras (handles custom Camelot rank IDs)
+    if entry.key == "blessing" then
+        for lowerAuraName, a in pairs(activeAurasByName) do
+            if (lowerAuraName:find("^blessing of ") or lowerAuraName:find("^greater blessing of "))
+                and not lowerAuraName:find("protection", 1, true)
+                and not lowerAuraName:find("freedom", 1, true)
+                and not lowerAuraName:find("sacrifice", 1, true) then
                 return true, a.duration, a.expirationTime, a.applications, a.icon
             end
-
-            if C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName then
-                local aura = C_UnitAuras.GetAuraDataBySpellName("player", sName, "HELPFUL")
-                if aura then
-                    return true, aura.duration or 0, aura.expirationTime or 0, aura.applications or 0, aura.icon
-                end
-            elseif sfui.api and sfui.api.GetUnitAuraByNameOrID then
-                local aura = sfui.api.GetUnitAuraByNameOrID("player", sName, "HELPFUL")
-                if aura then
-                    return true, aura.duration or 0, aura.expirationTime or 0, aura.applications or 0, aura.icon
-                end
-            elseif AuraUtil and AuraUtil.FindAuraByName then
-                local ok, name, icon, count, _, duration, expTime = pcall(AuraUtil.FindAuraByName, sName, "player", "HELPFUL")
-                if ok and name then
-                    return true, duration or 0, expTime or 0, count or 0, icon
-                end
+        end
+    elseif entry.key == "aura" and sfui.buffs.playerClass == "PALADIN" then
+        for lowerAuraName, a in pairs(activeAurasByName) do
+            if lowerAuraName:find(" aura$") then
+                return true, a.duration, a.expirationTime, a.applications, a.icon
             end
         end
     end
@@ -475,8 +459,8 @@ local function ScanWeaponEnchant(entry)
 
     local pClass = sfui.buffs.playerClass or (sfui.common and sfui.common.get_player_class and sfui.common.get_player_class())
 
+    local isPole = sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped()
     if entry.isFishingLure then
-        local isPole = sfui.fishing and sfui.fishing.IsFishingPoleEquipped and sfui.fishing.IsFishingPoleEquipped()
         if not isPole then
             return true, 0, 0, 0, nil
         end
@@ -496,6 +480,8 @@ local function ScanWeaponEnchant(entry)
         end
         local now = GetTime()
         return true, 600, now + expSec, chargesMH or 0, lureIcon, "Fishing Lure"
+    elseif isPole then
+        return true, 0, 0, 0, nil
     end
 
     if slot == 16 then
@@ -510,15 +496,16 @@ local function ScanWeaponEnchant(entry)
         return true, 1800, now + expSec, chargesMH or 0, castIcon, activeEnchant
     elseif slot == 17 then
         -- Check if main hand is a 2-Handed weapon: if so, off hand cannot hold a weapon
-        local mhLink = getInvItemLink and getInvItemLink("player", 16)
-        if mhLink then
-            local mhEquipLoc = GetItemEquipLoc(mhLink)
+        local mhRef = (getInvItemLink and getInvItemLink("player", 16)) or (getInvItemID and getInvItemID("player", 16))
+        if mhRef then
+            local mhEquipLoc = GetItemEquipLoc(mhRef)
             if mhEquipLoc == "INVTYPE_2HWEAPON" then
                 return true, 0, 0, 0, nil
             end
         end
 
-        local equipLoc = itemLink and GetItemEquipLoc(itemLink)
+        local ohRef = itemLink or itemID
+        local equipLoc = ohRef and GetItemEquipLoc(ohRef)
         -- Off hand slot must be an actual weapon (1H or Off Hand only)
         -- Shields (INVTYPE_SHIELD) and held in off-hand frills (INVTYPE_HOLDABLE) can NEVER be imbued!
         if equipLoc and (equipLoc == "INVTYPE_SHIELD" or equipLoc == "INVTYPE_HOLDABLE") then
@@ -716,6 +703,9 @@ function sfui.buffs.scan.RunScan()
 
             local baseThreshold = entry.threshold or 300
             local effectiveThreshold = (baseThreshold > 60) and thresholdLong or thresholdShort
+            if duration and duration > 0 and duration <= 300 and effectiveThreshold >= duration then
+                effectiveThreshold = thresholdShort
+            end
 
             local isExpiring = false
             if allowExpiring and hasBuff and expTime and expTime > 0 and effectiveThreshold > 0 then
@@ -743,10 +733,33 @@ function sfui.buffs.scan.RunScan()
                 rec.expirationTime = expTime or 0
                 rec.duration = duration or 0
                 rec.charges = charges or 0
+                if sfui.buffs.playerClass == "PALADIN" and sfui.buffs.paladin then
+                    if entry.key == "aura" and sfui.buffs.paladin.GetSelectedAura then
+                        local selAura = sfui.buffs.paladin.GetSelectedAura()
+                        if selAura and selAura.icon then icon = selAura.icon end
+                    elseif entry.key == "blessing" and sfui.buffs.paladin.GetSelectedBlessing then
+                        local selBlessing = sfui.buffs.paladin.GetSelectedBlessing()
+                        if selBlessing and selBlessing.icon then icon = selBlessing.icon end
+                    end
+                elseif entry.key == "consumable_food" and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFood then
+                    local selFood = sfui.buffs.consumables.GetSelectedFood()
+                    if selFood and selFood.icon then icon = selFood.icon end
+                elseif entry.key == "consumable_flask" and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFlask then
+                    local selFlask = sfui.buffs.consumables.GetSelectedFlask()
+                    if selFlask and selFlask.icon then icon = selFlask.icon end
+                end
                 rec.icon = icon or (entry.spellIDs and data.ResolveTexture(entry.spellIDs[1], entry.fallbackIcon)) or entry.fallbackIcon
                 rec.activeEnchant = extraData
+                rec.unit = nil
+                rec.unitName = nil
+                rec.unitClass = nil
+                rec.unitSpecLabel = nil
             end
         end
+    end
+
+    if sfui.buffs.party and sfui.buffs.party.AppendPartyReminders then
+        count = sfui.buffs.party.AppendPartyReminders(activeResults, count, now, cfg)
     end
 
     -- Trim surplus reusable entries
@@ -845,12 +858,24 @@ local function InitScanEvents()
         if sfui.buffs.pets and sfui.buffs.pets.InvalidatePetCache then
             sfui.buffs.pets.InvalidatePetCache()
         end
+        if sfui.buffs.paladin and sfui.buffs.paladin.InvalidateCache then
+            sfui.buffs.paladin.InvalidateCache()
+        end
+        if sfui.buffs.party and sfui.buffs.party.InvalidateSpecCache then
+            sfui.buffs.party.InvalidateSpecCache()
+        end
         RefreshSpellKnowledge()
         sfui.buffs.scan.RequestScan()
     end
 
     -- C-level unit filtered events: only invoke Lua when the player token updates
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", on_player_unit_change)
+    if sfui.buffs.playerClass == "PALADIN" then
+        sfui.events.RegisterUnitEvent("UNIT_AURA", "party1", on_player_unit_change)
+        sfui.events.RegisterUnitEvent("UNIT_AURA", "party2", on_player_unit_change)
+        sfui.events.RegisterUnitEvent("UNIT_AURA", "party3", on_player_unit_change)
+        sfui.events.RegisterUnitEvent("UNIT_AURA", "party4", on_player_unit_change)
+    end
     sfui.events.RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player", on_player_unit_change)
     sfui.events.RegisterUnitEvent("UNIT_PET", "player", on_player_unit_change)
 

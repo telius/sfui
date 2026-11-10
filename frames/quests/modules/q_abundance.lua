@@ -90,6 +90,9 @@ local function GetBlessingDetails(aura)
     if not aura or InCombatLockdown() then
         return nil
     end
+    if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then
+        return nil
+    end
 
     local tier = nil
     local speed = nil
@@ -97,11 +100,11 @@ local function GetBlessingDetails(aura)
     local radius = nil
     local altarProgress = nil
 
-    if C_TooltipInfo and aura.auraInstanceID then
+    if C_TooltipInfo and aura.auraInstanceID and not issecretvalue(aura.auraInstanceID) then
         local getter = C_TooltipInfo.GetUnitBuffByAuraInstanceID or C_TooltipInfo.GetUnitAuraByAuraInstanceID
         if getter then
-            local ok, data = pcall(getter, "player", aura.auraInstanceID)
-            if ok and data and data.lines then
+            local data = getter("player", aura.auraInstanceID)
+            if data and data.lines then
                 for _, l in ipairs(data.lines) do
                     local txt = l.leftText
                     if txt and txt ~= "" and not issecretvalue(txt) then

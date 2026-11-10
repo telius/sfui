@@ -281,27 +281,35 @@ local function build_classic_consumables_and_buffs_ring(out)
                             or entry.fallbackIcon
                         add_item_slice(out, "buff_lure", bestLure.itemID, bestLure.name, lureIcon, bestLure.count or 1, prefix, tint, selCol, { ["target-slot"] = 16 })
                     end
-                elseif entry.key == "consumable_flask" and bestFlask then
-                    add_item_slice(out, "buff_flask", bestFlask.itemID, bestFlask.name, bestFlask.icon, bestFlask.count, prefix, tint, selCol)
-                elseif (entry.key == "consumable_weapon_mh" or entry.key == "consumable_weapon_oh") and bestWeaponStone then
+                elseif entry.key == "consumable_flask" then
+                    local chosenFlask = (sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFlask and sfui.buffs.consumables.GetSelectedFlask())
+                        or bestFlask
+                    if chosenFlask and chosenFlask.itemID and (chosenFlask.count or 0) > 0 then
+                        add_item_slice(out, "buff_flask", chosenFlask.itemID, chosenFlask.name, chosenFlask.icon, chosenFlask.count, prefix, tint, selCol)
+                    end
+                elseif (entry.key == "consumable_weapon_mh" or entry.key == "consumable_weapon_oh") then
                     local targetSlot = entry.slot or 16
-                    local stoneId = bestWeaponStone.itemID
-                    local itemRef = "item:" .. tostring(stoneId)
-                    out[#out + 1] = {
-                        id             = "buff_stone_" .. tostring(targetSlot) .. "_" .. tostring(stoneId),
-                        itemID         = stoneId,
-                        label          = prefix .. string_lower(bestWeaponStone.name or entry.name or "weapon stone"),
-                        icon           = bestWeaponStone.icon or entry.fallbackIcon,
-                        count          = bestWeaponStone.count or 1,
-                        charges        = bestWeaponStone.count or 1,
-                        color          = tint,
-                        selectionColor = selCol,
-                        attrs          = {
-                            type            = "item",
-                            item            = itemRef,
-                            ["target-slot"] = targetSlot,
-                        },
-                    }
+                    local chosenStone = (sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedWeaponOil and sfui.buffs.consumables.GetSelectedWeaponOil(targetSlot))
+                        or bestWeaponStone
+                    if chosenStone and chosenStone.itemID then
+                        local stoneId = chosenStone.itemID
+                        local itemRef = "item:" .. tostring(stoneId)
+                        out[#out + 1] = {
+                            id             = "buff_stone_" .. tostring(targetSlot) .. "_" .. tostring(stoneId),
+                            itemID         = stoneId,
+                            label          = prefix .. string_lower(chosenStone.name or entry.name or "weapon stone"),
+                            icon           = chosenStone.icon or entry.fallbackIcon,
+                            count          = chosenStone.count or 1,
+                            charges        = chosenStone.count or 1,
+                            color          = tint,
+                            selectionColor = selCol,
+                            attrs          = {
+                                type            = "item",
+                                item            = itemRef,
+                                ["target-slot"] = targetSlot,
+                            },
+                        }
+                    end
                 else
                     local buffsData = sfui.buffs.data
                     local castSpell, castIcon, castSpellID
@@ -314,14 +322,15 @@ local function build_classic_consumables_and_buffs_ring(out)
                         if entry.type == "weapon_enchant" then
                             extra = { ["target-slot"] = entry.slot or 16 }
                         elseif entry.type ~= "pet" and entry.type ~= "stance" and entry.type ~= "tracking" then
-                            extra = { unit = "player" }
+                            extra = { unit = entry.unit or rec.unit or "player" }
                         end
+                        local sliceLabel = (entry.type == "party_blessing" and entry.name) or castSpell or entry.name
                         add_spell_slice(
                             out,
                             "buff_" .. tostring(entry.key or "reminder"),
                             castSpellID or spellToCast,
                             spellToCast,
-                            castSpell or entry.name,
+                            sliceLabel,
                             castIcon or rec.icon or entry.fallbackIcon,
                             prefix,
                             tint,

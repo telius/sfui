@@ -278,6 +278,7 @@ sfui.config = {
         cooldownDesat = true,    -- Desaturate while on cooldown
         alphaOnCooldown = 1.0,   -- Alpha transparency while on cooldown (1.0 = Opaque)
         useResourceCheck = true, -- Enable mana/power based tinting
+        trackBuffs = false,      -- Disabled by default: show spell cooldowns only unless opted in
         showBackground = false,  -- Default backgrounds to OFF
         backgroundAlpha = 0.5,   -- 50% transparency for the background
 

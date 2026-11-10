@@ -46,6 +46,8 @@ local _castAurasBySpellID = {}
 local _castAurasByName = {}
 local _revision = 0
 local _lastHelpfulCount = 0
+-- active automatically on forever (paladin seals); dormant on retail unless `trackBuffs` is opted in
+local _isEnabled = (sfui.isCamelot == true)
 
 local _activeSeal = {
     active = false,
@@ -150,9 +152,10 @@ function A.PlainField(aura, key)
     return nil
 end
 
--- true for synthetic umbrella cdm entries (e.g. forever's paladin "seals" 200340 / 1323522)
+-- true for synthetic umbrella cdm entries on forever (paladin "seals" 200340 / 1323522)
 -- whose base spell is never in the player's spellbook
 function A.IsCoverSpell(cdInfo, cooldownID, spellID)
+    if not sfui.isCamelot then return false end
     local cid = cooldownID or (cdInfo and cdInfo.cooldownID)
     if cid and not issecretvalue(cid) and cid == A.SEALS_COOLDOWN_ID then
         return true
@@ -165,19 +168,34 @@ function A.IsCoverSpell(cdInfo, cooldownID, spellID)
 end
 
 function A.IsSealSpell(spellID)
+    if not sfui.isCamelot then return false end
     if not spellID or issecretvalue(spellID) or spellID == 0 then return false end
     if spellID == A.SEALS_SPELL_ID then return true end
     return IsSealName(GetCachedSpellName(spellID))
 end
 
+function A.IsForeverSealEntry(entry, cdInfo, activeSpellID)
+    if not sfui.isCamelot then return false end
+    local isTbl = type(entry) == "table"
+    local cdID = (isTbl and entry.cooldownID)
+        or (isTbl and entry.type == "cooldown" and tonumber(entry.id))
+        or (cdInfo and cdInfo.cooldownID)
+    local sid = activeSpellID
+        or (isTbl and entry.spellID)
+        or (isTbl and entry.type ~= "cooldown" and entry.type ~= "item" and tonumber(entry.id))
+        or (cdInfo and (cdInfo.overrideSpellID or cdInfo.spellID))
+    return A.IsCoverSpell(cdInfo, cdID, sid) or A.IsSealSpell(sid)
+end
+
 -- true when a cdm entry should be treated as known by the player, even if blizzard's
--- C_CooldownViewer marks cdInfo.isKnown = false on a synthetic cover spell
+-- C_CooldownViewer marks cdInfo.isKnown = false on a forever synthetic cover spell
 function A.IsCooldownItemKnown(cdInfo, cooldownID)
     if not cdInfo then return true end
     if cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0) then
         return true
     end
     if cdInfo.isKnown ~= false then return true end
+    if not sfui.isCamelot then return false end
     if A.IsCoverSpell(cdInfo, cooldownID) then return true end
 
     local isKnownFn = sfui.common and sfui.common.is_spell_known
@@ -236,14 +254,13 @@ local function FindBlizzItem(cooldownID)
 end
 A.FindBlizzItem = FindBlizzItem
 
--- true when an entry should display its aura duration instead of / over its cooldown
-function A.WantsAura(cdInfo, isAuraType, linkedSpellIDs, spellID, cooldownID)
+-- true when an opted-in entry has an aura duration that can be displayed over its cooldown
+function A.WantsAura(cdInfo, forceAura, linkedSpellIDs, spellID, cooldownID)
     local checkID = spellID or (cdInfo and (cdInfo.overrideSpellID or cdInfo.spellID))
-    local wants = isAuraType
+    local wants = forceAura
         or A.IsCoverSpell(cdInfo, cooldownID, checkID)
         or A.IsSealSpell(checkID)
         or (cdInfo and (cdInfo.selfAura or cdInfo.hasAura or (linkedSpellIDs and #linkedSpellIDs > 0)))
-        or (checkID and sfui.common and sfui.common.is_known_aura_spell and sfui.common.is_known_aura_spell(checkID))
     if wants and cdInfo and cdInfo.flags and bit and bit.band(cdInfo.flags, A.HIDE_AURA_FLAG) ~= 0 then
         return false
     end
@@ -355,13 +372,13 @@ local function SyncPlayerBuffs(updateInfo)
                 end
             end
 
-            if IsSealName(name) then
+            if sfui.isCamelot and IsSealName(name) then
                 foundSeal = aura
             end
         end
     end
 
-    if readableAny then
+    if sfui.isCamelot and readableAny then
         if foundSeal then
             local sid = A.PlainField(foundSeal, "spellId")
             local name = A.PlainField(foundSeal, "name")
@@ -407,7 +424,7 @@ local function SyncPlayerBuffs(updateInfo)
 end
 
 local function GetActiveSealForCandidates(cooldownID, candidates)
-    if not _activeSeal.active then return nil end
+    if not sfui.isCamelot or not _activeSeal.active then return nil end
     local now = GetTime()
     if _activeSeal.expirationTime and _activeSeal.expirationTime > 0 and now >= _activeSeal.expirationTime then
         _activeSeal.active = false
@@ -538,9 +555,9 @@ function A.Resolve(cooldownID, candidates)
         end
     end
 
-    -- 4. paladin "seals" cover item fallback: catch any active player buff named "Seal of ..."
+    -- 4. forever-only paladin "seals" cover item fallback: catch any active player buff named "Seal of ..."
     --    even if a custom forever seal or rank is missing from linkedSpellIDs
-    if C_UnitAuras.GetUnitAuras
+    if sfui.isCamelot and C_UnitAuras.GetUnitAuras
         and (cooldownID == A.SEALS_COOLDOWN_ID or HasCandidate(candidates, A.SEALS_SPELL_ID)) then
         local auras = C_UnitAuras.GetUnitAuras("player", "HELPFUL")
         if auras then
@@ -576,9 +593,21 @@ function A.GetDuration(auraInstanceID, aura)
     return nil
 end
 
--- ─── event wiring for combat-safe seal & self-buff tracking ──────────────────
+function A.IsEnabled()
+    return _isEnabled
+end
+
+function A.Enable()
+    if not _isEnabled then
+        _isEnabled = true
+        SyncPlayerBuffs(nil)
+    end
+end
+
+-- ─── event wiring for combat-safe seal & opt-in self-buff tracking ───────────
 if sfui.events then
     sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(event, unit, castGUID, spellID)
+        if not _isEnabled then return end
         if not spellID or issecretvalue(spellID) or type(spellID) ~= "number" or spellID <= 0 then
             return
         end
@@ -586,7 +615,7 @@ if sfui.events then
         local icon = GetCachedSpellTexture(spellID)
         local now = GetTime()
 
-        if IsSealName(name) or spellID == A.SEALS_SPELL_ID then
+        if sfui.isCamelot and (IsSealName(name) or spellID == A.SEALS_SPELL_ID) then
             local dur = _learnedDurations[spellID] or (name and _learnedDurations[name]) or A.DEFAULT_SEAL_DURATION
             _activeSeal.active = true
             _activeSeal.spellID = spellID
@@ -612,18 +641,22 @@ if sfui.events then
     end)
 
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function(event, unit, updateInfo)
+        if not _isEnabled then return end
         SyncPlayerBuffs(updateInfo)
     end)
 
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        if not _isEnabled then return end
         SyncPlayerBuffs(nil)
     end)
 
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        if not _isEnabled then return end
         SyncPlayerBuffs(nil)
     end)
 
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        if not _isEnabled then return end
         SyncPlayerBuffs(nil)
         NotifyTrackingDirty()
     end)

@@ -619,11 +619,11 @@ local function RenderTrackedBarsRightSide(parent, width)
         end
     end
 
-    -- 3. Cooldown-category items that carry a self aura (e.g. forever's paladin "seals",
-    --    linked to every seal). blizzard never gives these a buff bar frame, so tracked
+    -- 3. Forever-only: cooldown-category items that carry a self aura (e.g. forever's paladin "seals",
+    --    linked to every seal). blizzard never gives these a buff bar frame on forever, so tracked
     --    bars drive them from the shared aura resolver (frames/tracking/auras.lua).
-    local auraResolver = sfui.tracking and sfui.tracking.auras
-    if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+    local auraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
+    if sfui.isCamelot and auraResolver and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet and C_CooldownViewer.GetCooldownViewerCooldownInfo then
         local cdCats = { 0, 1 }
         if Enum and Enum.CooldownViewerCategory then
             cdCats = {}
@@ -1419,19 +1419,29 @@ local function RenderAssignmentsIconPool(parent, width, entries)
     end
     if #cats == 0 then cats = { 0, 1, 7, 5 } end
 
-    -- buff-category items too: tracked icons show their aura duration via the shared
-    -- aura resolver, so self buffs can live in icon panels as well as tracked bars
-    local buffCats = { 2, 3 }
-    if Enum and Enum.CooldownViewerCategory then
-        buffCats = {}
-        for _, catKey in ipairs({ "TrackedBuff", "TrackedBar" }) do
-            if Enum.CooldownViewerCategory[catKey] ~= nil then
-                table.insert(buffCats, Enum.CooldownViewerCategory[catKey])
-            end
+    -- buff-category items: never shown in the cdm assignments pool on retail by default;
+    -- only included when `trackBuffs` is explicitly opted in on non-retail panels.
+    local allowBuffPool = false
+    if not sfui.isRetail then
+        if selectedPanelData and selectedPanelData.trackBuffs ~= nil then
+            allowBuffPool = (selectedPanelData.trackBuffs == true)
+        elseif SfuiDB and SfuiDB.iconGlobalSettings and SfuiDB.iconGlobalSettings.trackBuffs == true then
+            allowBuffPool = true
         end
     end
-    for _, cat in ipairs(buffCats) do
-        table.insert(cats, cat)
+    if allowBuffPool then
+        local buffCats = { 2, 3 }
+        if Enum and Enum.CooldownViewerCategory then
+            buffCats = {}
+            for _, catKey in ipairs({ "TrackedBuff", "TrackedBar" }) do
+                if Enum.CooldownViewerCategory[catKey] ~= nil then
+                    table.insert(buffCats, Enum.CooldownViewerCategory[catKey])
+                end
+            end
+        end
+        for _, cat in ipairs(buffCats) do
+            table.insert(cats, cat)
+        end
     end
 
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
@@ -1463,6 +1473,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         icon.id = cdID
         icon.type = typeHint
         icon.cooldownID = cdID
+        local defaultTrackBuffs = (sfui.isCamelot and auraResolver and auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry({ cooldownID = cdID, spellID = meta.spellID }, cdInfo)) or nil
         icon.entry = {
             id = cdID,
             type = typeHint,
@@ -1471,7 +1482,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
             spellCategoryID = meta.spellCategoryID,
             itemID = meta.itemID,
             spellID = meta.spellID,
-            settings = { textEnabled = true, showText = true },
+            settings = { textEnabled = true, showText = true, trackBuffs = defaultTrackBuffs },
         }
         icon.texture:SetTexture(meta.icon)
 
@@ -1533,6 +1544,10 @@ local function RenderAssignmentsIconPool(parent, width, entries)
                 table.remove(entries, existingIndex)
             else
                 if type(entries) == "table" then
+                    local newSettings = { textEnabled = true, showText = true }
+                    if icon.entry and icon.entry.settings and icon.entry.settings.trackBuffs ~= nil then
+                        newSettings.trackBuffs = icon.entry.settings.trackBuffs
+                    end
                     table.insert(entries, {
                         id = cdID,
                         type = icon.entry.type or "cooldown",
@@ -1541,7 +1556,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
                         spellCategoryID = icon.entry.spellCategoryID,
                         itemID = icon.entry.itemID,
                         spellID = icon.entry.spellID,
-                        settings = { textEnabled = true, showText = true },
+                        settings = newSettings,
                     })
                 end
             end
@@ -1911,6 +1926,15 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
             if not entry.spellCategoryID and ((draggedInfo.info and draggedInfo.info.spellCategoryID) or (meta and meta.spellCategoryID)) then
                 entry.spellCategoryID = (draggedInfo.info and draggedInfo.info.spellCategoryID) or (meta and meta.spellCategoryID)
             end
+            if sfui.isCamelot then
+                local auraResolver = sfui.tracking and sfui.tracking.auras
+                if auraResolver and auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry(entry, draggedInfo.info) then
+                    entry.settings = entry.settings or { textEnabled = true, showText = true }
+                    if entry.settings.trackBuffs == nil then
+                        entry.settings.trackBuffs = true
+                    end
+                end
+            end
         end
 
         if zoneFrame.dropInsertIndex and zoneFrame.dropInsertIndex <= #panelData.entries then
@@ -2072,6 +2096,12 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     end
 
     entry.settings = entry.settings or { textEnabled = true, showText = true }
+    if sfui.isCamelot and entry.settings.trackBuffs == nil then
+        local auraResolver = sfui.tracking and sfui.tracking.auras
+        if auraResolver and auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry(entry) then
+            entry.settings.trackBuffs = true
+        end
+    end
 
     local incomingId = entry.id
 

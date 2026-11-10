@@ -217,7 +217,14 @@ local CLASSIC_DEBUFF_COLORS = {
 }
 
 local function GetClassicAuraByIndex(unit, index, filter)
+    if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then
+        return nil
+    end
     if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
+        local checkIndexSecret = _G.C_Secrets and _G.C_Secrets.ShouldUnitAuraIndexBeSecret
+        if checkIndexSecret and checkIndexSecret(unit, index, filter) then
+            return nil
+        end
         local aura = _G.C_UnitAuras.GetAuraDataByIndex(unit, index, filter)
         if not aura then return nil end
         return aura.icon, aura.applications, aura.dispelName, aura.duration, aura.expirationTime
@@ -275,6 +282,7 @@ local function CreateClassicAuraContainer(name, parent, unit, filter, maxCount, 
         if btn.SetScript then
             btn:SetScript("OnEnter", function(self)
                 if not GameTooltip or not self.auraIndex then return end
+                if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then return end
                 GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT", 15, -25)
                 if isDebuff and GameTooltip.SetUnitDebuff then
                     GameTooltip:SetUnitDebuff(unit, self.auraIndex, filter)

@@ -529,6 +529,12 @@ function sfui.alts.PerformSync(isLogout)
     if englishClass and englishClass ~= "" then
         d.class = englishClass
     end
+    if sfui.talents and sfui.talents.get_current_spec_id then
+        local curSpecID = sfui.talents.get_current_spec_id()
+        if curSpecID and curSpecID > 0 then
+            d.spec = curSpecID
+        end
+    end
     local _, englishRace = UnitRace("player")
     if englishRace and englishRace ~= "" then
         d.race = englishRace

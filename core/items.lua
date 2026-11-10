@@ -517,13 +517,17 @@ function sfui.items.get_item_stats(itemLink)
         end
 
         if not foundTooltip then
-            local tip = sfuiTooltip
+            local tip, tipName = nil, "SfuiGameTooltip"
+            if sfui.common and sfui.common.get_scan_tooltip then
+                tip, tipName = sfui.common.get_scan_tooltip()
+            end
+            tip = tip or sfuiTooltip
             if tip then
                 tip:ClearLines()
                 tip:SetHyperlink(itemLink)
                 local numLines = tip:NumLines() or 0
                 for i = 1, numLines do
-                    local fsL = _G["SfuiGameTooltipTextLeft" .. i]
+                    local fsL = _G[tipName .. "TextLeft" .. i]
                     if fsL then
                         local txt = fsL:GetText()
                         if txt then
@@ -733,13 +737,17 @@ function sfui.items.get_shield_stats(itemLink)
     end
 
     if not foundTooltip then
-        local tip = sfuiTooltip
+        local tip, tipName = nil, "SfuiGameTooltip"
+        if sfui.common and sfui.common.get_scan_tooltip then
+            tip, tipName = sfui.common.get_scan_tooltip()
+        end
+        tip = tip or sfuiTooltip
         if tip then
             tip:ClearLines()
             tip:SetHyperlink(itemLink)
             local numLines = tip:NumLines() or 0
             for i = 1, numLines do
-                local fsL = _G["SfuiGameTooltipTextLeft" .. i]
+                local fsL = _G[tipName .. "TextLeft" .. i]
                 if fsL then
                     local txt = fsL:GetText()
                     if txt and type(txt) == "string" then
@@ -1159,9 +1167,12 @@ function sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
         end
     end
 
-    -- 3. Dedicated sfuiTooltip inspection (fallback only if C_TooltipInfo was unavailable or yielded 0 lines)
-    if #scratchTooltipTexts == 0 and sfuiTooltip then
-        ExtractTooltipFrameTexts(sfuiTooltip, bag, slot, itemID, itemLink, scratchTooltipTexts)
+    -- 3. Dedicated scan tooltip inspection (fallback only if C_TooltipInfo was unavailable or yielded 0 lines)
+    if #scratchTooltipTexts == 0 then
+        local scanTip = (sfui.common and sfui.common.get_scan_tooltip and sfui.common.get_scan_tooltip()) or sfuiTooltip
+        if scanTip then
+            ExtractTooltipFrameTexts(scanTip, bag, slot, itemID, itemLink, scratchTooltipTexts)
+        end
     end
 
     local wellFedSpellName = GetSafeSpellName(19705) or GetSafeSpellName(25941)

@@ -858,24 +858,50 @@ local function UpdateIconState(icon, panelConfig, event)
     -- 3. Update Cooldown & Logic
     local count, isReady, isUsable, notEnoughPower, isOnCooldown = UpdateIconCooldown(icon, activeID, resolvedType)
 
-    -- 3b. Aura precedence: an active aura tied to this entry overrides the cooldown swipe
+    -- 3b. Aura duration display: disabled by default on trackedicons, except special Forever
+    -- seals (`trackBuffs` enabled by default unless explicitly unchecked per-icon) or when
+    -- opted in via `trackBuffs` in trackedoptions.lua.
     local isAuraType = (icon.type == "buff" or icon.type == "debuff" or (icon.entry and (icon.entry.type == "buff" or icon.entry.type == "debuff")))
     local auraActive = false
-    if resolvedType ~= "item" and icon.type ~= "item" and activeID and activeID ~= 0 then
-        local cdID = GetIconCooldownID(icon)
-        local cdInfo = GetIconCooldownInfo(icon)
-        local wantsAura = auraResolver.WantsAura(cdInfo, isAuraType, linkedSpellIDs, activeID, cdID)
-        if wantsAura then
-            auraActive = ApplyTrackedAuraDuration(icon, activeID, linkedSpellIDs, cdInfo)
-            if auraActive then
-                -- keep the icon crisp and full-color while its active aura duration ticks
-                isUsable = true
-                notEnoughPower = false
-                isOnCooldown = false
-            elseif auraResolver.IsCoverSpell(cdInfo, cdID, activeID) then
-                -- synthetic cover spells (e.g. paladin "seals" 1323522) report IsSpellUsable = false
-                isUsable = true
-                notEnoughPower = false
+    if auraResolver and resolvedType ~= "item" and icon.type ~= "item" and activeID and activeID ~= 0 then
+        local cdID = nil
+        local cdInfo = nil
+        local isForeverSeal = false
+        if sfui.isCamelot then
+            cdID = GetIconCooldownID(icon)
+            cdInfo = GetIconCooldownInfo(icon)
+            isForeverSeal = auraResolver.IsForeverSealEntry
+                and auraResolver.IsForeverSealEntry(icon.entry, cdInfo, activeID)
+                or (auraResolver.IsCoverSpell(cdInfo, cdID, activeID) or auraResolver.IsSealSpell(activeID))
+        end
+        local trackBuffs
+        if entrySettings.trackBuffs ~= nil then
+            trackBuffs = (entrySettings.trackBuffs == true)
+        elseif isForeverSeal then
+            trackBuffs = true
+        else
+            trackBuffs = GetIconValue(entrySettings, panelConfig, "trackBuffs", false) == true
+        end
+        if trackBuffs then
+            if not cdID then cdID = GetIconCooldownID(icon) end
+            if not cdInfo then cdInfo = GetIconCooldownInfo(icon) end
+            if auraResolver.Enable then auraResolver.Enable() end
+            local forceEntryAura = (entrySettings.trackBuffs == true) or isAuraType
+            local wantsAura = isForeverSeal or auraResolver.WantsAura(cdInfo, forceEntryAura, linkedSpellIDs, activeID, cdID)
+            if wantsAura then
+                auraActive = ApplyTrackedAuraDuration(icon, activeID, linkedSpellIDs, cdInfo)
+                if auraActive then
+                    -- keep the icon crisp and full-color while its active aura duration ticks
+                    isUsable = true
+                    notEnoughPower = false
+                    isOnCooldown = false
+                elseif isForeverSeal and auraResolver.IsCoverSpell(cdInfo, cdID, activeID) then
+                    -- synthetic cover spells (forever paladin "seals" 1323522) report IsSpellUsable = false
+                    isUsable = true
+                    notEnoughPower = false
+                end
+            elseif icon._auraState then
+                ClearTrackedAuraDisplay(icon)
             end
         elseif icon._auraState then
             ClearTrackedAuraDisplay(icon)
@@ -1001,7 +1027,7 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
         return iconTexture or 134400, activeID, resolvedType, nil
     end
 
-    if type == "cooldown" and entry and entry.cooldownID then
+    if (type == "cooldown" or (entry and entry.cooldownID)) and entry and entry.cooldownID then
         local cdInfo = SafeGetCooldownViewerCooldownInfo(entry.cooldownID)
         if cdInfo then
             linkedSpellIDs = cdInfo.linkedSpellIDs
@@ -1991,7 +2017,9 @@ function sfui.trackedicons.initialize()
 
     -- Real-time events that require immediate structural/GCD sync
     sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(event, unit)
-        _playerAurasDirty = true
+        if sfui.isCamelot or (auraResolver and auraResolver.IsEnabled and auraResolver.IsEnabled()) then
+            _playerAurasDirty = true
+        end
         _needsStateUpdate = true
     end)
 
@@ -2078,7 +2106,8 @@ function sfui.trackedicons.initialize()
 
         -- trailing edge for throttled UNIT_AURA: an aura change swallowed by the throttle
         -- (e.g. a seal fading shortly after another aura update) still gets processed
-        if _playerAurasDirty and not _needsStateUpdate then
+        if _playerAurasDirty and not _needsStateUpdate
+            and (sfui.isCamelot or (auraResolver and auraResolver.IsEnabled and auraResolver.IsEnabled())) then
             local now = GetTime()
             if (now - _lastAuraTime) >= (inCombat and 0.25 or 0.5) then
                 _lastAuraTime = now

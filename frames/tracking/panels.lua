@@ -111,7 +111,7 @@ local function get_all_cdm_entries()
     local cat0 = {} -- Essential + EquipSlotEssential (trinkets)
     local cat1 = {} -- Utility + SpecAgnosticEssential (potions / healthstones)
 
-    local auraResolver = sfui.tracking and sfui.tracking.auras
+    local auraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
 
     local function categorize(cooldownID, info)
         if not info then return end
@@ -131,6 +131,9 @@ local function get_all_cdm_entries()
             id = info.spellID or info.itemID or cooldownID,
             settings = { showText = true }
         }
+        if auraResolver and auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry(entry, info) then
+            entry.settings.trackBuffs = true
+        end
         local cat = info.category
         if cat == 0 or cat == 7 or not cat then
             table.insert(cat0, entry)
@@ -248,7 +251,7 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
     if not panelConfig or type(panelConfig.entries) ~= "table" then return activeEntries end
 
     local isClassic = not sfui.isRetail
-    local auraResolver = sfui.tracking and sfui.tracking.auras
+    local auraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
 
     for _, entry in ipairs(panelConfig.entries) do
         local isKnown = true
@@ -263,7 +266,17 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
                 local isItemCooldown = (type(entry) == "table" and (entry.equipSlot ~= nil or entry.spellCategoryID ~= nil or (entry.itemID and entry.itemID > 0) or entry.type == "item"))
                     or (cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0))
 
-                if not isItemCooldown and cdInfo.isKnown == false then
+                if sfui.isRetail and not isItemCooldown and (cdInfo.category == 2 or cdInfo.category == 3) then
+                    local entryTrackBuffs = type(entry) == "table" and entry.settings and entry.settings.trackBuffs
+                    local allowBuff = (entryTrackBuffs == true)
+                        or (entryTrackBuffs == nil and panelConfig.trackBuffs == true)
+                        or (entryTrackBuffs == nil and panelConfig.trackBuffs == nil and SfuiDB and SfuiDB.iconGlobalSettings and SfuiDB.iconGlobalSettings.trackBuffs == true)
+                    if not allowBuff then
+                        isKnown = false
+                    end
+                end
+
+                if isKnown and not isItemCooldown and cdInfo.isKnown == false then
                     local spellKnown = (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(cdInfo, cdID)) or false
                     if not spellKnown then
                         local sID = (type(entry) == "table" and entry.spellID) or (cdInfo.spellID and cdInfo.spellID > 0 and cdInfo.spellID)

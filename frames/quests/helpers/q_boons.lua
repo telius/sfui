@@ -60,34 +60,46 @@ local function GetOrCreateScanner()
     return scanTooltip
 end
 
+local function AreAurasSecret()
+    local cSecrets = _G.C_Secrets
+    return cSecrets and cSecrets.ShouldAurasBeSecret and cSecrets.ShouldAurasBeSecret() or false
+end
+
 -- ─── Aura Lookup ─────────────────────────────────────────────────────────────
 local function FindBoonsAura()
     if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+        local checkSpellSecret = _G.C_Secrets and _G.C_Secrets.ShouldSpellAuraBeSecret
         for _, sID in ipairs(BOONS_SPELL_IDS) do
-            local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, sID)
-            if ok and aura then
-                aura.spellId = aura.spellId or sID
-                return aura
+            if not (checkSpellSecret and checkSpellSecret(sID)) then
+                local aura = C_UnitAuras.GetPlayerAuraBySpellID(sID)
+                if aura then
+                    if not aura.spellId or issecretvalue(aura.spellId) then
+                        aura.spellId = sID
+                    end
+                    return aura
+                end
             end
         end
         return nil
     end
 
     -- Classic / legacy fallback only when GetPlayerAuraBySpellID is unavailable
-    if _G.UnitBuff then
+    if not AreAurasSecret() and _G.UnitBuff then
         for i = 1, 40 do
-            local ok, name, icon, count, debuffType, duration, expirationTime, unitCaster, canStealOrPurge, nameplateShowPersonal, spellID = pcall(_G.UnitBuff, "player", i)
-            if not ok or not name then break end
-            for _, sID in ipairs(BOONS_SPELL_IDS) do
-                if spellID == sID then
-                    return {
-                        name = name,
-                        icon = icon,
-                        spellId = spellID,
-                        applications = count,
-                        auraInstanceID = nil,
-                        index = i,
-                    }
+            local name, icon, count, _, _, _, _, _, _, spellID = _G.UnitBuff("player", i)
+            if not name or issecretvalue(name) then break end
+            if not issecretvalue(spellID) then
+                for _, sID in ipairs(BOONS_SPELL_IDS) do
+                    if spellID == sID then
+                        return {
+                            name = name,
+                            icon = icon,
+                            spellId = spellID,
+                            applications = count,
+                            auraInstanceID = nil,
+                            index = i,
+                        }
+                    end
                 end
             end
         end
@@ -115,14 +127,15 @@ end
 
 local function GetBoonsLines(aura)
     local rawLines = {}
-    if not aura then return rawLines end
+    if not aura or AreAurasSecret() then return rawLines end
+    local hasPlainInstanceID = aura.auraInstanceID and not issecretvalue(aura.auraInstanceID)
 
     -- 1. Modern C_TooltipInfo by auraInstanceID
-    if C_TooltipInfo and aura.auraInstanceID then
+    if C_TooltipInfo and hasPlainInstanceID then
         local getter = C_TooltipInfo.GetUnitBuffByAuraInstanceID or C_TooltipInfo.GetUnitAuraByAuraInstanceID
         if getter then
-            local ok, data = pcall(getter, "player", aura.auraInstanceID)
-            if ok and data and data.lines then
+            local data = getter("player", aura.auraInstanceID)
+            if data and data.lines then
                 for _, l in ipairs(data.lines) do
                     local txt = l.leftText
                     if txt and txt ~= "" and not issecretvalue(txt) then
@@ -139,12 +152,12 @@ local function GetBoonsLines(aura)
     end
 
     -- 2. Fallback: GameTooltip Scanner using SetUnitBuffByAuraInstanceID
-    if #rawLines == 0 and aura.auraInstanceID then
+    if #rawLines == 0 and hasPlainInstanceID then
         local scanner = GetOrCreateScanner()
         scanner:ClearLines()
         local setter = scanner.SetUnitBuffByAuraInstanceID or scanner.SetUnitAuraByAuraInstanceID
         if setter then
-            pcall(setter, scanner, "player", aura.auraInstanceID)
+            setter(scanner, "player", aura.auraInstanceID)
             local num = scanner:NumLines() or 0
             for i = 1, num do
                 local fs = _G[scanner:GetName() .. "TextLeft" .. i]
@@ -166,7 +179,7 @@ local function GetBoonsLines(aura)
         local scanner = GetOrCreateScanner()
         scanner:ClearLines()
         if scanner.SetUnitBuff then
-            pcall(scanner.SetUnitBuff, scanner, "player", aura.index)
+            scanner:SetUnitBuff("player", aura.index)
         end
         local num = scanner:NumLines() or 0
         for i = 1, num do
@@ -184,9 +197,10 @@ local function GetBoonsLines(aura)
     end
 
     -- 4. Fallback: Spell ID description if aura tooltip was completely empty
+    local plainSpellID = aura.spellId and not issecretvalue(aura.spellId) and aura.spellId or BOONS_SPELL_IDS[1]
     if #rawLines == 0 and C_TooltipInfo and C_TooltipInfo.GetSpellByID then
-        local ok, data = pcall(C_TooltipInfo.GetSpellByID, aura.spellId or BOONS_SPELL_IDS[1])
-        if ok and data and data.lines then
+        local data = C_TooltipInfo.GetSpellByID(plainSpellID)
+        if data and data.lines then
             for _, l in ipairs(data.lines) do
                 local txt = l.leftText
                 if txt and txt ~= "" and not issecretvalue(txt) then
@@ -305,10 +319,10 @@ local function GetOrCreateBoonsFrame()
             local tip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or _G.GameTooltip
             if tip then
                 tip:SetOwner(self, "ANCHOR_LEFT", -8, 0)
-                if tip.SetUnitBuffByAuraInstanceID and currentAuraInstanceID then
-                    pcall(tip.SetUnitBuffByAuraInstanceID, tip, "player", currentAuraInstanceID)
-                elseif tip.SetSpellByID and currentSpellID then
-                    pcall(tip.SetSpellByID, tip, currentSpellID)
+                if not AreAurasSecret() and tip.SetUnitBuffByAuraInstanceID and currentAuraInstanceID and not issecretvalue(currentAuraInstanceID) then
+                    tip:SetUnitBuffByAuraInstanceID("player", currentAuraInstanceID)
+                elseif tip.SetSpellByID and currentSpellID and not issecretvalue(currentSpellID) then
+                    tip:SetSpellByID(currentSpellID)
                 end
                 tip:Show()
             end
@@ -420,7 +434,7 @@ end
 
 -- ─── Core Content Update ─────────────────────────────────────────────────────
 function Boons.Update()
-    if InCombatLockdown() then
+    if InCombatLockdown() or AreAurasSecret() then
         needsUpdateAfterCombat = true
         return
     end

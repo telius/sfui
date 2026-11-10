@@ -148,6 +148,16 @@ sfui.options.RegisterTab({
         end, "clicking a missing reminder icon out of combat casts the spell or activates the enchant.")
         click_cb:SetPoint("TOPLEFT", mounted_cb, "BOTTOMLEFT", 0, -8)
 
+        local party_cb = create_checkbox(p, "party blessing reminders (paladin)", function()
+            return SfuiDB.buffReminders.partyBuffs ~= false
+        end, function(checked)
+            SfuiDB.buffReminders.partyBuffs = checked
+            if sfui.buffs and sfui.buffs.scan then
+                sfui.buffs.scan.RequestScan()
+            end
+        end, "automatically checks party members' existing blessings, class, and spec to suggest non-conflicting paladin blessings.")
+        party_cb:SetPoint("LEFT", click_cb, "LEFT", COL_OFFSET_X, 0)
+
         -- ── Section 2: Expiration Warning Thresholds ─────────────────────────
         local thresh_header = p:CreateFontString(nil, "OVERLAY", g.font)
         thresh_header:SetPoint("TOPLEFT", click_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
