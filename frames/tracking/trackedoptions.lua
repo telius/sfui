@@ -217,6 +217,13 @@ function sfui.trackedoptions.CreateAnchorGrid(parent, panel, key, onUpdate)
             table.insert(container.btns, btn)
         end
     end
+
+    function container:Refresh()
+        for _, b in ipairs(container.btns) do
+            style_choice_btn(b, b.point == panel[key])
+        end
+    end
+
     return container
 end
 
@@ -1859,6 +1866,11 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     growthCross:SetPoint("TOPLEFT", 0, s2y)
 
     local anchorGrid = sfui.trackedoptions.CreateAnchorGrid(s2c, panel, "anchorPoint", function()
+        if panel.customMover then
+            panel.moverPoint = panel.anchorPoint
+            panel.moverRelPoint = panel.anchorPoint
+            panel.relativePoint = panel.anchorPoint
+        end
         sfui.trackedicons.Update()
     end)
     anchorGrid:SetPoint("TOPLEFT", 130, s2y)
@@ -1875,13 +1887,35 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     if xOffset then sec3:SetPoint("TOPLEFT", xOffset, yPos) end
     local s3y = 0
 
+    local xSlider, ySlider
+
     local lA = s3c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lA:SetPoint("TOPLEFT", 0, s3y); lA:SetText("anchor to:")
     local anchorTargets = common.get_all_anchor_targets(panel.name)
+    local pUpper = panel.name and string.upper(panel.name)
+    local defaultAnchorTo = panel.anchorTo
+    if not defaultAnchorTo then
+        if pUpper == "CENTER" or pUpper == "CAT" or pUpper == "BEAR" or pUpper == "MOONKIN" or pUpper == "STEALTH"
+            or pUpper == "BATTLE" or pUpper == "DEFENSIVE" or pUpper == "BERSERKER" then
+            defaultAnchorTo = "Health Bar"
+        else
+            defaultAnchorTo = "UIParent"
+        end
+    end
     local anchorTo = common.create_dropdown(s3c, 130, anchorTargets, function(val)
+        local wasCustom = panel.customMover
         panel.anchorTo = val
+        panel.customMover = nil
+        panel.moverPoint = nil
+        panel.moverRelPoint = nil
+        if val ~= "UIParent" and wasCustom then
+            panel.x = 0
+            panel.y = 0
+            if xSlider and xSlider.SetSliderValue then xSlider:SetSliderValue(0) end
+            if ySlider and ySlider.SetSliderValue then ySlider:SetSliderValue(0) end
+        end
         sfui.trackedicons.Update()
-    end, panel.anchorTo)
+    end, defaultAnchorTo)
     anchorTo:SetPoint("LEFT", lA, "RIGHT", 5, 0)
 
     local lRP = s3c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1895,14 +1929,41 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     }
     local rPoint = common.create_dropdown(s3c, 130, points, function(val)
         panel.relativePoint = val
+        if panel.customMover then
+            panel.moverRelPoint = val
+        end
         sfui.trackedicons.Update()
-    end, panel.relativePoint)
+    end, panel.relativePoint or "BOTTOM")
     rPoint:SetPoint("LEFT", lRP, "RIGHT", 5, 0)
     s3y = s3y - 65
 
-    PSlider(s3c, "Offset X", "x", -1000, 1000, 1, 0, s3y, 140)
-    PSlider(s3c, "Offset Y", "y", -1000, 1000, 1, 155, s3y, 140)
-    s3y = s3y - 48
+    xSlider = PSlider(s3c, "Offset X", "x", -1000, 1000, 1, 0, s3y, 140)
+    ySlider = PSlider(s3c, "Offset Y", "y", -1000, 1000, 1, 155, s3y, 140)
+    s3y = s3y - 52
+
+    local unlockMoversBtn = CreateFlatButton(s3c, "unlock movers", 140, 24, function()
+        if sfui.movers and sfui.movers.Toggle then
+            sfui.movers.Toggle()
+        end
+    end)
+    unlockMoversBtn:SetPoint("TOPLEFT", 0, s3y)
+
+    local resetPosBtn = CreateFlatButton(s3c, "reset position", 140, 24, function()
+        if sfui.trackedicons and sfui.trackedicons.ResetPanelPosition then
+            sfui.trackedicons.ResetPanelPosition(panel)
+        end
+    end)
+    resetPosBtn:SetPoint("TOPLEFT", 155, s3y)
+    s3y = s3y - 32
+
+    sfui.trackedoptions._activePanelPosControls = {
+        panel = panel,
+        xSlider = xSlider,
+        ySlider = ySlider,
+        anchorTo = anchorTo,
+        rPoint = rPoint,
+        anchorGrid = anchorGrid,
+    }
 
     sec3:SetHeight(h3 + math.abs(s3y) + 8)
     yPos = yPos - sec3:GetHeight() - 8
@@ -2145,7 +2206,45 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     return yPos
 end
 
+function sfui.trackedoptions.SyncPanelPositionControls(panel)
+    local ctrls = sfui.trackedoptions._activePanelPosControls
+    if not ctrls or not ctrls.panel then return end
+    local activePanel = ctrls.panel
+    if panel and activePanel ~= panel then
+        -- Also sync if both are primary form sibling panels sharing position
+        local aName = activePanel.name and string.upper(activePanel.name)
+        local pName = panel.name and string.upper(panel.name)
+        local isPrimaryA = (aName == "CENTER" or aName == "CAT" or aName == "BEAR" or aName == "MOONKIN" or aName == "STEALTH"
+            or aName == "BATTLE" or aName == "DEFENSIVE" or aName == "BERSERKER")
+        local isPrimaryP = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
+            or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER")
+        if not (isPrimaryA and isPrimaryP) then
+            return
+        end
+    end
+
+    if ctrls.xSlider and ctrls.xSlider.SetSliderValue then
+        ctrls.xSlider:SetSliderValue(activePanel.x or 0)
+    end
+    if ctrls.ySlider and ctrls.ySlider.SetSliderValue then
+        ctrls.ySlider:SetSliderValue(activePanel.y or 0)
+    end
+    if ctrls.anchorTo and ctrls.anchorTo.SetSelectedValue then
+        local aUpper = activePanel.name and string.upper(activePanel.name)
+        local fallbackAnchor = (aUpper == "CENTER" or aUpper == "CAT" or aUpper == "BEAR" or aUpper == "MOONKIN" or aUpper == "STEALTH"
+            or aUpper == "BATTLE" or aUpper == "DEFENSIVE" or aUpper == "BERSERKER") and "Health Bar" or "UIParent"
+        ctrls.anchorTo:SetSelectedValue(activePanel.anchorTo or fallbackAnchor)
+    end
+    if ctrls.rPoint and ctrls.rPoint.SetSelectedValue then
+        ctrls.rPoint:SetSelectedValue(activePanel.relativePoint or "BOTTOM")
+    end
+    if ctrls.anchorGrid and ctrls.anchorGrid.Refresh then
+        ctrls.anchorGrid:Refresh()
+    end
+end
+
 function sfui.trackedoptions.ReleaseSettingsWidgets(parent)
+    sfui.trackedoptions._activePanelPosControls = nil
     if not parent then return end
     local kids = { parent:GetChildren() }
     for _, kid in ipairs(kids) do

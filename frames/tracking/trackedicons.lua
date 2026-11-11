@@ -52,7 +52,6 @@ local function MarkDirty(needsLayout)
 end
 sfui.trackedicons.MarkDirty = MarkDirty
 
-local _emptyTable = {}
 local _iconCounter = 0
 local _staticActiveEntries = {}
 local _staticActiveIcons = {}
@@ -75,7 +74,19 @@ end
 
 -- Helper: Get value from entry -> panel -> global -> hardcoded default (M+ safe)
 local function GetIconValue(entrySettings, panelConfig, key, default)
-    local cacheKey = entrySettings or panelConfig or "global"
+    local altKey = (key == "textEnabled") and "showText" or ((key == "showText") and "textEnabled" or nil)
+
+    -- 1. Entry override checked in O(1) directly (prevents cross-panel cache aliasing)
+    if entrySettings then
+        if entrySettings[key] ~= nil then
+            return entrySettings[key]
+        elseif altKey and entrySettings[altKey] ~= nil then
+            return entrySettings[altKey]
+        end
+    end
+
+    -- 2. Panel -> Panel Defaults -> Global cached per panelConfig
+    local cacheKey = panelConfig or "global"
     local cache = _iconConfigCache[cacheKey]
     if not cache then
         cache = {}
@@ -88,13 +99,7 @@ local function GetIconValue(entrySettings, panelConfig, key, default)
         return val
     end
 
-    local altKey = (key == "textEnabled") and "showText" or ((key == "showText") and "textEnabled" or nil)
-
-    if entrySettings and entrySettings[key] ~= nil then
-        val = entrySettings[key]
-    elseif altKey and entrySettings and entrySettings[altKey] ~= nil then
-        val = entrySettings[altKey]
-    elseif panelConfig and panelConfig[key] ~= nil then
+    if panelConfig and panelConfig[key] ~= nil then
         val = panelConfig[key]
     elseif altKey and panelConfig and panelConfig[altKey] ~= nil then
         val = panelConfig[altKey]
@@ -133,8 +138,6 @@ end
 
 local SafeGetCooldownViewerCooldownInfo = entryHelper.SafeGetCooldownInfo
 
-sfui.trackedicons.StopGlow = sfui.glows.stop_glow
-
 local function StopGlow(icon)
     if icon._glowActive then
         if _activeGlowCount > 0 then
@@ -144,20 +147,28 @@ local function StopGlow(icon)
     sfui.glows.stop_glow(icon)
     icon._lastGlowCfg = nil
     icon._lastGlowType = nil
+    icon._glowConfigRev = nil
     icon._glowActive = false
 end
+sfui.trackedicons.StopGlow = StopGlow
 
 local function StartGlow(icon, cfg)
+    local wasActive = (icon._glowActive == true)
+    sfui.glows.start_glow(icon, cfg)
     if not icon._glowActive then
+        return
+    end
+    if not wasActive then
         _activeGlowCount = _activeGlowCount + 1
     end
-    sfui.glows.start_glow(icon, cfg)
-    icon._glowActive = true
     icon._lastGlowType = cfg.glowType
     if not icon._lastGlowCfg then icon._lastGlowCfg = {} end
     local t = icon._lastGlowCfg
+    local r, g, b = sfui.common.unpack_color(cfg.glowColor)
     t.glowType = cfg.glowType
-    t.glowColor = cfg.glowColor
+    t.r = r
+    t.g = g
+    t.b = b
     t.glowScale = cfg.glowScale
     t.glowIntensity = cfg.glowIntensity
     t.glowSpeed = cfg.glowSpeed
@@ -166,6 +177,20 @@ local function StartGlow(icon, cfg)
     t.glowParticles = cfg.glowParticles
 end
 sfui.trackedicons.StartGlow = StartGlow
+
+local function HidePanelAndStopGlows(panelFrame)
+    if not panelFrame then return end
+    if panelFrame.icons then
+        for _, icon in pairs(panelFrame.icons) do
+            if icon._glowActive then
+                StopGlow(icon)
+            end
+        end
+    end
+    if panelFrame:IsShown() then
+        panelFrame:Hide()
+    end
+end
 
 local function SyncIconAuraWatchlist()
     if not auraResolver or not auraResolver.SetIconWatchlist then return end
@@ -195,40 +220,60 @@ local function UpdateIconState(icon, panelConfig, event)
     local entrySettings = desc.settings
 
     -- Visibility Decision (Early Exit to skip cooldown/charge C-API calls when hidden)
-    local hideOOC = GetIconValue(nil, panelConfig, "hideOOC", false)
-    local inCombat = is_in_combat(event)
-    local isStealthPanelActive = (panelConfig and panelConfig.requiredForm == "stealth") and IsStealthed()
-    if hideOOC and not inCombat and not isStealthPanelActive then
-        if icon:IsShown() then icon:Hide() end
-        if icon._glowActive then StopGlow(icon) end
-        return false
-    end
-
-    if panelConfig then
-        if panelConfig.visibility == "combat" and not inCombat and not isStealthPanelActive then
-            if icon:IsShown() then icon:Hide() end
-            if icon._glowActive then StopGlow(icon) end
-            return false
-        elseif panelConfig.visibility == "noCombat" and inCombat then
-            if icon:IsShown() then icon:Hide() end
-            if icon._glowActive then StopGlow(icon) end
-            return false
+    local forceShow = (sfui.movers and sfui.movers.isUnlocked) == true
+    if not forceShow then
+        local viewer = _G["SfuiCooldownsViewer"]
+        if viewer and viewer:IsShown() then
+            local tabId = viewer.selectedTabId
+            if tabId == 1 or tabId == 3 then
+                forceShow = true
+            end
         end
     end
 
-    if not inCombat and not isStealthPanelActive then
-        local hideMounted = GetIconValue(nil, panelConfig, "hideMounted", false)
-        if hideMounted and sfui.common.is_mounted_or_travel_form() then
+    if not forceShow then
+        local hideOOC = GetIconValue(nil, panelConfig, "hideOOC", false)
+        local inCombat = is_in_combat(event)
+        local isStealthPanelActive = (panelConfig and panelConfig.requiredForm == "stealth") and IsStealthed()
+        if hideOOC and not inCombat and not isStealthPanelActive then
             if icon:IsShown() then icon:Hide() end
             if icon._glowActive then StopGlow(icon) end
             return false
         end
 
-        local hideInVehicle = GetIconValue(nil, panelConfig, "hideInVehicle", true)
-        if hideInVehicle and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then
-            if icon:IsShown() then icon:Hide() end
-            if icon._glowActive then StopGlow(icon) end
-            return false
+        if panelConfig then
+            if panelConfig.visibility == "combat" and not inCombat and not isStealthPanelActive then
+                if icon:IsShown() then icon:Hide() end
+                if icon._glowActive then StopGlow(icon) end
+                return false
+            elseif panelConfig.visibility == "noCombat" and inCombat then
+                if icon:IsShown() then icon:Hide() end
+                if icon._glowActive then StopGlow(icon) end
+                return false
+            end
+        end
+
+        if not inCombat and not isStealthPanelActive then
+            local hideMounted = GetIconValue(nil, panelConfig, "hideMounted", false)
+            if hideMounted and sfui.common.is_mounted_or_travel_form() then
+                if icon:IsShown() then icon:Hide() end
+                if icon._glowActive then StopGlow(icon) end
+                return false
+            end
+
+            local hideInVehicle = GetIconValue(nil, panelConfig, "hideInVehicle", true)
+            if hideInVehicle and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then
+                if icon:IsShown() then icon:Hide() end
+                if icon._glowActive then StopGlow(icon) end
+                return false
+            end
+
+            local hideDragonriding = GetIconValue(nil, panelConfig, "hideDragonriding", false)
+            if hideDragonriding and sfui.common.IsDragonriding and sfui.common.IsDragonriding() then
+                if icon:IsShown() then icon:Hide() end
+                if icon._glowActive then StopGlow(icon) end
+                return false
+            end
         end
     end
 
@@ -270,7 +315,7 @@ local function UpdateIconState(icon, panelConfig, event)
 end
 
 -- Shared Helper for Texture Resolution
-function sfui.trackedicons.GetIconTexture(id, iconType, entry)
+function sfui.trackedicons.GetIconTexture(id, iconType, entry, preFetchedCdInfo)
     local activeID = id
     local iconTexture
     local resolvedType = iconType
@@ -278,21 +323,19 @@ function sfui.trackedicons.GetIconTexture(id, iconType, entry)
 
     local equipSlot = entry and entry.equipSlot
     local spellCategoryID = entry and entry.spellCategoryID
-    local cdID = entry and (entry.cooldownID or (iconType == "cooldown" and id)) or nil
+    local cdID = entry and (entry.cooldownID or (iconType == "cooldown" and id)) or (iconType == "cooldown" and id) or nil
+    local cdInfo = preFetchedCdInfo or (cdID and SafeGetCooldownViewerCooldownInfo(cdID)) or nil
 
-    if not equipSlot and not spellCategoryID and cdID then
-        local cdInfo = SafeGetCooldownViewerCooldownInfo(cdID)
-        if cdInfo then
-            equipSlot = cdInfo.equipSlot
-            spellCategoryID = cdInfo.spellCategoryID
-            linkedSpellIDs = cdInfo.linkedSpellIDs
-            if cdInfo.spellID and cdInfo.spellID > 0 then
-                activeID = cdInfo.overrideSpellID or cdInfo.spellID
-                resolvedType = "spell"
-            elseif cdInfo.itemID and cdInfo.itemID > 0 then
-                activeID = cdInfo.itemID
-                resolvedType = "item"
-            end
+    if not equipSlot and not spellCategoryID and cdInfo then
+        equipSlot = cdInfo.equipSlot
+        spellCategoryID = cdInfo.spellCategoryID
+        linkedSpellIDs = cdInfo.linkedSpellIDs
+        if cdInfo.spellID and cdInfo.spellID > 0 then
+            activeID = cdInfo.overrideSpellID or cdInfo.spellID
+            resolvedType = "spell"
+        elseif cdInfo.itemID and cdInfo.itemID > 0 then
+            activeID = cdInfo.itemID
+            resolvedType = "item"
         end
     end
 
@@ -311,7 +354,6 @@ function sfui.trackedicons.GetIconTexture(id, iconType, entry)
     if spellCategoryID then
         resolvedType = "item"
         local catData = (sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[spellCategoryID])
-        local cdInfo = cdID and SafeGetCooldownViewerCooldownInfo(cdID)
         activeID = (cdInfo and cdInfo.lastItemIDForCategory) or (entry and entry.itemID) or (catData and catData.fallbackItemID) or id
         if catData and catData.icon then
             iconTexture = catData.icon
@@ -321,8 +363,7 @@ function sfui.trackedicons.GetIconTexture(id, iconType, entry)
         return iconTexture or 134400, activeID, resolvedType, nil
     end
 
-    if (iconType == "cooldown" or (entry and entry.cooldownID)) and entry and entry.cooldownID then
-        local cdInfo = SafeGetCooldownViewerCooldownInfo(entry.cooldownID)
+    if cdID then
         if cdInfo then
             linkedSpellIDs = cdInfo.linkedSpellIDs
             if cdInfo.spellID and cdInfo.spellID > 0 then
@@ -334,7 +375,7 @@ function sfui.trackedicons.GetIconTexture(id, iconType, entry)
                 iconTexture = C_Item.GetItemIconByID(activeID)
                 resolvedType = "item"
             end
-        else
+        elseif entry then
             if entry.spellID and entry.spellID > 0 then
                 activeID = entry.spellID
                 iconTexture = C_Spell.GetSpellTexture(activeID)
@@ -358,43 +399,15 @@ function sfui.trackedicons.GetIconTexture(id, iconType, entry)
         iconTexture = C_Item.GetItemIconByID(activeID)
         resolvedType = "item"
     else
-        local cdInfo = SafeGetCooldownViewerCooldownInfo(activeID)
-        if cdInfo then
-            if cdInfo.equipSlot then
-                resolvedType = "item"
-                activeID = GetInventoryItemID and GetInventoryItemID("player", cdInfo.equipSlot) or cdInfo.equipSlot
-                iconTexture = GetInventoryItemTexture and GetInventoryItemTexture("player", cdInfo.equipSlot)
-                if not iconTexture then
-                    local slotName = (cdInfo.equipSlot == 14) and "Trinket1Slot" or "Trinket0Slot"
-                    local _, slotTex = GetInventorySlotInfo(slotName)
-                    iconTexture = slotTex
-                end
-                return iconTexture or 134400, activeID, resolvedType, nil
-            elseif cdInfo.spellCategoryID then
-                resolvedType = "item"
-                local catData = (sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[cdInfo.spellCategoryID])
-                activeID = cdInfo.lastItemIDForCategory or (catData and catData.fallbackItemID) or id
-                iconTexture = catData and catData.icon or (activeID and C_Item.GetItemIconByID(activeID))
-                return iconTexture or 134400, activeID, resolvedType, nil
-            elseif cdInfo.spellID and cdInfo.spellID > 0 then
-                activeID = cdInfo.overrideSpellID or cdInfo.spellID
-                iconTexture = C_Spell.GetSpellTexture(activeID)
-                resolvedType = "spell"
-            elseif cdInfo.itemID and cdInfo.itemID > 0 then
-                activeID = cdInfo.itemID
-                iconTexture = C_Item.GetItemIconByID(activeID)
-                resolvedType = "item"
-            end
-        else
-            if sfui.isEra and sfui.tracking and sfui.tracking.ResolveClassicSpellID then
-                activeID = sfui.tracking.ResolveClassicSpellID(activeID) or activeID
-            end
-            iconTexture = C_Spell.GetSpellTexture(activeID)
-            resolvedType = "spell"
-            if not iconTexture then
-                iconTexture = C_Item.GetItemIconByID(activeID)
-                resolvedType = "item"
-            end
+        -- Plain spell / aura entry (never pass raw spellID to GetCooldownViewerCooldownInfo)
+        if sfui.isEra and sfui.tracking and sfui.tracking.ResolveClassicSpellID then
+            activeID = sfui.tracking.ResolveClassicSpellID(activeID) or activeID
+        end
+        iconTexture = C_Spell.GetSpellTexture(activeID)
+        resolvedType = "spell"
+        if not iconTexture then
+            iconTexture = C_Item.GetItemIconByID(activeID)
+            if iconTexture then resolvedType = "item" end
         end
     end
 
@@ -445,10 +458,6 @@ function sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
             icon.cooldown:ClearAllPoints()
             icon.cooldown:SetAllPoints(icon.texture)
         end
-        if icon.shadowCooldown then
-            icon.shadowCooldown:ClearAllPoints()
-            icon.shadowCooldown:SetAllPoints(icon.texture)
-        end
     end
 end
 
@@ -498,15 +507,6 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     cd:SetDrawEdge(true)
     cd:SetHideCountdownNumbers(false)
     f.cooldown = cd
-
-    local shadow = CreateFrame("Cooldown", name .. "_ShadowCD", f, "CooldownFrameTemplate")
-    shadow:SetAllPoints(tex)
-    shadow:SetDrawSwipe(false)
-    shadow:SetDrawEdge(false)
-    shadow:SetDrawBling(false)
-    shadow:SetHideCountdownNumbers(true)
-    shadow:SetAlpha(0)
-    f.shadowCooldown = shadow
 
     f.PushedTexture = f:CreateTexture(nil, "OVERLAY")
     f.PushedTexture:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
@@ -578,15 +578,36 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     return f
 end
 
-local function CheckPanelVisibility(panelConfig, event)
-    if not panelConfig or not panelConfig.enabled then return false end
+local PRIMARY_FORM_NAMES = {
+    CENTER = true,
+    CAT = true,
+    BEAR = true,
+    MOONKIN = true,
+    STEALTH = true,
+    BATTLE = true,
+    DEFENSIVE = true,
+    BERSERKER = true,
+}
 
-    if _G["SfuiCooldownsViewer"] and _G["SfuiCooldownsViewer"]:IsShown() then
-        local tabId = _G["SfuiCooldownsViewer"].selectedTabId
-        if tabId == 1 or tabId == 3 then
-            return true
-        end
+local function IsPrimaryFormPanel(panelConfig)
+    if not panelConfig or not panelConfig.name then return false end
+    return PRIMARY_FORM_NAMES[string.upper(panelConfig.name)] == true
+end
+
+local function GetPanelIconAnchor(panelConfig)
+    local growthH = (panelConfig and panelConfig.growthH) or "Right"
+    local growthV = (panelConfig and panelConfig.growthV) or "Down"
+    if growthH == "Center" then
+        return (growthV == "Up") and "BOTTOM" or "TOP"
+    elseif growthH == "Left" then
+        return (growthV == "Up") and "BOTTOMRIGHT" or "TOPRIGHT"
+    else
+        return (growthV == "Up") and "BOTTOMLEFT" or "TOPLEFT"
     end
+end
+
+local function MatchesCurrentForm(panelConfig)
+    if not panelConfig then return false end
 
     local isStealthed = IsStealthed()
     local currentForm = GetShapeshiftFormID() or 0
@@ -667,6 +688,28 @@ local function CheckPanelVisibility(panelConfig, event)
         end
     end
 
+    return true
+end
+
+local function CheckPanelVisibility(panelConfig, event)
+    if not panelConfig or not panelConfig.enabled then return false end
+
+    if sfui.movers and sfui.movers.isUnlocked then
+        return MatchesCurrentForm(panelConfig)
+    end
+
+    if _G["SfuiCooldownsViewer"] and _G["SfuiCooldownsViewer"]:IsShown() then
+        local tabId = _G["SfuiCooldownsViewer"].selectedTabId
+        if tabId == 1 or tabId == 3 then
+            return true
+        end
+    end
+
+    if not MatchesCurrentForm(panelConfig) then
+        return false
+    end
+
+    local isStealthed = IsStealthed()
     local inCombat = is_in_combat(event)
     local isStealthPanelActive = (panelConfig.requiredForm == "stealth" and isStealthed)
     if not isStealthPanelActive and GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
@@ -674,13 +717,13 @@ local function CheckPanelVisibility(panelConfig, event)
     if not inCombat and not isStealthPanelActive then
         if GetIconValue(nil, panelConfig, "hideMounted", false) and sfui.common.is_mounted_or_travel_form() then return false end
         if GetIconValue(nil, panelConfig, "hideInVehicle", true) and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then return false end
-        if panelConfig.hideDragonriding and sfui.common.is_dragonflying and sfui.common.is_dragonflying() then return false end
+        if panelConfig.hideDragonriding and sfui.common.IsDragonriding and sfui.common.IsDragonriding() then return false end
     end
 
     local globalVis = SfuiDB and SfuiDB.iconGlobalSettings
     if globalVis and not isStealthPanelActive then
         if globalVis.hideOOC and not inCombat then return false end
-        if globalVis.hideDragonriding and sfui.common.is_dragonflying and sfui.common.is_dragonflying() and not inCombat then return false end
+        if globalVis.hideDragonriding and sfui.common.IsDragonriding and sfui.common.IsDragonriding() and not inCombat then return false end
     end
 
     local visMode = panelConfig.visibility
@@ -715,7 +758,7 @@ function sfui.trackedicons.OnVisibilityEvent(_, event)
                     end
                 end
             else
-                if panelFrame:IsShown() then panelFrame:Hide() end
+                HidePanelAndStopGlows(panelFrame)
             end
         end
     end
@@ -726,9 +769,11 @@ local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns
     if spanWidth and activeIcons and #activeIcons >= 4 then
         local targetWidth = (sfui.config and sfui.config.healthBar and sfui.config.healthBar.width) or 300
         if targetFrame and targetFrame ~= UIParent and targetFrame.GetWidth then
-            targetWidth = targetFrame:GetWidth()
+            local tw = targetFrame:GetWidth()
+            if tw and tw > 1 then targetWidth = tw end
         elseif _G["sfui_bar0_Backdrop"] then
-            targetWidth = _G["sfui_bar0_Backdrop"]:GetWidth()
+            local bw = _G["sfui_bar0_Backdrop"]:GetWidth()
+            if bw and bw > 1 then targetWidth = bw end
         end
 
         local iconsPerRow = math.min(numColumns, #activeIcons)
@@ -749,29 +794,26 @@ local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns
     return size, spacing
 end
 
-function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
-    if not panelFrame or not panelConfig then return end
-    panelFrame.config = panelConfig
-
-    if panelFrame.visHandler then
-        local onEvent = panelFrame.visHandler:GetScript("OnEvent")
-        if onEvent then onEvent(panelFrame.visHandler) end
-    end
-
+local function ApplyPanelAnchor(panelFrame, panelConfig)
     panelFrame:ClearAllPoints()
 
-    local anchorTo = panelConfig.anchorTo or "UIParent"
+    local isCenter = IsPrimaryFormPanel(panelConfig)
+    if panelConfig.customMover then
+        local pt = panelConfig.moverPoint or panelConfig.anchorPoint or GetPanelIconAnchor(panelConfig)
+        local relPt = panelConfig.moverRelPoint or pt
+        panelFrame:SetPoint(pt, UIParent, relPt, panelConfig.x or 0, panelConfig.y or 0)
+        return UIParent
+    end
+
+    local anchorTo = panelConfig.anchorTo or (isCenter and "Health Bar" or "UIParent")
     local targetFrame = UIParent
-    local targetPoint = "BOTTOM"
+    local targetPoint = panelConfig.relativePoint or "BOTTOM"
     local anchorPoint = panelConfig.anchorPoint or "BOTTOM"
 
-    local uName = panelConfig.name and string.upper(panelConfig.name)
-    local isCenter = (uName == "CENTER" or uName == "CAT" or uName == "BEAR" or uName == "MOONKIN" or uName == "STEALTH"
-        or uName == "BATTLE" or uName == "DEFENSIVE" or uName == "BERSERKER")
     local isHealthBarAnchor = (anchorTo == "Health Bar")
     local isSwingBarAnchor = (anchorTo == "Swing Bar")
 
-    if isCenter or isHealthBarAnchor or isSwingBarAnchor then
+    if isHealthBarAnchor or isSwingBarAnchor then
         local bar0 = _G["sfui_bar0_Backdrop"] or (sfui.bars and sfui.bars.get_bar0 and sfui.bars.get_bar0().backdrop)
         if not bar0 and sfui.bars and sfui.bars.get_bar0 then
             local b0 = sfui.bars.get_bar0()
@@ -809,16 +851,17 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
 
         for _, otherPanel in pairs(panels) do
             if otherPanel.config and otherPanel.config.name == searchTarget then
-                if otherPanel:IsShown() then
+                if otherPanel:IsShown() or MatchesCurrentForm(otherPanel.config) then
                     resolvedTarget = otherPanel
                     break
                 elseif searchTarget == "CENTER" or searchTarget == "BATTLE" then
                     for _, p in pairs(panels) do
-                        if p:IsShown() and p.config and p.config.anchorTo == "Health Bar" then
+                        if p.config and p.config.enabled and IsPrimaryFormPanel(p.config) and (p:IsShown() or MatchesCurrentForm(p.config)) then
                             resolvedTarget = p
                             break
                         end
                     end
+                    break
                 end
             end
         end
@@ -845,12 +888,25 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
         end
     end
 
-    if targetFrame == UIParent and (isCenter or isHealthBarAnchor or isSwingBarAnchor) then
+    if targetFrame == UIParent and (isHealthBarAnchor or isSwingBarAnchor) then
         anchorPoint = "CENTER"
         targetPoint = "CENTER"
     end
-    local anchor = anchorPoint
+
     panelFrame:SetPoint(anchorPoint, targetFrame, targetPoint, panelConfig.x or 0, panelConfig.y or 0)
+    return targetFrame
+end
+
+function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
+    if not panelFrame or not panelConfig then return end
+    panelFrame.config = panelConfig
+
+    if panelFrame.visHandler then
+        local onEvent = panelFrame.visHandler:GetScript("OnEvent")
+        if onEvent then onEvent(panelFrame.visHandler) end
+    end
+
+    local targetFrame = ApplyPanelAnchor(panelFrame, panelConfig)
 
     if panelFrame.icons then
         for _, icon in pairs(panelFrame.icons) do
@@ -917,18 +973,16 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     end
 
     local numColumns = panelConfig.columns or #activeIcons
-    if numColumns < 1 then numColumns = 1 end
-
-    local pName = panelConfig.name and string.upper(panelConfig.name)
-    if pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
-        or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER" then
+    if IsPrimaryFormPanel(panelConfig) then
         numColumns = #activeIcons
     end
+    if numColumns < 1 then numColumns = 1 end
 
     local growthH = panelConfig.growthH or "Right"
     local growthV = panelConfig.growthV or "Down"
     local hSign = (growthH == "Left") and -1 or 1
     local vSign = (growthV == "Up") and 1 or -1
+    local iconAnchor = GetPanelIconAnchor(panelConfig)
 
     local size = tonumber(GetIconValue(nil, panelConfig, "size", 40)) or 40
     local spacing = tonumber(GetIconValue(nil, panelConfig, "spacing", 2)) or 2
@@ -952,7 +1006,7 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
             local ox = centerOffset * (size + spacing)
             local oy = row * (size + spacing) * vSign
 
-            icon:SetPoint(anchor, panelFrame, anchor, ox, oy)
+            icon:SetPoint(iconAnchor, panelFrame, iconAnchor, ox, oy)
 
             local rowWidth = numInRow * size + math.max(0, numInRow - 1) * spacing
             maxWidth = math.max(maxWidth, rowWidth)
@@ -968,7 +1022,7 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
             local ox = col * (size + spacing) * hSign
             local oy = row * (size + spacing) * vSign
 
-            icon:SetPoint(anchor, panelFrame, anchor, ox, oy)
+            icon:SetPoint(iconAnchor, panelFrame, iconAnchor, ox, oy)
 
             maxWidth = math.max(maxWidth, (col + 1) * size + col * spacing)
             maxHeight = math.max(maxHeight, (row + 1) * size + row * spacing)
@@ -1004,6 +1058,21 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
         panelFrame.bg:SetAllPoints(panelFrame)
     elseif panelFrame.bg then
         panelFrame.bg:Hide()
+    end
+
+    if #activeIcons == 0 and sfui.movers and sfui.movers.isUnlocked then
+        local spanWidth = GetIconValue(nil, panelConfig, "spanWidth", false)
+        if spanWidth then
+            local bw = (targetFrame and targetFrame ~= UIParent and targetFrame.GetWidth and targetFrame:GetWidth())
+                or (_G["sfui_bar0_Backdrop"] and _G["sfui_bar0_Backdrop"]:GetWidth())
+                or (sfui.config and sfui.config.healthBar and sfui.config.healthBar.width)
+                or 250
+            maxWidth = math.max(size, bw)
+        else
+            local previewCols = math.max(1, math.min(tonumber(panelConfig.columns) or 4, 4))
+            maxWidth = math.max(size, previewCols * size + math.max(0, previewCols - 1) * spacing)
+        end
+        maxHeight = size
     end
 
     panelFrame:SetSize(math.max(maxWidth, 1), math.max(maxHeight, 1))
@@ -1061,6 +1130,279 @@ function sfui.trackedicons.ForceLayoutUpdate()
     sfui.trackedicons.Update()
 end
 
+local _editModePrepared = false
+local _pendingEditModeSync = false
+
+local function GetPanelMoverLabel(panelConfig, index)
+    local rawName = (panelConfig and panelConfig.name) or ("panel " .. tostring(index))
+    return "icons: " .. string.lower(rawName)
+end
+
+local function SyncSiblingFormPanels(sourceCfg)
+    if not IsPrimaryFormPanel(sourceCfg) then return end
+    local panelConfigs = sfui.common.get_cooldown_panels()
+    if not panelConfigs then return end
+    for _, otherCfg in ipairs(panelConfigs) do
+        if otherCfg ~= sourceCfg and IsPrimaryFormPanel(otherCfg) then
+            otherCfg.customMover = sourceCfg.customMover
+            otherCfg.moverPoint = sourceCfg.moverPoint
+            otherCfg.moverRelPoint = sourceCfg.moverRelPoint
+            otherCfg.anchorTo = sourceCfg.anchorTo
+            otherCfg.anchorPoint = sourceCfg.anchorPoint
+            otherCfg.relativePoint = sourceCfg.relativePoint
+            otherCfg.x = sourceCfg.x
+            otherCfg.y = sourceCfg.y
+        end
+    end
+end
+
+local function RefreshDependentPanelAnchors(movedPanelFrame)
+    for _, otherFrame in pairs(panels) do
+        if otherFrame ~= movedPanelFrame and otherFrame.config and otherFrame.config.enabled and not otherFrame.config.customMover then
+            local aTo = otherFrame.config.anchorTo
+            if aTo and aTo ~= "UIParent" and aTo ~= "Health Bar" and aTo ~= "Swing Bar" and aTo ~= "Tracked Bars" then
+                ApplyPanelAnchor(otherFrame, otherFrame.config)
+            end
+        end
+    end
+end
+
+local function ResetPanelPositionConfig(cfg)
+    if not cfg then return end
+    local defs = sfui.config and sfui.config.cooldown_panel_defaults
+    local uName = (cfg.name and string.upper(cfg.name)) or ""
+
+    cfg.customMover = nil
+    cfg.moverPoint = nil
+    cfg.moverRelPoint = nil
+    cfg.relativePoint = nil
+
+    if IsPrimaryFormPanel(cfg) then
+        local d = defs and defs.center_panel
+        cfg.anchorTo = (d and d.anchorTo) or "Health Bar"
+        cfg.anchorPoint = (d and d.anchorPoint) or "TOP"
+        cfg.x = (d and d.x) or 0
+        cfg.y = (d and d.y) or 0
+    elseif uName == "UTILITY" then
+        local d = defs and defs.utility
+        cfg.anchorTo = (d and d.anchorTo) or "CENTER"
+        cfg.anchorPoint = (d and d.anchorPoint) or "TOP"
+        cfg.x = (d and d.x) or 0
+        cfg.y = (d and d.y) or 0
+    elseif uName == "LEFT" then
+        local d = defs and defs.left
+        cfg.anchorTo = d and d.anchorTo or nil
+        cfg.anchorPoint = (d and d.anchorPoint) or "TOPLEFT"
+        cfg.x = (d and d.x) or -425
+        cfg.y = (d and d.y) or 295
+    elseif uName == "RIGHT" then
+        local d = defs and defs.right
+        cfg.anchorTo = d and d.anchorTo or nil
+        cfg.anchorPoint = (d and d.anchorPoint) or "TOPRIGHT"
+        cfg.x = (d and d.x) or 425
+        cfg.y = (d and d.y) or 295
+    else
+        local d = defs and defs.utility
+        cfg.anchorTo = (d and d.anchorTo) or "CENTER"
+        cfg.anchorPoint = (d and d.anchorPoint) or "TOP"
+        cfg.x = (d and d.x) or 0
+        cfg.y = (d and d.y) or 0
+    end
+end
+
+function sfui.trackedicons.ResetPanelPosition(panelConfig)
+    if not panelConfig then return end
+    ResetPanelPositionConfig(panelConfig)
+    SyncSiblingFormPanels(panelConfig)
+    sfui.trackedicons.Update()
+    if sfui.movers and sfui.movers.isUnlocked then
+        sfui.trackedicons.SyncMovers()
+    end
+    if sfui.trackedoptions and sfui.trackedoptions.SyncPanelPositionControls then
+        sfui.trackedoptions.SyncPanelPositionControls(panelConfig)
+    end
+end
+
+local function EnsureEditModePrepared()
+    if sfui.movers and sfui.movers.isUnlocked and not _editModePrepared then
+        _editModePrepared = true
+        sfui.trackedicons.Update()
+    end
+end
+
+local function EnsurePanelMoverRegistered(index, panelFrame)
+    if not panelFrame or not sfui.movers or not sfui.movers.Register then return end
+    local key = "trackedicons_" .. tostring(index)
+    local cfg = panelFrame.config
+    local label = GetPanelMoverLabel(cfg, index)
+    local prefPt = GetPanelIconAnchor(cfg)
+
+    if panelFrame._moverRegistered and sfui.movers.registry and sfui.movers.registry[key] then
+        local reg = sfui.movers.registry[key]
+        reg.label = label
+        reg.preferredPoint = prefPt
+        local mover = sfui.movers.list and sfui.movers.list[key]
+        if mover then
+            mover.targetFrame = panelFrame
+            if not mover._isDragging and mover.label then
+                mover.label:SetText(label)
+            end
+        end
+        return
+    end
+
+    panelFrame._moverRegistered = true
+    sfui.movers.Register(panelFrame, {
+        key = key,
+        label = label,
+        preferredPoint = prefPt,
+        customSize = function()
+            local p = panels[index]
+            if not p then return 120, 40 end
+            return p:GetWidth(), p:GetHeight()
+        end,
+        getPoint = function()
+            local p = panels[index]
+            local pCfg = p and p.config
+            local pPt = GetPanelIconAnchor(pCfg)
+            if pCfg and pCfg.customMover then
+                local pt = pCfg.moverPoint or pCfg.anchorPoint or pPt
+                local relPt = pCfg.moverRelPoint or pt
+                return pt, UIParent, relPt, pCfg.x or 0, pCfg.y or 0
+            end
+            if p and sfui.movers and sfui.movers.CalculateRelativeCoordinates then
+                local left = p:GetLeft()
+                local bottom = p:GetBottom()
+                local w = p:GetWidth()
+                local h = p:GetHeight()
+                if left and bottom and w and h and w > 0 and h > 0 then
+                    local pt, relPt, x, y = sfui.movers.CalculateRelativeCoordinates(left, bottom, w, h, pPt)
+                    return pt, UIParent, relPt, x, y
+                end
+            end
+            return pPt, UIParent, pPt, (pCfg and pCfg.x) or 0, (pCfg and pCfg.y) or 0
+        end,
+        setPoint = function(point, _relTo, relPoint, x, y)
+            local p = panels[index]
+            local pCfg = p and p.config
+            if not pCfg then return end
+            local savedPt = point or GetPanelIconAnchor(pCfg)
+            local savedRel = relPoint or savedPt
+            pCfg.customMover = true
+            pCfg.anchorTo = "UIParent"
+            pCfg.moverPoint = savedPt
+            pCfg.moverRelPoint = savedRel
+            pCfg.anchorPoint = savedPt
+            pCfg.relativePoint = savedRel
+            pCfg.x = x or 0
+            pCfg.y = y or 0
+
+            SyncSiblingFormPanels(pCfg)
+            ApplyPanelAnchor(p, pCfg)
+            RefreshDependentPanelAnchors(p)
+            sfui.trackedicons.SyncMovers()
+            if sfui.trackedoptions and sfui.trackedoptions.SyncPanelPositionControls then
+                sfui.trackedoptions.SyncPanelPositionControls(pCfg)
+            end
+        end,
+        resetPosition = function()
+            local p = panels[index]
+            local pCfg = p and p.config
+            if not pCfg then return end
+            sfui.trackedicons.ResetPanelPosition(pCfg)
+        end,
+        isEnabled = function()
+            EnsureEditModePrepared()
+            local p = panels[index]
+            local pCfg = p and p.config
+            if not p or not pCfg or not pCfg.enabled then return false end
+            return MatchesCurrentForm(pCfg)
+        end,
+        onEnterEditMode = function()
+            EnsureEditModePrepared()
+            if not _pendingEditModeSync and _G.C_Timer and _G.C_Timer.After then
+                _pendingEditModeSync = true
+                _G.C_Timer.After(0, function()
+                    _pendingEditModeSync = false
+                    if sfui.movers and sfui.movers.isUnlocked then
+                        sfui.trackedicons.Update()
+                        sfui.trackedicons.SyncMovers()
+                    end
+                end)
+            end
+        end,
+        onExitEditMode = function()
+            if _editModePrepared then
+                _editModePrepared = false
+                sfui.trackedicons.Update()
+            end
+        end,
+    })
+end
+
+function sfui.trackedicons.SyncMovers()
+    local m = sfui.movers
+    if not m or not m.list or not m.registry then return end
+
+    local replacementSelectedKey = nil
+    for idx, panelFrame in pairs(panels) do
+        local key = "trackedicons_" .. tostring(idx)
+        local mover = m.list[key]
+        local reg = m.registry[key]
+        if mover and reg then
+            local cfg = panelFrame.config
+            local lbl = GetPanelMoverLabel(cfg, idx)
+            reg.label = lbl
+            reg.preferredPoint = GetPanelIconAnchor(cfg)
+            if not mover._isDragging and mover.label then
+                mover.label:SetText(lbl)
+            end
+
+            if m.isUnlocked then
+                local enabled = (cfg and cfg.enabled and MatchesCurrentForm(cfg)) or false
+                if enabled then
+                    if not mover._isDragging then
+                        if reg.customSize then
+                            local w, h = reg.customSize()
+                            if w and h and w > 0 and h > 0 then
+                                mover:SetSize(w, h)
+                            end
+                        end
+                        if reg.getPoint then
+                            local pt, relTo, relPt, x, y = reg.getPoint()
+                            if pt then
+                                mover._anchorPoint = pt
+                                mover._lastSavedPt = pt
+                                mover._lastSavedX = x or 0
+                                mover._lastSavedY = y or 0
+                                mover:ClearAllPoints()
+                                mover:SetPoint(pt, relTo or UIParent, relPt or pt, x or 0, y or 0)
+                            end
+                        end
+                    end
+                    mover:EnableMouse(true)
+                    mover:Show()
+                    if not replacementSelectedKey and IsPrimaryFormPanel(cfg) then
+                        replacementSelectedKey = key
+                    end
+                else
+                    mover:EnableMouse(false)
+                    mover:Hide()
+                end
+            end
+        end
+    end
+
+    if m.isUnlocked then
+        if m.selectedKey and m.list[m.selectedKey] and not m.list[m.selectedKey]:IsShown() and replacementSelectedKey then
+            m.selectedKey = replacementSelectedKey
+        end
+        if m.RefreshMoverVisuals then
+            m.RefreshMoverVisuals()
+        end
+    end
+end
+
 function sfui.trackedicons.Update(event)
     sfui.trackedicons.InvalidateConfigCache()
     local panelConfigs = sfui.common.get_cooldown_panels()
@@ -1075,37 +1417,43 @@ function sfui.trackedicons.Update(event)
                 panels[i] = CreateFrame("Frame", "SfuiIconPanel_" .. i, UIParent)
             end
             panels[i].config = panelConfig
-
-            sfui.trackedicons.UpdatePanelLayout(panels[i], panelConfig, event)
-
-            local shouldShow = CheckPanelVisibility(panelConfig, event)
-            if shouldShow then
-                panels[i]:Show()
-            else
-                panels[i]:Hide()
-            end
         elseif panels[i] then
             panels[i].config = panelConfig
-            if not InCombatLockdown() then
-                panels[i]:Hide()
-            end
+            HidePanelAndStopGlows(panels[i])
         end
     end
 
     for i = #panelConfigs + 1, #panels do
         if panels[i] then
             panels[i].config = nil
-            if not InCombatLockdown() then
-                panels[i]:Hide()
+            HidePanelAndStopGlows(panels[i])
+        end
+    end
+
+    for i, panelConfig in ipairs(panelConfigs) do
+        if panelConfig.enabled and panels[i] then
+            sfui.trackedicons.UpdatePanelLayout(panels[i], panelConfig, event)
+
+            local shouldShow = CheckPanelVisibility(panelConfig, event)
+            if shouldShow then
+                panels[i]:Show()
+            else
+                HidePanelAndStopGlows(panels[i])
             end
+
+            EnsurePanelMoverRegistered(i, panels[i])
         end
     end
 
     SyncIconAuraWatchlist()
+
+    if sfui.movers and sfui.movers.isUnlocked and not sfui.movers._isToggling then
+        sfui.trackedicons.SyncMovers()
+    end
 end
 
 function sfui.trackedicons.initialize()
-    if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
+    if (sfui.isRetail or sfui.isCamelot) and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
 
@@ -1125,11 +1473,15 @@ function sfui.trackedicons.initialize()
         end
     end
 
+    local _lastCombatState = nil
+
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        _lastCombatState = false
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_ENABLED")
         MarkDirty(false)
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        _lastCombatState = true
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_DISABLED")
         MarkDirty(false)
     end)
@@ -1137,7 +1489,7 @@ function sfui.trackedicons.initialize()
         sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_FLAGS")
         MarkDirty(false)
     end)
-    sfui.events.RegisterEvent("PLAYER_FLAGS_CHANGED", function()
+    sfui.events.RegisterUnitEvent("PLAYER_FLAGS_CHANGED", "player", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_FLAGS_CHANGED")
         MarkDirty(false)
     end)
@@ -1145,6 +1497,20 @@ function sfui.trackedicons.initialize()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_MOUNT_DISPLAY_CHANGED")
         MarkDirty(false)
     end)
+    sfui.events.RegisterUnitEvents({ "UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE" }, "player", function(event)
+        sfui.trackedicons.OnVisibilityEvent(nil, event)
+        MarkDirty(false)
+    end)
+    sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", function()
+        sfui.trackedicons.OnVisibilityEvent(nil, "UPDATE_BONUS_ACTIONBAR")
+        MarkDirty(false)
+    end)
+    if sfui.isRetail then
+        sfui.events.RegisterEvent("PLAYER_CAN_GLIDE_CHANGED", function()
+            sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_CAN_GLIDE_CHANGED")
+            MarkDirty(false)
+        end)
+    end
     sfui.events.RegisterUnitEvent("UNIT_POWER_BAR_SHOW", "player", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "UNIT_POWER_BAR_SHOW")
     end)
@@ -1153,49 +1519,28 @@ function sfui.trackedicons.initialize()
     end)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", function()
         sfui.trackedicons.Update("UPDATE_SHAPESHIFT_FORM")
-        MarkDirty(true)
     end)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORMS", function()
         sfui.trackedicons.Update("UPDATE_SHAPESHIFT_FORMS")
-        MarkDirty(true)
     end)
     sfui.events.RegisterEvent("UPDATE_STEALTH", function()
         sfui.trackedicons.Update("UPDATE_STEALTH")
-        MarkDirty(true)
     end)
 
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         sfui.common.ensure_panels_initialized()
         sfui.trackedicons.Update()
-        MarkDirty(true)
     end)
 
-    local specDebounceTimer = nil
-    local function on_tracked_icons_spec_changed()
-        if specDebounceTimer then
-            specDebounceTimer:Cancel()
-            specDebounceTimer = nil
-        end
-        local cTimer = _G.C_Timer
-        if cTimer and cTimer.NewTimer then
-            specDebounceTimer = cTimer.NewTimer(0.15, function()
-                specDebounceTimer = nil
-                sfui.common.ensure_panels_initialized()
-                sfui.trackedicons.Update()
-                MarkDirty(true)
-            end)
-        else
-            sfui.common.ensure_panels_initialized()
-            sfui.trackedicons.Update()
-            MarkDirty(true)
-        end
-    end
-    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_tracked_icons_spec_changed)
-    sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_tracked_icons_spec_changed)
-    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_tracked_icons_spec_changed)
-    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", on_tracked_icons_spec_changed)
-    sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", on_tracked_icons_spec_changed)
-    sfui.events.RegisterEvent("SPELLS_CHANGED", function() MarkDirty(true) end)
+    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", function()
+        MarkDirty(not InCombatLockdown())
+    end)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", function()
+        MarkDirty(not InCombatLockdown())
+    end)
+    sfui.events.RegisterEvent("SPELLS_CHANGED", function()
+        MarkDirty(not InCombatLockdown())
+    end)
 
     sfui.events.RegisterEvent("COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED", function()
         entryHelper.InvalidateCooldownInfoCache()
@@ -1246,12 +1591,8 @@ function sfui.trackedicons.initialize()
         _needsStateUpdate = true
     end)
 
-    sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", function()
-        MarkDirty(not InCombatLockdown())
-    end)
-
     -- 12.0.5+: Blizzard aura data provider switch (e.g. M+ restricted mode transitions)
-    sfui.events.RegisterEvent("AURA_DATA_PROVIDER_SWITCH", function(useRealDataProvider)
+    sfui.events.RegisterEvent("AURA_DATA_PROVIDER_SWITCH", function(_event, useRealDataProvider)
         for _, panel in pairs(panels) do
             if panel.icons then
                 for _, icon in pairs(panel.icons) do
@@ -1260,7 +1601,6 @@ function sfui.trackedicons.initialize()
                     end
                     if not useRealDataProvider then
                         if icon.cooldown then icon.cooldown:Clear() end
-                        if icon.shadowCooldown then icon.shadowCooldown:Clear() end
                         if icon.count then icon.count:Hide() end
                         icon._lastCount = nil
                         icon._wasOnCooldown = false
@@ -1274,7 +1614,6 @@ function sfui.trackedicons.initialize()
 
     -- OnUpdate: only process when dirty (zero CPU/allocations when idle)
     local _lastStateUpdateTime = 0
-    local _lastCombatState = nil
     local function _OnTrackedIconsUpdate(elapsed)
         local inCombat = is_in_combat()
         if _lastCombatState == nil then
@@ -1304,12 +1643,12 @@ function sfui.trackedicons.initialize()
             end
         elseif _activeGlowCount > 0 then
             for _, panel in pairs(panels) do
-                if panel.icons and panel.config then
+                if panel:IsShown() and panel.icons and panel.config then
                     for _, icon in pairs(panel.icons) do
                         if icon._glowActive then
                             iconCooldown.UpdateGlow(
                                 icon,
-                                (icon.entry and icon.entry.settings) or _emptyTable,
+                                icon.entry and icon.entry.settings,
                                 panel.config,
                                 GetIconValue,
                                 true,
@@ -1366,6 +1705,7 @@ sfui.trackedicons.OnSettingsChanged = function(self, _k, _v)
     if self.Update then self.Update() end
 end
 sfui.trackedicons.OnSpecChanged = function(self, _specID)
+    sfui.common.ensure_panels_initialized()
     if self.Update then self.Update() end
 end
 sfui.trackedicons.GetDebugInfo = sfui.trackedicons_debug_info

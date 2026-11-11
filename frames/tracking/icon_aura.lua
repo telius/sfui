@@ -58,6 +58,13 @@ local function IsTrackedAuraMissing(desc)
         return sfui.tracking.FindClassicAura(activeID, false) == nil
     end
 
+    if A and A.Resolve and desc.auraCandidates then
+        local iid, aura, present = A.Resolve(desc.cooldownID, desc.auraCandidates)
+        if present or aura or iid then
+            return false
+        end
+    end
+
     if A and A.FindBlizzItem and desc.cooldownID then
         local blizz, isAuraViewer = A.FindBlizzItem(desc.cooldownID)
         if blizz then
@@ -95,6 +102,37 @@ local function IsTrackedAuraMissing(desc)
     return true
 end
 
+-- resolves aura application display (>1 stacks only; never forwards raw secret 0/1)
+local function ExtractSafeAuraStacks(desc, iid, aura)
+    local rawApps = aura and aura.applications
+    if rawApps ~= nil and not issecretvalue(rawApps) then
+        if type(rawApps) == "number" and rawApps > 1 then
+            return rawApps
+        end
+        return nil
+    end
+
+    -- In restricted combat, use Blizzard's untainted CDM Applications FontString (returns "" when <= 1)
+    if A and A.FindBlizzItem and desc.cooldownID then
+        local blizz = A.FindBlizzItem(desc.cooldownID)
+        if blizz and blizz.GetApplicationsFontString then
+            local fs = blizz:GetApplicationsFontString()
+            local txt = fs and fs:GetText()
+            if txt ~= nil then
+                return txt
+            end
+        end
+    end
+
+    if iid and not issecretvalue(iid)
+        and (not A or not A.CanAccessUnitAuras or A.CanAccessUnitAuras())
+        and C_UnitAuras and C_UnitAuras.GetAuraApplicationDisplayCount then
+        return C_UnitAuras.GetAuraApplicationDisplayCount("player", iid, 2)
+    end
+
+    return nil
+end
+
 local function ResolveOptInAuraStacks(desc)
     local activeID = desc.activeID
     if not activeID or activeID == 0 then return nil end
@@ -124,11 +162,7 @@ local function ResolveOptInAuraStacks(desc)
         end
     end
 
-    local apps = aura and aura.applications
-    if apps ~= nil and (issecretvalue(apps) or (type(apps) == "number" and apps > 1)) then
-        return apps
-    end
-    return nil
+    return ExtractSafeAuraStacks(desc, aura and aura.auraInstanceID, aura)
 end
 
 -- returns auraActive, auraStacks, missingAlert
@@ -168,20 +202,15 @@ function IA.Evaluate(icon, desc)
                 local exp = A.PlainField(aura, "expirationTime")
                 icon._auraExpTime = (exp and exp > 0) and exp or nil
 
-                local rawApps = aura and aura.applications
-                if rawApps ~= nil and (issecretvalue(rawApps) or (type(rawApps) == "number" and rawApps > 1)) then
-                    icon._auraStacks = rawApps
-                else
-                    icon._auraStacks = nil
-                end
-
+                icon._auraStacks = ExtractSafeAuraStacks(desc, iid, aura)
                 icon._auraState = true
 
                 if dObj and icon.cooldown.SetCooldownFromDurationObject then
-                    icon.cooldown:SetCooldownFromDurationObject(dObj)
-                    if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
-                        icon.shadowCooldown:SetCooldownFromDurationObject(dObj)
+                    if icon._chargeSwipeHidden then
+                        icon._chargeSwipeHidden = nil
+                        icon.cooldown:SetDrawSwipe(true)
                     end
+                    icon.cooldown:SetCooldownFromDurationObject(dObj)
                 end
                 if icon._auraIcon and icon.texture and icon._shownAuraTex ~= icon._auraIcon then
                     icon.texture:SetTexture(icon._auraIcon)

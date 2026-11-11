@@ -12,7 +12,7 @@ sfui.common = sfui.common or {}
 --  All public APIs remain bound to sfui.common.* for backward compatibility.
 -- ══════════════════════════════════════════════════════════════════════════════
 
-local type, ipairs, pairs, tonumber, tostring, pcall = type, ipairs, pairs, tonumber, tostring, pcall
+local type, ipairs, pairs, tonumber = type, ipairs, pairs, tonumber
 local table, math, string = table, math, string
 local C_Timer = _G.C_Timer
 local C_CooldownViewer = _G.C_CooldownViewer
@@ -253,6 +253,7 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
 
     local isClassic = not sfui.isRetail
     local auraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
+    local entryHelper = sfui.tracking and sfui.tracking.entry
 
     for _, entry in ipairs(panelConfig.entries) do
         local isKnown = true
@@ -262,13 +263,13 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
         -- NEVER pass a raw spellID to GetCooldownViewerCooldownInfo!
         if (typeHint == "cooldown" or (type(entry) == "table" and entry.cooldownID)) and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
             local cdID = (type(entry) == "table" and entry.cooldownID) or (type(entry) == "table" and entry.id) or entry
-            local ok, cdInfo = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, cdID)
-            if ok and cdInfo then
+            local cdInfo = (entryHelper and entryHelper.SafeGetCooldownInfo and entryHelper.SafeGetCooldownInfo(cdID))
+                or (type(cdID) == "number" and cdID > 0 and C_CooldownViewer.GetCooldownViewerCooldownInfo(cdID))
+            if cdInfo then
                 local isItemCooldown = (type(entry) == "table" and (entry.equipSlot ~= nil or entry.spellCategoryID ~= nil or (entry.itemID and entry.itemID > 0) or entry.type == "item"))
                     or (cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0))
 
                 if sfui.isRetail and not isItemCooldown and (cdInfo.category == 2 or cdInfo.category == 3) then
-                    local entryHelper = sfui.tracking and sfui.tracking.entry
                     local allowBuff = entryHelper and entryHelper.ShouldTrackBuffs
                         and entryHelper.ShouldTrackBuffs(entry, panelConfig, cdInfo)
                         or false
@@ -487,6 +488,13 @@ function sfui.tracking.ensure_panels_initialized()
             end
             if not panel.entries then
                 panel.entries = {}
+            end
+            if not SfuiDB.iconsInitializedBySpec[specID] and spec.populateFunc and #panel.entries == 0 then
+                local populated = spec.populateFunc()
+                if populated and #populated > 0 then
+                    panel.entries = populated
+                    changed = true
+                end
             end
         end
     end
@@ -738,35 +746,63 @@ function sfui.tracking.ensure_panels_initialized()
         end
     end
 
+    local usesCdm = (sfui.isRetail or sfui.isCamelot) == true and C_CooldownViewer ~= nil
     if not SfuiDB.iconsInitializedBySpec[specID] then
-        SfuiDB.iconsInitializedBySpec[specID] = true
-        if migratedEntries then SfuiDB.trackedIcons = nil end -- Clear global migration source once first spec consumes it
-        changed = true
+        local gotAnyCdmEntries = not usesCdm
+        if usesCdm then
+            for _, panel in ipairs(panels) do
+                local uname = panel.name and upper(panel.name)
+                if (uname == "CENTER" or uname == "BATTLE" or uname == "UTILITY") and panel.entries and #panel.entries > 0 then
+                    gotAnyCdmEntries = true
+                    break
+                end
+            end
+        end
+
+        SfuiDB._populationRetrySpecs = SfuiDB._populationRetrySpecs or {}
+        if gotAnyCdmEntries or SfuiDB._populationRetrySpecs[specID] then
+            SfuiDB.iconsInitializedBySpec[specID] = true
+            if migratedEntries then SfuiDB.trackedIcons = nil end -- Clear global migration source once first spec consumes it
+            changed = true
+        else
+            -- CDM data was not ready yet on early login: arm one-shot retry without locking spec as empty
+            if migratedEntries then SfuiDB.trackedIcons = nil end
+            if not sfui.tracking._pendingPanelRetries then
+                sfui.tracking._pendingPanelRetries = {}
+            end
+            if not sfui.tracking._pendingPanelRetries[specID] then
+                sfui.tracking._pendingPanelRetries[specID] = true
+                local function retryPopulate()
+                    if not sfui.tracking._pendingPanelRetries[specID] then return end
+                    sfui.tracking._pendingPanelRetries[specID] = nil
+                    if SfuiDB then
+                        SfuiDB._populationRetrySpecs = SfuiDB._populationRetrySpecs or {}
+                        SfuiDB._populationRetrySpecs[specID] = true
+                    end
+                    sfui.tracking.ensure_panels_initialized()
+                    if sfui.trackedicons and sfui.trackedicons.Update then
+                        sfui.trackedicons.Update()
+                    end
+                end
+                if sfui.events and sfui.events.RegisterEvent then
+                    local cb
+                    cb = function()
+                        if sfui.events.UnregisterEvent then
+                            sfui.events.UnregisterEvent("COOLDOWN_VIEWER_DATA_LOADED", cb)
+                        end
+                        retryPopulate()
+                    end
+                    sfui.events.RegisterEvent("COOLDOWN_VIEWER_DATA_LOADED", cb)
+                end
+                if C_Timer and C_Timer.After then
+                    C_Timer.After(2, retryPopulate)
+                end
+            end
+        end
     end
 
     if changed then
         sfui.tracking.set_cooldown_panels(panels)
-    else
-        -- If no entries were found but population was expected, retry once after a short delay
-        -- This handles the race condition on fresh installations/characters on Retail
-        local isClassic = not sfui.isRetail
-
-        if not isClassic and not SfuiDB._populationRetryDone then
-            local needsRetry = false
-            for _, panel in ipairs(panels) do
-                if (panel.name == "CENTER" or panel.name == "UTILITY") and (#panel.entries == 0) then
-                    needsRetry = true
-                    break
-                end
-            end
-
-            if needsRetry then
-                SfuiDB._populationRetryDone = true
-                C_Timer.After(2, function()
-                    sfui.tracking.ensure_panels_initialized()
-                end)
-            end
-        end
     end
 
     return panels

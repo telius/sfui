@@ -24,7 +24,7 @@ local UnitExists = _G.UnitExists
 local UnitHasVehicleUI = _G.UnitHasVehicleUI
 local UnitInVehicle = _G.UnitInVehicle
 local wipe = _G.wipe or table.wipe
-local pairs, ipairs, type, tonumber, tostring = pairs, ipairs, type, tonumber, tostring
+local pairs, type, tonumber, tostring = pairs, type, tonumber, tostring
 local math, string = math, string
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -222,6 +222,16 @@ end
 -- 2. Classic Tracked Bars Engine
 -- ────────────────────────────────────────────────────────────────────────────
 
+local CLASSIC_PANDEMIC_GLOW_OPTS = {
+    glowType = "pixel",
+    glowColor = { 1, 0.85, 0.2, 1 },
+    glowThickness = 2,
+    glowLines = 6,
+    glowSpeed = 0.35,
+}
+local DEFAULT_PANDEMIC_COLOR = { 1, 0, 1, 1 }
+local _emptyTable = {}
+
 local function format_bar_duration(remaining)
     if not remaining or remaining <= 0 then return "" end
     if remaining < 10 then
@@ -233,10 +243,29 @@ local function format_bar_duration(remaining)
     end
 end
 
+local function resolve_classic_text_flags(config)
+    if sfui.trackedbars.ResolveTextFlags then
+        return sfui.trackedbars.ResolveTextFlags(config)
+    end
+    local db = (SfuiDB and SfuiDB.trackedBars) or _emptyTable
+    local isStackMode = (config and config.stackMode) or false
+    local isAttached = (config and config.stackAboveHealth) or false
+    local showStacksText = (config and config.showStacksText) or false
+    local showDurationEnabled = not (db.showDuration == false or (config and config.showDuration == false))
+    local showNameCfg = (config and config.showName ~= nil) and config.showName or db.showName
+    local showNameEnabled = (showNameCfg ~= false)
+    local showStacks = (config and config.showStacks ~= nil) and config.showStacks or (db.showStacks == true)
+    local wantCenteredStacks = isStackMode or showStacksText
+    local isTimerAndStacks = wantCenteredStacks and showDurationEnabled
+    return isStackMode, isAttached, showStacksText, showDurationEnabled, showNameEnabled, showStacks, wantCenteredStacks, isTimerAndStacks
+end
+
 local function SyncClassicBarData(myBar, config, isStackMode, id, resolvedID, aura)
     myBar.spellID = resolvedID or id
     myBar._config = config
     myBar._classicAura = aura
+
+    local _, isAttached, showStacksText, showDurationEnabled, showNameEnabled, showStacks, wantCenteredStacks, isTimerAndStacks = resolve_classic_text_flags(config)
 
     local spellName = (aura and aura.name) or (common.get_spell_name and common.get_spell_name(myBar.spellID)) or ("Spell " .. tostring(id))
     local spellIcon = (aura and aura.icon) or (common.get_spell_icon and common.get_spell_icon(myBar.spellID)) or 134400
@@ -244,39 +273,32 @@ local function SyncClassicBarData(myBar, config, isStackMode, id, resolvedID, au
     myBar.icon:SetTexture(spellIcon)
     myBar.icon:SetDesaturated(aura == nil)
 
-    local maxStacks = (sfui.trackedbars.GetMaxStacks and sfui.trackedbars.GetMaxStacks(id, config, myBar.spellID)) or 5
+    local needStacks = isStackMode or showStacksText or (showStacks and not isAttached)
+    local maxStacks = isStackMode and ((sfui.trackedbars.GetMaxStacks and sfui.trackedbars.GetMaxStacks(id, config, myBar.spellID)) or 5) or (myBar._maxStacks or 5)
     myBar._maxStacks = maxStacks
 
     local currentStacks = 0
-    if aura then
-        local apps = tonumber(aura.applications) or 0
-        currentStacks = (apps > 0) and apps or 1
-    elseif C_Spell and C_Spell.GetSpellCharges then
-        local ok, chargeInfo = pcall(C_Spell.GetSpellCharges, myBar.spellID)
-        if ok and chargeInfo and chargeInfo.maxCharges and chargeInfo.maxCharges > 1 then
-            currentStacks = tonumber(chargeInfo.currentCharges) or 0
+    if needStacks then
+        if aura then
+            local apps = tonumber(aura.applications) or 0
+            currentStacks = (apps > 0) and apps or 1
+        elseif C_Spell and C_Spell.GetSpellCharges and myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) then
+            local chargeInfo = C_Spell.GetSpellCharges(myBar.spellID)
+            if chargeInfo and chargeInfo.maxCharges and not (issecretvalue and issecretvalue(chargeInfo.maxCharges)) and chargeInfo.maxCharges > 1 then
+                currentStacks = tonumber(chargeInfo.currentCharges) or 0
+            end
         end
     end
     myBar.currentStacks = currentStacks
-
-    local db = (SfuiDB and SfuiDB.trackedBars) or {}
-    local showDurationEnabled = not (db.showDuration == false or (config and config.showDuration == false))
-    local wantCenteredStacks = isStackMode or (config and config.showStacksText)
-    local isAttached = (config and config.stackAboveHealth) or false
-    local isTimerAndStacks = wantCenteredStacks and showDurationEnabled
 
     if isTimerAndStacks then
         myBar.name:Show()
         myBar.time:Show()
     else
-        local showName = db.showName
-        if config and config.showName ~= nil then
-            showName = config.showName
-        end
-        if showName == false then
-            myBar.name:Hide()
-        else
+        if showNameEnabled then
             myBar.name:Show()
+        else
+            myBar.name:Hide()
         end
 
         if not showDurationEnabled and not wantCenteredStacks then
@@ -286,9 +308,6 @@ local function SyncClassicBarData(myBar, config, isStackMode, id, resolvedID, au
         end
     end
 
-    local showStacksText = (config and config.showStacksText) or false
-    local showStacks = (config and config.showStacks ~= nil) and config.showStacks or (db.showStacks == true)
-
     if not showStacks or isStackMode or isAttached or showStacksText or currentStacks <= 1 then
         myBar.count:Hide()
     else
@@ -296,8 +315,10 @@ local function SyncClassicBarData(myBar, config, isStackMode, id, resolvedID, au
         myBar.count:Show()
     end
 
-    local displayName = (config and config.name) or spellName
-    common.SafeSetText(myBar.name, displayName)
+    if not isTimerAndStacks then
+        local displayName = (config and config.name) or spellName
+        common.SafeSetText(myBar.name, displayName)
+    end
 
     local duration = (aura and tonumber(aura.duration)) or 0
     local expirationTime = (aura and tonumber(aura.expirationTime)) or 0
@@ -308,15 +329,6 @@ local function SyncClassicBarData(myBar, config, isStackMode, id, resolvedID, au
         local maxVal = (type(maxStacks) == "number" and maxStacks > 0) and maxStacks or 5
         myBar.status:SetMinMaxValues(0, maxVal)
         myBar.status:SetValue(math.min(maxVal, math.max(0, currentStacks)))
-
-        if isTimerAndStacks then
-            myBar.name:SetText(currentStacks > 0 and tostring(currentStacks) or "")
-            myBar.time:SetText(durText)
-        elseif showStacksText then
-            myBar.time:SetText(currentStacks > 0 and tostring(currentStacks) or "")
-        else
-            myBar.time:SetText(durText)
-        end
     else
         if duration > 0 and remaining > 0 then
             myBar.status:SetMinMaxValues(0, duration)
@@ -329,15 +341,21 @@ local function SyncClassicBarData(myBar, config, isStackMode, id, resolvedID, au
             myBar.status:SetMinMaxValues(0, 1)
             myBar.status:SetValue(0)
         end
+    end
 
-        if isTimerAndStacks then
-            myBar.name:SetText(currentStacks > 0 and tostring(currentStacks) or "")
-            myBar.time:SetText(durText)
-        elseif showStacksText and not showDurationEnabled then
-            myBar.time:SetText(currentStacks > 0 and tostring(currentStacks) or "")
-        else
-            myBar.time:SetText(durText)
-        end
+    if isTimerAndStacks then
+        local stackStr = currentStacks > 0 and tostring(currentStacks) or ""
+        myBar._lastStackNameText = stackStr
+        myBar.name:SetText(stackStr)
+        myBar._lastDurationText = durText
+        myBar.time:SetText(durText)
+    elseif showStacksText and not showDurationEnabled then
+        local stackStr = currentStacks > 0 and tostring(currentStacks) or ""
+        myBar._lastStackTimeText = stackStr
+        myBar.time:SetText(stackStr)
+    else
+        myBar._lastDurationText = durText
+        myBar.time:SetText(durText)
     end
 end
 
@@ -349,16 +367,19 @@ function sfui.trackedbars.ClassicSync()
     local layoutNeeded = false
 
     local mustHide = false
-    local db = (SfuiDB and SfuiDB.trackedBars) or (cfg and cfg.trackedBars and cfg.trackedBars.defaults) or {}
+    local db = (SfuiDB and SfuiDB.trackedBars) or (cfg and cfg.trackedBars and cfg.trackedBars.defaults) or _emptyTable
     local inCombat = common.is_in_combat()
+    local isMoving = (sfui.movers and sfui.movers.isUnlocked) == true
 
-    if db.hideOOC and not inCombat then
-        mustHide = true
-    elseif not inCombat then
-        if db.hideMounted and common.is_mounted_or_travel_form() then
+    if not isMoving then
+        if db.hideOOC and not inCombat then
             mustHide = true
-        elseif db.hideInVehicle and ((UnitHasVehicleUI and UnitHasVehicleUI("player")) or (UnitInVehicle and UnitInVehicle("player"))) then
-            mustHide = true
+        elseif not inCombat then
+            if db.hideMounted and common.is_mounted_or_travel_form() then
+                mustHide = true
+            elseif db.hideInVehicle and ((UnitHasVehicleUI and UnitHasVehicleUI("player")) or (UnitInVehicle and UnitInVehicle("player"))) then
+                mustHide = true
+            end
         end
     end
 
@@ -416,7 +437,7 @@ function sfui.trackedbars.ClassicSync()
         end
     end
 
-    for id, bar in pairs(bars) do
+    for id in pairs(bars) do
         if not activeClassicBarIDs[id] then
             if sfui.trackedbars.RemoveBar then
                 sfui.trackedbars.RemoveBar(id, true)
@@ -434,13 +455,13 @@ function sfui.trackedbars.ClassicUpdateState()
     local bars = sfui.trackedbars._bars
     if not bars then return end
 
-    local tBarsCfg = (sfui.config and sfui.config.trackedBars) or {}
+    local tBarsCfg = (sfui.config and sfui.config.trackedBars) or _emptyTable
     local now = GetTime()
 
     for id, myBar in pairs(bars) do
         if myBar:IsShown() then
             local config = myBar._config or (sfui.trackedbars.GetConfig and sfui.trackedbars.GetConfig(id))
-            local isStackMode = (config and config.stackMode) or false
+            local isStackMode, _, showStacksText, showDurationEnabled, _, _, _, isTimerAndStacks = resolve_classic_text_flags(config)
             local aura = myBar._classicAura
             local duration = (aura and tonumber(aura.duration)) or 0
             local expirationTime = (aura and tonumber(aura.expirationTime)) or 0
@@ -453,43 +474,45 @@ function sfui.trackedbars.ClassicUpdateState()
                 end
             end
 
-            local durText = (duration > 0) and format_bar_duration(remaining) or ""
+            if not isStackMode and duration > 0 then
+                myBar.status:SetMinMaxValues(0, duration)
+                myBar.status:SetValue(remaining)
+            end
 
-            if not isStackMode then
-                if duration > 0 then
-                    myBar.status:SetMinMaxValues(0, duration)
-                    myBar.status:SetValue(remaining)
+            if isTimerAndStacks then
+                local cs = tonumber(myBar.currentStacks) or 0
+                local stackStr = cs > 0 and tostring(cs) or ""
+                if stackStr ~= myBar._lastStackNameText then
+                    myBar._lastStackNameText = stackStr
+                    myBar.name:SetText(stackStr)
                 end
+            end
+
+            if showStacksText and not showDurationEnabled then
+                local cs = tonumber(myBar.currentStacks) or 0
+                local stackStr = cs > 0 and tostring(cs) or ""
+                if stackStr ~= myBar._lastStackTimeText then
+                    myBar._lastStackTimeText = stackStr
+                    myBar.time:SetText(stackStr)
+                end
+            elseif showDurationEnabled then
+                local durText = (duration > 0) and format_bar_duration(remaining) or ""
                 if durText ~= myBar._lastDurationText then
                     myBar._lastDurationText = durText
                     myBar.time:SetText(durText)
-                end
-            else
-                if durText ~= myBar._lastDurationText then
-                    myBar._lastDurationText = durText
-                    local db = (SfuiDB and SfuiDB.trackedBars) or {}
-                    local showDurationEnabled = not (db.showDuration == false or (config and config.showDuration == false))
-                    if showDurationEnabled or not (config and config.showStacksText) then
-                        myBar.time:SetText(durText)
-                    end
                 end
             end
 
             -- Classic Pandemic Window (<= 30% remaining on timed buffs/debuffs)
             local inPandemic = (duration > 0 and remaining > 0 and (remaining / duration) <= 0.30)
+            local wasPandemic = myBar._inPandemic == true
             local showGlow = (tBarsCfg.pandemicGlow ~= false) and (not config or config.pandemicGlow ~= false)
 
             if inPandemic and showGlow then
-                if not myBar._inPandemic and sfui.glows and sfui.glows.start_glow then
-                    sfui.glows.start_glow(myBar.iconFrame, {
-                        glowType = "pixel",
-                        glowColor = { 1, 0.85, 0.2, 1 },
-                        glowThickness = 2,
-                        glowLines = 6,
-                        glowSpeed = 0.35,
-                    })
+                if not wasPandemic and sfui.glows and sfui.glows.start_glow then
+                    sfui.glows.start_glow(myBar.iconFrame, CLASSIC_PANDEMIC_GLOW_OPTS)
                 end
-            elseif myBar._inPandemic and not inPandemic then
+            elseif wasPandemic and not inPandemic then
                 if sfui.glows and sfui.glows.stop_glow then
                     sfui.glows.stop_glow(myBar.iconFrame)
                 end
@@ -497,18 +520,15 @@ function sfui.trackedbars.ClassicUpdateState()
 
             local shouldRecolor = (config and config.pandemicEnabled ~= nil) and config.pandemicEnabled or (tBarsCfg.pandemicRecolor ~= false)
             if shouldRecolor then
-                if inPandemic then
-                    myBar._inPandemic = true
-                    local pColor = (config and config.pandemicColor) or tBarsCfg.pandemicColor or { 1, 0, 1, 1 }
+                if inPandemic and not wasPandemic then
+                    local pColor = (config and config.pandemicColor) or tBarsCfg.pandemicColor or DEFAULT_PANDEMIC_COLOR
                     myBar.status:SetStatusBarColor(common.unpack_color(pColor))
-                elseif myBar._inPandemic then
-                    myBar._inPandemic = false
+                elseif wasPandemic and not inPandemic then
                     local defColor = (sfui.trackedbars.GetBarNormalColor and sfui.trackedbars.GetBarNormalColor(config)) or sfui.config.colors.purple
                     myBar.status:SetStatusBarColor(common.unpack_color(defColor))
                 end
-            else
-                myBar._inPandemic = inPandemic
             end
+            myBar._inPandemic = inPandemic
         end
     end
 end

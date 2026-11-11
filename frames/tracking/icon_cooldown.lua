@@ -31,6 +31,13 @@ function IC.InvalidateChargeCache()
     wipe(_spellMaxCharges)
 end
 
+local function RestoreNormalCooldownSwipe(icon)
+    if icon._chargeSwipeHidden then
+        icon._chargeSwipeHidden = nil
+        icon.cooldown:SetDrawSwipe(true)
+    end
+end
+
 -- forwards category cooldown source straight into spell cooldown sinks without inspecting secret values
 local function forward_category_cooldown(icon, auraActive, ...)
     if select("#", ...) == 0 then return false, true end
@@ -43,10 +50,8 @@ local function forward_category_cooldown(icon, auraActive, ...)
     end
     local durationObj = C_Spell.GetSpellCooldownDuration and C_Spell.GetSpellCooldownDuration((...), true)
     if durationObj and icon.cooldown.SetCooldownFromDurationObject then
+        RestoreNormalCooldownSwipe(icon)
         icon.cooldown:SetCooldownFromDurationObject(durationObj)
-        if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
-            icon.shadowCooldown:SetCooldownFromDurationObject(durationObj)
-        end
         return true, enabled
     end
     return false, enabled
@@ -59,17 +64,14 @@ local function apply_plain_item_cooldown(icon, s, d, auraActive)
     if auraActive then
         return true
     end
+    RestoreNormalCooldownSwipe(icon)
     if icon.cooldown.SetCooldownFromDurationObject and C_DurationUtil and C_DurationUtil.CreateDuration then
         local dObj = icon._durationObj or C_DurationUtil.CreateDuration()
         icon._durationObj = dObj
         dObj:SetTimeFromStart(s, d, 1)
         icon.cooldown:SetCooldownFromDurationObject(dObj)
-        if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
-            icon.shadowCooldown:SetCooldownFromDurationObject(dObj)
-        end
     else
         icon.cooldown:SetCooldown(s, d)
-        if icon.shadowCooldown then icon.shadowCooldown:SetCooldown(s, d) end
     end
     return true
 end
@@ -113,8 +115,8 @@ local function update_item_cd(icon, desc, auraActive)
     end
 
     if not onCooldown and not auraActive then
+        RestoreNormalCooldownSwipe(icon)
         icon.cooldown:Clear()
-        if icon.shadowCooldown then icon.shadowCooldown:Clear() end
     end
 
     icon._itemOnCooldown = onCooldown
@@ -128,7 +130,7 @@ local function CreateCountText(icon)
     if NumberFontNormal then
         count:SetFontObject(NumberFontNormal)
     else
-        count:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+        count:SetFont("Fonts\\ARIALN.TTF", 12, "OUTLINE")
     end
     count:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -3, 1)
     count:SetJustifyH("RIGHT")
@@ -139,7 +141,8 @@ function IC.UpdateCountText(icon, displayStr)
     if not icon.count then CreateCountText(icon) end
 
     if issecretvalue(displayStr) then
-        sfui.common.SafeSetText(icon.count, displayStr, 0)
+        icon._lastCount = nil
+        icon.count:SetText(displayStr)
         icon.count:Show()
     else
         local str = (displayStr ~= nil and displayStr ~= 0) and sfui.common.get_cached_int_string(displayStr) or ""
@@ -159,6 +162,27 @@ end
 local function IsFallbackNeeded(val)
     if issecretvalue(val) then return false end
     return val == ""
+end
+
+local function ResolveSpellChargeState(activeID)
+    if not C_Spell or not C_Spell.GetSpellCharges then
+        return 0, nil
+    end
+    local maxCh = _spellMaxCharges[activeID]
+    if maxCh == nil then
+        local ch = C_Spell.GetSpellCharges(activeID)
+        local rawMax = ch and ch.maxCharges
+        if rawMax ~= nil and not issecretvalue(rawMax) and type(rawMax) == "number" then
+            maxCh = rawMax
+            _spellMaxCharges[activeID] = maxCh
+        else
+            maxCh = 0
+        end
+        return maxCh, ch
+    elseif maxCh > 1 then
+        return maxCh, C_Spell.GetSpellCharges(activeID)
+    end
+    return maxCh, nil
 end
 
 -- evaluates item/spell cooldown, charges/counts, usability, and readiness.
@@ -190,6 +214,7 @@ function IC.Evaluate(icon, desc, auraActive)
             isUsable = (count ~= "" and count ~= 0) or (isEnabled ~= false)
         end
     else
+        local maxCh, chargeInfo = ResolveSpellChargeState(activeID)
         local cdInfo = C_Spell.GetSpellCooldown(activeID)
         if cdInfo ~= nil then
             local isActive = cdInfo.isActive
@@ -199,73 +224,78 @@ function IC.Evaluate(icon, desc, auraActive)
                 isOnCooldown = true
                 icon._secretGCDDropTime = nil
                 if not auraActive then
+                    RestoreNormalCooldownSwipe(icon)
                     if icon.cooldown.SetCooldownFromDurationObject and C_Spell.GetSpellCooldownDuration then
                         local durationObj = C_Spell.GetSpellCooldownDuration(activeID, true)
                         if durationObj then
                             icon.cooldown:SetCooldownFromDurationObject(durationObj)
-                            if icon.shadowCooldown then
-                                icon.shadowCooldown:SetCooldownFromDurationObject(durationObj)
-                            end
                         else
                             icon.cooldown:Clear()
-                            if icon.shadowCooldown then icon.shadowCooldown:Clear() end
                         end
                     elseif not (issecretvalue and (issecretvalue(cdInfo.startTime) or issecretvalue(cdInfo.duration))) then
                         icon.cooldown:SetCooldown(cdInfo.startTime, cdInfo.duration)
-                        if icon.shadowCooldown then
-                            icon.shadowCooldown:SetCooldown(cdInfo.startTime, cdInfo.duration)
-                        end
                     else
                         icon.cooldown:Clear()
-                        if icon.shadowCooldown then icon.shadowCooldown:Clear() end
                     end
                 end
             else
                 isOnCooldown = false
                 icon._secretGCDDropTime = nil
                 if not auraActive then
-                    icon.cooldown:Clear()
-                    if icon.shadowCooldown then icon.shadowCooldown:Clear() end
+                    -- Partial charge recharge: show edge progress + countdown while >= 1 charge remains
+                    if maxCh > 1 and chargeInfo and chargeInfo.isActive then
+                        if not icon._chargeSwipeHidden then
+                            icon._chargeSwipeHidden = true
+                            icon.cooldown:SetDrawSwipe(false)
+                            icon.cooldown:SetDrawEdge(true)
+                        end
+                        if icon.cooldown.SetCooldownFromDurationObject and C_Spell.GetSpellChargeDuration then
+                            local chargeDur = C_Spell.GetSpellChargeDuration(activeID)
+                            if chargeDur then
+                                icon.cooldown:SetCooldownFromDurationObject(chargeDur)
+                            else
+                                RestoreNormalCooldownSwipe(icon)
+                                icon.cooldown:Clear()
+                            end
+                        elseif not (issecretvalue(chargeInfo.cooldownStartTime) or issecretvalue(chargeInfo.cooldownDuration)) then
+                            icon.cooldown:SetCooldown(chargeInfo.cooldownStartTime, chargeInfo.cooldownDuration)
+                        else
+                            RestoreNormalCooldownSwipe(icon)
+                            icon.cooldown:Clear()
+                        end
+                    else
+                        RestoreNormalCooldownSwipe(icon)
+                        icon.cooldown:Clear()
+                    end
                 end
             end
 
             isEnabled = (cdInfo.isEnabled ~= false)
         elseif not auraActive then
+            RestoreNormalCooldownSwipe(icon)
             icon.cooldown:Clear()
-            if icon.shadowCooldown then icon.shadowCooldown:Clear() end
         end
 
         local displayStr = ""
-        if C_Spell.GetSpellDisplayCount then
+        local hasNativeDisplayCount = (C_Spell.GetSpellDisplayCount ~= nil)
+        if hasNativeDisplayCount then
             local dc = C_Spell.GetSpellDisplayCount(activeID)
             if dc ~= nil then
                 displayStr = dc
             end
         end
 
-        if IsFallbackNeeded(displayStr) and C_Spell.GetSpellCharges then
-            local maxCh = _spellMaxCharges[activeID]
-            if maxCh == nil then
-                local ch = C_Spell.GetSpellCharges(activeID)
-                maxCh = (ch and ch.maxCharges) or 0
-                _spellMaxCharges[activeID] = maxCh
-                if maxCh > 1 and ch.currentCharges then
-                    displayStr = ch.currentCharges or ""
-                end
-            elseif maxCh > 1 then
-                local ch = C_Spell.GetSpellCharges(activeID)
-                if ch and ch.currentCharges then
-                    displayStr = ch.currentCharges or ""
+        -- Only run Lua fallbacks when GetSpellDisplayCount is absent (Classic Era) or plain empty
+        if not hasNativeDisplayCount and IsFallbackNeeded(displayStr) then
+            if maxCh > 1 and chargeInfo then
+                local curCh = chargeInfo.currentCharges
+                if curCh ~= nil and not issecretvalue(curCh) then
+                    displayStr = curCh
                 end
             end
-        end
-
-        if IsFallbackNeeded(displayStr) and C_Spell.GetSpellCastCount then
-            local cc = C_Spell.GetSpellCastCount(activeID)
-            if cc ~= nil then
-                if issecretvalue(cc) then
-                    displayStr = cc
-                elseif type(cc) == "number" and cc > 0 then
+            if IsFallbackNeeded(displayStr) and C_Spell.GetSpellCastCount then
+                local cc = C_Spell.GetSpellCastCount(activeID)
+                if cc ~= nil and not issecretvalue(cc) and type(cc) == "number" and cc > 0 then
                     displayStr = cc
                 end
             end
@@ -282,8 +312,16 @@ function IC.Evaluate(icon, desc, auraActive)
     if not isItem then
         if C_Spell and C_Spell.IsSpellUsable then
             local u, p = C_Spell.IsSpellUsable(activeID)
-            isUsable = sfui.common.SafeValue(u, true)
-            notEnoughPower = sfui.common.SafeValue(p, false)
+            if issecretvalue(u) then
+                isUsable = true
+            else
+                isUsable = (u ~= false)
+            end
+            if issecretvalue(p) then
+                notEnoughPower = false
+            else
+                notEnoughPower = (p == true)
+            end
         end
         if not HasFullControl() and not isUsable then
             isUsable = true
@@ -335,14 +373,36 @@ function IC.UpdateVisuals(icon, entrySettings, panelConfig, getIconValueFn, isUs
     end
 end
 
+local function IsGlowCfgChanged(prev, nextCfg)
+    if not prev then return true end
+    if prev.glowType ~= nextCfg.glowType then return true end
+    local nr, ng, nb = sfui.common.unpack_color(nextCfg.glowColor)
+    if math.abs((prev.r or 1) - nr) > 0.01
+        or math.abs((prev.g or 1) - ng) > 0.01
+        or math.abs((prev.b or 1) - nb) > 0.01
+        or math.abs((prev.glowScale or 1) - (nextCfg.glowScale or 1)) > 0.01
+        or math.abs((prev.glowIntensity or 1) - (nextCfg.glowIntensity or 1)) > 0.01
+        or math.abs((prev.glowSpeed or 0.25) - (nextCfg.glowSpeed or 0.25)) > 0.01
+        or math.abs((prev.glowLines or 8) - (nextCfg.glowLines or 8)) > 0.01
+        or math.abs((prev.glowThickness or 2) - (nextCfg.glowThickness or 2)) > 0.01
+        or math.abs((prev.glowParticles or 4) - (nextCfg.glowParticles or 4)) > 0.01 then
+        return true
+    end
+    return false
+end
+
 function IC.UpdateGlow(icon, entrySettings, panelConfig, getIconValueFn, isReady, missingAlert, startGlowFn, stopGlowFn)
+    local entryMod = sfui.tracking and sfui.tracking.entry
+    local cfgRev = (entryMod and entryMod.GetConfigRevision and entryMod.GetConfigRevision()) or 0
+
     if missingAlert then
-        sfui.glows.resolve_config(entrySettings, panelConfig, _tempGlowCfg)
-        local prev = icon._lastGlowCfg
-        if not icon._glowActive or not prev or prev.glowType ~= _tempGlowCfg.glowType
-            or prev.glowColor ~= _tempGlowCfg.glowColor then
-            if icon._glowActive then stopGlowFn(icon) end
-            startGlowFn(icon, _tempGlowCfg)
+        if not icon._glowActive or icon._glowConfigRev ~= cfgRev then
+            sfui.glows.resolve_config(entrySettings, panelConfig, _tempGlowCfg)
+            if not icon._glowActive or IsGlowCfgChanged(icon._lastGlowCfg, _tempGlowCfg) then
+                if icon._glowActive then stopGlowFn(icon) end
+                startGlowFn(icon, _tempGlowCfg)
+            end
+            icon._glowConfigRev = cfgRev
         end
         icon._missingGlow = true
         return
@@ -350,6 +410,7 @@ function IC.UpdateGlow(icon, entrySettings, panelConfig, getIconValueFn, isReady
         icon._missingGlow = false
         icon._pendingGlow = false
         icon._glowStartTime = nil
+        icon._glowConfigRev = nil
         if icon._glowActive then stopGlowFn(icon) end
     end
 
@@ -373,39 +434,21 @@ function IC.UpdateGlow(icon, entrySettings, panelConfig, getIconValueFn, isReady
         end
 
         if (now - icon._glowStartTime) < maxDuration then
-            sfui.glows.resolve_config(entrySettings, panelConfig, _tempGlowCfg)
-            local glowType = _tempGlowCfg.glowType
-            local needsRestart = false
-            if not icon._glowActive then
-                needsRestart = true
-            elseif icon._lastGlowType ~= glowType then
-                needsRestart = true
-            else
-                local prev = icon._lastGlowCfg
-                if prev and prev.glowColor and _tempGlowCfg.glowColor then
-                    if math.abs(prev.glowColor[1] - _tempGlowCfg.glowColor[1]) > 0.01 or
-                        math.abs(prev.glowColor[2] - _tempGlowCfg.glowColor[2]) > 0.01 or
-                        math.abs(prev.glowColor[3] - _tempGlowCfg.glowColor[3]) > 0.01 or
-                        math.abs(prev.glowScale - _tempGlowCfg.glowScale) > 0.01 or
-                        math.abs(prev.glowIntensity - _tempGlowCfg.glowIntensity) > 0.01 or
-                        math.abs(prev.glowSpeed - _tempGlowCfg.glowSpeed) > 0.01 or
-                        math.abs((prev.glowLines or 8) - _tempGlowCfg.glowLines) > 0.01 or
-                        math.abs((prev.glowThickness or 2) - _tempGlowCfg.glowThickness) > 0.01 or
-                        math.abs((prev.glowParticles or 4) - _tempGlowCfg.glowParticles) > 0.01 then
-                        needsRestart = true
-                    end
+            if not icon._glowActive or icon._glowConfigRev ~= cfgRev then
+                sfui.glows.resolve_config(entrySettings, panelConfig, _tempGlowCfg)
+                if not icon._glowActive or IsGlowCfgChanged(icon._lastGlowCfg, _tempGlowCfg) then
+                    if icon._glowActive then stopGlowFn(icon) end
+                    startGlowFn(icon, _tempGlowCfg)
                 end
-            end
-
-            if needsRestart then
-                if icon._glowActive then stopGlowFn(icon) end
-                startGlowFn(icon, _tempGlowCfg)
+                icon._glowConfigRev = cfgRev
             end
         elseif icon._glowActive then
+            icon._glowConfigRev = nil
             stopGlowFn(icon)
         end
     else
         icon._glowStartTime = nil
+        icon._glowConfigRev = nil
         if icon._glowActive then
             stopGlowFn(icon)
         end

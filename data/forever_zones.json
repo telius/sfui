@@ -205,6 +205,17 @@
     "uimap": 116550,
     "wh_id": 16550
   },
+  "16554": {
+    "auto_discovered": true,
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "maxlevel": 62,
+    "minlevel": 53,
+    "name": "Blackmaw Hold",
+    "uimap": 116554,
+    "wh_id": 16554
+  },
   "1657": {
     "category": 1,
     "continent": "kalimdor",
@@ -248,6 +259,17 @@
     "uimap": 116611,
     "wh_id": 16611
   },
+  "16620": {
+    "auto_discovered": true,
+    "category": 2,
+    "continent": "kalimdor",
+    "fishing_skill": null,
+    "maxlevel": 55,
+    "minlevel": 51,
+    "name": "Alcaz Prison",
+    "uimap": 116620,
+    "wh_id": 16620
+  },
   "16651": {
     "category": 1,
     "continent": "kalimdor",
@@ -263,6 +285,17 @@
     "name": "Excavation Site: Wetlands",
     "uimap": 116732,
     "wh_id": 16732
+  },
+  "16842": {
+    "auto_discovered": true,
+    "category": 2,
+    "continent": "eastern_kingdoms",
+    "fishing_skill": null,
+    "maxlevel": 47,
+    "minlevel": 39,
+    "name": "Krol'dok Stronghold",
+    "uimap": 116842,
+    "wh_id": 16842
   },
   "16919": {
     "category": 2,

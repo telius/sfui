@@ -15,6 +15,7 @@ local wipe = table.wipe or wipe
 local ipairs = ipairs
 local tonumber = tonumber
 local type = type
+local select = select
 local table_sort = table.sort
 local table_insert = table.insert
 local math_floor = math.floor
@@ -31,7 +32,7 @@ local Enum = Enum
 local EventRegistry = EventRegistry
 local issecretvalue = issecretvalue
 
--- static reuse & state (zero-polling memory & cpu design)
+-- static reuse & state (zero-polling memory & cpu design; weak-keyed side tables keep blizzFrame untainted)
 local activeFrames = {}
 local slots = {}
 local previewSlots = {}
@@ -39,6 +40,8 @@ local _liveActive = {}
 local _liveIndex = {}
 local _liveIcon = {}
 local _seen = {}
+local _hookedItems = setmetatable({}, { __mode = "k" })
+local _skinnedItems = setmetatable({}, { __mode = "k" })
 
 local isPreviewMode = false
 local previewActive = false
@@ -48,6 +51,8 @@ local isHooked = false
 local isRegistryHooked = false
 local pendingTabRefresh = false
 local pendingLayoutPreview = false
+local _buffsDirty = false
+local _pendingBuffsSync = false
 
 local PANDEMIC_GLOW_OPTS = {
     glowType = "pixel",
@@ -77,13 +82,18 @@ end
 local function GetCooldownInfoSafe(id)
     if type(id) ~= "number" or id <= 0 then return nil end
     if issecretvalue and issecretvalue(id) then return nil end
-    if sfui.tracking and sfui.tracking.SafeGetCooldownInfo then
-        return sfui.tracking.SafeGetCooldownInfo(id)
+    local entryMod = sfui.tracking and sfui.tracking.entry
+    if entryMod and entryMod.SafeGetCooldownInfo then
+        return entryMod.SafeGetCooldownInfo(id)
     end
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
         return C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
     end
     return nil
+end
+
+local function IsMoverActive()
+    return (mover and mover:IsShown()) == true or (sfui.movers and sfui.movers.isUnlocked) == true
 end
 
 local function ScheduleBuffsTabRefresh(layoutChanged)
@@ -98,7 +108,7 @@ local function ScheduleBuffsTabRefresh(layoutChanged)
         local doPreview = pendingLayoutPreview
         pendingLayoutPreview = false
 
-        if doPreview and (isPreviewMode or (mover and mover:IsShown())) and #activeFrames == 0 then
+        if doPreview and (isPreviewMode or IsMoverActive()) and #activeFrames == 0 then
             RenderPreview()
         end
 
@@ -118,6 +128,24 @@ local function ScheduleBuffsTabRefresh(layoutChanged)
         C_Timer.After(0, runRefresh)
     else
         runRefresh()
+    end
+end
+
+local function FlushBuffsSync()
+    _pendingBuffsSync = false
+    _buffsDirty = false
+    SyncWithBlizzard()
+end
+
+local function RequestBuffsSync(layoutChanged)
+    _buffsDirty = true
+    ScheduleBuffsTabRefresh(layoutChanged == true)
+    if _pendingBuffsSync then return end
+    if C_Timer and C_Timer.After then
+        _pendingBuffsSync = true
+        C_Timer.After(0, FlushBuffsSync)
+    else
+        FlushBuffsSync()
     end
 end
 
@@ -192,25 +220,46 @@ local function ReturnInactiveFramesToViewer(viewer, returnAll)
     end
 end
 
--- skin blizzard item into sfui square style with 1px border & clean font
+local function SkinRegion(blizzFrame, region)
+    if not region then return end
+    if region:IsObjectType("MaskTexture") then
+        if blizzFrame.Icon and blizzFrame.Icon.RemoveMaskTexture then
+            blizzFrame.Icon:RemoveMaskTexture(region)
+        end
+        region:Hide()
+    elseif region:IsObjectType("Texture") and region ~= blizzFrame.Icon then
+        region:SetAlpha(0)
+    end
+end
+
+local function SkinRegionsVararg(blizzFrame, ...)
+    local n = select("#", ...)
+    for i = 1, n do
+        SkinRegion(blizzFrame, select(i, ...))
+    end
+end
+
+local function StyleStackFontString(fs)
+    if not fs then return end
+    if _G.NumberFontNormal then
+        fs:SetFontObject(_G.NumberFontNormal)
+    elseif common and common.style_text then
+        common.style_text(fs, "NumberFontNormal", 12, "OUTLINE")
+    else
+        fs:SetFont("Fonts\\ARIALN.TTF", 12, "OUTLINE")
+    end
+    fs:SetJustifyH("RIGHT")
+end
+
+-- skin blizzard item into sfui square style with 1px border & tabular font (zero keys written onto blizzFrame)
 local function SkinBlizzardItem(blizzFrame)
     if not blizzFrame then return end
     DisarmBlizzardItemMouse(blizzFrame)
-    if blizzFrame._sfuiSkinned then return end
-    blizzFrame._sfuiSkinned = true
+    if _skinnedItems[blizzFrame] then return end
+    _skinnedItems[blizzFrame] = true
 
-    -- strip circular masks and extraneous blizzard overlay textures
-    local regions = { blizzFrame:GetRegions() }
-    for _, region in ipairs(regions) do
-        if region:IsObjectType("MaskTexture") then
-            if blizzFrame.Icon and blizzFrame.Icon.RemoveMaskTexture then
-                blizzFrame.Icon:RemoveMaskTexture(region)
-            end
-            region:Hide()
-        elseif region:IsObjectType("Texture") and region ~= blizzFrame.Icon then
-            region:SetAlpha(0)
-        end
-    end
+    -- strip circular masks and extraneous blizzard overlay textures without table allocation
+    SkinRegionsVararg(blizzFrame, blizzFrame:GetRegions())
 
     -- apply sfui square texcoords
     if blizzFrame.Icon then
@@ -226,15 +275,12 @@ local function SkinBlizzardItem(blizzFrame)
         blizzFrame.Cooldown:SetDrawEdge(true)
     end
 
-    -- style stack count fontstring
+    -- style stack count fontstring with tabular digits
     local appText = blizzFrame.Applications and blizzFrame.Applications.Applications
     if appText then
-        appText:SetFontObject(sfui.config and sfui.config.font_small or NumberFontNormal)
         appText:ClearAllPoints()
         appText:SetPoint("BOTTOMRIGHT", blizzFrame, "BOTTOMRIGHT", -2, 2)
-        if common and common.style_text then
-            common.style_text(appText, nil, nil, "OUTLINE")
-        end
+        StyleStackFontString(appText)
     end
 
     -- hide debuff border
@@ -287,12 +333,9 @@ local function GetOrCreatePreviewSlot(index)
     slot.icon = icon
 
     -- applications / stack count
-    local appText = slot:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    appText:SetFontObject(sfui.config and sfui.config.font_small or NumberFontNormal)
+    local appText = slot:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
     appText:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -2, 2)
-    if common and common.style_text then
-        common.style_text(appText, nil, nil, "OUTLINE")
-    end
+    StyleStackFontString(appText)
     slot.appText = appText
 
     -- preview cooldown frame
@@ -612,9 +655,38 @@ CreateSocketContainer = function()
             key = "trackedBuffs",
             label = "tracked buffs",
             preferredPoint = "CENTER",
+            customSize = function()
+                local bCfg = cfg and cfg.trackedBuffs
+                local db = (SfuiDB and SfuiDB.trackedBuffs) or bCfg or {}
+                local size = db.size or (bCfg and bCfg.size) or 42
+                local w = socketContainer and socketContainer:GetWidth() or 0
+                local h = socketContainer and socketContainer:GetHeight() or 0
+                if w <= size and #activeFrames == 0 then
+                    local spacing = db.spacing or 4
+                    local tracked = sfui.trackedbuffs.GetTrackedBuffs and sfui.trackedbuffs.GetTrackedBuffs()
+                    local n = (tracked and #tracked > 0) and math_max(3, math_min(#tracked, 5)) or 3
+                    w = n * size + (n - 1) * spacing
+                    h = size
+                end
+                return math_max(w, size), math_max(h, size)
+            end,
             getPoint = function()
-                local pt, relTo, relPt, x, y = socketContainer:GetPoint()
-                return pt or "CENTER", relTo or UIParent, relPt or "CENTER", x or 0, y or 260
+                local db = SfuiDB and SfuiDB.trackedBuffs
+                if db and db.anchor and db.anchor.isCustom then
+                    local pt = db.anchor.point or "CENTER"
+                    return pt, UIParent, pt, db.anchor.x or 0, db.anchor.y or 0
+                end
+                if socketContainer and sfui.movers and sfui.movers.CalculateRelativeCoordinates then
+                    local left = socketContainer:GetLeft()
+                    local bottom = socketContainer:GetBottom()
+                    local w = socketContainer:GetWidth()
+                    local h = socketContainer:GetHeight()
+                    if left and bottom and w and h and w > 0 and h > 0 then
+                        local pt, relPt, x, y = sfui.movers.CalculateRelativeCoordinates(left, bottom, w, h, "CENTER")
+                        return pt, UIParent, relPt, x, y
+                    end
+                end
+                return "CENTER", UIParent, "CENTER", 0, 260
             end,
             setPoint = function(point, _, _, x, y)
                 local savedPt = point or "CENTER"
@@ -637,9 +709,29 @@ CreateSocketContainer = function()
                     sfui.trackedoptions.SyncBuffsPositionControls(savedX, savedY)
                 end
             end,
+            resetPosition = function()
+                local db = SfuiDB and SfuiDB.trackedBuffs
+                if db and db.anchor then
+                    db.anchor.isCustom = false
+                    db.anchor.x = nil
+                    db.anchor.y = nil
+                    db.anchor.point = nil
+                end
+                UpdatePosition()
+                if sfui.trackedoptions and sfui.trackedoptions.SyncBuffsPositionControls then
+                    sfui.trackedoptions.SyncBuffsPositionControls(0, 0)
+                end
+            end,
+            isEnabled = function()
+                local db = SfuiDB and SfuiDB.trackedBuffs
+                return not db or db.enabled ~= false
+            end,
             onEnterEditMode = function()
                 if not isPreviewMode then
                     sfui.trackedbuffs.SetPreviewMode(true)
+                end
+                if sfui.trackedbuffs.SyncMover then
+                    sfui.trackedbuffs.SyncMover()
                 end
             end,
             onExitEditMode = function()
@@ -653,6 +745,31 @@ CreateSocketContainer = function()
         })
     elseif sfui.actionbars and sfui.actionbars.movers and sfui.actionbars.movers.list then
         sfui.actionbars.movers.list["trackedBuffs"] = mover
+    end
+end
+
+function sfui.trackedbuffs.SyncMover()
+    local m = sfui.movers
+    if not m or not m.isUnlocked or not m.list or not m.registry then return end
+    local mv = m.list["trackedBuffs"]
+    local reg = m.registry["trackedBuffs"]
+    if not mv or not reg or mv._isDragging then return end
+    if reg.customSize then
+        local w, h = reg.customSize()
+        if w and h and w > 0 and h > 0 then
+            mv:SetSize(w, h)
+        end
+    end
+    if reg.getPoint then
+        local pt, relTo, relPt, x, y = reg.getPoint()
+        if pt then
+            mv._anchorPoint = pt
+            mv._lastSavedPt = pt
+            mv._lastSavedX = x or 0
+            mv._lastSavedY = y or 0
+            mv:ClearAllPoints()
+            mv:SetPoint(pt, relTo or UIParent, relPt or pt, x or 0, y or 0)
+        end
     end
 end
 
@@ -679,18 +796,42 @@ function sfui.trackedbuffs.IsPreview()
 end
 
 function sfui.trackedbuffs.IsMoverShown()
-    return (mover and mover:IsShown()) == true
+    return IsMoverActive()
+end
+
+local function SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
+    local inPandemic = IsBlizzardItemInPandemic(blizzFrame)
+    if inPandemic then
+        if blizzFrame.PandemicIcon and blizzFrame.PandemicIcon:GetAlpha() ~= 0 then
+            blizzFrame.PandemicIcon:SetAlpha(0)
+        end
+    end
+    if inPandemic and allowGlow then
+        if not slot._isGlowing then
+            slot._isGlowing = true
+            if sfui.glows and sfui.glows.start_glow then
+                sfui.glows.start_glow(slot, PANDEMIC_GLOW_OPTS)
+            end
+        end
+    elseif slot._isGlowing then
+        slot._isGlowing = false
+        if sfui.glows and sfui.glows.stop_glow then
+            sfui.glows.stop_glow(slot)
+        end
+    end
 end
 
 -- synchronize active buff items from blizzard's bufficoncooldownviewer
 SyncWithBlizzard = function()
+    _buffsDirty = false
     if not socketContainer then CreateSocketContainer() end
     if not socketContainer then return end
 
     local viewer = GetBlizzBuffViewer()
     local db = SfuiDB and SfuiDB.trackedBuffs or (cfg and cfg.trackedBuffs) or {}
+    local moverActive = IsMoverActive()
 
-    if db.enabled == false and not isPreviewMode and not (mover and mover:IsShown()) then
+    if db.enabled == false and not isPreviewMode and not moverActive then
         wipe(activeFrames)
         ReturnInactiveFramesToViewer(viewer, true)
         socketContainer:Hide()
@@ -702,7 +843,7 @@ SyncWithBlizzard = function()
     -- combat & visibility checks (bypassed if previewMode or mover is shown)
     local inCombat = common and common.is_in_combat and common.is_in_combat()
     local mustHide = false
-    if not isPreviewMode and not (mover and mover:IsShown()) then
+    if not isPreviewMode and not moverActive then
         if db.hideOOC and not inCombat then
             mustHide = true
         elseif not inCombat then
@@ -745,7 +886,7 @@ SyncWithBlizzard = function()
 
     local numActive = #activeFrames
     if numActive == 0 then
-        if isPreviewMode or (mover and mover:IsShown()) then
+        if isPreviewMode or moverActive then
             if not previewActive then
                 RenderPreview()
             end
@@ -788,6 +929,7 @@ SyncWithBlizzard = function()
 
     -- center active icons symmetrically around socket center
     local startX = -totalWidth / 2 + size / 2
+    local allowGlow = (db.glow ~= false)
 
     for i = 1, numActive do
         local blizzFrame = activeFrames[i]
@@ -817,25 +959,7 @@ SyncWithBlizzard = function()
         end
 
         -- pandemic / alert glow
-        local inPandemic = IsBlizzardItemInPandemic(blizzFrame)
-        if inPandemic and (db.glow ~= false) then
-            if blizzFrame.PandemicIcon and blizzFrame.PandemicIcon:GetAlpha() ~= 0 then
-                blizzFrame.PandemicIcon:SetAlpha(0)
-            end
-            if not slot._isGlowing then
-                slot._isGlowing = true
-                if sfui.glows and sfui.glows.start_glow then
-                    sfui.glows.start_glow(slot, PANDEMIC_GLOW_OPTS)
-                end
-            end
-        else
-            if slot._isGlowing then
-                slot._isGlowing = false
-                if sfui.glows and sfui.glows.stop_glow then
-                    sfui.glows.stop_glow(slot)
-                end
-            end
-        end
+        SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
 
         -- position slot centered
         local posX = startX + (i - 1) * (size + spacing)
@@ -1081,29 +1205,44 @@ function sfui.trackedbuffs.GetTrackedBuffs()
     return result
 end
 
+-- hook only transition-level OnActiveStateChanged (never Show/HidePandemicStateFrame, which OnUpdate runs per-frame!)
 HookItemFrame = function(blizzFrame)
-    if not blizzFrame or blizzFrame._sfuiBuffHooked or not hooksecurefunc then return end
-    blizzFrame._sfuiBuffHooked = true
+    if not blizzFrame or _hookedItems[blizzFrame] or not hooksecurefunc then return end
+    _hookedItems[blizzFrame] = true
 
     if blizzFrame.OnActiveStateChanged then
         hooksecurefunc(blizzFrame, "OnActiveStateChanged", function()
-            SyncWithBlizzard()
-            ScheduleBuffsTabRefresh(false)
-        end)
-    end
-    if blizzFrame.ShowPandemicStateFrame then
-        hooksecurefunc(blizzFrame, "ShowPandemicStateFrame", function()
-            SyncWithBlizzard()
-        end)
-    end
-    if blizzFrame.HidePandemicStateFrame then
-        hooksecurefunc(blizzFrame, "HidePandemicStateFrame", function()
-            SyncWithBlizzard()
+            RequestBuffsSync(false)
         end)
     end
 end
 
--- hook blizzard cooldown viewer & eventregistry callbacks (zero UNIT_AURA / SPELL_UPDATE_COOLDOWN polling)
+-- lightweight 10Hz pandemic & expiration check (instant O(1) early-exit when no buffs are active)
+local function OnTrackedBuffsTick()
+    if _buffsDirty then
+        FlushBuffsSync()
+        return
+    end
+    local numActive = #activeFrames
+    if numActive == 0 then return end
+
+    local db = SfuiDB and SfuiDB.trackedBuffs or (cfg and cfg.trackedBuffs) or {}
+    local allowGlow = (db.glow ~= false)
+
+    for i = 1, numActive do
+        local blizzFrame = activeFrames[i]
+        if not IsItemActive(blizzFrame) then
+            FlushBuffsSync()
+            return
+        end
+        local slot = slots[i]
+        if slot and slot:IsShown() then
+            SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
+        end
+    end
+end
+
+-- hook blizzard cooldown viewer & eventregistry callbacks
 local function HookBlizzardViewer()
     local viewer = GetBlizzBuffViewer()
     if viewer and not isHooked and hooksecurefunc then
@@ -1121,17 +1260,14 @@ local function HookBlizzardViewer()
         end
 
         hooksecurefunc(viewer, "RefreshLayout", function()
-            SyncWithBlizzard()
-            ScheduleBuffsTabRefresh(true)
+            RequestBuffsSync(true)
         end)
         hooksecurefunc(viewer, "RefreshData", function()
-            SyncWithBlizzard()
-            ScheduleBuffsTabRefresh(false)
+            RequestBuffsSync(false)
         end)
         if viewer.UpdateShownState then
             hooksecurefunc(viewer, "UpdateShownState", function()
-                SyncWithBlizzard()
-                ScheduleBuffsTabRefresh(true)
+                RequestBuffsSync(true)
             end)
         end
     end
@@ -1139,8 +1275,7 @@ local function HookBlizzardViewer()
     if not isRegistryHooked and EventRegistry and EventRegistry.RegisterCallback then
         isRegistryHooked = true
         local function onCdmChanged()
-            SyncWithBlizzard()
-            ScheduleBuffsTabRefresh(true)
+            RequestBuffsSync(true)
         end
         EventRegistry:RegisterCallback("CooldownViewerSettings.OnDataChanged", onCdmChanged, "sfui_trackedbuffs_data")
         EventRegistry:RegisterCallback("CooldownViewerSettings.OnShow", onCdmChanged, "sfui_trackedbuffs_show")
@@ -1149,7 +1284,7 @@ local function HookBlizzardViewer()
     end
 end
 
--- event registration (state transitions only — aura/pandemic updates come directly from blizzard item hooks)
+-- event registration (state transitions + coalesced pandemic/layout updates)
 local function RegisterEvents()
     local function onStateEvent()
         HookBlizzardViewer()
@@ -1157,8 +1292,7 @@ local function RegisterEvents()
     end
     local function onLayoutEvent()
         HookBlizzardViewer()
-        SyncWithBlizzard()
-        ScheduleBuffsTabRefresh(true)
+        RequestBuffsSync(true)
     end
 
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", onLayoutEvent)
@@ -1171,13 +1305,23 @@ local function RegisterEvents()
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", onStateEvent)
     sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", onStateEvent)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", onStateEvent)
-    sfui.events.RegisterEvent("UNIT_ENTERED_VEHICLE", onStateEvent)
-    sfui.events.RegisterEvent("UNIT_EXITED_VEHICLE", onStateEvent)
+    if sfui.isRetail then
+        sfui.events.RegisterEvent("PLAYER_CAN_GLIDE_CHANGED", onStateEvent)
+    end
+    if sfui.events.RegisterUnitEvents then
+        sfui.events.RegisterUnitEvents({ "UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE" }, "player", onStateEvent)
+    elseif sfui.events.RegisterUnitEvent then
+        sfui.events.RegisterUnitEvent("UNIT_ENTERED_VEHICLE", "player", onStateEvent)
+        sfui.events.RegisterUnitEvent("UNIT_EXITED_VEHICLE", "player", onStateEvent)
+    end
     sfui.events.RegisterEvent("ADDON_LOADED", function(_, arg1)
         if arg1 == "Blizzard_CooldownViewer" then
             onLayoutEvent()
         end
     end)
+    if sfui.events.RegisterUpdate then
+        sfui.events.RegisterUpdate("TrackedBuffs", 0.10, OnTrackedBuffsTick)
+    end
 end
 
 -- lifecycle hooks

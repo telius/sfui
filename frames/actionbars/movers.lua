@@ -322,6 +322,7 @@ local function CalculateRelativeCoordinates(left, bottom, width, height, anchorP
 
     return point, point, x, y
 end
+movers.CalculateRelativeCoordinates = CalculateRelativeCoordinates
 
 local function GetMoverAnchorPoint(key, mover)
     if mover and mover._anchorPoint then

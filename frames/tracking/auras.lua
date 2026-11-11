@@ -68,9 +68,14 @@ local _barWatchCount = 0
 local _watchedSpellIDs = {}
 local _watchedNames = {}
 local _watchedCooldownIDs = {}
+local _prevWatchedSpellIDs = {}
+local _prevWatchedNames = {}
+local _prevWatchedCooldowns = {}
 local _watchSeals = false
 local _watchCount = 0
-local _watchSignature = 0
+local _watchedSpellCount = 0
+local _watchedNameCount = 0
+local _watchedCooldownCount = 0
 
 local _eventsRegistered = false
 local _revision = 1
@@ -606,6 +611,16 @@ local function OnFullSyncEvent()
     end
 end
 
+local function OnAuraDataProviderSwitch(_event, useRealDataProvider)
+    if _watchCount == 0 then return end
+    wipe(_watchedByInstanceID)
+    wipe(_lastBlizzHasInstance)
+    if useRealDataProvider then
+        SyncFullPlayerBuffs()
+    end
+    NotifyTrackingDirty()
+end
+
 local function UpdateEventSubscriptions(signatureChanged)
     if not sfui.events then return end
     if _watchCount > 0 then
@@ -616,6 +631,7 @@ local function UpdateEventSubscriptions(signatureChanged)
             sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnFullSyncEvent)
             sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", OnFullSyncEvent)
             sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", OnFullSyncEvent)
+            sfui.events.RegisterEvent("AURA_DATA_PROVIDER_SWITCH", OnAuraDataProviderSwitch)
             if SyncFullPlayerBuffs() then
                 BumpRevision()
             end
@@ -631,6 +647,7 @@ local function UpdateEventSubscriptions(signatureChanged)
         sfui.events.UnregisterEvent("PLAYER_ENTERING_WORLD", OnFullSyncEvent)
         sfui.events.UnregisterEvent("PLAYER_REGEN_DISABLED", OnFullSyncEvent)
         sfui.events.UnregisterEvent("PLAYER_REGEN_ENABLED", OnFullSyncEvent)
+        sfui.events.UnregisterEvent("AURA_DATA_PROVIDER_SWITCH", OnAuraDataProviderSwitch)
         wipe(_watchedByInstanceID)
         wipe(_lastBlizzHasInstance)
         for i = 1, #_castAurasList do
@@ -648,51 +665,65 @@ local function UpdateEventSubscriptions(signatureChanged)
 end
 
 local function RebuildCombinedWatchlist()
+    _watchedSpellIDs, _prevWatchedSpellIDs = _prevWatchedSpellIDs, _watchedSpellIDs
+    _watchedNames, _prevWatchedNames = _prevWatchedNames, _watchedNames
+    _watchedCooldownIDs, _prevWatchedCooldowns = _prevWatchedCooldowns, _watchedCooldownIDs
     wipe(_watchedSpellIDs)
     wipe(_watchedNames)
     wipe(_watchedCooldownIDs)
 
-    local sig = 0
+    local spellCount, nameCount, cdCount = 0, 0, 0
+    local membershipChanged = false
+
     for sid in pairs(_iconWatchedSpells) do
         _watchedSpellIDs[sid] = true
-        sig = sig + sid
+        spellCount = spellCount + 1
+        if not _prevWatchedSpellIDs[sid] then membershipChanged = true end
     end
     for sid in pairs(_barWatchedSpells) do
         if not _watchedSpellIDs[sid] then
             _watchedSpellIDs[sid] = true
-            sig = sig + sid
+            spellCount = spellCount + 1
+            if not _prevWatchedSpellIDs[sid] then membershipChanged = true end
         end
     end
     for name in pairs(_iconWatchedNames) do
         _watchedNames[name] = true
-        sig = sig + #name
+        nameCount = nameCount + 1
+        if not _prevWatchedNames[name] then membershipChanged = true end
     end
     for name in pairs(_barWatchedNames) do
         if not _watchedNames[name] then
             _watchedNames[name] = true
-            sig = sig + #name
+            nameCount = nameCount + 1
+            if not _prevWatchedNames[name] then membershipChanged = true end
         end
     end
     for cdID in pairs(_iconWatchedCooldowns) do
         _watchedCooldownIDs[cdID] = true
-        sig = sig + cdID * 3
+        cdCount = cdCount + 1
+        if not _prevWatchedCooldowns[cdID] then membershipChanged = true end
     end
     for cdID in pairs(_barWatchedCooldowns) do
         if not _watchedCooldownIDs[cdID] then
             _watchedCooldownIDs[cdID] = true
-            sig = sig + cdID * 3
+            cdCount = cdCount + 1
+            if not _prevWatchedCooldowns[cdID] then membershipChanged = true end
         end
     end
 
     local prevSeals = _watchSeals
     _watchSeals = _iconWatchSeals or _barWatchSeals
-    if _watchSeals then sig = sig + 999983 end
+
+    if spellCount ~= _watchedSpellCount or nameCount ~= _watchedNameCount or cdCount ~= _watchedCooldownCount or prevSeals ~= _watchSeals then
+        membershipChanged = true
+    end
+    _watchedSpellCount = spellCount
+    _watchedNameCount = nameCount
+    _watchedCooldownCount = cdCount
 
     _watchCount = _iconWatchCount + _barWatchCount
-    local signatureChanged = (sig ~= _watchSignature) or (prevSeals ~= _watchSeals)
-    _watchSignature = sig
-
-    UpdateEventSubscriptions(signatureChanged)
+    UpdateEventSubscriptions(membershipChanged)
 end
 
 local function AddCandidatesToSet(candidates, spellSet, nameSet)

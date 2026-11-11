@@ -715,6 +715,14 @@ do
                     SfuiDB.healthBarX = x
                     SfuiDB.healthBarY = y
                     update_bar_positions()
+                    if sfui.movers and sfui.movers.isUnlocked then
+                        if sfui.trackedicons and sfui.trackedicons.SyncMovers then
+                            sfui.trackedicons.SyncMovers()
+                        end
+                        if sfui.trackedbuffs and sfui.trackedbuffs.SyncMover then
+                            sfui.trackedbuffs.SyncMover()
+                        end
+                    end
                 end,
                 resetPosition = function()
                     SfuiDB = SfuiDB or {}
@@ -724,6 +732,14 @@ do
                     SfuiDB.healthBarX = (hCfg and hCfg.pos and hCfg.pos.x) or 0
                     SfuiDB.healthBarY = (hCfg and hCfg.pos and hCfg.pos.y) or 150
                     update_bar_positions()
+                    if sfui.movers and sfui.movers.isUnlocked then
+                        if sfui.trackedicons and sfui.trackedicons.SyncMovers then
+                            sfui.trackedicons.SyncMovers()
+                        end
+                        if sfui.trackedbuffs and sfui.trackedbuffs.SyncMover then
+                            sfui.trackedbuffs.SyncMover()
+                        end
+                    end
                 end,
                 isEnabled = function()
                     return bar.backdrop ~= nil and (sfui.config.healthBar and sfui.config.healthBar.enabled ~= false)

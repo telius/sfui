@@ -67,7 +67,7 @@ local function HookGlowAlpha(glowFrame, parentIcon)
     if not glowFrame or glowFrame._sfuiAlphaHooked then return end
 
     -- Safely hook — LibCustomGlow internals may change between versions
-    local ok, err = pcall(function()
+    local ok = pcall(function()
         glowFrame._sfuiAlphaHooked = true
 
         local origSetAlpha = glowFrame.SetAlpha
@@ -97,33 +97,42 @@ function sfui.glows.start_glow(icon, config)
     end
 
     local glowType = config.glowType or "pixel"
-    local color = config.glowColor or { 1, 0.85, 0.1, 1 }
+    local color = config.glowColor or DEFAULT_GLOW_COLOR
+    local r, g, b = sfui.common.unpack_color(color)
+    local scale = config.glowScale or 1.0
+    local speed = config.glowSpeed or 0.25
+    local intensity = config.glowIntensity or 1.0
+    local lines = config.glowLines or 8
+    local particles = config.glowParticles or 4
+    local thickness = config.glowThickness or 2
     local key = "sfui_ReadyGlow"
 
-    -- Performance: Detect if we are already showing this EXACT glow to avoid pool thrashing
-    local configHash = string.format("%s_%s_%s_%s_%s_%s_%s_%s_%s_%s",
-        glowType,
-        tostring(config.glowColor and table.concat(config.glowColor, ",") or "def"),
-        tostring(config.glowScale or 1),
-        tostring(config.glowSpeed or 0.25),
-        tostring(config.glowIntensity or 1),
-        tostring(config.glowLines or 8),
-        tostring(config.glowParticles or 4),
-        tostring(config.glowThickness or 2),
-        tostring(config.glow_max_duration or 5),
-        tostring(config.useSpecColor or "false")
-    )
-
-    if icon._glowActive and icon._lastGlowHash == configHash then
+    -- Performance: Detect if we are already showing this EXACT glow without string formatting
+    if icon._glowActive
+        and icon._lastGlowType == glowType
+        and icon._lastGlowR == r
+        and icon._lastGlowG == g
+        and icon._lastGlowB == b
+        and icon._lastGlowScale == scale
+        and icon._lastGlowSpeed == speed
+        and icon._lastGlowIntensity == intensity
+        and icon._lastGlowLines == lines
+        and icon._lastGlowParticles == particles
+        and icon._lastGlowThickness == thickness then
         return -- Already showing this exact glow, skip restart
     end
 
-    -- Stop existing surgicaly
+    -- Stop existing surgically
     sfui.glows.stop_glow(icon)
 
-    -- Build color array for LCG
-    local r, g, b, a = sfui.common.unpack_color(color)
-    local colorArray = { r, g, b, 1.0 }
+    -- Reuse per-icon color array for LCG (ButtonGlow retains reference on glow frame)
+    local colorArray = icon._lcgColor
+    if not colorArray then
+        colorArray = { r, g, b, 1.0 }
+        icon._lcgColor = colorArray
+    else
+        colorArray[1], colorArray[2], colorArray[3], colorArray[4] = r, g, b, 1.0
+    end
 
     local success, err
     -- Start appropriate glow type
@@ -131,10 +140,10 @@ function sfui.glows.start_glow(icon, config)
         success, err = pcall(LCG.PixelGlow_Start,
             icon,
             colorArray,
-            config.glowLines or 8,
-            config.glowSpeed or 0.25,
+            lines,
+            speed,
             nil,  -- length (nil = default)
-            config.glowThickness or 2,
+            thickness,
             0,    -- xOffset
             0,    -- yOffset
             true, -- border
@@ -149,8 +158,8 @@ function sfui.glows.start_glow(icon, config)
         local glow = icon["_PixelGlow" .. key]
         if glow then
             HookGlowAlpha(glow, icon)
-            if config.glowScale and config.glowScale ~= 1.0 then
-                glow:SetScale(config.glowScale)
+            if scale ~= 1.0 then
+                glow:SetScale(scale)
             end
         else
             sfui.common.print("pixelglow started but frame not found")
@@ -159,9 +168,9 @@ function sfui.glows.start_glow(icon, config)
         success, err = pcall(LCG.AutoCastGlow_Start,
             icon,
             colorArray,
-            config.glowParticles or 4,
-            config.glowSpeed or 0.25,
-            config.glowScale or 1.0,
+            particles,
+            speed,
+            scale,
             0, -- xOffset
             0, -- yOffset
             key
@@ -179,13 +188,21 @@ function sfui.glows.start_glow(icon, config)
             sfui.common.print("autocastglow started but frame not found")
         end
     elseif glowType == "proc" then
-        success, err = pcall(LCG.ProcGlow_Start, icon, {
-            color = colorArray,
-            startAnim = false,
-            xOffset = 0,
-            yOffset = 0,
-            key = key
-        })
+        local procOpts = icon._lcgProcOpts
+        if not procOpts then
+            procOpts = {
+                color = colorArray,
+                startAnim = false,
+                xOffset = 0,
+                yOffset = 0,
+                key = key,
+            }
+            icon._lcgProcOpts = procOpts
+        else
+            procOpts.color = colorArray
+            procOpts.key = key
+        end
+        success, err = pcall(LCG.ProcGlow_Start, icon, procOpts)
 
         if not success then
             sfui.common.print("procglow_start failed:", err)
@@ -195,20 +212,20 @@ function sfui.glows.start_glow(icon, config)
         local glow = icon["_ProcGlow" .. key]
         if glow then
             HookGlowAlpha(glow, icon)
-            if config.glowScale and config.glowScale ~= 1.0 then
-                glow:SetScale(config.glowScale)
+            if scale ~= 1.0 then
+                glow:SetScale(scale)
             end
             -- Fix initial state
             if glow.ProcStart then glow.ProcStart:Hide() end
             if glow.ProcLoop then
                 glow.ProcLoop:Show()
-                glow.ProcLoop:SetAlpha(config.glowIntensity or 1.0)
+                glow.ProcLoop:SetAlpha(intensity)
             end
         else
             sfui.common.print("procglow started but frame not found")
         end
     else -- "button" (default)
-        success, err = pcall(LCG.ButtonGlow_Start, icon, colorArray, config.glowSpeed or 0.25)
+        success, err = pcall(LCG.ButtonGlow_Start, icon, colorArray, speed)
 
         if not success then
             sfui.common.print("buttonglow_start failed:", err)
@@ -218,8 +235,8 @@ function sfui.glows.start_glow(icon, config)
         local glow = icon._ButtonGlow
         if glow then
             HookGlowAlpha(glow, icon)
-            if config.glowScale and config.glowScale ~= 1.0 then
-                glow:SetScale(config.glowScale)
+            if scale ~= 1.0 then
+                glow:SetScale(scale)
             end
         else
             sfui.common.print("buttonglow started but frame not found")
@@ -228,7 +245,15 @@ function sfui.glows.start_glow(icon, config)
 
     icon._glowActive = true
     icon._lastGlowType = glowType
-    icon._lastGlowHash = configHash
+    icon._lastGlowR = r
+    icon._lastGlowG = g
+    icon._lastGlowB = b
+    icon._lastGlowScale = scale
+    icon._lastGlowSpeed = speed
+    icon._lastGlowIntensity = intensity
+    icon._lastGlowLines = lines
+    icon._lastGlowParticles = particles
+    icon._lastGlowThickness = thickness
     icon._sfuiForcedGlowAlpha = 1.0
 end
 
@@ -258,7 +283,15 @@ function sfui.glows.stop_glow(icon)
 
     icon._glowActive = false
     icon._lastGlowType = nil
-    icon._lastGlowHash = nil
+    icon._lastGlowR = nil
+    icon._lastGlowG = nil
+    icon._lastGlowB = nil
+    icon._lastGlowScale = nil
+    icon._lastGlowSpeed = nil
+    icon._lastGlowIntensity = nil
+    icon._lastGlowLines = nil
+    icon._lastGlowParticles = nil
+    icon._lastGlowThickness = nil
     icon._sfuiForcedGlowAlpha = nil
 end
 

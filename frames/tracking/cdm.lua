@@ -116,7 +116,39 @@ local OnIconDragStart
 local OnIconDragStop
 local OnZoneReceiveDrag
 local HandleExternalDrop
+local SetZonesDragUpdateEnabled
 local cursor
+
+local _validCdmCategories = nil
+local function SafeGetCategorySet(cat, allowUnlearned)
+    if type(cat) ~= "number" or cat < 0 then return nil end
+    if not (C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet) then return nil end
+    if not _validCdmCategories and Enum and Enum.CooldownViewerCategory then
+        _validCdmCategories = {}
+        for _, v in pairs(Enum.CooldownViewerCategory) do
+            if type(v) == "number" and v >= 0 then
+                _validCdmCategories[v] = true
+            end
+        end
+    end
+    if _validCdmCategories and not _validCdmCategories[cat] then
+        return nil
+    end
+    return C_CooldownViewer.GetCooldownViewerCategorySet(cat, allowUnlearned == true)
+end
+
+local function SafeGetCooldownInfo(cdID)
+    if type(cdID) ~= "number" or cdID <= 0 then return nil end
+    if common and common.issecretvalue and common.issecretvalue(cdID) then return nil end
+    local entryHelper = sfui.tracking and sfui.tracking.entry
+    if entryHelper and entryHelper.SafeGetCooldownInfo then
+        return entryHelper.SafeGetCooldownInfo(cdID)
+    end
+    if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+        return C_CooldownViewer.GetCooldownViewerCooldownInfo(cdID)
+    end
+    return nil
+end
 
 local function SafeSaveBlizzardLayout()
     -- Do not call CooldownViewerSettings:GetLayoutManager():SaveLayouts() from addon context:
@@ -235,11 +267,7 @@ local function ResolveCooldownMetadata(cdID, entry)
         icon = nil,
     }
 
-    local cdInfo = nil
-    if meta.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
-        local ok, info = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, meta.cooldownID)
-        if ok and info then cdInfo = info end
-    end
+    local cdInfo = meta.cooldownID and SafeGetCooldownInfo(meta.cooldownID) or nil
 
     if cdInfo then
         if cdInfo.equipSlot then
@@ -611,8 +639,8 @@ local function RenderTrackedBarsRightSide(parent, width)
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
         for _, cat in ipairs(cats) do
             for _, allowUnlearned in ipairs({ true, false }) do
-                local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, allowUnlearned)
-                if ok and ids then
+                local ids = SafeGetCategorySet(cat, allowUnlearned)
+                if ids then
                     for _, id in ipairs(ids) do addID(id) end
                 end
             end
@@ -635,10 +663,10 @@ local function RenderTrackedBarsRightSide(parent, width)
         end
         for _, cat in ipairs(cdCats) do
             for _, allowUnlearned in ipairs({ true, false }) do
-                local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, allowUnlearned)
-                if ok and ids then
+                local ids = SafeGetCategorySet(cat, allowUnlearned)
+                if ids then
                     for _, id in ipairs(ids) do
-                        local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+                        local info = SafeGetCooldownInfo(id)
                         local linked = info and info.linkedSpellIDs
                         local known = auraResolver and auraResolver.IsCooldownItemKnown
                             and auraResolver.IsCooldownItemKnown(info, id) or (info and info.isKnown ~= false)
@@ -709,7 +737,7 @@ local function RenderTrackedBarsRightSide(parent, width)
         }
 
         local isItem = (meta.equipSlot ~= nil or meta.spellCategoryID ~= nil or (meta.itemID and meta.itemID > 0))
-        local cdInfo = meta.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(meta.cooldownID)
+        local cdInfo = meta.cooldownID and SafeGetCooldownInfo(meta.cooldownID)
         local isKnown = isItem or not cdInfo
             or (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(cdInfo, meta.cooldownID))
             or cdInfo.isKnown ~= false
@@ -852,6 +880,7 @@ function sfui.cdm.create_panel(parent)
         if draggedInfo then
             if draggedInfo.cursor then draggedInfo.cursor:Hide() end
             draggedInfo = nil
+            if SetZonesDragUpdateEnabled then SetZonesDragUpdateEnabled(false) end
         end
     end)
 
@@ -1033,13 +1062,7 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
         }
         local importBtn = common.create_dropdown(zone, 80, options, function(gId)
             if type(gId) ~= "number" or gId < 0 then return end
-            local list = nil
-            if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
-                local ok, cList = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, gId, true)
-                if ok and cList then
-                    list = cList
-                end
-            end
+            local list = SafeGetCategorySet(gId, true)
             if not list then return end
 
             local isList = (type(list) == "table")
@@ -1092,14 +1115,17 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
         content:SetPoint("BOTTOMRIGHT", -5, 5)
         zone.content = content
 
-        -- Drop Handler & Hover Visuals
-        zone:SetScript("OnUpdate", function(self, elapsed)
+        -- Drop Handler & Hover Visuals (OnUpdate enabled ONLY while draggedInfo is active)
+        zone._dragOnUpdate = function(self, elapsed)
+            if not draggedInfo then
+                SetZonesDragUpdateEnabled(false)
+                return
+            end
             self.throttle = (self.throttle or 0) + elapsed
-            local threshold = draggedInfo and 0.05 or 1.0
-            if self.throttle < threshold then return end
+            if self.throttle < 0.05 then return end
             self.throttle = 0
 
-            if draggedInfo and self:IsMouseOver() then
+            if self:IsMouseOver() then
                 if not self._isHovered then
                     self:SetBackdropBorderColor(0, 1, 0, 1) -- Hover highlight
                     self._isHovered = true
@@ -1107,9 +1133,9 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                 end
 
                 -- Determine closest icon index to insert before
-                local mX, mY = GetCursorPosition()
+                local mX = GetCursorPosition()
                 local sX = self:GetEffectiveScale()
-                mX, mY = mX / sX, mY / sX
+                mX = mX / sX
 
                 local closestIcon = nil
                 local closestDist = math.huge
@@ -1145,7 +1171,6 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                     end
                 end
 
-
                 if closestIcon and insertIndex <= #self.content.icons then
                     self.dropLine:ClearAllPoints()
                     self.dropLine:SetPoint("LEFT", closestIcon, "LEFT", -3, 0)
@@ -1170,7 +1195,6 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
 
                     -- Re-render layout with a gap
                     local cx, cy = 0, 0
-                    local drawIndex = 1
                     for i, icon in ipairs(self.content.icons) do
                         if i == insertIndex then
                             -- Insert gap
@@ -1185,37 +1209,31 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
                             cx = 0; cy = cy - ICON_SIZE - 2
                         end
                     end
-                    -- Handle gap at the very end
-                    if insertIndex > #self.content.icons then
-                        cx = cx + ICON_SIZE + 2
-                    end
                 end
-            else
-                if not self._isIdle then
-                    if self.isTrackedBars then
-                        self:SetBackdropBorderColor(0.8, 0.4, 1.0, 0.8)
-                    else
-                        self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-                    end
-                    if self.dropInsertIndex then
-                        self.dropLine:Hide()
-                        self.dropInsertIndex = nil
-                        self.dropTargetID = nil
-                        -- Revert layout to normal
-                        local cx, cy = 0, 0
-                        for i, icon in ipairs(self.content.icons) do
-                            icon:SetPoint("TOPLEFT", self.content, "TOPLEFT", cx, cy)
-                            cx = cx + ICON_SIZE + 2
-                            if cx > 300 then
-                                cx = 0; cy = cy - ICON_SIZE - 2
-                            end
+            elseif not self._isIdle then
+                self:SetBackdropBorderColor(0, 0, 0, 0)
+                if self.dropInsertIndex then
+                    self.dropLine:Hide()
+                    self.dropInsertIndex = nil
+                    self.dropTargetID = nil
+                    -- Revert layout to normal
+                    local cx, cy = 0, 0
+                    for _, icon in ipairs(self.content.icons) do
+                        icon:SetPoint("TOPLEFT", self.content, "TOPLEFT", cx, cy)
+                        cx = cx + ICON_SIZE + 2
+                        if cx > 300 then
+                            cx = 0; cy = cy - ICON_SIZE - 2
                         end
                     end
-                    self._isIdle = true
-                    self._isHovered = false
                 end
+                self._isIdle = true
+                self._isHovered = false
             end
-        end)
+        end
+
+        if draggedInfo then
+            zone:SetScript("OnUpdate", zone._dragOnUpdate)
+        end
 
         zone:SetScript("OnMouseUp", function(self)
             local cursorType = GetCursorInfo()
@@ -1330,7 +1348,7 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
             end
 
             local isItem = (meta.equipSlot ~= nil or meta.spellCategoryID ~= nil or (meta.itemID and meta.itemID > 0))
-            local cdInfo = meta.cooldownID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(meta.cooldownID)
+            local cdInfo = meta.cooldownID and SafeGetCooldownInfo(meta.cooldownID)
             local auraResolver = sfui.tracking and sfui.tracking.auras
             local isKnown = isItem or not cdInfo
                 or (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(cdInfo, meta.cooldownID))
@@ -1393,7 +1411,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
 
     local function addID(id, cat)
         if not id or common.issecretvalue(id) or not IsValidID(id) or seen[id] then return end
-        local cdInfo = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
+        local cdInfo = SafeGetCooldownInfo(id)
         local isItemCategory = (cat == 5 or cat == 7 or (cdInfo and (cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0))))
         local isKnown = isItemCategory or not cdInfo
             or (auraResolver and auraResolver.IsCooldownItemKnown and auraResolver.IsCooldownItemKnown(cdInfo, id))
@@ -1404,7 +1422,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         end
     end
 
-    if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
+    if (sfui.isRetail or sfui.isCamelot) and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
 
@@ -1447,8 +1465,8 @@ local function RenderAssignmentsIconPool(parent, width, entries)
     if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet then
         for _, cat in ipairs(cats) do
             for _, allowUnlearned in ipairs({ true, false }) do
-                local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, allowUnlearned)
-                if ok and ids then
+                local ids = SafeGetCategorySet(cat, allowUnlearned)
+                if ids then
                     for _, id in ipairs(ids) do addID(id, cat) end
                 end
             end
@@ -1610,6 +1628,7 @@ RefreshZones = function()
     -- ── Clear Left (panels list) ──────────────────────────────────────────────
     -- Reset Zone Pool (Optimization: Hide all, reuse in MakeZone)
     for i = 1, #zoneFramePool do
+        zoneFramePool[i]:SetScript("OnUpdate", nil)
         zoneFramePool[i]:Hide()
         zoneFramePool[i]:ClearAllPoints()
     end
@@ -1680,45 +1699,55 @@ RefreshZones = function()
         end
     end
 
-    -- 3. Add Panel row
-    local addFrame = CreateFrame("Frame", nil, leftContainer, "BackdropTemplate")
-    addFrame:SetSize(ZONE_W, 30)
-    addFrame:SetPoint("TOPLEFT", 0, currentY - 8)
-    addFrame:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
+    -- 3. Add Panel row (reused across refreshes to avoid leaking frames)
+    local addFrame = leftContainer._addFrame
     local addCC = pal_container()
+    if not addFrame then
+        addFrame = CreateFrame("Frame", nil, leftContainer, "BackdropTemplate")
+        addFrame:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
+        addFrame:SetBackdropBorderColor(0, 0, 0, 0)
+        AddVerticalAccent(addFrame)
+
+        local eb = CreateFrame("EditBox", nil, addFrame)
+        eb:SetPoint("LEFT", 10, 0)
+        eb:SetFontObject("ChatFontNormal")
+        eb:SetTextColor(0.8, 0.8, 0.8)
+        eb:SetMultiLine(false)
+        eb:SetAutoFocus(false)
+        eb:SetText(PANEL_NAME_PLACEHOLDER)
+        eb:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+        eb:SetScript("OnEnterPressed", function(self)
+            local name = self:GetText()
+            if name and name ~= "" and name ~= PANEL_NAME_PLACEHOLDER then
+                common.add_custom_panel(name)
+                self:SetText(PANEL_NAME_PLACEHOLDER)
+                sfui.cdm.RefreshLayout()
+            end
+            self:ClearFocus()
+        end)
+        eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        addFrame.eb = eb
+
+        local addBtn = common.create_flat_button(addFrame, "add", 55, 20)
+        addBtn:SetPoint("RIGHT", -5, 0)
+        addBtn:SetScript("OnClick", function()
+            local name = eb:GetText()
+            if name and name ~= "" and name ~= PANEL_NAME_PLACEHOLDER then
+                common.add_custom_panel(name)
+                eb:SetText(PANEL_NAME_PLACEHOLDER)
+                sfui.cdm.RefreshLayout()
+            end
+            eb:ClearFocus()
+        end)
+        addFrame.addBtn = addBtn
+        leftContainer._addFrame = addFrame
+    end
+    addFrame:SetSize(ZONE_W, 30)
+    addFrame.eb:SetSize(ZONE_W - 70, 20)
     addFrame:SetBackdropColor(addCC[1], addCC[2], addCC[3], 0.9)
-    addFrame:SetBackdropBorderColor(0, 0, 0, 0)
-    AddVerticalAccent(addFrame)
-
-    local eb = CreateFrame("EditBox", nil, addFrame)
-    eb:SetSize(ZONE_W - 70, 20)
-    eb:SetPoint("LEFT", 10, 0)
-    eb:SetFontObject("ChatFontNormal")
-    eb:SetTextColor(0.8, 0.8, 0.8)
-    eb:SetMultiLine(false)
-    eb:SetAutoFocus(false)
-    eb:SetText(PANEL_NAME_PLACEHOLDER)
-    eb:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
-    eb:SetScript("OnEnterPressed", function(self)
-        local name = self:GetText()
-        if name and name ~= "" and name ~= PANEL_NAME_PLACEHOLDER then
-            common.add_custom_panel(name)
-            sfui.cdm.RefreshLayout()
-        end
-        self:ClearFocus()
-    end)
-    eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-
-    local addBtn = common.create_flat_button(addFrame, "add", 55, 20)
-    addBtn:SetPoint("RIGHT", -5, 0)
-    addBtn:SetScript("OnClick", function()
-        local name = eb:GetText()
-        if name and name ~= "" and name ~= PANEL_NAME_PLACEHOLDER then
-            common.add_custom_panel(name)
-            sfui.cdm.RefreshLayout()
-        end
-        eb:ClearFocus()
-    end)
+    addFrame:ClearAllPoints()
+    addFrame:SetPoint("TOPLEFT", 0, currentY - 8)
+    addFrame:Show()
     currentY = currentY - 46
 
     leftContainer:SetHeight(math.abs(currentY) + 20)
@@ -1785,6 +1814,26 @@ end
 -- Drag Handlers
 -- ----------------------------------------------------------------------------
 
+SetZonesDragUpdateEnabled = function(enabled)
+    for i = 1, zoneFrameCount do
+        local z = zoneFramePool[i]
+        if z then
+            if enabled and z:IsShown() and z._dragOnUpdate then
+                z.throttle = 0
+                z:SetScript("OnUpdate", z._dragOnUpdate)
+            else
+                z:SetScript("OnUpdate", nil)
+                z:SetBackdropBorderColor(0, 0, 0, 0)
+                if z.dropLine then z.dropLine:Hide() end
+                z.dropInsertIndex = nil
+                z.dropTargetID = nil
+                z._isIdle = true
+                z._isHovered = false
+            end
+        end
+    end
+end
+
 OnIconDragStart = function(self, isFromTrackedBars)
     if InCombatLockdown() then return end
 
@@ -1829,6 +1878,7 @@ OnIconDragStart = function(self, isFromTrackedBars)
     }
 
     cursor:Show()
+    SetZonesDragUpdateEnabled(true)
 
     -- Hide original? Or dim it?
     self:SetAlpha(0.5)
@@ -2035,10 +2085,10 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
         if #cats == 0 then cats = { 0, 1, 2, 3, 7, 5, 8, 6 } end
         for _, cat in ipairs(cats) do
             if type(cat) == "number" and cat >= 0 then
-                local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat, true)
-                if ok and ids then
+                local ids = SafeGetCategorySet(cat, true)
+                if ids then
                     for _, cid in ipairs(ids) do
-                        local cdInfo = C_CooldownViewer.GetCooldownViewerCooldownInfo(cid)
+                        local cdInfo = SafeGetCooldownInfo(cid)
                         if cdInfo then
                             if draggedSpellID and cdInfo.spellID == draggedSpellID then
                                 foundCooldownID = cid
@@ -2204,6 +2254,7 @@ OnIconDragStop = function(self)
     if targetCursor then targetCursor:Hide() end
     if targetIcon then targetIcon:SetAlpha(1) end
     draggedInfo = nil
+    SetZonesDragUpdateEnabled(false)
 
     RefreshZones()
 end

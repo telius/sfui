@@ -820,6 +820,7 @@ sfui.config = {
         -- Font settings
         fonts = {
             standard = "GameFontNormalSmall",
+            number = "NumberFontNormalSmall",
             stackModeDurationSize = 14, -- Larger size for stack mode duration text
         },
         -- Performance settings

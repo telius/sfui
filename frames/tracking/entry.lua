@@ -17,7 +17,6 @@ local tonumber = tonumber
 local type = type
 local issecretvalue = sfui.common.issecretvalue
 
-local _emptyTable = {}
 local _cdInfoCache = {}
 local _cdInfoCacheCount = 0
 local _configRev = 1
@@ -204,8 +203,10 @@ function E.CompileDescriptor(icon, panelConfig, getIconValueFn, getIconTextureFn
     end
 
     local entry = icon.entry
-    local settings = (entry and entry.settings) or _emptyTable
-    local iconTexture, aID, rType, lIDs = getIconTextureFn(icon.id, icon.type, entry)
+    local settings = (entry and entry.settings) or nil
+    local cdID = E.GetEntryCooldownID(entry, (icon.type == "cooldown" and icon.id) or nil)
+    local cdInfo = cdID and E.SafeGetCooldownInfo(cdID) or nil
+    local iconTexture, aID, rType, lIDs = getIconTextureFn(icon.id, icon.type, entry, cdInfo)
 
     local activeID = aID or icon.id
     local resolvedType = rType or icon.type
@@ -213,8 +214,6 @@ function E.CompileDescriptor(icon, panelConfig, getIconValueFn, getIconTextureFn
     local isAuraType = (icon.type == "buff" or icon.type == "debuff"
         or (entry and (entry.type == "buff" or entry.type == "debuff"))) and true or false
 
-    local cdID = E.GetEntryCooldownID(entry, (icon.type == "cooldown" and icon.id) or nil)
-    local cdInfo = cdID and E.SafeGetCooldownInfo(cdID) or nil
     local linkedSpellIDs = lIDs or (cdInfo and cdInfo.linkedSpellIDs) or nil
 
     icon._lastActiveID = activeID
@@ -242,12 +241,13 @@ function E.CompileDescriptor(icon, panelConfig, getIconValueFn, getIconTextureFn
 
     local wantsAura = false
     if trackBuffs and auras and auras.WantsAura then
-        local forceEntryAura = (settings.trackBuffs == true) or isAuraType
+        local forceEntryAura = (settings and settings.trackBuffs == true) or isAuraType or
+            (not cdInfo and trackBuffs == true)
         wantsAura = isForeverSeal or auras.WantsAura(cdInfo, forceEntryAura, linkedSpellIDs, activeID, cdID)
     end
 
-    local glowWhenMissing = (not isItem) and (settings.glowWhenMissing == true)
-        and (sfui.isRetail or (sfui.isEra and sfui.tracking.FindClassicAura ~= nil)) or false
+    local glowWhenMissing = (not isItem) and (settings and settings.glowWhenMissing == true)
+        and (sfui.isRetail or sfui.isCamelot or (sfui.isEra and sfui.tracking.FindClassicAura ~= nil)) or false
 
     desc._configRev = _configRev
     desc._rebuilt = true
@@ -284,4 +284,3 @@ function E.CompileDescriptor(icon, panelConfig, getIconValueFn, getIconTextureFn
 
     return desc
 end
-
