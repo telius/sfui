@@ -164,8 +164,8 @@ function sfui.mem.GetModuleStats()
     end
     stats["trackedicons"] = tiStats
 
-    if sfui.isRetail then
-        -- Tracked Buffs Module (Retail CDM Buff Icons)
+    if sfui.isRetail or sfui.isCamelot then
+        -- Tracked Buffs Module (Blizzard CDM Buff Icons)
         local tbuffStats = {
             name = "tracked buffs",
             status = "|cff888888idle|r",

@@ -5,22 +5,18 @@ sfui.tracking.auras = sfui.tracking.auras or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/tracking/auras.lua
---  shared cdm aura resolver for tracked icons and tracked bars
+--  watchlist-driven, incremental cdm aura engine for tracked icons & bars
 --
---  mirrors blizzard's CheckCacheCooldownValuesFromAura (CooldownViewer.lua:854): while
---  an aura tied to a cdm item is up, its duration takes precedence over the spell
---  cooldown. covers "cover spell" items such as forever's paladin "seals" (one cdm item
---  whose linkedSpellIDs list every seal), self buffs, and linked auras.
---
---  in combat on 12.x / forever (1.60.1), C_Secrets.ShouldAurasBeSecret() is true:
---    - C_UnitAuras.GetPlayerAuraBySpellID and GetAuraDataBySpellName have
---      RequiresNonSecretAura = true and return nil for normal player buffs.
---    - aura.auraInstanceID on unit auras is secret, and C_UnitAuras.GetAuraDuration
---      only accepts secret arguments from untainted callers.
---    - UNIT_SPELLCAST_SUCCEEDED on "player", however, is never secret, and
---      C_DurationUtil.CreateDuration() creates a plain LuaDurationObject that drives
---      StatusBar:SetTimerDuration, DurationTextBinding:SetDuration, and
---      Cooldown:SetCooldownFromDurationObject natively.
+--  mirrors blizzard's CooldownViewerMixin:OnUnitAura (CooldownViewer.lua:1812) and
+--  CheckCacheCooldownValuesFromAura (CooldownViewer.lua:854):
+--    - completely dormant (0 registered events, 0.00 ms) when watchlist is empty.
+--    - processes incremental UNIT_AURA UnitAuraUpdateInfo (removedAuraInstanceIDs,
+--      updatedAuraInstanceIDs, addedAuras) in O(1) without allocating GetUnitAuras
+--      tables, bumping revision ONLY when a watched aura changes.
+--    - combat-safe: never touches secret values or RequiresUnitAuraAccess APIs when
+--      C_Secrets.ShouldAurasBeSecret() is true; falls back to UNIT_SPELLCAST_SUCCEEDED
+--      plain LuaDurationObjects.
+--    - forever-specific paladin seal cover mechanics live in tracking_camelot.lua.
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local A = sfui.tracking.auras
@@ -30,6 +26,9 @@ local C_UnitAuras = C_UnitAuras
 local C_Secrets = _G.C_Secrets
 local C_DurationUtil = _G.C_DurationUtil
 local GetTime = GetTime
+local InCombatLockdown = InCombatLockdown
+local pairs = pairs
+local type = type
 local wipe = wipe or table.wipe
 local issecretvalue = sfui.common.issecretvalue
 
@@ -42,28 +41,42 @@ local _spellNameCache = {}
 local _spellTexCache = {}
 local _seenAuraNames = {}
 local _learnedDurations = {} -- [spellID or spellName] = plain duration in seconds
+
 local _castAurasBySpellID = {}
 local _castAurasByName = {}
-local _revision = 0
-local _lastHelpfulCount = 0
--- active automatically on forever (paladin seals); dormant on retail unless `trackBuffs` is opted in
-local _isEnabled = (sfui.isCamelot == true)
+local _castAurasList = {}
+local _watchedByInstanceID = {} -- [auraInstanceID] = castAuraEntry
 
-local _activeSeal = {
-    active = false,
-    spellID = nil,
-    name = nil,
-    icon = nil,
-    applications = 1,
-    startTime = 0,
-    duration = 0,
-    expirationTime = 0,
-    auraInstanceID = nil,
-    durationObj = nil,
-}
+-- weak O(1) cache for hidden blizzard cooldown viewer item frames
+local _blizzItemByCooldownID = setmetatable({}, { __mode = "v" })
+local _blizzItemIsAuraViewer = {}
+local _lastBlizzHasInstance = {}
+
+-- separate icon vs bar watchlists merged into combined lookup tables
+local _iconWatchedSpells = {}
+local _iconWatchedNames = {}
+local _iconWatchedCooldowns = {}
+local _iconWatchSeals = false
+local _iconWatchCount = 0
+
+local _barWatchedSpells = {}
+local _barWatchedNames = {}
+local _barWatchedCooldowns = {}
+local _barWatchSeals = false
+local _barWatchCount = 0
+
+local _watchedSpellIDs = {}
+local _watchedNames = {}
+local _watchedCooldownIDs = {}
+local _watchSeals = false
+local _watchCount = 0
+local _watchSignature = 0
+
+local _eventsRegistered = false
+local _revision = 1
 
 -- RequiresUnitAuraAccess (FailureMode = "Error") throws a Lua error if tainted code calls
--- GetUnitAuras, GetAuraDataByAuraInstanceID, or GetAuraDuration when auras are secret.
+-- GetAuraDataByIndex, GetAuraDataByAuraInstanceID, or GetAuraDuration when auras are secret.
 local function CanAccessUnitAuras()
     if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then
         return false
@@ -78,6 +91,7 @@ A.CanAccessUnitAuras = CanAccessUnitAuras
 local function BumpRevision()
     _revision = _revision + 1
 end
+A.BumpRevision = BumpRevision
 
 function A.GetRevision()
     return _revision
@@ -85,13 +99,15 @@ end
 
 local function NotifyTrackingDirty()
     BumpRevision()
-    if sfui.trackedbars then
+    if _barWatchCount > 0 and sfui.trackedbars
+        and (not sfui.trackedbars.HasSelfDrivenBars or sfui.trackedbars.HasSelfDrivenBars()) then
         sfui.trackedbars.isDirty = true
     end
-    if sfui.trackedicons and sfui.trackedicons.MarkDirty then
+    if _iconWatchCount > 0 and sfui.trackedicons and sfui.trackedicons.MarkDirty then
         sfui.trackedicons.MarkDirty(false)
     end
 end
+A.NotifyTrackingDirty = NotifyTrackingDirty
 
 local function GetCachedSpellName(spellID)
     if not spellID or issecretvalue(spellID) or spellID == 0 then return nil end
@@ -107,6 +123,7 @@ local function GetCachedSpellName(spellID)
     end
     return name or nil
 end
+A.GetCachedSpellName = GetCachedSpellName
 
 local function GetCachedSpellTexture(spellID)
     if not spellID or issecretvalue(spellID) or spellID == 0 then return nil end
@@ -122,11 +139,7 @@ local function GetCachedSpellTexture(spellID)
     end
     return tex or nil
 end
-
-local function IsSealName(name)
-    if not name or issecretvalue(name) or type(name) ~= "string" then return false end
-    return string.find(name, "^Seal of ") ~= nil
-end
+A.GetCachedSpellTexture = GetCachedSpellTexture
 
 local function EnsureDurationObj(holder, startTime, duration)
     if not C_DurationUtil or not C_DurationUtil.CreateDuration then return nil end
@@ -142,6 +155,17 @@ local function EnsureDurationObj(holder, startTime, duration)
     end
     return dObj
 end
+A.EnsureDurationObj = EnsureDurationObj
+
+function A.LearnDuration(spellID, name, dur)
+    if not dur or dur <= 0 then return end
+    if name then _learnedDurations[name] = dur end
+    if spellID and spellID > 0 then _learnedDurations[spellID] = dur end
+end
+
+function A.GetLearnedDuration(spellID, name)
+    return (spellID and _learnedDurations[spellID]) or (name and _learnedDurations[name]) or nil
+end
 
 -- plain (non-secret) field read from aura data, or nil
 function A.PlainField(aura, key)
@@ -152,84 +176,34 @@ function A.PlainField(aura, key)
     return nil
 end
 
--- true for synthetic umbrella cdm entries on forever (paladin "seals" 200340 / 1323522)
--- whose base spell is never in the player's spellbook
-function A.IsCoverSpell(cdInfo, cooldownID, spellID)
-    if not sfui.isCamelot then return false end
-    local cid = cooldownID or (cdInfo and cdInfo.cooldownID)
-    if cid and not issecretvalue(cid) and cid == A.SEALS_COOLDOWN_ID then
-        return true
-    end
-    local sid = spellID or (cdInfo and (cdInfo.overrideSpellID or cdInfo.spellID))
-    if sid and not issecretvalue(sid) and sid == A.SEALS_SPELL_ID then
-        return true
-    end
+-- default stubs on retail / classic era (overridden by tracking_camelot.lua on forever)
+function A.IsCoverSpell(_cdInfo, _cooldownID, _spellID)
     return false
 end
 
-function A.IsSealSpell(spellID)
-    if not sfui.isCamelot then return false end
-    if not spellID or issecretvalue(spellID) or spellID == 0 then return false end
-    if spellID == A.SEALS_SPELL_ID then return true end
-    return IsSealName(GetCachedSpellName(spellID))
+function A.IsSealSpell(_spellID)
+    return false
 end
 
-function A.IsForeverSealEntry(entry, cdInfo, activeSpellID)
-    if not sfui.isCamelot then return false end
-    local isTbl = type(entry) == "table"
-    local cdID = (isTbl and entry.cooldownID)
-        or (isTbl and entry.type == "cooldown" and tonumber(entry.id))
-        or (cdInfo and cdInfo.cooldownID)
-    local sid = activeSpellID
-        or (isTbl and entry.spellID)
-        or (isTbl and entry.type ~= "cooldown" and entry.type ~= "item" and tonumber(entry.id))
-        or (cdInfo and (cdInfo.overrideSpellID or cdInfo.spellID))
-    return A.IsCoverSpell(cdInfo, cdID, sid) or A.IsSealSpell(sid)
+function A.IsForeverSealEntry(_entry, _cdInfo, _activeSpellID)
+    return false
 end
 
--- true when a cdm entry should be treated as known by the player, even if blizzard's
--- C_CooldownViewer marks cdInfo.isKnown = false on a forever synthetic cover spell
 function A.IsCooldownItemKnown(cdInfo, cooldownID)
     if not cdInfo then return true end
     if cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0) then
         return true
     end
     if cdInfo.isKnown ~= false then return true end
-    if not sfui.isCamelot then return false end
-    if A.IsCoverSpell(cdInfo, cooldownID) then return true end
-
-    local isKnownFn = sfui.common and sfui.common.is_spell_known
-    local baseID = cdInfo.overrideSpellID or cdInfo.spellID
-    if baseID and not issecretvalue(baseID) and baseID > 0 and isKnownFn and isKnownFn(baseID) then
-        return true
+    local camelot = sfui.tracking.camelot
+    if camelot and camelot.IsCooldownItemKnownFallback then
+        return camelot.IsCooldownItemKnownFallback(cdInfo, cooldownID)
     end
-
-    local linked = cdInfo.linkedSpellIDs
-    if linked and #linked > 0 then
-        local getSpellInfo = C_Spell and C_Spell.GetSpellInfo
-        for i = 1, #linked do
-            local lid = linked[i]
-            if lid and not issecretvalue(lid) and lid > 0 then
-                if isKnownFn and isKnownFn(lid) then
-                    return true
-                end
-                -- classic ranks: linkedSpellIDs may list rank 1 while the player knows rank 2+
-                if getSpellInfo then
-                    local name = GetCachedSpellName(lid)
-                    if name and getSpellInfo(name) ~= nil then
-                        return true
-                    end
-                end
-            end
-        end
-    end
-
     return false
 end
 
 -- blizzard viewers whose item frames keep a live auraInstanceID (updated by secure code,
--- even while sfui keeps the viewers hidden). cooldown viewers set it too when an item's
--- aura takes precedence (e.g. the "seals" item sitting in the essential viewer).
+-- even while sfui keeps the viewers hidden). indices 1-2 are dedicated aura viewers.
 local BLIZZ_VIEWERS = {
     "BuffIconCooldownViewer",
     "BuffBarCooldownViewer",
@@ -238,23 +212,31 @@ local BLIZZ_VIEWERS = {
 }
 
 local function FindBlizzItem(cooldownID)
-    if not cooldownID then return nil end
+    if not cooldownID then return nil, false end
+    local cached = _blizzItemByCooldownID[cooldownID]
+    if cached and cached.cooldownID == cooldownID then
+        return cached, _blizzItemIsAuraViewer[cooldownID] == true
+    end
     for i = 1, #BLIZZ_VIEWERS do
         local viewer = _G[BLIZZ_VIEWERS[i]]
         local pool = viewer and viewer.itemFramePool
         if pool then
             for itemFrame in pool:EnumerateActive() do
                 if itemFrame.cooldownID == cooldownID then
-                    return itemFrame
+                    local isAuraViewer = (i <= 2)
+                    _blizzItemByCooldownID[cooldownID] = itemFrame
+                    _blizzItemIsAuraViewer[cooldownID] = isAuraViewer
+                    return itemFrame, isAuraViewer
                 end
             end
         end
     end
-    return nil
+    _blizzItemByCooldownID[cooldownID] = nil
+    _blizzItemIsAuraViewer[cooldownID] = nil
+    return nil, false
 end
 A.FindBlizzItem = FindBlizzItem
 
--- true when an opted-in entry has an aura duration that can be displayed over its cooldown
 function A.WantsAura(cdInfo, forceAura, linkedSpellIDs, spellID, cooldownID)
     local checkID = spellID or (cdInfo and (cdInfo.overrideSpellID or cdInfo.spellID))
     local wants = forceAura
@@ -274,8 +256,6 @@ local function AddCandidate(list, seen, id)
     end
 end
 
--- builds (and caches on `holder`) the spell ids that may carry the aura.
--- returns the list and whether it was rebuilt (holder re-used for a new entry).
 function A.GetCandidates(holder, activeID, linkedSpellIDs, cdInfo)
     if holder._auraCandidates and holder._auraCandActive == activeID and holder._auraCandLinked == linkedSpellIDs then
         return holder._auraCandidates, false
@@ -305,155 +285,480 @@ local function HasCandidate(candidates, targetID)
     end
     return false
 end
+A.HasCandidate = HasCandidate
 
 local function RecordCastAura(spellID, name, icon, startTime, duration, auraInstanceID, applications)
-    if not duration or duration <= 0 then return nil end
+    if not duration or duration <= 0 then return nil, false end
     local entry = (spellID and _castAurasBySpellID[spellID]) or (name and _castAurasByName[name])
     if not entry then
         entry = {}
+        _castAurasList[#_castAurasList + 1] = entry
+    elseif entry.auraInstanceID and entry.auraInstanceID ~= auraInstanceID then
+        _watchedByInstanceID[entry.auraInstanceID] = nil
     end
+
+    local exp = startTime + duration
+    local apps = applications or 1
+    local changed = (not entry.active)
+        or (entry.spellID ~= (spellID or entry.spellID))
+        or (entry.applications ~= apps)
+        or (entry.auraInstanceID ~= auraInstanceID)
+        or (math.abs((entry.expirationTime or 0) - exp) > 0.5)
+
     entry.active = true
     entry.spellID = spellID or entry.spellID
     entry.name = name or entry.name
     entry.icon = icon or entry.icon
-    entry.applications = applications or 1
+    entry.applications = apps
     entry.startTime = startTime
     entry.duration = duration
-    entry.expirationTime = startTime + duration
+    entry.expirationTime = exp
     entry.auraInstanceID = auraInstanceID
     EnsureDurationObj(entry, startTime, duration)
+
     if spellID then _castAurasBySpellID[spellID] = entry end
     if name then _castAurasByName[name] = entry end
-    return entry
+    if auraInstanceID then _watchedByInstanceID[auraInstanceID] = entry end
+    return entry, changed
 end
 
--- synchronises _activeSeal and learned durations whenever player buffs are readable,
--- or validates combat expiration when player buffs are secret.
-local function SyncPlayerBuffs(updateInfo)
+local function UpdateFromReadableAura(aura, now)
+    local name = A.PlainField(aura, "name")
+    local sid = A.PlainField(aura, "spellId")
+    if not name and not sid then return nil, false end
+
+    local dur = A.PlainField(aura, "duration")
+    local exp = A.PlainField(aura, "expirationTime")
+    local iid = A.PlainField(aura, "auraInstanceID")
+    local icon = A.PlainField(aura, "icon")
+    local apps = A.PlainField(aura, "applications")
+
+    if dur and dur > 0 then
+        A.LearnDuration(sid, name, dur)
+        if exp and exp > now then
+            return RecordCastAura(sid, name, icon, exp - dur, dur, iid, apps)
+        end
+    end
+    return nil, false
+end
+
+local function CheckWatchedBlizzInstances()
+    local changed = false
+    for cdID in pairs(_watchedCooldownIDs) do
+        local blizz = FindBlizzItem(cdID)
+        local hasInst = (blizz and blizz.auraDataUnit ~= "target" and sfui.common.HasAuraInstanceID(blizz.auraInstanceID)) and true or false
+        if _lastBlizzHasInstance[cdID] ~= hasInst then
+            _lastBlizzHasInstance[cdID] = hasInst
+            changed = true
+        end
+    end
+    return changed
+end
+
+local function CheckCombatExpirations(now)
+    local changed = false
+    local camelot = sfui.tracking.camelot
+    if _watchSeals and camelot and camelot.CheckSealExpiration and camelot.CheckSealExpiration(now) then
+        changed = true
+    end
+    for i = 1, #_castAurasList do
+        local entry = _castAurasList[i]
+        if entry.active and entry.expirationTime and entry.expirationTime > 0 and now >= entry.expirationTime then
+            entry.active = false
+            if entry.auraInstanceID then
+                _watchedByInstanceID[entry.auraInstanceID] = nil
+                entry.auraInstanceID = nil
+            end
+            EnsureDurationObj(entry, nil, nil)
+            changed = true
+        end
+    end
+    if CheckWatchedBlizzInstances() then
+        changed = true
+    end
+    return changed
+end
+
+-- full watched-only resync (entering world, leaving combat, watchlist changes, or isFullUpdate)
+local _seenEntries = {}
+local function SyncFullPlayerBuffs()
     local now = GetTime()
     if not CanAccessUnitAuras() then
-        -- in combat with secret aura data: never call RequiresUnitAuraAccess APIs
-        if _activeSeal.active and _activeSeal.expirationTime and _activeSeal.expirationTime > 0 and now >= _activeSeal.expirationTime then
-            _activeSeal.active = false
-            _activeSeal.auraInstanceID = nil
-            EnsureDurationObj(_activeSeal, nil, nil)
-            BumpRevision()
+        return CheckCombatExpirations(now)
+    end
+    if not C_UnitAuras then return false end
+
+    local changed = CheckWatchedBlizzInstances()
+    wipe(_seenEntries)
+    wipe(_watchedByInstanceID)
+
+    local camelot = sfui.tracking.camelot
+    if _watchSeals and camelot and C_UnitAuras.GetAuraDataByIndex then
+        local foundSeal = nil
+        local checkIndexSecret = C_Secrets and C_Secrets.ShouldUnitAuraIndexBeSecret
+        for i = 1, 40 do
+            if not (checkIndexSecret and checkIndexSecret("player", i, "HELPFUL")) then
+                local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
+                if not aura then break end
+                local name = A.PlainField(aura, "name")
+                local sid = A.PlainField(aura, "spellId")
+                if camelot.IsSealName(name) then
+                    foundSeal = aura
+                end
+                if (sid and _watchedSpellIDs[sid]) or (name and _watchedNames[name]) then
+                    local entry, entryChanged = UpdateFromReadableAura(aura, now)
+                    if entry then _seenEntries[entry] = true end
+                    if entryChanged then changed = true end
+                end
+            end
+        end
+        if camelot.SyncSealFromFullScan(foundSeal, now) then
+            changed = true
+        end
+    else
+        -- zero-scan path: query only explicitly watched spell ids and names
+        local getBySpellID = C_UnitAuras.GetPlayerAuraBySpellID
+        local checkSpellSecret = C_Secrets and C_Secrets.ShouldSpellAuraBeSecret
+        wipe(_seenAuraNames)
+        if getBySpellID then
+            for sid in pairs(_watchedSpellIDs) do
+                if not (checkSpellSecret and checkSpellSecret(sid)) then
+                    local aura = getBySpellID(sid)
+                    if aura then
+                        local entry, entryChanged = UpdateFromReadableAura(aura, now)
+                        if entry then
+                            _seenEntries[entry] = true
+                            if entry.name then _seenAuraNames[entry.name] = true end
+                        end
+                        if entryChanged then changed = true end
+                    end
+                end
+            end
+        end
+        local getByName = C_UnitAuras.GetAuraDataBySpellName
+        if getByName then
+            for name in pairs(_watchedNames) do
+                if not _seenAuraNames[name] then
+                    _seenAuraNames[name] = true
+                    local aura = getByName("player", name, "HELPFUL|PLAYER") or getByName("player", name, "HELPFUL")
+                    if aura then
+                        local entry, entryChanged = UpdateFromReadableAura(aura, now)
+                        if entry then _seenEntries[entry] = true end
+                        if entryChanged then changed = true end
+                    end
+                end
+            end
+        end
+    end
+
+    for i = 1, #_castAurasList do
+        local entry = _castAurasList[i]
+        if entry.active and not _seenEntries[entry] then
+            entry.active = false
+            entry.auraInstanceID = nil
+            EnsureDurationObj(entry, nil, nil)
+            changed = true
+        end
+    end
+
+    return changed
+end
+
+-- incremental UNIT_AURA handler mirroring CooldownViewerMixin:OnUnitAura
+local function OnUnitAura(_event, _unit, updateInfo)
+    if _watchCount == 0 then return end
+    local now = GetTime()
+
+    if not CanAccessUnitAuras() then
+        if CheckCombatExpirations(now) then
+            NotifyTrackingDirty()
         end
         return
     end
 
-    if not C_UnitAuras or not C_UnitAuras.GetUnitAuras then return end
-    local auras = C_UnitAuras.GetUnitAuras("player", "HELPFUL")
-    if not auras then return end
+    if not updateInfo or issecretvalue(updateInfo) or A.PlainField(updateInfo, "isFullUpdate") then
+        if SyncFullPlayerBuffs() then
+            NotifyTrackingDirty()
+        end
+        return
+    end
 
-    local count = #auras
-    local readableAny = (count == 0)
-    local foundSeal = nil
+    local changed = CheckWatchedBlizzInstances()
+    local camelot = sfui.tracking.camelot
 
-    for i = 1, count do
-        local aura = auras[i]
-        local name = A.PlainField(aura, "name")
-        if name then
-            readableAny = true
-            local sid = A.PlainField(aura, "spellId")
-            local dur = A.PlainField(aura, "duration")
-            local exp = A.PlainField(aura, "expirationTime")
-            local iid = A.PlainField(aura, "auraInstanceID")
-            local icon = A.PlainField(aura, "icon")
-            local apps = A.PlainField(aura, "applications")
-
-            if dur and dur > 0 then
-                _learnedDurations[name] = dur
-                if sid and sid > 0 then
-                    _learnedDurations[sid] = dur
+    local removed = A.PlainField(updateInfo, "removedAuraInstanceIDs")
+    if removed then
+        for i = 1, #removed do
+            local iid = removed[i]
+            if iid and not issecretvalue(iid) then
+                local entry = _watchedByInstanceID[iid]
+                if entry then
+                    _watchedByInstanceID[iid] = nil
+                    entry.active = false
+                    entry.auraInstanceID = nil
+                    EnsureDurationObj(entry, nil, nil)
+                    changed = true
                 end
-                if exp and exp > now then
-                    RecordCastAura(sid, name, icon, exp - dur, dur, iid, apps)
+                if _watchSeals and camelot and camelot.OnAuraRemoved and camelot.OnAuraRemoved(iid) then
+                    changed = true
                 end
-            end
-
-            if sfui.isCamelot and IsSealName(name) then
-                foundSeal = aura
             end
         end
     end
 
-    if sfui.isCamelot and readableAny then
-        if foundSeal then
-            local sid = A.PlainField(foundSeal, "spellId")
-            local name = A.PlainField(foundSeal, "name")
-            local icon = A.PlainField(foundSeal, "icon") or GetCachedSpellTexture(sid)
-            local apps = A.PlainField(foundSeal, "applications") or 1
-            local dur = A.PlainField(foundSeal, "duration") or _learnedDurations[sid] or _learnedDurations[name] or A.DEFAULT_SEAL_DURATION
-            local exp = A.PlainField(foundSeal, "expirationTime")
-            local iid = A.PlainField(foundSeal, "auraInstanceID")
-            local start = (exp and dur and dur > 0 and exp > 0) and (exp - dur) or now
-            if not exp or exp <= 0 then
-                exp = start + dur
+    local updated = A.PlainField(updateInfo, "updatedAuraInstanceIDs")
+    if updated and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
+        for i = 1, #updated do
+            local iid = updated[i]
+            if iid and not issecretvalue(iid) then
+                local entry = _watchedByInstanceID[iid]
+                local isSeal = _watchSeals and camelot and camelot.IsActiveSealInstance and camelot.IsActiveSealInstance(iid)
+                if entry or isSeal then
+                    local aura = C_UnitAuras.GetAuraDataByAuraInstanceID("player", iid)
+                    if aura then
+                        if isSeal and camelot.UpdateFromAuraData(aura, now) then
+                            changed = true
+                        end
+                        if entry then
+                            local _, entryChanged = UpdateFromReadableAura(aura, now)
+                            if entryChanged then changed = true end
+                        end
+                    else
+                        if entry then
+                            _watchedByInstanceID[iid] = nil
+                            entry.active = false
+                            entry.auraInstanceID = nil
+                            EnsureDurationObj(entry, nil, nil)
+                            changed = true
+                        end
+                        if isSeal and camelot.OnAuraRemoved(iid) then
+                            changed = true
+                        end
+                    end
+                end
             end
-
-            local changed = (not _activeSeal.active)
-                or (_activeSeal.spellID ~= sid)
-                or (_activeSeal.name ~= name)
-                or (_activeSeal.auraInstanceID ~= iid)
-                or (math.abs((_activeSeal.expirationTime or 0) - exp) > 0.5)
-
-            _activeSeal.active = true
-            _activeSeal.spellID = sid
-            _activeSeal.name = name
-            _activeSeal.icon = icon
-            _activeSeal.applications = apps
-            _activeSeal.startTime = start
-            _activeSeal.duration = dur
-            _activeSeal.expirationTime = exp
-            _activeSeal.auraInstanceID = iid
-            EnsureDurationObj(_activeSeal, start, dur)
-
-            if changed then
-                BumpRevision()
-            end
-        elseif _activeSeal.active then
-            _activeSeal.active = false
-            _activeSeal.auraInstanceID = nil
-            EnsureDurationObj(_activeSeal, nil, nil)
-            BumpRevision()
         end
     end
 
-    _lastHelpfulCount = count
+    local added = A.PlainField(updateInfo, "addedAuras")
+    if added then
+        for i = 1, #added do
+            local aura = added[i]
+            if aura and not issecretvalue(aura) then
+                local name = A.PlainField(aura, "name")
+                local sid = A.PlainField(aura, "spellId")
+                if _watchSeals and camelot and camelot.IsSealName(name) then
+                    if camelot.UpdateFromAuraData(aura, now) then
+                        changed = true
+                    end
+                end
+                if (sid and _watchedSpellIDs[sid]) or (name and _watchedNames[name]) then
+                    local _, entryChanged = UpdateFromReadableAura(aura, now)
+                    if entryChanged then
+                        changed = true
+                    end
+                end
+            end
+        end
+    end
+
+    if changed then
+        NotifyTrackingDirty()
+    end
 end
 
-local function GetActiveSealForCandidates(cooldownID, candidates)
-    if not sfui.isCamelot or not _activeSeal.active then return nil end
-    local now = GetTime()
-    if _activeSeal.expirationTime and _activeSeal.expirationTime > 0 and now >= _activeSeal.expirationTime then
-        _activeSeal.active = false
-        return nil
+local function OnUnitSpellCastSucceeded(_event, _unit, _castGUID, spellID)
+    if _watchCount == 0 then return end
+    if not spellID or issecretvalue(spellID) or type(spellID) ~= "number" or spellID <= 0 then
+        return
     end
-    if CanAccessUnitAuras() and _activeSeal.auraInstanceID and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
-        if C_UnitAuras.GetAuraDataByAuraInstanceID("player", _activeSeal.auraInstanceID) == nil then
-            _activeSeal.active = false
-            _activeSeal.auraInstanceID = nil
-            return nil
+
+    local name = GetCachedSpellName(spellID)
+    local now = GetTime()
+    local camelot = sfui.tracking.camelot
+
+    if _watchSeals and camelot and camelot.OnSpellCastSucceeded then
+        local icon = GetCachedSpellTexture(spellID)
+        if camelot.OnSpellCastSucceeded(spellID, name, icon, now) then
+            NotifyTrackingDirty()
+            return
         end
     end
 
-    if cooldownID == A.SEALS_COOLDOWN_ID or HasCandidate(candidates, A.SEALS_SPELL_ID) then
-        return _activeSeal
+    if not _watchedSpellIDs[spellID] and not (name and _watchedNames[name]) then
+        return
     end
-    if candidates then
-        for i = 1, #candidates do
-            local cid = candidates[i]
-            if cid == _activeSeal.spellID then
-                return _activeSeal
+
+    local dur = _learnedDurations[spellID]
+        or (name and _learnedDurations[name])
+        or (sfui.common and sfui.common.GetAuraDefaultDuration and sfui.common.GetAuraDefaultDuration(spellID))
+    if dur and dur > 0 then
+        local icon = GetCachedSpellTexture(spellID)
+        RecordCastAura(spellID, name, icon, now, dur, nil, 1)
+        NotifyTrackingDirty()
+    end
+end
+
+local function OnFullSyncEvent()
+    if _watchCount == 0 then return end
+    if SyncFullPlayerBuffs() then
+        NotifyTrackingDirty()
+    end
+end
+
+local function UpdateEventSubscriptions(signatureChanged)
+    if not sfui.events then return end
+    if _watchCount > 0 then
+        if not _eventsRegistered then
+            _eventsRegistered = true
+            sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", OnUnitSpellCastSucceeded)
+            sfui.events.RegisterUnitEvent("UNIT_AURA", "player", OnUnitAura)
+            sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnFullSyncEvent)
+            sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", OnFullSyncEvent)
+            sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", OnFullSyncEvent)
+            if SyncFullPlayerBuffs() then
+                BumpRevision()
             end
+        elseif signatureChanged then
+            if SyncFullPlayerBuffs() then
+                BumpRevision()
+            end
+        end
+    elseif _eventsRegistered then
+        _eventsRegistered = false
+        sfui.events.UnregisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", OnUnitSpellCastSucceeded)
+        sfui.events.UnregisterUnitEvent("UNIT_AURA", "player", OnUnitAura)
+        sfui.events.UnregisterEvent("PLAYER_ENTERING_WORLD", OnFullSyncEvent)
+        sfui.events.UnregisterEvent("PLAYER_REGEN_DISABLED", OnFullSyncEvent)
+        sfui.events.UnregisterEvent("PLAYER_REGEN_ENABLED", OnFullSyncEvent)
+        wipe(_watchedByInstanceID)
+        wipe(_lastBlizzHasInstance)
+        for i = 1, #_castAurasList do
+            local entry = _castAurasList[i]
+            entry.active = false
+            entry.auraInstanceID = nil
+            EnsureDurationObj(entry, nil, nil)
+        end
+        local camelot = sfui.tracking.camelot
+        if camelot and camelot.ClearActiveSeal then
+            camelot.ClearActiveSeal()
+        end
+        BumpRevision()
+    end
+end
+
+local function RebuildCombinedWatchlist()
+    wipe(_watchedSpellIDs)
+    wipe(_watchedNames)
+    wipe(_watchedCooldownIDs)
+
+    local sig = 0
+    for sid in pairs(_iconWatchedSpells) do
+        _watchedSpellIDs[sid] = true
+        sig = sig + sid
+    end
+    for sid in pairs(_barWatchedSpells) do
+        if not _watchedSpellIDs[sid] then
+            _watchedSpellIDs[sid] = true
+            sig = sig + sid
+        end
+    end
+    for name in pairs(_iconWatchedNames) do
+        _watchedNames[name] = true
+        sig = sig + #name
+    end
+    for name in pairs(_barWatchedNames) do
+        if not _watchedNames[name] then
+            _watchedNames[name] = true
+            sig = sig + #name
+        end
+    end
+    for cdID in pairs(_iconWatchedCooldowns) do
+        _watchedCooldownIDs[cdID] = true
+        sig = sig + cdID * 3
+    end
+    for cdID in pairs(_barWatchedCooldowns) do
+        if not _watchedCooldownIDs[cdID] then
+            _watchedCooldownIDs[cdID] = true
+            sig = sig + cdID * 3
+        end
+    end
+
+    local prevSeals = _watchSeals
+    _watchSeals = _iconWatchSeals or _barWatchSeals
+    if _watchSeals then sig = sig + 999983 end
+
+    _watchCount = _iconWatchCount + _barWatchCount
+    local signatureChanged = (sig ~= _watchSignature) or (prevSeals ~= _watchSeals)
+    _watchSignature = sig
+
+    UpdateEventSubscriptions(signatureChanged)
+end
+
+local function AddCandidatesToSet(candidates, spellSet, nameSet)
+    if not candidates then return end
+    for i = 1, #candidates do
+        local cid = candidates[i]
+        if cid and not issecretvalue(cid) and cid > 0 then
+            spellSet[cid] = true
             local cname = GetCachedSpellName(cid)
-            if cname and cname == _activeSeal.name then
-                return _activeSeal
+            if cname then
+                nameSet[cname] = true
             end
         end
     end
-    return nil
+end
+
+function A.SetIconWatchlist(descriptors)
+    wipe(_iconWatchedSpells)
+    wipe(_iconWatchedNames)
+    wipe(_iconWatchedCooldowns)
+    _iconWatchSeals = false
+    _iconWatchCount = 0
+
+    if descriptors then
+        for i = 1, #descriptors do
+            local desc = descriptors[i]
+            if desc and (desc.wantsAura or desc.trackBuffs or desc.glowWhenMissing) then
+                _iconWatchCount = _iconWatchCount + 1
+                if desc.isForeverSeal then
+                    _iconWatchSeals = true
+                end
+                if desc.cooldownID then
+                    _iconWatchedCooldowns[desc.cooldownID] = true
+                end
+                AddCandidatesToSet(desc.auraCandidates, _iconWatchedSpells, _iconWatchedNames)
+            end
+        end
+    end
+
+    RebuildCombinedWatchlist()
+end
+
+function A.SetBarWatchlist(barEntries)
+    wipe(_barWatchedSpells)
+    wipe(_barWatchedNames)
+    wipe(_barWatchedCooldowns)
+    _barWatchSeals = false
+    _barWatchCount = 0
+
+    if barEntries then
+        for i = 1, #barEntries do
+            local b = barEntries[i]
+            if b then
+                _barWatchCount = _barWatchCount + 1
+                if b.isForeverSeal then
+                    _barWatchSeals = true
+                end
+                if b.cooldownID then
+                    _barWatchedCooldowns[b.cooldownID] = true
+                end
+                AddCandidatesToSet(b.candidates, _barWatchedSpells, _barWatchedNames)
+            end
+        end
+    end
+
+    RebuildCombinedWatchlist()
 end
 
 local function GetActiveCastAuraForCandidates(candidates)
@@ -474,6 +779,7 @@ local function GetActiveCastAuraForCandidates(candidates)
                 entry.active = false
             elseif canAccess and entry.auraInstanceID and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID
                 and C_UnitAuras.GetAuraDataByAuraInstanceID("player", entry.auraInstanceID) == nil then
+                _watchedByInstanceID[entry.auraInstanceID] = nil
                 entry.active = false
                 entry.auraInstanceID = nil
             else
@@ -485,9 +791,12 @@ local function GetActiveCastAuraForCandidates(candidates)
 end
 
 local function ResolveCombatFallback(cooldownID, candidates)
-    local seal = GetActiveSealForCandidates(cooldownID, candidates)
-    if seal then
-        return seal.auraInstanceID, seal, true
+    local camelot = sfui.tracking.camelot
+    if camelot and camelot.GetActiveSealForCandidates then
+        local seal = camelot.GetActiveSealForCandidates(cooldownID, candidates)
+        if seal then
+            return seal.auraInstanceID, seal, true
+        end
     end
     local castAura = GetActiveCastAuraForCandidates(candidates)
     if castAura then
@@ -497,12 +806,10 @@ local function ResolveCombatFallback(cooldownID, candidates)
 end
 
 -- returns auraInstanceID, auraData, present
--- when auras are secret in combat, auraData may be a synthetic state table carrying a
--- plain .durationObj, .name, .icon, and .applications so bars and icons work seamlessly.
 function A.Resolve(cooldownID, candidates)
     local canAccess = CanAccessUnitAuras()
 
-    -- 1. hidden blizzard viewer item
+    -- 1. hidden blizzard viewer item (O(1) weak-cached lookup)
     local blizz = FindBlizzItem(cooldownID)
     if blizz and blizz.auraDataUnit == "player" and sfui.common.HasAuraInstanceID(blizz.auraInstanceID) then
         local iid = blizz.auraInstanceID
@@ -522,24 +829,28 @@ function A.Resolve(cooldownID, candidates)
 
     -- 2. by spell id across linked / override / base ids
     local getBySpellID = C_UnitAuras.GetPlayerAuraBySpellID
+    local checkSpellSecret = C_Secrets and C_Secrets.ShouldSpellAuraBeSecret
     if getBySpellID then
         for i = 1, #candidates do
-            local aura = getBySpellID(candidates[i])
-            if aura then
-                local iid = aura.auraInstanceID
-                if iid and not issecretvalue(iid) then
-                    return iid, aura, true
+            local cid = candidates[i]
+            if not (checkSpellSecret and checkSpellSecret(cid)) then
+                local aura = getBySpellID(cid)
+                if aura then
+                    local iid = aura.auraInstanceID
+                    if iid and not issecretvalue(iid) then
+                        return iid, aura, true
+                    end
+                    local fbIID, fbAura, fbPresent = ResolveCombatFallback(cooldownID, candidates)
+                    if fbPresent then
+                        return fbIID, fbAura, true
+                    end
+                    return nil, aura, true
                 end
-                local fbIID, fbAura, fbPresent = ResolveCombatFallback(cooldownID, candidates)
-                if fbPresent then
-                    return fbIID, fbAura, true
-                end
-                return nil, aura, true
             end
         end
     end
 
-    -- 3. by name: classic ranks share a name but not a spell id (seal rank 1..n)
+    -- 3. by name: classic ranks share a name but not a spell id (rank 1..n)
     local getByName = C_UnitAuras.GetAuraDataBySpellName
     if getByName then
         wipe(_seenAuraNames)
@@ -555,30 +866,10 @@ function A.Resolve(cooldownID, candidates)
         end
     end
 
-    -- 4. forever-only paladin "seals" cover item fallback: catch any active player buff named "Seal of ..."
-    --    even if a custom forever seal or rank is missing from linkedSpellIDs
-    if sfui.isCamelot and C_UnitAuras.GetUnitAuras
-        and (cooldownID == A.SEALS_COOLDOWN_ID or HasCandidate(candidates, A.SEALS_SPELL_ID)) then
-        local auras = C_UnitAuras.GetUnitAuras("player", "HELPFUL")
-        if auras then
-            for i = 1, #auras do
-                local aura = auras[i]
-                local name = aura and aura.name
-                local iid = aura and aura.auraInstanceID
-                if name and not issecretvalue(name) and iid and not issecretvalue(iid)
-                    and string.find(name, "^Seal of ") then
-                    return iid, aura, true
-                end
-            end
-        end
-    end
-
-    -- 5. combat-safe cast/snapshot tracker (handles secret auras in combat + rank mismatches)
+    -- 4. combat-safe cast / incremental seal snapshot tracker
     return ResolveCombatFallback(cooldownID, candidates)
 end
 
--- duration object for a resolved aura: uses C_UnitAuras.GetAuraDuration when plain and
--- unrestricted, or falls back to the plain LuaDurationObject built from spellcast / snapshot.
 function A.GetDuration(auraInstanceID, aura)
     if CanAccessUnitAuras() and auraInstanceID and not issecretvalue(auraInstanceID)
         and C_UnitAuras and C_UnitAuras.GetAuraDuration then
@@ -594,70 +885,15 @@ function A.GetDuration(auraInstanceID, aura)
 end
 
 function A.IsEnabled()
-    return _isEnabled
+    return _eventsRegistered
 end
 
 function A.Enable()
-    if not _isEnabled then
-        _isEnabled = true
-        SyncPlayerBuffs(nil)
+    if _eventsRegistered and SyncFullPlayerBuffs() then
+        BumpRevision()
     end
 end
 
--- ─── event wiring for combat-safe seal & opt-in self-buff tracking ───────────
-if sfui.events then
-    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(event, unit, castGUID, spellID)
-        if not _isEnabled then return end
-        if not spellID or issecretvalue(spellID) or type(spellID) ~= "number" or spellID <= 0 then
-            return
-        end
-        local name = GetCachedSpellName(spellID)
-        local icon = GetCachedSpellTexture(spellID)
-        local now = GetTime()
-
-        if sfui.isCamelot and (IsSealName(name) or spellID == A.SEALS_SPELL_ID) then
-            local dur = _learnedDurations[spellID] or (name and _learnedDurations[name]) or A.DEFAULT_SEAL_DURATION
-            _activeSeal.active = true
-            _activeSeal.spellID = spellID
-            _activeSeal.name = name
-            _activeSeal.icon = icon
-            _activeSeal.applications = 1
-            _activeSeal.startTime = now
-            _activeSeal.duration = dur
-            _activeSeal.expirationTime = now + dur
-            _activeSeal.auraInstanceID = nil
-            EnsureDurationObj(_activeSeal, now, dur)
-            NotifyTrackingDirty()
-            return
-        end
-
-        local dur = _learnedDurations[spellID]
-            or (name and _learnedDurations[name])
-            or (sfui.common and sfui.common.GetAuraDefaultDuration and sfui.common.GetAuraDefaultDuration(spellID))
-        if dur and dur > 0 then
-            RecordCastAura(spellID, name, icon, now, dur, nil, 1)
-            NotifyTrackingDirty()
-        end
-    end)
-
-    sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function(event, unit, updateInfo)
-        if not _isEnabled then return end
-        SyncPlayerBuffs(updateInfo)
-    end)
-
-    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-        if not _isEnabled then return end
-        SyncPlayerBuffs(nil)
-    end)
-
-    sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-        if not _isEnabled then return end
-        SyncPlayerBuffs(nil)
-    end)
-
-    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        if not _isEnabled then return end
-        SyncPlayerBuffs(nil)
-        NotifyTrackingDirty()
-    end)
+function A.GetWatchCount()
+    return _watchCount
 end

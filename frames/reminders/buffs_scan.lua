@@ -652,6 +652,16 @@ local function ScanTracking(entry, disabledBuffs)
     return false, 0, 0, 0, nil
 end
 
+local scanners = {
+    aura = ScanPlayerAura,
+    aura_group = ScanPlayerAura,
+    stance = ScanStance,
+    weapon_enchant = ScanWeaponEnchant,
+    pet = ScanPet,
+    tracking = ScanTracking,
+}
+sfui.buffs.scan._scanners = scanners
+
 --- Scans all registered class buffs and populates activeResults
 --- @return table array of scanned reminder records
 function sfui.buffs.scan.RunScan()
@@ -680,6 +690,7 @@ function sfui.buffs.scan.RunScan()
     local allowExpiring = not cfg or (cfg.showExpiring ~= false)
     local thresholdLong = (cfg and cfg.thresholdLong) or 300
     local thresholdShort = (cfg and cfg.thresholdShort) or 60
+    local providers = sfui.buffs.providers
 
     for i = 1, #entries do
         local entry = entries[i]
@@ -687,18 +698,12 @@ function sfui.buffs.scan.RunScan()
         local isBuffDisabled = disabledBuffs and disabledBuffs[entry.key]
 
         if isKnown and not isBuffDisabled then
+            local provider = providers and providers.Resolve(entry)
+            local scanFn = (provider and provider.scan)
+                or scanners[(provider and provider.scanType) or entry.type]
             local hasBuff, duration, expTime, charges, icon, extraData = false, 0, 0, 0, nil, nil
-
-            if entry.type == "aura" or entry.type == "aura_group" then
-                hasBuff, duration, expTime, charges, icon = ScanPlayerAura(entry)
-            elseif entry.type == "stance" then
-                hasBuff, duration, expTime, charges, icon = ScanStance(entry)
-            elseif entry.type == "weapon_enchant" then
-                hasBuff, duration, expTime, charges, icon, extraData = ScanWeaponEnchant(entry)
-            elseif entry.type == "pet" then
-                hasBuff, duration, expTime, charges, icon = ScanPet(entry)
-            elseif entry.type == "tracking" then
-                hasBuff, duration, expTime, charges, icon = ScanTracking(entry, disabledBuffs)
+            if scanFn then
+                hasBuff, duration, expTime, charges, icon, extraData = scanFn(entry, disabledBuffs)
             end
 
             local baseThreshold = entry.threshold or 300
@@ -733,20 +738,8 @@ function sfui.buffs.scan.RunScan()
                 rec.expirationTime = expTime or 0
                 rec.duration = duration or 0
                 rec.charges = charges or 0
-                if sfui.buffs.playerClass == "PALADIN" and sfui.buffs.paladin then
-                    if entry.key == "aura" and sfui.buffs.paladin.GetSelectedAura then
-                        local selAura = sfui.buffs.paladin.GetSelectedAura()
-                        if selAura and selAura.icon then icon = selAura.icon end
-                    elseif entry.key == "blessing" and sfui.buffs.paladin.GetSelectedBlessing then
-                        local selBlessing = sfui.buffs.paladin.GetSelectedBlessing()
-                        if selBlessing and selBlessing.icon then icon = selBlessing.icon end
-                    end
-                elseif entry.key == "consumable_food" and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFood then
-                    local selFood = sfui.buffs.consumables.GetSelectedFood()
-                    if selFood and selFood.icon then icon = selFood.icon end
-                elseif entry.key == "consumable_flask" and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFlask then
-                    local selFlask = sfui.buffs.consumables.GetSelectedFlask()
-                    if selFlask and selFlask.icon then icon = selFlask.icon end
+                if provider and provider.resolveScanIcon then
+                    icon = provider.resolveScanIcon(entry, icon)
                 end
                 rec.icon = icon or (entry.spellIDs and data.ResolveTexture(entry.spellIDs[1], entry.fallbackIcon)) or entry.fallbackIcon
                 rec.activeEnchant = extraData

@@ -112,6 +112,7 @@ local function get_all_cdm_entries()
     local cat1 = {} -- Utility + SpecAgnosticEssential (potions / healthstones)
 
     local auraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
+    local entryHelper = sfui.tracking and sfui.tracking.entry
 
     local function categorize(cooldownID, info)
         if not info then return end
@@ -131,8 +132,8 @@ local function get_all_cdm_entries()
             id = info.spellID or info.itemID or cooldownID,
             settings = { showText = true }
         }
-        if auraResolver and auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry(entry, info) then
-            entry.settings.trackBuffs = true
+        if entryHelper and entryHelper.NormalizeEntry then
+            entryHelper.NormalizeEntry(entry, info)
         end
         local cat = info.category
         if cat == 0 or cat == 7 or not cat then
@@ -267,10 +268,10 @@ function sfui.tracking.get_active_panel_entries(panelConfig, outTable)
                     or (cdInfo.equipSlot ~= nil or cdInfo.spellCategoryID ~= nil or (cdInfo.itemID and cdInfo.itemID > 0))
 
                 if sfui.isRetail and not isItemCooldown and (cdInfo.category == 2 or cdInfo.category == 3) then
-                    local entryTrackBuffs = type(entry) == "table" and entry.settings and entry.settings.trackBuffs
-                    local allowBuff = (entryTrackBuffs == true)
-                        or (entryTrackBuffs == nil and panelConfig.trackBuffs == true)
-                        or (entryTrackBuffs == nil and panelConfig.trackBuffs == nil and SfuiDB and SfuiDB.iconGlobalSettings and SfuiDB.iconGlobalSettings.trackBuffs == true)
+                    local entryHelper = sfui.tracking and sfui.tracking.entry
+                    local allowBuff = entryHelper and entryHelper.ShouldTrackBuffs
+                        and entryHelper.ShouldTrackBuffs(entry, panelConfig, cdInfo)
+                        or false
                     if not allowBuff then
                         isKnown = false
                     end

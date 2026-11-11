@@ -393,6 +393,12 @@ function sfui.buffs.consumables.CycleFood(delta)
         cur, all = sfui.buffs.consumables.GetSelectedFood()
     end
     if not all or #all <= 1 then
+        if cur then
+            SyncRecordIcon(function(e) return e.key == "consumable_food" end, cur.icon)
+            if sfui.buffs and sfui.buffs.UpdateDisplay then
+                sfui.buffs.UpdateDisplay()
+            end
+        end
         return cur
     end
 
@@ -585,6 +591,12 @@ function sfui.buffs.consumables.CycleFlask(delta)
         cur, all = sfui.buffs.consumables.GetSelectedFlask()
     end
     if not all or #all <= 1 then
+        if cur then
+            SyncRecordIcon(function(e) return e.key == "consumable_flask" end, cur.icon)
+            if sfui.buffs and sfui.buffs.UpdateDisplay then
+                sfui.buffs.UpdateDisplay()
+            end
+        end
         return cur
     end
 
@@ -840,6 +852,16 @@ function sfui.buffs.consumables.CycleWeaponOil(slot, delta)
         cur, all = sfui.buffs.consumables.GetSelectedWeaponOil(slot)
     end
     if not all or #all <= 1 then
+        if cur then
+            local targetSlot = slot or 16
+            SyncRecordIcon(function(e)
+                return (e.key == "consumable_weapon_mh" or e.key == "consumable_weapon_oh" or e.key == "poison_mh" or e.key == "poison_oh")
+                    and (e.slot or 16) == targetSlot
+            end, cur.icon)
+            if sfui.buffs and sfui.buffs.UpdateDisplay then
+                sfui.buffs.UpdateDisplay()
+            end
+        end
         return cur
     end
 
@@ -953,3 +975,169 @@ if (sfui.isCamelot or sfui.isClassic) and sfui.events then
         end
     end)
 end
+
+-- ─────────────────────────────────────────────────────────────
+--  CONSUMABLE PROVIDER REGISTRATIONS
+-- ─────────────────────────────────────────────────────────────
+local P = sfui.buffs.providers
+if P and P.Register then
+    local string_format = string.format
+    local GetTime = _G.GetTime
+
+    local function ResolveConsumableCountText(selected, rec)
+        if selected and selected.count and selected.count > 0 then
+            return tostring(selected.count)
+        elseif rec and rec.isMissing then
+            return "0"
+        end
+        return ""
+    end
+
+    local function RegisterConsumableProvider(id, spec)
+        P.Register(id, {
+            scanType = spec.scanType,
+            resolveScanIcon = function(entry, icon)
+                local selected = spec.getSelected(entry)
+                return (selected and selected.icon) or icon
+            end,
+            resolveVisual = function(rec)
+                local selected = spec.getSelected(rec and rec.entry)
+                local tex = (selected and selected.icon) or (rec and rec.icon) or P.QUESTION_MARK_ICON
+                return tex, ResolveConsumableCountText(selected, rec)
+            end,
+            resolveAction = function(rec)
+                local entry = rec and rec.entry
+                local selected = spec.getSelected(entry)
+                if not selected or (selected.count or 0) <= 0 then
+                    return nil
+                end
+                if spec.useSlot then
+                    if not selected.itemID then return nil end
+                    local targetSlot = (entry and entry.slot) or 16
+                    return "item", "item:" .. selected.itemID, targetSlot, nil
+                end
+                local itemRef = selected.itemID and ("item:" .. selected.itemID) or selected.name
+                if not itemRef then return nil end
+                return "item", itemRef, nil, nil
+            end,
+            cycle = function(rec, delta)
+                spec.cycle(rec and rec.entry, delta)
+                return true
+            end,
+            populateTooltip = function(tip, rec)
+                local entry = rec and rec.entry
+                local selected, all = spec.getSelected(entry)
+                if (not selected or not all or #all == 0) and spec.clearCache then
+                    spec.clearCache()
+                    selected, all = spec.getSelected(entry)
+                end
+
+                local hasValidItem = selected and (spec.allowWithoutID or selected.itemLink or selected.itemID)
+                if hasValidItem then
+                    tip:ClearLines()
+                    if tip.SetHyperlink and (selected.itemLink or selected.itemID) then
+                        tip:SetHyperlink(selected.itemLink or ("item:" .. selected.itemID))
+                    end
+                    if (tip:NumLines() or 0) == 0 then
+                        tip:AddLine((selected.name or spec.fallbackLabel):lower(), 1, 1, 1)
+                    end
+                    tip:AddLine(" ")
+
+                    local slotLabel = spec.useSlot and (((entry and entry.slot) == 17) and "off hand" or "main hand") or nil
+                    local missingLabel = slotLabel and ("missing " .. slotLabel .. " enchant") or spec.missingLabel
+                    local expiringLabel = slotLabel and ("expiring " .. slotLabel) or spec.expiringLabel
+                    local activeLabel = slotLabel and (slotLabel .. " active") or spec.activeLabel
+
+                    if rec.isMissing then
+                        tip:AddLine("|cffff4444[" .. missingLabel .. "]|r", 1, 0.4, 0.4)
+                    elseif rec.isExpiring then
+                        local rem = (rec.expirationTime and rec.expirationTime > 0) and (rec.expirationTime - GetTime()) or 0
+                        if rem > 0 then
+                            tip:AddLine(string_format("|cffffcc00[%s]|r remaining: |cffffd100%s|r", expiringLabel, P.FormatTime(rem)), 1, 0.8, 0)
+                        else
+                            tip:AddLine("|cffffcc00[" .. expiringLabel .. "]|r", 1, 0.8, 0)
+                        end
+                    else
+                        tip:AddLine("|cff00ff00[" .. activeLabel .. "]|r", 0.4, 1, 0.4)
+                    end
+
+                    if selected.count and selected.count > 0 then
+                        if _G.InCombatLockdown and _G.InCombatLockdown() then
+                            tip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
+                        else
+                            local suffix = slotLabel and (" (" .. slotLabel .. ")") or ""
+                            tip:AddLine("|cff55ff55[click to " .. spec.verb .. "]|r " .. (selected.name or spec.fallbackLabel):lower() .. suffix, 0.3, 1, 0.3)
+                        end
+                    else
+                        tip:AddLine("|cffff5555" .. spec.emptyMessage .. "|r", 0.9, 0.4, 0.4)
+                    end
+
+                    P.AddItemChoiceList(tip, spec.scrollPrompt, all, selected)
+                    return
+                end
+
+                P.AddStatusHeader(tip, rec)
+                if spec.emptySubtitle then
+                    tip:AddLine(spec.emptySubtitle, 0.6, 0.6, 0.6)
+                end
+                tip:AddLine(" ")
+                tip:AddLine("|cffff5555" .. spec.emptyMessage .. "|r", 0.9, 0.4, 0.4)
+            end,
+        })
+    end
+
+    RegisterConsumableProvider("consumable_food", {
+        scanType = "aura",
+        fallbackLabel = "food",
+        verb = "eat",
+        missingLabel = "missing well fed buff",
+        expiringLabel = "expiring well fed",
+        activeLabel = "well fed active",
+        emptyMessage = "no food with buff in bags",
+        scrollPrompt = "scroll wheel to select food:",
+        getSelected = function()
+            return sfui.buffs.consumables.GetSelectedFood()
+        end,
+        clearCache = ClearFoodCache,
+        cycle = function(_, delta)
+            return sfui.buffs.consumables.CycleFood(delta)
+        end,
+    })
+
+    RegisterConsumableProvider("consumable_flask", {
+        scanType = "aura",
+        fallbackLabel = "flask / elixir",
+        verb = "drink",
+        missingLabel = "missing flask / elixir",
+        expiringLabel = "expiring flask / elixir",
+        activeLabel = "flask / elixir active",
+        emptyMessage = "no flask / elixir in bags",
+        scrollPrompt = "scroll wheel to select flask / elixir:",
+        getSelected = function()
+            return sfui.buffs.consumables.GetSelectedFlask()
+        end,
+        clearCache = ClearFlaskCache,
+        cycle = function(_, delta)
+            return sfui.buffs.consumables.CycleFlask(delta)
+        end,
+    })
+
+    RegisterConsumableProvider("consumable_oil", {
+        scanType = "weapon_enchant",
+        useSlot = true,
+        allowWithoutID = true,
+        fallbackLabel = "weapon oil",
+        verb = "apply",
+        emptySubtitle = "apply weapon temporary enchant / poison",
+        emptyMessage = "no weapon oil / stone in bags",
+        scrollPrompt = "scroll wheel to select oil / stone:",
+        getSelected = function(entry)
+            return sfui.buffs.consumables.GetSelectedWeaponOil((entry and entry.slot) or 16)
+        end,
+        clearCache = ClearWeaponOilCache,
+        cycle = function(entry, delta)
+            return sfui.buffs.consumables.CycleWeaponOil((entry and entry.slot) or 16, delta)
+        end,
+    })
+end
+

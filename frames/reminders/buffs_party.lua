@@ -648,3 +648,36 @@ function sfui.buffs.party.AppendPartyReminders(activeResults, count, now, cfg)
     return count
 end
 
+-- ──────────────────────────────────────────────────────────────────────────────
+--  5. PARTY BLESSING PROVIDER REGISTRATION
+-- ──────────────────────────────────────────────────────────────────────────────
+local P = sfui.buffs.providers
+if P and P.Register then
+    P.Register("party_blessing", {
+        cycle = function(rec, delta, btn)
+            local entry = rec and rec.entry
+            if not entry or not entry.unit then return false end
+            local chosen = sfui.buffs.party.CyclePartyBlessing(entry.unit, delta)
+            if chosen and btn then
+                btn._needsScanOnLeave = true
+            end
+            return chosen ~= nil
+        end,
+        populateTooltip = function(tip, rec, _, isTestMode)
+            local entry = rec and rec.entry
+            if not entry then return end
+            local coloredUnit = entry.unitName or entry.unit or "party"
+            if entry.unitClass and sfui.common and sfui.common.class_color_name then
+                coloredUnit = sfui.common.class_color_name(coloredUnit, entry.unitClass)
+            end
+            local specSuffix = (entry.unitSpecLabel and entry.unitSpecLabel ~= "") and (" |cffaaaaaa(" .. entry.unitSpecLabel .. ")|r") or ""
+            local bLabel = (entry.castSpellName and entry.castSpellName:lower()) or "blessing"
+            P.AddStatusHeader(tip, rec, bLabel .. " -> " .. coloredUnit .. specSuffix)
+            P.AddClickPrompt(tip, "cast", bLabel .. " on " .. coloredUnit, isTestMode)
+            local allBlessings = sfui.buffs.paladin and sfui.buffs.paladin.GetAvailableBlessings and sfui.buffs.paladin.GetAvailableBlessings()
+            P.AddSpellChoiceList(tip, "scroll wheel to override blessing:", allBlessings, "key", entry.blessingKey)
+        end,
+    })
+end
+
+

@@ -715,8 +715,14 @@ sfui.trackedbars.UpdateAppearance = function() sfui.trackedbars.SetBarTexture() 
 -- the aura's duration object feeds StatusBar:SetTimerDuration and a DurationTextBinding,
 -- so the bar and timer text animate natively and secret values are never inspected.
 local auraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
+local _selfDrivenBarCount = 0
+local _selfDrivenWatchlist = {}
 local _durationFormatter
 local _zeroDuration
+
+function sfui.trackedbars.HasSelfDrivenBars()
+    return _selfDrivenBarCount > 0
+end
 
 local function GetZeroDuration()
     if _zeroDuration == nil then
@@ -789,6 +795,8 @@ local function ResetSelfDrivenBar(bar)
     StopSelfDrivenTimer(bar)
     bar._selfDriven = nil
     bar._auraActive = nil
+    bar._auraRev = nil
+    bar._auraExpTime = nil
     bar._auraDurationObj = nil
     bar._auraName = nil
     bar._auraIcon = nil
@@ -807,24 +815,33 @@ local function SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
     myBar.spellID = spellID or id
 
     local candidates, rebuilt = auraResolver.GetCandidates(myBar, spellID, info and info.linkedSpellIDs, info)
-    local iid, aura, present = auraResolver.Resolve(id, candidates)
-    if aura or iid then
-        local dObj = auraResolver.GetDuration(iid, aura)
-        if dObj then
-            myBar._auraDurationObj = dObj
+    local rev = auraResolver.GetRevision and auraResolver.GetRevision() or 0
+    local expiredFallback = myBar._auraActive and myBar._auraExpTime and myBar._auraExpTime > 0 and GetTime() >= myBar._auraExpTime
+
+    if rebuilt or myBar._auraRev ~= rev or expiredFallback or myBar._auraActive == nil then
+        myBar._auraRev = rev
+        local iid, aura, present = auraResolver.Resolve(id, candidates)
+        if aura or iid then
+            local dObj = auraResolver.GetDuration(iid, aura)
+            if dObj then
+                myBar._auraDurationObj = dObj
+            end
+            local exp = auraResolver.PlainField(aura, "expirationTime")
+            myBar._auraExpTime = (exp and exp > 0) and exp or nil
+            myBar._auraName = auraResolver.PlainField(aura, "name") or myBar._auraName
+            myBar._auraIcon = auraResolver.PlainField(aura, "icon") or myBar._auraIcon
+            myBar._auraStacks = auraResolver.PlainField(aura, "applications") or myBar._auraStacks
+            myBar._auraActive = true
+        elseif present and not rebuilt and myBar._auraActive then
+            -- aura up but restricted: keep the last duration object ticking
+        else
+            myBar._auraDurationObj = nil
+            myBar._auraExpTime = nil
+            myBar._auraName = nil
+            myBar._auraIcon = nil
+            myBar._auraStacks = nil
+            myBar._auraActive = false
         end
-        myBar._auraName = auraResolver.PlainField(aura, "name") or myBar._auraName
-        myBar._auraIcon = auraResolver.PlainField(aura, "icon") or myBar._auraIcon
-        myBar._auraStacks = auraResolver.PlainField(aura, "applications") or myBar._auraStacks
-        myBar._auraActive = true
-    elseif present and not rebuilt and myBar._auraActive then
-        -- aura up but restricted: keep the last duration object ticking
-    else
-        myBar._auraDurationObj = nil
-        myBar._auraName = nil
-        myBar._auraIcon = nil
-        myBar._auraStacks = nil
-        myBar._auraActive = false
     end
     local active = myBar._auraActive
 
@@ -1510,7 +1527,9 @@ local function ProcessBlizzardSync()
     end
 
     -- Self-driven bars: tracked entries blizzard has no buff bar frame for (e.g. "seals")
+    _selfDrivenBarCount = 0
     if auraResolver then
+        wipe(_selfDrivenWatchlist)
         local specBars = common.get_tracked_bars()
         if specBars then
             local barDB = SfuiDB and SfuiDB.trackedBars or {}
@@ -1526,6 +1545,7 @@ local function ProcessBlizzardSync()
                     local isKnown = not info or auraResolver.IsCooldownItemKnown(info, id)
                     if isKnown and auraResolver.WantsAura(info, false, info and info.linkedSpellIDs, info and info.spellID, id) then
                         activeCooldownIDs[id] = true
+                        _selfDrivenBarCount = _selfDrivenBarCount + 1
 
                         if not bars[id] then
                             bars[id] = GetBarFromPool(id) or CreateBar(id)
@@ -1536,6 +1556,16 @@ local function ProcessBlizzardSync()
                         local config = GetTrackedBarConfig(id)
                         local isStackMode = config and config.stackMode or false
                         SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
+
+                        local watchSlot = myBar._watchDescriptor
+                        if not watchSlot then
+                            watchSlot = {}
+                            myBar._watchDescriptor = watchSlot
+                        end
+                        watchSlot.cooldownID = id
+                        watchSlot.candidates = myBar._auraCandidates
+                        watchSlot.isForeverSeal = auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry(nil, info, myBar.spellID) or false
+                        _selfDrivenWatchlist[_selfDrivenBarCount] = watchSlot
 
                         local shouldShow = myBar._auraActive or not hideInactive
                         if shouldShow then
@@ -1550,6 +1580,9 @@ local function ProcessBlizzardSync()
                     end
                 end
             end
+        end
+        if auraResolver.SetBarWatchlist then
+            auraResolver.SetBarWatchlist(_selfDrivenWatchlist)
         end
     end
 

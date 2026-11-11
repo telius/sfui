@@ -1,33 +1,49 @@
 local addonName, addon = ...
-sfui.trackedicons = {}
+sfui = sfui or {}
+sfui.trackedicons = sfui.trackedicons or {}
+
+-- ══════════════════════════════════════════════════════════════════════════════
+--  sfui/frames/tracking/trackedicons.lua
+--  panel layout, frame pooling, visibility state machine, and event scheduling.
+--  delegates static descriptors to entry.lua, aura overlays to icon_aura.lua,
+--  and cooldown/charge/usability/glow updates to icon_cooldown.lua.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+local entryHelper = sfui.tracking.entry
+local auraResolver = sfui.tracking.auras
+local iconAura = sfui.trackedicons._aura
+local iconCooldown = sfui.trackedicons._cooldown
 
 local C_Spell = C_Spell
 local C_Item = C_Item
-local C_CooldownViewer = C_CooldownViewer
 local GetTime = GetTime
 local InCombatLockdown = InCombatLockdown
 local CreateFrame = CreateFrame
 local UIParent = UIParent
-local GameTooltip = sfui.common.get_tooltip()
-local hooksecurefunc = hooksecurefunc
-local C_Timer = C_Timer
-local IsMounted = IsMounted
-local wipe = wipe
+local GetInventoryItemID = GetInventoryItemID
+local GetInventoryItemTexture = GetInventoryItemTexture
+local GetInventorySlotInfo = GetInventorySlotInfo
+local GetShapeshiftForm = GetShapeshiftForm
+local GetShapeshiftFormID = GetShapeshiftFormID
+local IsStealthed = IsStealthed
+local UnitHasVehicleUI = UnitHasVehicleUI
+local UnitInVehicle = UnitInVehicle
+local wipe = wipe or table.wipe
 local pairs = pairs
 local ipairs = ipairs
-local tinsert = table.insert
+local tonumber = tonumber
+local type = type
+local issecretvalue = sfui.common.issecretvalue
 
 local panels = {} -- Active icon panels
-local _needsStateUpdate = true -- Start dirty for initial render
+local _needsStateUpdate = true
 local _needsLayoutUpdate = true
+local _needsWatchlistSync = false
 local _layoutCooldown = 0
-local _playerAurasDirty = true
 
--- Centralized combat state helper
 local is_in_combat = sfui.common.is_in_combat
 sfui.trackedicons.IsInCombat = is_in_combat
 
--- Helper: Mark icons as needing a state refresh
 local function MarkDirty(needsLayout)
     _needsStateUpdate = true
     if needsLayout then
@@ -35,27 +51,29 @@ local function MarkDirty(needsLayout)
     end
 end
 sfui.trackedicons.MarkDirty = MarkDirty
-local issecretvalue = sfui.common.issecretvalue
--- STATIC REUSE (Memory Optimization)
-local _tempGlowCfg = {}
-local _defaultColor = { 1, 1, 0, 1 }
-local _defaultTextColor = { 1, 1, 1, 1 } -- Reuse to avoid per-call allocation
+
 local _emptyTable = {}
 local _iconCounter = 0
 local _staticActiveEntries = {}
 local _staticActiveIcons = {}
-local _spellMaxCharges = {}
+local _watchlistScratch = {}
+local _activeGlowCount = 0
 
 local _iconConfigCache = setmetatable({}, { __mode = "k" })
 function sfui.trackedicons.InvalidateConfigCache()
     for k in pairs(_iconConfigCache) do
         _iconConfigCache[k] = nil
     end
-    wipe(_spellMaxCharges)
+    if iconCooldown and iconCooldown.InvalidateChargeCache then
+        iconCooldown.InvalidateChargeCache()
+    end
+    if entryHelper and entryHelper.BumpConfigRevision then
+        entryHelper.BumpConfigRevision()
+    end
+    _needsWatchlistSync = true
 end
 
--- Helper: Get value from entry → panel → global → hardcoded default (M+ safe)
--- All sources are safe tables (user config, SfuiDB, config.lua) - no secret values
+-- Helper: Get value from entry -> panel -> global -> hardcoded default (M+ safe)
 local function GetIconValue(entrySettings, panelConfig, key, default)
     local cacheKey = entrySettings or panelConfig or "global"
     local cache = _iconConfigCache[cacheKey]
@@ -113,142 +131,10 @@ local function GetIconValue(entrySettings, panelConfig, key, default)
     return val
 end
 
-local _cdInfoCache = {}
-local _cdInfoCacheCount = 0
-
-local function SafeGetCooldownViewerCooldownInfo(id)
-    if not id or not C_CooldownViewer or not C_CooldownViewer.GetCooldownViewerCooldownInfo then return nil end
-    local cid = tonumber(id)
-    if cid and cid >= -2147483648 and cid <= 2147483647 then
-        if not _cdInfoCache[cid] then
-            _cdInfoCacheCount = _cdInfoCacheCount + 1
-            -- Wipe cache if it grows too large (e.g. 500 entries)
-            if _cdInfoCacheCount > 500 then
-                wipe(_cdInfoCache)
-                _cdInfoCacheCount = 1
-            end
-            local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(cid)
-            _cdInfoCache[cid] = info or false
-        end
-        return _cdInfoCache[cid] or nil
-    end
-    return nil
-end
-
--- forwards the category cooldown source straight into the spell cooldown sinks.
--- GetLastCategoryCooldownSource is SecretWhenCooldownsRestricted: its returns are never
--- stored, compared or tested — select("#") only counts them (MayReturnNothing), and the
--- spell id is handed directly to apis that accept secret arguments when tainted.
--- only NeverSecret fields (isActive / isEnabled / isOnGCD) are read back.
-local function forward_category_cooldown(icon, ...)
-    if select("#", ...) == 0 then return false, true end
-    local scd = C_Spell.GetSpellCooldown((...))
-    if not scd then return false, true end
-    local enabled = scd.isEnabled ~= false
-    if not scd.isActive or scd.isOnGCD then return false, enabled end
-    local durationObj = C_Spell.GetSpellCooldownDuration and C_Spell.GetSpellCooldownDuration((...), true)
-    if durationObj and icon.cooldown.SetCooldownFromDurationObject then
-        icon.cooldown:SetCooldownFromDurationObject(durationObj)
-        if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
-            icon.shadowCooldown:SetCooldownFromDurationObject(durationObj)
-        end
-        return true, enabled
-    end
-    return false, enabled
-end
-
--- applies a plain (non-secret) start/duration pair. item apis used here
--- (GetInventoryItemCooldown, C_Container.GetItemCooldown) are not secret-flagged.
-local function apply_plain_item_cooldown(icon, s, d)
-    if not (s and d and s > 0 and d > 0 and (s + d) > GetTime()) then
-        return false
-    end
-    if icon.cooldown.SetCooldownFromDurationObject and C_DurationUtil and C_DurationUtil.CreateDuration then
-        local dObj = icon._durationObj or C_DurationUtil.CreateDuration()
-        icon._durationObj = dObj
-        dObj:SetTimeFromStart(s, d, 1)
-        icon.cooldown:SetCooldownFromDurationObject(dObj)
-        if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
-            icon.shadowCooldown:SetCooldownFromDurationObject(dObj)
-        end
-    else
-        icon.cooldown:SetCooldown(s, d)
-        if icon.shadowCooldown then icon.shadowCooldown:SetCooldown(s, d) end
-    end
-    return true
-end
-
-local function update_item_cd(icon)
-    local entry = icon.entry
-    local equipSlot = entry and entry.equipSlot
-    local spellCategoryID = entry and entry.spellCategoryID
-    local cooldownID = entry and entry.cooldownID
-    local itemID = entry and entry.itemID
-    if itemID == cooldownID then itemID = nil end
-
-    if cooldownID and ((not equipSlot and not spellCategoryID) or not itemID) then
-        local cdInfo = SafeGetCooldownViewerCooldownInfo(cooldownID)
-        if cdInfo then
-            equipSlot = equipSlot or cdInfo.equipSlot
-            spellCategoryID = spellCategoryID or cdInfo.spellCategoryID
-            if not itemID and cdInfo.itemID and cdInfo.itemID > 0 then
-                itemID = cdInfo.itemID
-            end
-        end
-    end
-
-    local count = 0
-    local onCooldown, enabled = false, true
-
-    if equipSlot then
-        count = "" -- equipped items do not show stack badges
-        local s, d, e = GetInventoryItemCooldown("player", equipSlot)
-        enabled = (e ~= 0 and e ~= false)
-        onCooldown = apply_plain_item_cooldown(icon, s, d)
-    elseif spellCategoryID then
-        local catData = sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[spellCategoryID]
-        if C_Spell and C_Spell.GetLastCategoryCooldownSource then
-            onCooldown, enabled = forward_category_cooldown(icon, C_Spell.GetLastCategoryCooldownSource(spellCategoryID))
-        end
-        -- counts / bag fallback only ever use plain ids from saved entries or static metadata
-        local plainItemID = itemID or (catData and catData.fallbackItemID)
-        if plainItemID and sfui.api then
-            if not onCooldown and sfui.api.GetItemCooldown then
-                local s, d = sfui.api.GetItemCooldown(plainItemID)
-                onCooldown = apply_plain_item_cooldown(icon, s, d)
-            end
-            if sfui.api.GetItemCount then
-                count = sfui.api.GetItemCount(plainItemID) or 0
-            end
-        end
-    else
-        local targetID = itemID or icon.id
-        if targetID and sfui.api and sfui.api.GetItemCooldown then
-            local s, d, e = sfui.api.GetItemCooldown(targetID)
-            enabled = (e ~= 0 and e ~= false)
-            onCooldown = apply_plain_item_cooldown(icon, s, d)
-            count = (sfui.api.GetItemCount and sfui.api.GetItemCount(targetID)) or 0
-        end
-    end
-
-    if not onCooldown then
-        icon.cooldown:Clear()
-        if icon.shadowCooldown then icon.shadowCooldown:Clear() end
-    end
-
-    icon._itemOnCooldown = onCooldown
-    icon._isEnabled = enabled
-    return count
-end
-
--- pcall_spell_cd and pcall_sync_swipe removed — no longer needed
--- SetCooldown handles secret values natively at C++ level
+local SafeGetCooldownViewerCooldownInfo = entryHelper.SafeGetCooldownInfo
 
 sfui.trackedicons.StopGlow = sfui.glows.stop_glow
 
-local _activeGlowCount = 0
-
--- Local wrapper to ensure state cleanup
 local function StopGlow(icon)
     if icon._glowActive then
         if _activeGlowCount > 0 then
@@ -256,12 +142,10 @@ local function StopGlow(icon)
         end
     end
     sfui.glows.stop_glow(icon)
-    -- Do NOT clear _glowStartTime here, as it breaks the timeout logic (infinite restart loop)
-    -- _glowStartTime is cleared explicitly when the icon is no longer ready.
     icon._lastGlowCfg = nil
+    icon._lastGlowType = nil
     icon._glowActive = false
 end
-
 
 local function StartGlow(icon, cfg)
     if not icon._glowActive then
@@ -269,11 +153,11 @@ local function StartGlow(icon, cfg)
     end
     sfui.glows.start_glow(icon, cfg)
     icon._glowActive = true
-    -- Track config for comparison without allocating a new table
+    icon._lastGlowType = cfg.glowType
     if not icon._lastGlowCfg then icon._lastGlowCfg = {} end
     local t = icon._lastGlowCfg
     t.glowType = cfg.glowType
-    t.glowColor = cfg.glowColor -- Shared ref is fine for comparison
+    t.glowColor = cfg.glowColor
     t.glowScale = cfg.glowScale
     t.glowIntensity = cfg.glowIntensity
     t.glowSpeed = cfg.glowSpeed
@@ -283,536 +167,32 @@ local function StartGlow(icon, cfg)
 end
 sfui.trackedicons.StartGlow = StartGlow
 
-
-
--- Helper to create count text (stacks/charges)
-local function CreateCountText(icon)
-    if icon.count then return end
-    -- Match Blizzard ActionButton.Count exactly:
-    --   Font:     NumberFontNormal (ActionButton.lua layout template)
-    --   Position: BOTTOMRIGHT -3, 1  (ActionButton.lua:1633-1634)
-    local count = icon:CreateFontString(nil, "OVERLAY")
-    if NumberFontNormal then
-        count:SetFontObject(NumberFontNormal)
-    else
-        -- Fallback if NumberFontNormal unavailable
-        count:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    end
-    count:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -3, 1)
-    count:SetJustifyH("RIGHT")
-    icon.count = count
-end
-
-
--- Helper to update count text value.
--- Mirrors Blizzard's CooldownViewer (CooldownViewer.lua:1057) and ActionButton (ActionButton.lua:809):
--- pass the count value directly to SetText — NEVER compare it in Lua when it may be secret.
-local function UpdateCountText(icon, displayStr)
-    if not icon.count then CreateCountText(icon) end
-
-    if issecretvalue(displayStr) then
-        -- Secret value (M+ cooldown-restricted): SafeSetText handles the
-        -- LuaDurationObject transparently without triggering taint on comparison.
-        sfui.common.SafeSetText(icon.count, displayStr, 0)
-        icon.count:Show()
-    else
-        -- Non-secret: safe to branch. Convert to string for uniform dirty-check.
-        -- "" or "0" hides the badge (no display count, or items with stack=0).
-        local str = (displayStr ~= nil and displayStr ~= 0) and sfui.common.get_cached_int_string(displayStr) or ""
-        if str ~= "" and str ~= "0" then
-            if icon._lastCount ~= str then
-                icon._lastCount = str
-                icon.count:SetText(str)
-            end
-            icon.count:Show()
-        else
-            if icon._lastCount ~= nil then icon._lastCount = nil end
-            icon.count:Hide()
-        end
-    end
-end
-
--- IsDragonriding: use sfui.common.IsDragonriding() (single source of truth)
-
--- Lightweight cooldown logic:
---   • SetCooldown() accepts secret values natively (C++ level)
---   • isOnGCD is NeverSecret — always safe to branch on
-local scratchParent = CreateFrame("Frame")
-scratchParent:Hide()
-local scratchCooldown = CreateFrame("Cooldown", nil, scratchParent, "CooldownFrameTemplate")
-
-local function IsFallbackNeeded(val)
-    -- Secret values can sometimes be "secret strings" in 11.0.
-    -- issecretvalue provides the official C++ level check. If it is secret,
-    -- it is a valid value, not an empty string, and must not be compared.
-    if issecretvalue(val) then return false end
-    return val == ""
-end
-
-local function UpdateIconCooldown(icon, activeID, resolvedType)
-    -- count starts as "" for spells (GetSpellDisplayCount returns "") and as 0
-    -- for items (GetItemCount returns a number). Use type-appropriate default.
-    local count = (resolvedType == "item") and 0 or ""
-    local isEnabled = true
-    local isUsable, notEnoughPower = true, false
-    local isOnCooldown = false
-
-    if resolvedType == "item" then
-        local countVal = update_item_cd(icon)
-        count = countVal or 0
-        isEnabled = icon._isEnabled
-        isOnCooldown = icon._itemOnCooldown == true
-        if icon.entry and icon.entry.equipSlot then
-            local invID = GetInventoryItemID and GetInventoryItemID("player", icon.entry.equipSlot)
-            isUsable = (invID ~= nil)
-        elseif icon.entry and icon.entry.spellCategoryID then
-            local catData = sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[icon.entry.spellCategoryID]
-            if catData and not catData.fallbackItemID and count == 0 and not isOnCooldown then
-                isUsable = true
-            else
-                isUsable = (count ~= "" and count ~= 0) or isOnCooldown
-            end
-        else
-            isUsable = (count ~= "" and count ~= 0) or (isEnabled ~= false)
-        end
-    else
-        -- Spell: officially supports tainted spellIdentifiers
-        local cdInfo = C_Spell.GetSpellCooldown(activeID)
-
-        if cdInfo ~= nil then
-            local isActive = cdInfo.isActive
-            local isOnGCD = cdInfo.isOnGCD
-
-            if isActive and not isOnGCD then
-                isOnCooldown = true
-                icon._secretGCDDropTime = nil
-                -- 12.0.1 Hotfix: 'SetCooldown' no longer legally accepts Secret Values.
-                -- Addons MUST acquire a DurationObject and pass it to 'SetCooldownFromDurationObject'.
-                if icon.cooldown.SetCooldownFromDurationObject and C_Spell.GetSpellCooldownDuration then
-                    -- ignoreGCD=true (12.0.5+): skip GCD-only cooldowns to avoid phantom swipe
-                    local durationObj = C_Spell.GetSpellCooldownDuration(activeID, true)
-                    if durationObj then
-                        icon.cooldown:SetCooldownFromDurationObject(durationObj)
-                        if icon.shadowCooldown then
-                            icon.shadowCooldown:SetCooldownFromDurationObject(durationObj)
-                        end
-                    else
-                        icon.cooldown:Clear()
-                        if icon.shadowCooldown then icon.shadowCooldown:Clear() end
-                    end
-                else
-                    -- Pre-12.0.1 Legacy Fallback
-                    if not (issecretvalue and (issecretvalue(cdInfo.startTime) or issecretvalue(cdInfo.duration))) then
-                        icon.cooldown:SetCooldown(cdInfo.startTime, cdInfo.duration)
-                        if icon.shadowCooldown then
-                            icon.shadowCooldown:SetCooldown(cdInfo.startTime, cdInfo.duration)
-                        end
-                    else
-                        icon.cooldown:Clear()
-                        if icon.shadowCooldown then icon.shadowCooldown:Clear() end
-                    end
-                end
-            else
-                isOnCooldown = false
-                icon._secretGCDDropTime = nil
-                icon.cooldown:Clear()
-                if icon.shadowCooldown then icon.shadowCooldown:Clear() end
-            end
-
-            -- isEnabled is NeverSecret
-            local en = cdInfo.isEnabled
-            if en == false then
-                isEnabled = false
-            else
-                isEnabled = true
-            end
-        else
-            icon.cooldown:Clear()
-            if icon.shadowCooldown then icon.shadowCooldown:Clear() end
-        end
-
-        local displayStr = ""
-        
-        -- 1. Try GetSpellDisplayCount (Actionbar native representation & Soul Fragments)
-        if C_Spell.GetSpellDisplayCount then
-            local dc = C_Spell.GetSpellDisplayCount(activeID)
-            if dc ~= nil then
-                displayStr = dc
-            end
-        end
-
-        -- 2. Try SpellChargeInfo (CooldownViewer priority for >1 charge spells)
-        if IsFallbackNeeded(displayStr) and C_Spell.GetSpellCharges then
-            local maxCh = _spellMaxCharges[activeID]
-            if maxCh == nil then
-                local ch = C_Spell.GetSpellCharges(activeID)
-                maxCh = (ch and ch.maxCharges) or 0
-                _spellMaxCharges[activeID] = maxCh
-                if maxCh > 1 and ch.currentCharges then
-                    displayStr = ch.currentCharges or ""
-                end
-            elseif maxCh > 1 then
-                local ch = C_Spell.GetSpellCharges(activeID)
-                if ch and ch.currentCharges then
-                    displayStr = ch.currentCharges or ""
-                end
-            end
-        end
-
-        -- 3. Try GetSpellCastCount (CooldownViewer fallback)
-        if IsFallbackNeeded(displayStr) and C_Spell.GetSpellCastCount then
-            local cc = C_Spell.GetSpellCastCount(activeID)
-            if cc ~= nil then
-                if issecretvalue(cc) then
-                    displayStr = cc
-                elseif type(cc) == "number" and cc > 0 then
-                    displayStr = cc
-                end
-            end
-        end
-
-        count = displayStr  -- passed to UpdateCountText; never compared in Lua
-    end
-
-    -- Glow arming
-    if icon._wasOnCooldown and not isOnCooldown then
-        icon._pendingGlow = true
-    end
-    icon._wasOnCooldown = isOnCooldown
-
-    -- Usability: supports tainted activeID
-    if icon.type ~= "item" then
-        if C_Spell and C_Spell.IsSpellUsable then
-            local u, p = C_Spell.IsSpellUsable(activeID)
-            isUsable = sfui.common.SafeValue(u, true)
-            notEnoughPower = sfui.common.SafeValue(p, false)
-        end
-        if not HasFullControl() and not isUsable then isUsable = true end
-    end
-
-    -- Readiness: use only NeverSecret fields for branching.
-    -- cdInfo.isActive (= isOnCooldown) already correctly handles charge-based spells:
-    -- when a spell has multiple charges and at least one is available, isActive=false
-    -- so isOnCooldown=false and the spell is considered ready naturally.
-    -- GetSpellCastCount/GetSpellCharges are SecretWhenSpellCooldownRestricted in M+
-    -- and must NOT be compared in Lua.
-    local isReady
-    if icon.type == "item" then
-        isReady = not isOnCooldown and (isEnabled ~= false)
-    else
-        isReady = not isOnCooldown and (isEnabled ~= false) and isUsable
-    end
-
-    return count, isReady, isUsable, notEnoughPower, isOnCooldown
-end
-
--- Visuals: desaturation, alpha, resource tint
-local function UpdateIconVisuals(icon, entrySettings, panelConfig, isUsable, isOnCooldown, notEnoughPower)
-    if not icon.texture then return end
-
-    -- Unusable usually means genuinely invalid (wrong stance, dead)
-    -- Lacking power (Rage/Energy) sets notEnoughPower, so we spare it from full grey-out/dim.
-    local actuallyUnusable = (not isUsable) and not notEnoughPower
-
-    -- Desaturate during cooldowns OR when genuinely unusable
-    local useDesat = GetIconValue(entrySettings, panelConfig, "cooldownDesat", true)
-    local desaturate = (useDesat and isOnCooldown) or actuallyUnusable
-    if icon._currentDesaturated ~= desaturate then
-        icon.texture:SetDesaturated(desaturate)
-        icon._currentDesaturated = desaturate
-    end
-
-    -- Alpha: dim during cooldowns OR when genuinely unusable
-    local baseAlpha = actuallyUnusable and 0.5 or 1.0
-    local alpha = isOnCooldown and GetIconValue(entrySettings, panelConfig, "alphaOnCooldown", 0.5) or baseAlpha
-    if icon._currentAlpha ~= alpha then
-        icon:SetAlpha(alpha)
-        icon._currentAlpha = alpha
-    end
-
-    -- Resource check: blue tint when out of power
-    local useResourceCheck = GetIconValue(entrySettings, panelConfig, "useResourceCheck", true)
-    local targetColor = (notEnoughPower and useResourceCheck) and "blue" or "white"
-    if icon._currentVertexColor ~= targetColor then
-        if targetColor == "blue" then
-            icon.texture:SetVertexColor(0.5, 0.5, 1.0)
-        else
-            local textColor = GetIconValue(entrySettings, panelConfig, "textColor", _defaultTextColor)
-            if type(textColor) == "table" then
-                icon.texture:SetVertexColor(textColor[1] or 1, textColor[2] or 1, textColor[3] or 1)
-            else
-                icon.texture:SetVertexColor(1, 1, 1)
-            end
-        end
-        icon._currentVertexColor = targetColor
-    end
-end
-
--- Helper: Update Glows
--- missingAlert: entry has the "alert" option and its buff is missing -> glow persistently,
--- taking priority over the ready glow (no max duration).
-local function UpdateIconGlow(icon, entrySettings, panelConfig, isReady, missingAlert)
-    if missingAlert then
-        sfui.glows.resolve_config(entrySettings, panelConfig, _tempGlowCfg)
-        local prev = icon._lastGlowCfg
-        if not icon._glowActive or not prev or prev.glowType ~= _tempGlowCfg.glowType
-            or prev.glowColor ~= _tempGlowCfg.glowColor then
-            if icon._glowActive then StopGlow(icon) end
-            StartGlow(icon, _tempGlowCfg)
-        end
-        icon._missingGlow = true
-        return
-    elseif icon._missingGlow then
-        -- buff came back: drop the alert glow and let ready-glow logic start fresh
-        icon._missingGlow = false
-        icon._pendingGlow = false
-        icon._glowStartTime = nil
-        if icon._glowActive then StopGlow(icon) end
-    end
-
-    local showGlow = GetIconValue(entrySettings, panelConfig, "readyGlow", true)
-
-    -- Glow Logic (Permanent while ready)
-    -- Logic:
-    -- 1. Trigger if _pendingGlow is set (armed by previous valid cooldown)
-    -- 2. Sustain if already active (and duration not exceeded)
-
-    local shouldGlow = false
-    if isReady and showGlow then
-        if icon._pendingGlow then
-            -- Trigger!
-            shouldGlow = true
-            icon._pendingGlow = false       -- Consume the trigger
-            icon._glowStartTime = GetTime() -- Reset timer for new glow
-        elseif icon._glowActive then
-            -- Sustain
-            shouldGlow = true
-        end
-    end
-
-    if shouldGlow then
-        -- Check if glow has been active for too long
-        local maxDuration = GetIconValue(entrySettings, panelConfig, "glow_max_duration", 5.0)
-        local now = GetTime()
-
-        if not icon._glowStartTime then
-            icon._glowStartTime = now
-        end
-
-        local elapsed = now - icon._glowStartTime
-
-        if elapsed < maxDuration then
-            -- Resolve glow configuration (Shared central logic)
-            sfui.glows.resolve_config(entrySettings, panelConfig, _tempGlowCfg)
-            local glowType = _tempGlowCfg.glowType
-
-            local needsRestart = false
-            if not icon._glowActive then
-                needsRestart = true
-            elseif icon._lastGlowType ~= glowType then
-                needsRestart = true
-            else
-                local prev = icon._lastGlowCfg
-                if prev and prev.glowColor and _tempGlowCfg.glowColor then
-                    if math.abs(prev.glowColor[1] - _tempGlowCfg.glowColor[1]) > 0.01 or
-                        math.abs(prev.glowColor[2] - _tempGlowCfg.glowColor[2]) > 0.01 or
-                        math.abs(prev.glowColor[3] - _tempGlowCfg.glowColor[3]) > 0.01 or
-                        math.abs(prev.glowScale - _tempGlowCfg.glowScale) > 0.01 or
-                        math.abs(prev.glowIntensity - _tempGlowCfg.glowIntensity) > 0.01 or
-                        math.abs(prev.glowSpeed - _tempGlowCfg.glowSpeed) > 0.01 or
-                        math.abs((prev.glowLines or 8) - _tempGlowCfg.glowLines) > 0.01 or
-                        math.abs((prev.glowThickness or 2) - _tempGlowCfg.glowThickness) > 0.01 or
-                        math.abs((prev.glowParticles or 4) - _tempGlowCfg.glowParticles) > 0.01 then
-                        needsRestart = true
+local function SyncIconAuraWatchlist()
+    if not auraResolver or not auraResolver.SetIconWatchlist then return end
+    wipe(_watchlistScratch)
+    for _, panel in pairs(panels) do
+        if panel.config and panel.config.enabled and panel.icons then
+            for i = 1, #panel.icons do
+                local icon = panel.icons[i]
+                if icon and icon.id and icon.entry then
+                    local desc = entryHelper.CompileDescriptor(icon, panel.config, GetIconValue, sfui.trackedicons.GetIconTexture)
+                    if desc.wantsAura or desc.trackBuffs or desc.glowWhenMissing then
+                        _watchlistScratch[#_watchlistScratch + 1] = desc
                     end
                 end
             end
-
-            if needsRestart then
-                if icon._glowActive then StopGlow(icon) end
-                StartGlow(icon, _tempGlowCfg)
-            end
-        else
-            -- Duration exceeded - stop glow (keep timer to prevent restart)
-            if icon._glowActive then
-                StopGlow(icon)
-            end
-        end
-    else
-        -- Reset start time when not ready (ensures it triggers fresh next time)
-        icon._glowStartTime = nil
-        if icon._glowActive then
-            StopGlow(icon)
         end
     end
+    auraResolver.SetIconWatchlist(_watchlistScratch)
+    _needsWatchlistSync = false
 end
 
-
-
--- ─── alert: missing buff detection (retail) ──────────────────────────────────
--- blizzard's cdm viewers are hidden by sfui (alpha 0) but still updated by secure code,
--- so their item frames carry a valid auraInstanceID even in combat, where by-spellID
--- aura lookups return nothing for addons.
-local _blizzViewers = {
-    { name = "BuffIconCooldownViewer", isAura = true },
-    { name = "BuffBarCooldownViewer", isAura = true },
-}
-
-local function FindBlizzCooldownItem(cooldownID)
-    if not cooldownID then return nil end
-    for i = 1, #_blizzViewers do
-        local v = _blizzViewers[i]
-        local viewer = _G[v.name]
-        local pool = viewer and viewer.itemFramePool
-        if pool then
-            for itemFrame in pool:EnumerateActive() do
-                if itemFrame.cooldownID == cooldownID then
-                    return itemFrame, v.isAura
-                end
-            end
-        end
-    end
-    return nil
-end
-
--- returns true (missing), false (present) or nil (unknown)
-local function IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
-    if sfui.isEra and sfui.tracking and sfui.tracking.FindClassicAura then
-        return sfui.tracking.FindClassicAura(activeID, false) == nil
-    end
-
-    local entry = icon.entry
-    local blizz, isAuraViewer = FindBlizzCooldownItem(entry and (entry.cooldownID or tonumber(entry.id)))
-    if blizz then
-        if sfui.common.HasAuraInstanceID(blizz.auraInstanceID) and blizz.auraDataUnit ~= "target" then
-            return false
-        end
-        -- buff viewers always track their aura, so no instance means it's gone
-        if isAuraViewer then return true end
-    end
-
-    if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
-        if activeID and activeID ~= 0 and C_UnitAuras.GetPlayerAuraBySpellID(activeID) then
-            return false
-        end
-        if linkedSpellIDs then
-            for _, linkedID in ipairs(linkedSpellIDs) do
-                if C_UnitAuras.GetPlayerAuraBySpellID(linkedID) then return false end
-            end
-        end
-    end
-
-    -- nothing found: only conclusive while auras are readable
-    if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then
-        return nil
-    end
-    return true
-end
-
--- ─── aura duration display (seals, self buffs, linked auras) ─────────────────
--- while an aura tied to the cdm item is up, its duration takes precedence over the
--- spell cooldown and the icon shows the active aura's texture (e.g. whichever paladin
--- seal is active). resolution lives in the shared resolver (frames/tracking/auras.lua).
-local auraResolver = sfui.tracking.auras
-
-local function GetIconCooldownID(icon)
-    local entry = icon.entry
-    return (entry and (entry.cooldownID or tonumber(entry.id))) or tonumber(icon.id)
-end
-
-local function GetIconCooldownInfo(icon)
-    local entry = icon.entry
-    local cdID = entry and (entry.cooldownID or (icon.type == "cooldown" and tonumber(entry.id)))
-    return cdID and SafeGetCooldownViewerCooldownInfo(cdID) or nil
-end
-
-local function GetAuraCandidates(icon, activeID, linkedSpellIDs, cdInfo)
-    return auraResolver.GetCandidates(icon, activeID, linkedSpellIDs, cdInfo)
-end
-
-local function ResolveTrackedAura(icon, candidates)
-    return auraResolver.Resolve(GetIconCooldownID(icon), candidates)
-end
-
-local function ClearTrackedAuraDisplay(icon)
-    icon._auraDurationObj = nil
-    icon._auraIcon = nil
-    icon._auraStacks = nil
-    icon._auraState = false
-    icon._auraRev = auraResolver.GetRevision and auraResolver.GetRevision() or 0
-    if icon._auraTextureShown then
-        icon._auraTextureShown = nil
-        if icon.texture and icon._currentTexture then
-            icon.texture:SetTexture(icon._currentTexture)
-        end
-    end
-end
-
--- applies the active aura's duration + texture; returns true while the aura is up.
--- must run after UpdateIconCooldown, which clears the swipe when the spell is ready.
-local function ApplyTrackedAuraDuration(icon, activeID, linkedSpellIDs, cdInfo)
-    local candidates, rebuilt = GetAuraCandidates(icon, activeID, linkedSpellIDs, cdInfo)
-    local rev = auraResolver.GetRevision and auraResolver.GetRevision() or 0
-    -- re-resolve when auras changed, the resolver updated, while active, or when re-used/hidden
-    if rebuilt or _playerAurasDirty or icon._auraRev ~= rev or icon._auraState or icon._auraState == nil or not icon:IsShown() then
-        icon._auraRev = rev
-        local iid, aura, present = ResolveTrackedAura(icon, candidates)
-        if aura or iid then
-            icon._auraDurationObj = auraResolver.GetDuration(iid, aura) or icon._auraDurationObj
-            local tex = auraResolver.PlainField(aura, "icon")
-            if tex then
-                icon._auraIcon = tex
-            end
-            local apps = auraResolver.PlainField(aura, "applications")
-            icon._auraStacks = (apps and apps > 1) and apps or nil
-            icon._auraState = true
-        elseif present and not rebuilt and icon._auraState then
-            -- aura up but restricted: keep the last duration object ticking
-            icon._auraState = true
-        else
-            ClearTrackedAuraDisplay(icon)
-            return false
-        end
-    end
-    if not icon._auraState then return false end
-
-    local dObj = icon._auraDurationObj
-    if dObj and icon.cooldown.SetCooldownFromDurationObject then
-        icon.cooldown:SetCooldownFromDurationObject(dObj)
-        if icon.shadowCooldown and icon.shadowCooldown.SetCooldownFromDurationObject then
-            icon.shadowCooldown:SetCooldownFromDurationObject(dObj)
-        end
-    end
-    if icon._auraIcon and icon.texture then
-        icon.texture:SetTexture(icon._auraIcon)
-        icon._auraTextureShown = true
-    end
-    return true
-end
-
--- Helper to update icon state (visibility, cooldown, charges)
+-- Helper to update icon state (visibility, aura override, cooldown, charges, visuals, glows)
 local function UpdateIconState(icon, panelConfig, event)
     if not icon.id or not icon.entry then return false end
-    local entrySettings = icon.entry.settings or _emptyTable
 
-    local activeID = icon._lastActiveID or icon.id
-    local resolvedType = icon._resolvedType or icon.type
-    local linkedSpellIDs = icon._linkedSpellIDs
-
-    -- If not resolved yet (e.g. fresh icon), resolve once (or retry if texture was missing)
-    if not icon._lastActiveID or not icon._currentTexture then
-        local iconTexture, aID, rType, lIDs = sfui.trackedicons.GetIconTexture(icon.id, icon.type, icon.entry)
-        activeID = aID or icon.id
-        resolvedType = rType or icon.type
-        linkedSpellIDs = lIDs
-        icon._lastActiveID = activeID
-        icon._resolvedType = resolvedType
-        icon._linkedSpellIDs = linkedSpellIDs
-        if icon.texture and iconTexture and icon._currentTexture ~= iconTexture then
-            icon.texture:SetTexture(iconTexture)
-            icon._currentTexture = iconTexture
-        end
-    end
+    local desc = entryHelper.CompileDescriptor(icon, panelConfig, GetIconValue, sfui.trackedicons.GetIconTexture)
+    local entrySettings = desc.settings
 
     -- Visibility Decision (Early Exit to skip cooldown/charge C-API calls when hidden)
     local hideOOC = GetIconValue(nil, panelConfig, "hideOOC", false)
@@ -852,139 +232,53 @@ local function UpdateIconState(icon, panelConfig, event)
         end
     end
 
-    -- Visibility / Settings check: ensure countdown numbers setting is applied before cooldown is set
-    icon.cooldown:SetHideCountdownNumbers(not GetIconValue(entrySettings, panelConfig, "textEnabled", true))
+    local showCountdown = GetIconValue(entrySettings, panelConfig, "textEnabled", true)
+    if icon._lastShowCountdown ~= showCountdown then
+        icon._lastShowCountdown = showCountdown
+        icon.cooldown:SetHideCountdownNumbers(not showCountdown)
+    end
 
-    -- 3. Update Cooldown & Logic
-    local count, isReady, isUsable, notEnoughPower, isOnCooldown = UpdateIconCooldown(icon, activeID, resolvedType)
+    -- 1. Evaluate revision-gated aura duration, seal icon override, opt-in buff stacks, & missing alert
+    local auraActive, auraStacks, missingAlert = iconAura.Evaluate(icon, desc)
 
-    -- 3b. Aura duration display: disabled by default on trackedicons, except special Forever
-    -- seals (`trackBuffs` enabled by default unless explicitly unchecked per-icon) or when
-    -- opted in via `trackBuffs` in trackedoptions.lua.
-    local isAuraType = (icon.type == "buff" or icon.type == "debuff" or (icon.entry and (icon.entry.type == "buff" or icon.entry.type == "debuff")))
-    local auraActive = false
-    if auraResolver and resolvedType ~= "item" and icon.type ~= "item" and activeID and activeID ~= 0 then
-        local cdID = nil
-        local cdInfo = nil
-        local isForeverSeal = false
-        if sfui.isCamelot then
-            cdID = GetIconCooldownID(icon)
-            cdInfo = GetIconCooldownInfo(icon)
-            isForeverSeal = auraResolver.IsForeverSealEntry
-                and auraResolver.IsForeverSealEntry(icon.entry, cdInfo, activeID)
-                or (auraResolver.IsCoverSpell(cdInfo, cdID, activeID) or auraResolver.IsSealSpell(activeID))
-        end
-        local trackBuffs
-        if entrySettings.trackBuffs ~= nil then
-            trackBuffs = (entrySettings.trackBuffs == true)
-        elseif isForeverSeal then
-            trackBuffs = true
-        else
-            trackBuffs = GetIconValue(entrySettings, panelConfig, "trackBuffs", false) == true
-        end
-        if trackBuffs then
-            if not cdID then cdID = GetIconCooldownID(icon) end
-            if not cdInfo then cdInfo = GetIconCooldownInfo(icon) end
-            if auraResolver.Enable then auraResolver.Enable() end
-            local forceEntryAura = (entrySettings.trackBuffs == true) or isAuraType
-            local wantsAura = isForeverSeal or auraResolver.WantsAura(cdInfo, forceEntryAura, linkedSpellIDs, activeID, cdID)
-            if wantsAura then
-                auraActive = ApplyTrackedAuraDuration(icon, activeID, linkedSpellIDs, cdInfo)
-                if auraActive then
-                    -- keep the icon crisp and full-color while its active aura duration ticks
-                    isUsable = true
-                    notEnoughPower = false
-                    isOnCooldown = false
-                elseif isForeverSeal and auraResolver.IsCoverSpell(cdInfo, cdID, activeID) then
-                    -- synthetic cover spells (forever paladin "seals" 1323522) report IsSpellUsable = false
-                    isUsable = true
-                    notEnoughPower = false
-                end
-            elseif icon._auraState then
-                ClearTrackedAuraDisplay(icon)
-            end
-        elseif icon._auraState then
-            ClearTrackedAuraDisplay(icon)
-        end
+    -- 2. Evaluate item/spell cooldown, native charges/display counts, & usability
+    local count, isReady, isUsable, notEnoughPower, isOnCooldown = iconCooldown.Evaluate(icon, desc, auraActive)
+
+    if auraActive then
+        -- keep icon crisp and full-color while its active aura duration ticks
+        isUsable = true
+        notEnoughPower = false
+        isOnCooldown = false
+    elseif desc.isCoverSpell then
+        -- synthetic cover spells (forever paladin "seals" 1323522) report IsSpellUsable = false
+        isUsable = true
+        notEnoughPower = false
     end
 
     if not icon:IsShown() then
-        -- Non-protected frames can Show() freely during combat
         icon:Show()
     end
 
-        -- Update Count Text.
-        local displayCount = count
-        if (isAuraType or linkedSpellIDs) and icon.type ~= "item" and activeID and activeID ~= 0 and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
-            if _playerAurasDirty or icon._cachedAuraStacks == nil then
-                local aura = nil
-                if isAuraType then
-                    local baseAura = C_UnitAuras.GetPlayerAuraBySpellID(activeID)
-                    if not baseAura and sfui.isEra and sfui.tracking and sfui.tracking.FindClassicAura then
-                        baseAura = sfui.tracking.FindClassicAura(activeID, false)
-                    end
-                    if baseAura then
-                        aura = baseAura
-                    end
-                end
+    -- 3. Update Count Text (opt-in aura stacks take priority over base count)
+    local displayCount = (auraStacks ~= nil) and auraStacks or count
+    iconCooldown.UpdateCountText(icon, displayCount)
 
-                if not aura and linkedSpellIDs then
-                    -- Try resolving linked auras (e.g., Marrowrend tracking -> Bone Shield aura)
-                    for _, linkedID in ipairs(linkedSpellIDs) do
-                        local linkedAura = C_UnitAuras.GetPlayerAuraBySpellID(linkedID)
-                        if linkedAura then
-                            aura = linkedAura
-                            break
-                        end
-                    end
-                end
-
-                if aura and aura.applications and (issecretvalue(aura.applications) or (type(aura.applications) == "number" and aura.applications > 1)) then
-                    icon._cachedAuraStacks = aura.applications
-                else
-                    icon._cachedAuraStacks = false
-                end
-            end
-
-            if icon._cachedAuraStacks then
-                displayCount = icon._cachedAuraStacks
-            end
-        end
-        UpdateCountText(icon, displayCount)
-
-        -- Visibility / Settings check
-        icon.cooldown:SetHideCountdownNumbers(not GetIconValue(entrySettings, panelConfig, "textEnabled", true))
-
-        -- 5. Update Visuals
-        UpdateIconVisuals(icon, entrySettings, panelConfig, isUsable, isOnCooldown, notEnoughPower)
-
-        -- 6. Update Glows (alert on missing buff takes priority over the ready glow)
-        local missingAlert = false
-        if (sfui.isRetail or (sfui.isEra and sfui.tracking and sfui.tracking.FindClassicAura)) and entrySettings.glowWhenMissing and resolvedType ~= "item" then
-            if _playerAurasDirty or icon._cachedAuraMissing == nil then
-                local missing = IsTrackedAuraMissing(icon, activeID, linkedSpellIDs)
-                if missing == nil then missing = icon._auraMissing or false end
-                -- the aura resolver also matches classic ranks by name
-                if missing and auraActive then missing = false end
-                icon._cachedAuraMissing = missing
-            end
-            icon._auraMissing = icon._cachedAuraMissing
-            missingAlert = icon._cachedAuraMissing
-        end
-        UpdateIconGlow(icon, entrySettings, panelConfig, isReady, missingAlert)
+    -- 4. Update Visuals & Glows
+    iconCooldown.UpdateVisuals(icon, entrySettings, panelConfig, GetIconValue, isUsable, isOnCooldown, notEnoughPower)
+    iconCooldown.UpdateGlow(icon, entrySettings, panelConfig, GetIconValue, isReady, missingAlert, StartGlow, StopGlow)
     return true
 end
 
 -- Shared Helper for Texture Resolution
-function sfui.trackedicons.GetIconTexture(id, type, entry)
+function sfui.trackedicons.GetIconTexture(id, iconType, entry)
     local activeID = id
     local iconTexture
-    local resolvedType = type
+    local resolvedType = iconType
     local linkedSpellIDs = nil
 
     local equipSlot = entry and entry.equipSlot
     local spellCategoryID = entry and entry.spellCategoryID
-    local cdID = entry and (entry.cooldownID or (type == "cooldown" and id)) or nil
+    local cdID = entry and (entry.cooldownID or (iconType == "cooldown" and id)) or nil
 
     if not equipSlot and not spellCategoryID and cdID then
         local cdInfo = SafeGetCooldownViewerCooldownInfo(cdID)
@@ -1027,7 +321,7 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
         return iconTexture or 134400, activeID, resolvedType, nil
     end
 
-    if (type == "cooldown" or (entry and entry.cooldownID)) and entry and entry.cooldownID then
+    if (iconType == "cooldown" or (entry and entry.cooldownID)) and entry and entry.cooldownID then
         local cdInfo = SafeGetCooldownViewerCooldownInfo(entry.cooldownID)
         if cdInfo then
             linkedSpellIDs = cdInfo.linkedSpellIDs
@@ -1041,7 +335,6 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
                 resolvedType = "item"
             end
         else
-            -- Fallback if cooldown info is not yet available or failed
             if entry.spellID and entry.spellID > 0 then
                 activeID = entry.spellID
                 iconTexture = C_Spell.GetSpellTexture(activeID)
@@ -1060,12 +353,11 @@ function sfui.trackedicons.GetIconTexture(id, type, entry)
                 end
             end
         end
-    elseif type == "item" then
+    elseif iconType == "item" then
         activeID = (entry and entry.itemID) or id
         iconTexture = C_Item.GetItemIconByID(activeID)
         resolvedType = "item"
     else
-        -- Smart Detection: if it's a simple ID, check if it exists in CooldownViewer categories
         local cdInfo = SafeGetCooldownViewerCooldownInfo(activeID)
         if cdInfo then
             if cdInfo.equipSlot then
@@ -1131,14 +423,12 @@ function sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
     icon._lastShowBorder = showBorder
     icon._lastSquareIcons = squareIcons
 
-    -- TexCoord: square crops the round WoW icon edges
     if squareIcons then
         icon.texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     else
         icon.texture:SetTexCoord(0, 1, 0, 1)
     end
 
-    -- Border backdrop (2px black behind icon)
     if icon.borderBackdrop then
         if showBorder then
             icon.borderBackdrop:Show()
@@ -1151,8 +441,6 @@ function sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
             icon.texture:SetAllPoints()
         end
 
-        -- Explicitly re-anchor cooldowns whenever we shift the primary texture,
-        -- otherwise CooldownFrames bleed out beyond borders when layout updates.
         if icon.cooldown then
             icon.cooldown:ClearAllPoints()
             icon.cooldown:SetAllPoints(icon.texture)
@@ -1164,9 +452,6 @@ function sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
     end
 end
 
-
-
--- Shared Helper for Masque Sync
 local function SyncIconMasque(icon)
     local regions = icon._masqueRegions
     if not regions then
@@ -1181,7 +466,6 @@ end
 
 -- Create a single icon frame (Standard Button for Taint Isolation)
 local function CreateIconFrame(parent, id, entry, panelConfig)
-    -- Normalize numeric entry (from new CDM) to table
     if type(entry) == "number" then
         entry = { id = entry, type = "spell" }
     end
@@ -1195,13 +479,11 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     end
     f:SetSize(initialSize, initialSize)
 
-    -- Border backdrop (black 2px behind icon, controlled by showBorder config)
     f.borderBackdrop = f:CreateTexture(nil, "BACKGROUND")
     f.borderBackdrop:SetAllPoints()
     f.borderBackdrop:SetColorTexture(0, 0, 0, 1)
-    f.borderBackdrop:Hide() -- Hidden by default, shown via ApplyIconBorderStyle
+    f.borderBackdrop:Hide()
 
-    -- Icon Texture
     local tex = f:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
     f.texture = tex
@@ -1209,17 +491,14 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     local iconTexture = sfui.trackedicons.GetIconTexture(id, entry.type, entry)
     tex:SetTexture(iconTexture or 134400)
 
-    -- Apply initial border/square style
     sfui.trackedicons.ApplyIconBorderStyle(f, panelConfig)
 
-    -- Main Cooldown Frame (Blizzard Native Countdown)
     local cd = CreateFrame("Cooldown", name .. "_CD", f, "CooldownFrameTemplate")
     cd:SetAllPoints(tex)
     cd:SetDrawEdge(true)
-    cd:SetHideCountdownNumbers(false) -- SHOW NATIVE COUNTDOWN
+    cd:SetHideCountdownNumbers(false)
     f.cooldown = cd
 
-    -- Shadow Cooldown Frame (Invisible, drives desaturation safely)
     local shadow = CreateFrame("Cooldown", name .. "_ShadowCD", f, "CooldownFrameTemplate")
     shadow:SetAllPoints(tex)
     shadow:SetDrawSwipe(false)
@@ -1229,11 +508,6 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     shadow:SetAlpha(0)
     f.shadowCooldown = shadow
 
-    -- Main cooldown frames handle countdown numbers natively
-
-
-
-    -- Border/Overlay (optional visual polish)
     f.PushedTexture = f:CreateTexture(nil, "OVERLAY")
     f.PushedTexture:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
     f.PushedTexture:SetAllPoints()
@@ -1247,10 +521,7 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
     f.id = id
     f.entry = entry
 
-    -- DO NOT register for clicks - this makes frames "protected" and causes combat taint
-    -- User doesn't need clickable icons, just visibility and cooldown tracking
-    -- Tooltips still work via OnEnter/OnLeave scripts below
-
+    -- DO NOT register for clicks - keeps frames non-protected and taint-isolated
     f:SetScript("OnEnter", function(self)
         local showTooltips = GetIconValue(self.entry and self.entry.settings, panelConfig, "showTooltips", false)
         if showTooltips and self.id and not (issecretvalue and issecretvalue(self.id)) then
@@ -1258,9 +529,10 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
             if not tip then return end
             tip:SetOwner(self:GetParent(), "ANCHOR_RIGHT")
 
-            local equipSlot = self.entry and self.entry.equipSlot
-            local spellCategoryID = self.entry and self.entry.spellCategoryID
-            local cdID = self.entry and (self.entry.cooldownID or (self.entry.type == "cooldown" and self.id)) or nil
+            local desc = self._desc
+            local equipSlot = (desc and desc.equipSlot) or (self.entry and self.entry.equipSlot)
+            local spellCategoryID = (desc and desc.spellCategoryID) or (self.entry and self.entry.spellCategoryID)
+            local cdID = (desc and desc.cooldownID) or (self.entry and (self.entry.cooldownID or (self.entry.type == "cooldown" and self.id))) or nil
 
             if not equipSlot and not spellCategoryID and cdID then
                 local cdInfo = SafeGetCooldownViewerCooldownInfo(cdID)
@@ -1297,23 +569,18 @@ local function CreateIconFrame(parent, id, entry, panelConfig)
             tip:Show()
         end
     end)
-    f:SetScript("OnLeave", function(self)
+    f:SetScript("OnLeave", function()
         sfui.common.hide_tooltip()
     end)
 
-    -- Initial State: Show immediately
-    -- Non-protected frames can be shown/hidden freely even during combat
     f:SetScript("OnUpdate", nil)
-
     SyncIconMasque(f)
-
     return f
 end
 
 local function CheckPanelVisibility(panelConfig, event)
     if not panelConfig or not panelConfig.enabled then return false end
 
-    -- OVERRIDE: Always show if Options Panel is open on relevant tabs
     if _G["SfuiCooldownsViewer"] and _G["SfuiCooldownsViewer"]:IsShown() then
         local tabId = _G["SfuiCooldownsViewer"].selectedTabId
         if tabId == 1 or tabId == 3 then
@@ -1321,7 +588,6 @@ local function CheckPanelVisibility(panelConfig, event)
         end
     end
 
-    -- 1. Check Form Specificity (Druid CENTER panels, Rogue Stealth, Warrior Stances)
     local isStealthed = IsStealthed()
     local currentForm = GetShapeshiftFormID() or 0
     local playerClass = sfui.common.get_player_class()
@@ -1375,13 +641,10 @@ local function CheckPanelVisibility(panelConfig, event)
         if panelConfig.requiredForm ~= nil then
             if panelConfig.requiredForm == "stealth" then
                 if not isStealthed then return false end
-
-                -- If we are a Druid in Bear or Moonkin form, we prioritize the form-specific bar over Stealth.
                 if playerClass == "DRUID" and currentForm ~= 0 and currentForm ~= 1 then
                     return false
                 end
             else
-                -- Non-stealth form panel logic
                 local matchesForm = false
                 if type(panelConfig.requiredForm) == "table" then
                     for _, id in ipairs(panelConfig.requiredForm) do
@@ -1397,8 +660,6 @@ local function CheckPanelVisibility(panelConfig, event)
             end
         end
 
-        -- If we are stealthed, we usually want the STEALTH bar to take priority for Human/Rogue and Cat.
-        -- This hides the base form bars to prevent overlap, even if requiredForm matches.
         if isStealthed and (playerClass == "ROGUE" or currentForm == 0 or currentForm == 1) then
             if panelConfig.requiredForm ~= nil and panelConfig.requiredForm ~= "stealth" then
                 return false
@@ -1406,34 +667,22 @@ local function CheckPanelVisibility(panelConfig, event)
         end
     end
 
-    -- 2. Robust Combat Status (centralized event-driven tracker)
     local inCombat = is_in_combat(event)
-
-    -- 3. Per-Panel Conditionals (Using GetIconValue for nested/global inheritance)
-    -- Hide if Out of Combat enabled (bypassed if stealthed in a stealth panel)
     local isStealthPanelActive = (panelConfig.requiredForm == "stealth" and isStealthed)
     if not isStealthPanelActive and GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
 
-    -- Priority: Combat status always overrides mount/vehicle hide conditions
     if not inCombat and not isStealthPanelActive then
-        -- Hide while Mounted enabled
         if GetIconValue(nil, panelConfig, "hideMounted", false) and sfui.common.is_mounted_or_travel_form() then return false end
-        -- Hide while in Vehicle UI enabled
         if GetIconValue(nil, panelConfig, "hideInVehicle", true) and (UnitHasVehicleUI("player") or UnitInVehicle("player")) then return false end
-        -- Hide while in Dragonriding
         if panelConfig.hideDragonriding and sfui.common.is_dragonflying and sfui.common.is_dragonflying() then return false end
     end
 
-    -- 4. Global Visibility Settings
     local globalVis = SfuiDB and SfuiDB.iconGlobalSettings
     if globalVis and not isStealthPanelActive then
-        -- Legacy Global Hide OOC
         if globalVis.hideOOC and not inCombat then return false end
-        -- Dragonriding
         if globalVis.hideDragonriding and sfui.common.is_dragonflying and sfui.common.is_dragonflying() and not inCombat then return false end
     end
 
-    -- 5. Visibility Mode (Dropdown Toggle: Always, Combat, NoCombat)
     local visMode = panelConfig.visibility
     if not visMode and globalVis then visMode = globalVis.visibility end
     visMode = visMode or "always"
@@ -1444,7 +693,6 @@ local function CheckPanelVisibility(panelConfig, event)
         if inCombat then return false end
     end
 
-    -- 6. Hide if no active icons
     if panelConfig.hideIfEmpty then
         local activeEntries = sfui.common.get_active_panel_entries(panelConfig, _staticActiveEntries)
         if #activeEntries == 0 then
@@ -1455,7 +703,6 @@ local function CheckPanelVisibility(panelConfig, event)
     return true
 end
 
--- Visibility Event Handler (Triggered centrally now)
 function sfui.trackedicons.OnVisibilityEvent(_, event)
     for _, panelFrame in pairs(panels) do
         if panelFrame.config then
@@ -1474,8 +721,7 @@ function sfui.trackedicons.OnVisibilityEvent(_, event)
     end
 end
 
--- Helper: Apply Auto-Span Logic to fit width (only active from 4 or more icons)
-local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns, growthH, targetFrame)
+local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns, _growthH, targetFrame)
     local spanWidth = GetIconValue(nil, panelConfig, "spanWidth", false)
     if spanWidth and activeIcons and #activeIcons >= 4 then
         local targetWidth = (sfui.config and sfui.config.healthBar and sfui.config.healthBar.width) or 300
@@ -1488,18 +734,15 @@ local function ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns
         local iconsPerRow = math.min(numColumns, #activeIcons)
         if iconsPerRow < 4 then return size, spacing end
 
-        -- Calculate current width with configured size/spacing
         local currentWidth = (iconsPerRow * size) + (math.max(0, iconsPerRow - 1) * spacing)
 
         if currentWidth < targetWidth then
-            -- Expand spacing to fill width
             if iconsPerRow > 1 then
                 spacing = (targetWidth - (iconsPerRow * size)) / (iconsPerRow - 1)
             end
         else
-            -- Shrink size to fit width (keeping spacing fixed)
             local newSize = (targetWidth - (math.max(0, iconsPerRow - 1) * spacing)) / iconsPerRow
-            if newSize < 10 then newSize = 10 end -- Hard min size
+            if newSize < 10 then newSize = 10 end
             size = newSize
         end
     end
@@ -1510,17 +753,11 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     if not panelFrame or not panelConfig then return end
     panelFrame.config = panelConfig
 
-
-
-    -- Trigger initial visibility check IMMEDIATELY
     if panelFrame.visHandler then
         local onEvent = panelFrame.visHandler:GetScript("OnEvent")
         if onEvent then onEvent(panelFrame.visHandler) end
     end
 
-
-
-    -- Ensure panel position is updated from Config with Dynamic Anchoring
     panelFrame:ClearAllPoints()
 
     local anchorTo = panelConfig.anchorTo or "UIParent"
@@ -1545,7 +782,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
             targetPoint = "BOTTOM"
             anchorPoint = "TOP"
 
-            -- Smart Anchoring: Check if Power Bar (bar_minus_1) EXISTS and IS SHOWN
             local powerBar = _G["sfui_bar_minus_1_Backdrop"] or _G["sfui_bar-1_Backdrop"]
                 or (sfui.bars.get_bar_minus_1 and sfui.bars.get_bar_minus_1().backdrop)
             if powerBar and (powerBar:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false)) then
@@ -1553,7 +789,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
                 targetPoint = "BOTTOM"
             end
 
-            -- Swing Bar Anchoring: In Classic/Vanilla/Camelot, always position below the swing bar if present/possible
             if not sfui.isRetail and sfui.swing and sfui.swing.IsPossible() then
                 local swingBar = (sfui.swing.GetLowestPossibleBar and sfui.swing.GetLowestPossibleBar())
                     or (sfui.swing.GetLowestBar and sfui.swing.GetLowestBar(true))
@@ -1569,27 +804,19 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
         targetPoint = "TOP"
         anchorPoint = "BOTTOM"
     elseif anchorTo ~= "UIParent" then
-        -- Dynamic Anchor Resolution:
-        -- If we are anchoring to "CENTER" and it is hidden, we search for a "replacement" panel
-        -- (usually CAT, BEAR, STEALTH etc) that is currently visible.
         local searchTarget = anchorTo
         local resolvedTarget = nil
 
-        -- Initial search for the specific named target
         for _, otherPanel in pairs(panels) do
             if otherPanel.config and otherPanel.config.name == searchTarget then
                 if otherPanel:IsShown() then
                     resolvedTarget = otherPanel
                     break
-                else
-                    -- Target found but hidden. If it's "CENTER" or "BATTLE", we look for any visible
-                    -- "center-style" panel (one that anchors to Health Bar).
-                    if searchTarget == "CENTER" or searchTarget == "BATTLE" then
-                        for _, p in pairs(panels) do
-                            if p:IsShown() and p.config and p.config.anchorTo == "Health Bar" then
-                                resolvedTarget = p
-                                break
-                            end
+                elseif searchTarget == "CENTER" or searchTarget == "BATTLE" then
+                    for _, p in pairs(panels) do
+                        if p:IsShown() and p.config and p.config.anchorTo == "Health Bar" then
+                            resolvedTarget = p
+                            break
                         end
                     end
                 end
@@ -1601,16 +828,13 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
             targetPoint = "BOTTOM"
             anchorPoint = "TOP"
         else
-            -- Fallback or static search if dynamic resolution failed or wasn't "CENTER"
             for _, otherPanel in pairs(panels) do
                 if otherPanel.config and otherPanel.config.name == anchorTo then
-                    -- SAFETY: Ensure we are not anchoring to ourselves
                     if otherPanel ~= panelFrame then
                         targetFrame = otherPanel
                         targetPoint = "BOTTOM"
                         anchorPoint = "TOP"
                     else
-                        -- Fallback to UIParent if self-anchoring detected
                         targetFrame = UIParent
                         targetPoint = "BOTTOM"
                         anchorPoint = "BOTTOM"
@@ -1621,7 +845,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
         end
     end
 
-    -- Default local anchor for icon placement relative to panel
     if targetFrame == UIParent and (isCenter or isHealthBarAnchor or isSwingBarAnchor) then
         anchorPoint = "CENTER"
         targetPoint = "CENTER"
@@ -1629,8 +852,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     local anchor = anchorPoint
     panelFrame:SetPoint(anchorPoint, targetFrame, targetPoint, panelConfig.x or 0, panelConfig.y or 0)
 
-    -- Hide all icons first (full redraw of state)
-    -- Non-protected frames can be manipulated freely during combat
     if panelFrame.icons then
         for _, icon in pairs(panelFrame.icons) do
             if icon._glowActive then StopGlow(icon) end
@@ -1646,7 +867,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     local entries = sfui.common.get_active_panel_entries(panelConfig, _staticActiveEntries)
 
     for i, entry in ipairs(entries) do
-        -- Handle both new simple numeric IDs and legacy table entries
         local id = (type(entry) == "table" and entry.id) or entry
         if id then
             if not panelFrame.icons[i] then
@@ -1655,13 +875,12 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
 
             local icon = panelFrame.icons[i]
             if icon then
-                -- Update attributes (safe out of combat)
                 icon.id = id
                 if type(entry) == "table" then
                     icon.type = entry.type
                     icon.entry = entry
                 else
-                    icon.type = "spell" -- Default for simple IDs
+                    icon.type = "spell"
                     local fb = icon._fallbackEntry
                     if not fb then
                         fb = { id = id, type = "spell" }
@@ -1673,46 +892,33 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
                     icon.entry = fb
                 end
 
-                local iconTexture, activeID, resolvedType, linkedSpellIDs = sfui.trackedicons.GetIconTexture(id, icon.type, icon.entry)
-                icon._lastActiveID = activeID or id
-                icon._resolvedType = resolvedType or icon.type
-                icon._linkedSpellIDs = linkedSpellIDs
-                if icon.texture and iconTexture then
-                    if icon._currentTexture ~= iconTexture then
-                        icon.texture:SetTexture(iconTexture)
-                        icon._currentTexture = iconTexture
-                    end
-                end
+                entryHelper.CompileDescriptor(icon, panelConfig, GetIconValue, sfui.trackedicons.GetIconTexture)
                 sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
-
-                -- Sync Masque state
                 SyncIconMasque(icon)
                 UpdateIconState(icon, panelConfig, event)
-                table.insert(activeIcons, icon)
+                activeIcons[#activeIcons + 1] = icon
             end
         end
     end
 
-    -- Cleanup stale icons (from previous specs/layouts) that exceed the current entry count
-    -- CRITICAL MEMORY OPTIMIZATION: Do not set panelFrame.icons[x] to nil, or we permanently
-    -- leak frames on every resize. Hide them and wipe references, keeping them pooled for reuse.
+    -- Cleanup surplus pooled icons without freeing frames
     if panelFrame.icons then
         for x = #entries + 1, #panelFrame.icons do
             local oldIcon = panelFrame.icons[x]
             if oldIcon then
                 if oldIcon._glowActive then StopGlow(oldIcon) end
+                if iconAura and iconAura.Reset then iconAura.Reset(oldIcon) end
                 oldIcon:Hide()
                 oldIcon.id = nil
                 oldIcon.entry = nil
+                oldIcon._desc = nil
             end
         end
     end
 
-    -- Layout Active Icons
     local numColumns = panelConfig.columns or #activeIcons
     if numColumns < 1 then numColumns = 1 end
 
-    -- Force Single Row ONLY for the main CENTER panel and stance/form variants
     local pName = panelConfig.name and string.upper(panelConfig.name)
     if pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
         or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER" then
@@ -1724,19 +930,12 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     local hSign = (growthH == "Left") and -1 or 1
     local vSign = (growthV == "Up") and 1 or -1
 
-    -- Ensure spacing is a number and size is a number
-    local size = GetIconValue(nil, panelConfig, "size", 40)
-    local spacing = GetIconValue(nil, panelConfig, "spacing", 2)
-    size = tonumber(size) or 40
-    spacing = tonumber(spacing) or 2
-
+    local size = tonumber(GetIconValue(nil, panelConfig, "size", 40)) or 40
+    local spacing = tonumber(GetIconValue(nil, panelConfig, "spacing", 2)) or 2
     local maxWidth, maxHeight = 0, 0
 
-    -- Auto-Span Width Logic
     size, spacing = ApplyAutoSpan(panelConfig, activeIcons, size, spacing, numColumns, growthH, targetFrame)
 
-    -- Layout icons based on growth mode
-    -- Non-protected frames can be positioned freely even during combat
     if growthH == "Center" then
         local totalIcons = #activeIcons
         for i, icon in ipairs(activeIcons) do
@@ -1745,8 +944,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
 
             local row = math.floor((i - 1) / numColumns)
             local colInRow = (i - 1) % numColumns
-
-            -- Calculate icons in this specific row for centering
             local startIdx = row * numColumns + 1
             local endIdx = math.min((row + 1) * numColumns, totalIcons)
             local numInRow = endIdx - startIdx + 1
@@ -1755,7 +952,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
             local ox = centerOffset * (size + spacing)
             local oy = row * (size + spacing) * vSign
 
-            -- Centered icons always use the panel's main anchor point as their 0,0 reference
             icon:SetPoint(anchor, panelFrame, anchor, ox, oy)
 
             local rowWidth = numInRow * size + math.max(0, numInRow - 1) * spacing
@@ -1763,14 +959,12 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
             maxHeight = math.max(maxHeight, (row + 1) * (size + spacing) - spacing)
         end
     else
-        -- Standard growth
         for idx, icon in ipairs(activeIcons) do
             icon:ClearAllPoints()
             icon:SetSize(size, size)
 
             local col = (idx - 1) % numColumns
             local row = math.floor((idx - 1) / numColumns)
-
             local ox = col * (size + spacing) * hSign
             local oy = row * (size + spacing) * vSign
 
@@ -1781,7 +975,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
         end
     end
 
-    -- Background Frame Logic (Universal for all panels)
     local showBG = GetIconValue(nil, panelConfig, "showBackground", true)
     local bgAlpha = GetIconValue(nil, panelConfig, "backgroundAlpha", 0.5)
 
@@ -1816,7 +1009,6 @@ function sfui.trackedicons.UpdatePanelLayout(panelFrame, panelConfig, event)
     panelFrame:SetSize(math.max(maxWidth, 1), math.max(maxHeight, 1))
 end
 
--- Force refresh all glows (called when global settings change)
 function sfui.trackedicons.ForceRefreshGlows()
     for _, panel in pairs(panels) do
         if panel.icons then
@@ -1829,11 +1021,9 @@ function sfui.trackedicons.ForceRefreshGlows()
     end
 end
 
--- Helper to remove legacy defaults from panels so they use global settings
 local function SanitizePanelConfig(panelConfig)
     if not panelConfig then return end
 
-    -- Keys to purge from panel config (ensures fallback to Global settings)
     local keysToPurge = {
         "readyGlow", "useSpecColor", "glowType", "glowColor",
         "glowScale", "glowSpeed", "glowIntensity", "glow_max_duration",
@@ -1843,7 +1033,6 @@ local function SanitizePanelConfig(panelConfig)
         "textColor", "squareIcons", "showBorder"
     }
 
-    -- Global Protection: Ensure Global Settings aren't corrupted
     local igs = SfuiDB and SfuiDB.iconGlobalSettings
     if igs and igs.alphaOnCooldown == 0 then
         igs.alphaOnCooldown = 1.0
@@ -1853,7 +1042,6 @@ local function SanitizePanelConfig(panelConfig)
         panelConfig[key] = nil
     end
 
-    -- ALSO purge per-entry settings (legacy icon-specific overrides)
     if panelConfig.entries then
         for _, entry in ipairs(panelConfig.entries) do
             if type(entry) == "table" and entry.settings then
@@ -1869,24 +1057,25 @@ function sfui.trackedicons.ForceLayoutUpdate()
     _layoutCooldown = 0
     _needsLayoutUpdate = false
     _needsStateUpdate = false
-    wipe(_cdInfoCache)
+    entryHelper.InvalidateCooldownInfoCache()
     sfui.trackedicons.Update()
 end
 
 function sfui.trackedicons.Update(event)
     sfui.trackedicons.InvalidateConfigCache()
     local panelConfigs = sfui.common.get_cooldown_panels()
-    if not panelConfigs or #panelConfigs == 0 then return end
+    if not panelConfigs or #panelConfigs == 0 then
+        SyncIconAuraWatchlist()
+        return
+    end
 
-
-    -- Render Panels
     for i, panelConfig in ipairs(panelConfigs) do
         if panelConfig.enabled then
             if not panels[i] then
                 panels[i] = CreateFrame("Frame", "SfuiIconPanel_" .. i, UIParent)
             end
+            panels[i].config = panelConfig
 
-            -- Always build and position icon frames so the panel is never an empty shell
             sfui.trackedicons.UpdatePanelLayout(panels[i], panelConfig, event)
 
             local shouldShow = CheckPanelVisibility(panelConfig, event)
@@ -1896,25 +1085,36 @@ function sfui.trackedicons.Update(event)
                 panels[i]:Hide()
             end
         elseif panels[i] then
+            panels[i].config = panelConfig
             if not InCombatLockdown() then
                 panels[i]:Hide()
             end
         end
     end
+
+    for i = #panelConfigs + 1, #panels do
+        if panels[i] then
+            panels[i].config = nil
+            if not InCombatLockdown() then
+                panels[i]:Hide()
+            end
+        end
+    end
+
+    SyncIconAuraWatchlist()
 end
 
 function sfui.trackedicons.initialize()
-    -- Ensure Blizzard addon is loaded (Retail only; on Classic/Forever it is handled natively via OptionalDeps)
     if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
 
-    -- Hide Blizzard Cooldown Frames
     sfui.common.hide_blizzard_cooldown_viewers()
 
-    -- Helper: Update only icon states (no layout rebuild) using cached panel.config.
-    -- Fast track route: only process panels that are currently shown.
     local function UpdateAllIconStates()
+        if _needsWatchlistSync then
+            SyncIconAuraWatchlist()
+        end
         for _, panel in pairs(panels) do
             if panel:IsShown() and panel.icons and panel.config then
                 local config = panel.config
@@ -1923,10 +1123,8 @@ function sfui.trackedicons.initialize()
                 end
             end
         end
-        _playerAurasDirty = false
     end
 
-    -- Event handling: visibility & state updates (avoid full layout rebuilds during combat/target changes)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_ENABLED")
         MarkDirty(false)
@@ -1971,15 +1169,16 @@ function sfui.trackedicons.initialize()
         sfui.trackedicons.Update()
         MarkDirty(true)
     end)
+
     local specDebounceTimer = nil
     local function on_tracked_icons_spec_changed()
         if specDebounceTimer then
             specDebounceTimer:Cancel()
             specDebounceTimer = nil
         end
-        local C_Timer = _G.C_Timer
-        if C_Timer and C_Timer.NewTimer then
-            specDebounceTimer = C_Timer.NewTimer(0.15, function()
+        local cTimer = _G.C_Timer
+        if cTimer and cTimer.NewTimer then
+            specDebounceTimer = cTimer.NewTimer(0.15, function()
                 specDebounceTimer = nil
                 sfui.common.ensure_panels_initialized()
                 sfui.trackedicons.Update()
@@ -1998,14 +1197,24 @@ function sfui.trackedicons.initialize()
     sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", on_tracked_icons_spec_changed)
     sfui.events.RegisterEvent("SPELLS_CHANGED", function() MarkDirty(true) end)
 
-    -- Soul fragments, charges, resource-gated display counts.
-    sfui.events.RegisterEvent("SPELL_UPDATE_CHARGES", function()
+    sfui.events.RegisterEvent("COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED", function()
+        entryHelper.InvalidateCooldownInfoCache()
+        entryHelper.BumpConfigRevision()
+        _needsWatchlistSync = true
         _needsStateUpdate = true
     end)
 
-    -- UNIT_POWER_UPDATE covers resource pools (throttled in combat to 0.25s to eliminate tick churn)
+    -- Soul fragments, charges, and spell use-count updates (CooldownViewer.lua:805)
+    sfui.events.RegisterEvent("SPELL_UPDATE_CHARGES", function()
+        _needsStateUpdate = true
+    end)
+    sfui.events.RegisterEvent("SPELL_UPDATE_USES", function()
+        _needsStateUpdate = true
+    end)
+
+    -- UNIT_POWER_UPDATE covers resource pools (throttled in combat to 0.25s)
     local _lastCombatPowerTime = 0
-    sfui.events.RegisterUnitEvent("UNIT_POWER_UPDATE", "player", function(event, unit)
+    sfui.events.RegisterUnitEvent("UNIT_POWER_UPDATE", "player", function()
         if is_in_combat() then
             local now = GetTime()
             if (now - _lastCombatPowerTime) >= 0.25 then
@@ -2015,11 +1224,7 @@ function sfui.trackedicons.initialize()
         end
     end)
 
-    -- Real-time events that require immediate structural/GCD sync
-    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function(event, unit)
-        if sfui.isCamelot or (auraResolver and auraResolver.IsEnabled and auraResolver.IsEnabled()) then
-            _playerAurasDirty = true
-        end
+    sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", function()
         _needsStateUpdate = true
     end)
 
@@ -2032,6 +1237,7 @@ function sfui.trackedicons.initialize()
     end)
 
     sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function()
+        entryHelper.BumpConfigRevision()
         MarkDirty(not InCombatLockdown())
         _needsStateUpdate = true
     end)
@@ -2040,42 +1246,22 @@ function sfui.trackedicons.initialize()
         _needsStateUpdate = true
     end)
 
-    -- 11.0+ C_UnitAuras Event Migration (throttled to 0.25s in combat / 0.5s OOC, secret-safe)
-    local _lastAuraTime = 0
-    sfui.events.RegisterUnitEvent("UNIT_AURA", "player", function()
-        _playerAurasDirty = true
-        local now = GetTime()
-        local interval = is_in_combat() and 0.25 or 0.5
-        if (now - _lastAuraTime) >= interval then
-            _lastAuraTime = now
-            _needsStateUpdate = true
-        end
-    end)
-
     sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", function()
         MarkDirty(not InCombatLockdown())
     end)
 
-    -- 12.0.5+: fires when Blizzard switches the aura data provider (e.g. into M+ obfuscated
-    -- mode). When useRealDataProvider=false, all aura queries will return secret/fake data.
-    -- We reset all icon states immediately so stale cooldown/stack data is cleared before
-    -- the next proper UNIT_AURA fires. When returning to real data we also force a refresh.
+    -- 12.0.5+: Blizzard aura data provider switch (e.g. M+ restricted mode transitions)
     sfui.events.RegisterEvent("AURA_DATA_PROVIDER_SWITCH", function(useRealDataProvider)
-        if not useRealDataProvider then
-            -- Entering secret/fake aura mode (M+ key started, etc.)
-            -- Clear all icon cooldown frames and count badges to avoid stale display.
-            for _, panel in pairs(panels) do
-                if panel.icons then
-                    for _, icon in pairs(panel.icons) do
-                        if icon.cooldown then
-                            icon.cooldown:Clear()
-                        end
-                        if icon.shadowCooldown then
-                            icon.shadowCooldown:Clear()
-                        end
-                        if icon.count then
-                            icon.count:Hide()
-                        end
+        for _, panel in pairs(panels) do
+            if panel.icons then
+                for _, icon in pairs(panel.icons) do
+                    if iconAura and iconAura.Reset then
+                        iconAura.Reset(icon)
+                    end
+                    if not useRealDataProvider then
+                        if icon.cooldown then icon.cooldown:Clear() end
+                        if icon.shadowCooldown then icon.shadowCooldown:Clear() end
+                        if icon.count then icon.count:Hide() end
                         icon._lastCount = nil
                         icon._wasOnCooldown = false
                         icon._pendingGlow = false
@@ -2083,11 +1269,10 @@ function sfui.trackedicons.initialize()
                 end
             end
         end
-        -- Force a full update on both entry and exit so icons reflect real state ASAP.
         MarkDirty(true)
     end)
 
-    -- OnUpdate: Only process when dirty (zero CPU/allocations when idle)
+    -- OnUpdate: only process when dirty (zero CPU/allocations when idle)
     local _lastStateUpdateTime = 0
     local _lastCombatState = nil
     local function _OnTrackedIconsUpdate(elapsed)
@@ -2104,23 +1289,11 @@ function sfui.trackedicons.initialize()
             _layoutCooldown = _layoutCooldown - elapsed
         end
 
-        -- trailing edge for throttled UNIT_AURA: an aura change swallowed by the throttle
-        -- (e.g. a seal fading shortly after another aura update) still gets processed
-        if _playerAurasDirty and not _needsStateUpdate
-            and (sfui.isCamelot or (auraResolver and auraResolver.IsEnabled and auraResolver.IsEnabled())) then
-            local now = GetTime()
-            if (now - _lastAuraTime) >= (inCombat and 0.25 or 0.5) then
-                _lastAuraTime = now
-                _needsStateUpdate = true
-            end
-        end
-
-        -- Only update when explicitly dirty
         if _needsLayoutUpdate and _layoutCooldown <= 0 then
             _needsLayoutUpdate = false
             _needsStateUpdate = false
-            _layoutCooldown = 0.5 -- 500ms throttle for layout updates
-            wipe(_cdInfoCache)
+            _layoutCooldown = 0.5
+            entryHelper.InvalidateCooldownInfoCache()
             sfui.trackedicons.Update()
         elseif _needsStateUpdate then
             local now = GetTime()
@@ -2130,15 +1303,20 @@ function sfui.trackedicons.initialize()
                 UpdateAllIconStates()
             end
         elseif _activeGlowCount > 0 then
-            -- Even when idle, check icons with active glows for timeout (skip when no glows active)
             for _, panel in pairs(panels) do
-                if panel.icons then
+                if panel.icons and panel.config then
                     for _, icon in pairs(panel.icons) do
                         if icon._glowActive then
-                            local config = panel.config
-                            if config then
-                                UpdateIconGlow(icon, icon.entry and icon.entry.settings or _emptyTable, config, true)
-                            end
+                            iconCooldown.UpdateGlow(
+                                icon,
+                                (icon.entry and icon.entry.settings) or _emptyTable,
+                                panel.config,
+                                GetIconValue,
+                                true,
+                                icon._missingGlow == true,
+                                StartGlow,
+                                StopGlow
+                            )
                         end
                     end
                 end
@@ -2148,10 +1326,8 @@ function sfui.trackedicons.initialize()
 
     sfui.events.RegisterUpdate("TrackedIcons", 0.1, _OnTrackedIconsUpdate)
 
-    -- Initial setup
     sfui.common.ensure_panels_initialized()
 
-    -- Sanitize all panels once (skip if already done)
     if not SfuiDB._panelsSanitizedV2 then
         local panelConfigs = sfui.common.get_cooldown_panels()
         if panelConfigs then
@@ -2178,19 +1354,19 @@ function sfui.trackedicons_debug_info()
     _tiDebug.panels      = pCount
     _tiDebug.icons       = iCount
     _tiDebug.activeGlows = _activeGlowCount
-    _tiDebug.cdCache     = _cdInfoCacheCount
+    _tiDebug.cdCache     = entryHelper.GetCooldownInfoCacheCount()
+    _tiDebug.auraWatch   = (auraResolver and auraResolver.GetWatchCount and auraResolver.GetWatchCount()) or 0
     _tiDebug.needsState  = _needsStateUpdate
     _tiDebug.needsLayout = _needsLayoutUpdate
     return _tiDebug
 end
 
 sfui.trackedicons.OnEnable = function(self) self.initialize() end
-sfui.trackedicons.OnSettingsChanged = function(self, k, v)
+sfui.trackedicons.OnSettingsChanged = function(self, _k, _v)
     if self.Update then self.Update() end
 end
-sfui.trackedicons.OnSpecChanged = function(self, specID)
+sfui.trackedicons.OnSpecChanged = function(self, _specID)
     if self.Update then self.Update() end
 end
 sfui.trackedicons.GetDebugInfo = sfui.trackedicons_debug_info
 sfui.RegisterModule("trackedicons", sfui.trackedicons)
-

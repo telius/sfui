@@ -233,7 +233,7 @@ local DEFAULT_TAXONOMY = {
     -- tracking & cooldowns
     trackedbars    = { category = "tracking & cooldowns", client = "all", order = 10 },
     trackedicons   = { category = "tracking & cooldowns", client = "all", order = 20 },
-    trackedbuffs   = { category = "tracking & cooldowns", client = "retail", order = 30 },
+    trackedbuffs   = { category = "tracking & cooldowns", client = "cdm", order = 30 },
     cdm            = { category = "tracking & cooldowns", client = "all", order = 40 },
     glows          = { category = "tracking & cooldowns", client = "all", order = 50 },
 
@@ -287,6 +287,7 @@ local CATEGORY_ORDER = {
 
 local function is_module_client_eligible(client)
     if not client or client == "all" then return true end
+    if client == "cdm" then return (sfui.isRetail or sfui.isCamelot) == true end
     if client == "retail" then return sfui.isRetail == true end
     if client == "classic" then return sfui.isRetail ~= true end
     if client == "camelot" then return sfui.isCamelot == true end

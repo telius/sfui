@@ -1505,3 +1505,178 @@ function sfui.buffs.data.GetAllEntries()
     return result
 end
 
+-- ─────────────────────────────────────────────────────────────
+--  REMINDER PROVIDER REGISTRATIONS (CLASS / SPELL / PET / LURE)
+-- ─────────────────────────────────────────────────────────────
+local P = sfui.buffs.providers
+if P and P.Register then
+    local string_format = string.format
+
+    local function PopulateStandardSpellTooltip(tip, rec, subtitle, isTestMode)
+        P.AddStatusHeader(tip, rec)
+        if subtitle then
+            tip:AddLine(subtitle, 0.6, 0.6, 0.6)
+        end
+        local castSpell = GetBestCastSpell(rec and rec.entry, rec and rec.activeEnchant)
+        P.AddClickPrompt(tip, "cast", castSpell and castSpell:lower(), isTestMode)
+    end
+
+    P.Register("aura", {
+        scanType = "aura",
+        populateTooltip = function(tip, rec, _, isTestMode)
+            PopulateStandardSpellTooltip(tip, rec, nil, isTestMode)
+        end,
+    })
+
+    P.Register("stance", {
+        scanType = "stance",
+        populateTooltip = function(tip, rec, _, isTestMode)
+            PopulateStandardSpellTooltip(tip, rec, "activate your combat stance", isTestMode)
+        end,
+    })
+
+    P.Register("weapon_enchant", {
+        scanType = "weapon_enchant",
+        populateTooltip = function(tip, rec, _, isTestMode)
+            PopulateStandardSpellTooltip(tip, rec, "apply weapon temporary enchant / poison", isTestMode)
+        end,
+    })
+
+    P.Register("tracking", {
+        scanType = "tracking",
+        populateTooltip = function(tip, rec, _, isTestMode)
+            PopulateStandardSpellTooltip(tip, rec, "activate resource tracking", isTestMode)
+        end,
+    })
+
+    P.Register("fishing_lure", {
+        scanType = "weapon_enchant",
+        resolveAction = function()
+            local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
+            local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
+            if bestLure and bestLure.itemID then
+                return "item", "item:" .. bestLure.itemID, 16, nil
+            end
+            return nil
+        end,
+        populateTooltip = function(tip, rec)
+            P.AddStatusHeader(tip, rec)
+            local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
+            local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
+            if bestLure then
+                local lureName = (bestLure.name or "lure"):lower()
+                tip:AddLine(string_format("best lure: |cff00ffff%s|r (+%d skill, %d in bags)", lureName, bestLure.bonus or 0, bestLure.count or 1), 0.8, 0.8, 0.8)
+                if _G.InCombatLockdown and _G.InCombatLockdown() then
+                    tip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
+                else
+                    tip:AddLine("|cff55ff55[click to apply lure]|r", 0.3, 1, 0.3)
+                end
+            else
+                tip:AddLine("|cffff5555no compatible lures in bags|r", 0.9, 0.4, 0.4)
+            end
+        end,
+    })
+
+    P.Register("shaman_imbue", {
+        scanType = "weapon_enchant",
+        resolveScanIcon = function(entry, icon)
+            local slot = (entry and entry.slot) or 16
+            local _, imbIcon = sfui.buffs.data.GetBestShamanImbue(slot)
+            return imbIcon or icon
+        end,
+        resolveVisual = function(rec)
+            local slot = (rec.entry and rec.entry.slot) or 16
+            local _, imbIcon = sfui.buffs.data.GetBestShamanImbue(slot, rec.activeEnchant)
+            return imbIcon or rec.icon or P.QUESTION_MARK_ICON, P.DefaultCountText(rec)
+        end,
+        cycle = function(rec, delta)
+            local slot = (rec.entry and rec.entry.slot) or 16
+            return sfui.buffs.data.CycleShamanImbue(slot, delta) ~= nil
+        end,
+        populateTooltip = function(tip, rec, _, isTestMode)
+            P.AddStatusHeader(tip, rec)
+            tip:AddLine("apply weapon temporary enchant / poison", 0.6, 0.6, 0.6)
+            local slot = (rec.entry and rec.entry.slot) or 16
+            local castSpell = sfui.buffs.data.GetBestShamanImbue(slot, rec.activeEnchant)
+            P.AddClickPrompt(tip, "cast", castSpell and castSpell:lower(), isTestMode)
+            local allImbues = sfui.buffs.data.GetAvailableShamanImbues()
+            P.AddSpellChoiceList(tip, "scroll wheel to select weapon imbue:", allImbues, "spellName", castSpell)
+        end,
+    })
+
+    P.Register("pet", {
+        scanType = "pet",
+        resolveScanIcon = function(_, icon)
+            local selectedPet = sfui.buffs.pets.GetSelectedPet()
+            return (selectedPet and selectedPet.icon) or icon
+        end,
+        resolveVisual = function(rec)
+            local selectedPet = sfui.buffs.pets.GetSelectedPet()
+            local tex = (selectedPet and selectedPet.icon) or rec.icon or P.QUESTION_MARK_ICON
+            return tex, P.DefaultCountText(rec)
+        end,
+        cycle = function(_, delta)
+            return sfui.buffs.pets.CyclePet(delta) ~= nil
+        end,
+        populateTooltip = function(tip, rec, _, isTestMode)
+            local selectedPet, allPets = sfui.buffs.pets.GetSelectedPet()
+            if selectedPet then
+                P.AddStatusHeader(tip, rec, selectedPet.displayName)
+                tip:AddLine("summon your active pet", 0.6, 0.6, 0.6)
+                local castLabel = (selectedPet.cleanName or selectedPet.displayName or selectedPet.spellName:gsub("^[Ss][Uu][Mm][Mm][Oo][Nn]%s+", "")):lower()
+                P.AddClickPrompt(tip, "summon", castLabel, isTestMode)
+                P.AddSpellChoiceList(tip, "scroll wheel to select pet:", allPets, "id", selectedPet.id)
+            else
+                PopulateStandardSpellTooltip(tip, rec, "summon your active pet", isTestMode)
+            end
+        end,
+    })
+
+    local function RegisterPaladinChoiceProvider(id, getSelectedFn, cycleFn, scrollPrompt)
+        P.Register(id, {
+            scanType = "aura",
+            resolveScanIcon = function(_, icon)
+                local selected = getSelectedFn()
+                return (selected and selected.icon) or icon
+            end,
+            resolveVisual = function(rec)
+                local selected = getSelectedFn()
+                local tex = (selected and selected.icon) or rec.icon or P.QUESTION_MARK_ICON
+                return tex, P.DefaultCountText(rec)
+            end,
+            cycle = function(_, delta, btn)
+                local chosen = cycleFn(delta)
+                if chosen and btn then
+                    btn._needsScanOnLeave = true
+                end
+                return chosen ~= nil
+            end,
+            populateTooltip = function(tip, rec, _, isTestMode)
+                local selectedChoice, allChoices = getSelectedFn()
+                if selectedChoice then
+                    local label = selectedChoice.displayName or (rec.entry and rec.entry.name) or "buff"
+                    P.AddStatusHeader(tip, rec, label)
+                    P.AddClickPrompt(tip, "cast", label, isTestMode)
+                    P.AddSpellChoiceList(tip, scrollPrompt, allChoices, "key", selectedChoice.key)
+                else
+                    PopulateStandardSpellTooltip(tip, rec, nil, isTestMode)
+                end
+            end,
+        })
+    end
+
+    RegisterPaladinChoiceProvider(
+        "paladin_aura",
+        sfui.buffs.paladin.GetSelectedAura,
+        sfui.buffs.paladin.CycleAura,
+        "scroll wheel to select aura:"
+    )
+    RegisterPaladinChoiceProvider(
+        "paladin_blessing",
+        sfui.buffs.paladin.GetSelectedBlessing,
+        sfui.buffs.paladin.CycleBlessing,
+        "scroll wheel to select blessing:"
+    )
+end
+
+

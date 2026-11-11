@@ -1,12 +1,9 @@
-local addonName, addon = ...
+local _G = _G
 sfui = sfui or {}
 sfui.buffs = sfui.buffs or {}
 
-local _G = _G
-local ipairs, pairs = _G.ipairs, _G.pairs
 local math_floor = math.floor
-local math_ceil = math.ceil
-local string_format = string.format
+local math_max = math.max
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local GameTooltip = sfui.common.get_tooltip()
@@ -15,7 +12,9 @@ local UnitIsDeadOrGhost = _G.UnitIsDeadOrGhost
 local IsMounted = _G.IsMounted
 local UnitOnTaxi = _G.UnitOnTaxi
 local InCombatLockdown = _G.InCombatLockdown
-local tostring = _G.tostring
+
+local providers = sfui.buffs.providers
+local FormatTime = providers and providers.FormatTime
 
 -- Default settings
 local DEFAULT_SIZE = 36
@@ -59,17 +58,6 @@ local function GetTestRecords()
             entry = { name = "main hand poison (preview)", type = "weapon_enchant" }
         },
     }
-end
-
-local function FormatTime(seconds)
-    if not seconds or seconds <= 0 then return "" end
-    if seconds >= 3600 then
-        return string_format("%dh", math_floor(seconds / 3600))
-    elseif seconds >= 60 then
-        return string_format("%dm", math_ceil(seconds / 60))
-    else
-        return string_format("%ds", math.max(1, math_floor(seconds)))
-    end
 end
 
 -- ─────────────────────────────────────────────────────────────
@@ -162,489 +150,28 @@ local function CreateBuffIcon(index, parent)
 
     btn:EnableMouseWheel(true)
     btn:SetScript("OnMouseWheel", function(self, delta)
-        if not self.record or not self.record.entry then return end
-        local entry = self.record.entry
-        local cycled = false
-        if entry.key == "consumable_food" then
-            if sfui.buffs.consumables and sfui.buffs.consumables.CycleFood then
-                sfui.buffs.consumables.CycleFood(delta)
-                cycled = true
-            end
-        elseif entry.key == "consumable_flask" then
-            if sfui.buffs.consumables and sfui.buffs.consumables.CycleFlask then
-                sfui.buffs.consumables.CycleFlask(delta)
-                cycled = true
-            end
-        elseif entry.type == "pet" then
-            if sfui.buffs.pets and sfui.buffs.pets.CyclePet then
-                sfui.buffs.pets.CyclePet(delta)
-                cycled = true
-            end
-        elseif entry.type == "party_blessing" and sfui.buffs.party and sfui.buffs.party.CyclePartyBlessing then
-            sfui.buffs.party.CyclePartyBlessing(entry.unit, delta)
-            self._needsScanOnLeave = true
-            cycled = true
-        elseif (entry.key == "consumable_weapon_mh" or entry.key == "consumable_weapon_oh" or entry.key == "poison_mh" or entry.key == "poison_oh")
-            and sfui.buffs.consumables and sfui.buffs.consumables.CycleWeaponOil then
-            sfui.buffs.consumables.CycleWeaponOil(entry.slot or 16, delta)
-            cycled = true
-        elseif sfui.buffs.playerClass == "SHAMAN" and (entry.key == "weapon_mh" or entry.key == "weapon_oh")
-            and sfui.buffs.data and sfui.buffs.data.CycleShamanImbue then
-            sfui.buffs.data.CycleShamanImbue(entry.slot or 16, delta)
-            cycled = true
-        elseif sfui.buffs.playerClass == "PALADIN" and sfui.buffs.paladin then
-            if entry.key == "aura" and sfui.buffs.paladin.CycleAura then
-                sfui.buffs.paladin.CycleAura(delta)
-                cycled = true
-            elseif entry.key == "blessing" and sfui.buffs.paladin.CycleBlessing then
-                sfui.buffs.paladin.CycleBlessing(delta)
-                cycled = true
-            end
-        end
-        if cycled and self.isHovered then
-            local onEnter = self:GetScript("OnEnter")
-            if onEnter then onEnter(self) end
+        local rec = self.record
+        if not rec or not rec.entry or not providers then return end
+        local provider = providers.Resolve(rec.entry)
+        if provider and provider.cycle and provider.cycle(rec, delta, self) then
+            providers.NotifyCycled(self)
         end
     end)
 
     -- Tooltip interaction
     btn:SetScript("OnEnter", function(self)
         self.isHovered = true
-        if not self.record then return end
         local rec = self.record
-        local entry = rec.entry
+        if not rec or not providers then return end
+        local provider = providers.Resolve(rec.entry)
 
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:ClearLines()
 
-        if rec.isMissing then
-            GameTooltip:AddLine("|cffff4444[missing]|r " .. (entry.name or "buff"), 1, 1, 1)
-        elseif rec.isExpiring then
-            GameTooltip:AddLine("|cffffcc00[expiring]|r " .. (entry.name or "buff"), 1, 1, 1)
+        if provider and provider.populateTooltip then
+            provider.populateTooltip(GameTooltip, rec, self, isTestMode)
         else
-            GameTooltip:AddLine("|cff00ff00[active]|r " .. (entry.name or "buff"), 1, 1, 1)
-        end
-
-        if rec.expirationTime and rec.expirationTime > 0 then
-            local rem = rec.expirationTime - GetTime()
-            if rem > 0 then
-                GameTooltip:AddLine(string_format("remaining: |cffffd100%s|r", FormatTime(rem)), 0.8, 0.8, 0.8)
-            end
-        end
-
-        if rec.charges and rec.charges > 0 then
-            GameTooltip:AddLine(string_format("charges: |cffffffff%d|r", rec.charges), 0.8, 0.8, 0.8)
-        end
-
-        if entry.isFishingLure then
-            local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
-            local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
-            if bestLure then
-                GameTooltip:AddLine(string_format("best lure: |cff00ffff%s|r (+%d skill, %d in bags)", bestLure.name, bestLure.bonus, bestLure.count or 1), 0.8, 0.8, 0.8)
-                if InCombatLockdown and InCombatLockdown() then
-                    GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                else
-                    GameTooltip:AddLine("|cff55ff55[click to apply lure]|r", 0.3, 1, 0.3)
-                end
-            else
-                GameTooltip:AddLine("|cffff5555no compatible lures in bags|r", 0.9, 0.4, 0.4)
-            end
-        elseif entry.type == "weapon_enchant" then
-            GameTooltip:AddLine("apply weapon temporary enchant / poison", 0.6, 0.6, 0.6)
-        elseif entry.type == "pet" then
-            GameTooltip:AddLine("summon your active pet", 0.6, 0.6, 0.6)
-        elseif entry.type == "stance" then
-            GameTooltip:AddLine("activate your combat stance", 0.6, 0.6, 0.6)
-        elseif entry.type == "tracking" then
-            GameTooltip:AddLine("activate resource tracking", 0.6, 0.6, 0.6)
-        end
-
-        if entry.key == "consumable_food" and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFood then
-            local selectedFood, allFoods = sfui.buffs.consumables.GetSelectedFood()
-            if (not selectedFood or not allFoods or #allFoods == 0) and sfui.buffs.consumables.ClearFoodCache then
-                sfui.buffs.consumables.ClearFoodCache()
-                selectedFood, allFoods = sfui.buffs.consumables.GetSelectedFood()
-            end
-            if selectedFood and (selectedFood.itemLink or selectedFood.itemID) then
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:ClearLines()
-                if GameTooltip.SetHyperlink then
-                    GameTooltip:SetHyperlink(selectedFood.itemLink or ("item:" .. selectedFood.itemID))
-                end
-                if (GameTooltip:NumLines() or 0) == 0 then
-                    GameTooltip:AddLine((selectedFood.name or "food"):lower(), 1, 1, 1)
-                end
-
-                GameTooltip:AddLine(" ")
-                if rec.isMissing then
-                    GameTooltip:AddLine("|cffff4444[missing well fed buff]|r", 1, 0.4, 0.4)
-                elseif rec.isExpiring then
-                    local rem = (rec.expirationTime and rec.expirationTime > 0) and (rec.expirationTime - GetTime()) or 0
-                    if rem > 0 then
-                        GameTooltip:AddLine(string_format("|cffffcc00[expiring well fed]|r remaining: |cffffd100%s|r", FormatTime(rem)), 1, 0.8, 0)
-                    else
-                        GameTooltip:AddLine("|cffffcc00[expiring well fed]|r", 1, 0.8, 0)
-                    end
-                else
-                    GameTooltip:AddLine("|cff00ff00[well fed active]|r", 0.4, 1, 0.4)
-                end
-
-                if selectedFood.count and selectedFood.count > 0 then
-                    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-                    if inCombat then
-                        GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                    else
-                        GameTooltip:AddLine("|cff55ff55[click to eat]|r " .. selectedFood.name:lower(), 0.3, 1, 0.3)
-                    end
-                else
-                    GameTooltip:AddLine("|cffff5555no food with buff in bags|r", 0.9, 0.4, 0.4)
-                end
-
-                if allFoods and #allFoods > 1 then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("scroll wheel to select food:", 0.5, 0.8, 1)
-                    for _, fInfo in ipairs(allFoods) do
-                        local isCur = (fInfo.itemID and fInfo.itemID == selectedFood.itemID)
-                            or (not fInfo.itemID and fInfo.name == selectedFood.name)
-                        local cStr = string_format(" (%d)", fInfo.count or 0)
-                        if isCur then
-                            GameTooltip:AddLine("  > " .. fInfo.name:lower() .. cStr, 1, 0.82, 0)
-                        else
-                            GameTooltip:AddLine("    " .. fInfo.name:lower() .. cStr, 0.6, 0.6, 0.6)
-                        end
-                    end
-                end
-
-                if isUnlocked then
-                    GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
-                end
-                GameTooltip:Show()
-                return
-            end
-
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffff5555no food with buff in bags|r", 0.9, 0.4, 0.4)
-        elseif entry.key == "consumable_flask" and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFlask then
-            local selectedFlask, allFlasks = sfui.buffs.consumables.GetSelectedFlask()
-            if (not selectedFlask or not allFlasks or #allFlasks == 0) and sfui.buffs.consumables.ClearFlaskCache then
-                sfui.buffs.consumables.ClearFlaskCache()
-                selectedFlask, allFlasks = sfui.buffs.consumables.GetSelectedFlask()
-            end
-            if selectedFlask and (selectedFlask.itemLink or selectedFlask.itemID) then
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:ClearLines()
-                if GameTooltip.SetHyperlink then
-                    GameTooltip:SetHyperlink(selectedFlask.itemLink or ("item:" .. selectedFlask.itemID))
-                end
-                if (GameTooltip:NumLines() or 0) == 0 then
-                    GameTooltip:AddLine((selectedFlask.name or "flask / elixir"):lower(), 1, 1, 1)
-                end
-
-                GameTooltip:AddLine(" ")
-                if rec.isMissing then
-                    GameTooltip:AddLine("|cffff4444[missing flask / elixir]|r", 1, 0.4, 0.4)
-                elseif rec.isExpiring then
-                    local rem = (rec.expirationTime and rec.expirationTime > 0) and (rec.expirationTime - GetTime()) or 0
-                    if rem > 0 then
-                        GameTooltip:AddLine(string_format("|cffffcc00[expiring flask / elixir]|r remaining: |cffffd100%s|r", FormatTime(rem)), 1, 0.8, 0)
-                    else
-                        GameTooltip:AddLine("|cffffcc00[expiring flask / elixir]|r", 1, 0.8, 0)
-                    end
-                else
-                    GameTooltip:AddLine("|cff00ff00[flask / elixir active]|r", 0.4, 1, 0.4)
-                end
-
-                if selectedFlask.count and selectedFlask.count > 0 then
-                    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-                    if inCombat then
-                        GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                    else
-                        GameTooltip:AddLine("|cff55ff55[click to drink]|r " .. selectedFlask.name:lower(), 0.3, 1, 0.3)
-                    end
-                else
-                    GameTooltip:AddLine("|cffff5555no flask / elixir in bags|r", 0.9, 0.4, 0.4)
-                end
-
-                if allFlasks and #allFlasks > 1 then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("scroll wheel to select flask / elixir:", 0.5, 0.8, 1)
-                    for _, flInfo in ipairs(allFlasks) do
-                        local isCur = (flInfo.itemID and flInfo.itemID == selectedFlask.itemID)
-                            or (not flInfo.itemID and flInfo.name == selectedFlask.name)
-                        local cStr = string_format(" (%d)", flInfo.count or 0)
-                        if isCur then
-                            GameTooltip:AddLine("  > " .. flInfo.name:lower() .. cStr, 1, 0.82, 0)
-                        else
-                            GameTooltip:AddLine("    " .. flInfo.name:lower() .. cStr, 0.6, 0.6, 0.6)
-                        end
-                    end
-                end
-
-                if isUnlocked then
-                    GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
-                end
-                GameTooltip:Show()
-                return
-            end
-
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffff5555no flask / elixir in bags|r", 0.9, 0.4, 0.4)
-        elseif (entry.key == "consumable_weapon_mh" or entry.key == "consumable_weapon_oh" or entry.key == "poison_mh" or entry.key == "poison_oh")
-            and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedWeaponOil then
-            local slot = entry.slot or 16
-            local selectedOil, allOils = sfui.buffs.consumables.GetSelectedWeaponOil(slot)
-            if (not selectedOil or not allOils or #allOils == 0) and sfui.buffs.consumables.ClearWeaponOilCache then
-                sfui.buffs.consumables.ClearWeaponOilCache()
-                selectedOil, allOils = sfui.buffs.consumables.GetSelectedWeaponOil(slot)
-            end
-            if selectedOil then
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:ClearLines()
-                if GameTooltip.SetHyperlink and (selectedOil.itemLink or selectedOil.itemID) then
-                    GameTooltip:SetHyperlink(selectedOil.itemLink or ("item:" .. selectedOil.itemID))
-                end
-                if (GameTooltip:NumLines() or 0) == 0 then
-                    GameTooltip:AddLine((selectedOil.name or "weapon oil"):lower(), 1, 1, 1)
-                end
-                GameTooltip:AddLine(" ")
-                local slotLabel = (slot == 17) and "off hand" or "main hand"
-                if rec.isMissing then
-                    GameTooltip:AddLine("|cffff4444[missing " .. slotLabel .. " enchant]|r", 1, 0.4, 0.4)
-                elseif rec.isExpiring then
-                    local rem = (rec.expirationTime and rec.expirationTime > 0) and (rec.expirationTime - GetTime()) or 0
-                    if rem > 0 then
-                        GameTooltip:AddLine(string_format("|cffffcc00[expiring %s]|r remaining: |cffffd100%s|r", slotLabel, FormatTime(rem)), 1, 0.8, 0)
-                    else
-                        GameTooltip:AddLine("|cffffcc00[expiring " .. slotLabel .. "]|r", 1, 0.8, 0)
-                    end
-                else
-                    GameTooltip:AddLine("|cff00ff00[" .. slotLabel .. " active]|r", 0.4, 1, 0.4)
-                end
-
-                if selectedOil.count and selectedOil.count > 0 then
-                    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-                    if inCombat then
-                        GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                    else
-                        GameTooltip:AddLine("|cff55ff55[click to apply]|r " .. selectedOil.name:lower() .. " (" .. slotLabel .. ")", 0.3, 1, 0.3)
-                    end
-                else
-                    GameTooltip:AddLine("|cffff5555no weapon oil / stone in bags|r", 0.9, 0.4, 0.4)
-                end
-
-                if allOils and #allOils > 1 then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("scroll wheel to select oil / stone:", 0.5, 0.8, 1)
-                    for _, oInfo in ipairs(allOils) do
-                        local isCur = (oInfo.itemID and oInfo.itemID == selectedOil.itemID)
-                            or (not oInfo.itemID and oInfo.name == selectedOil.name)
-                        local cStr = string_format(" (%d)", oInfo.count or 0)
-                        if isCur then
-                            GameTooltip:AddLine("  > " .. oInfo.name:lower() .. cStr, 1, 0.82, 0)
-                        else
-                            GameTooltip:AddLine("    " .. oInfo.name:lower() .. cStr, 0.6, 0.6, 0.6)
-                        end
-                    end
-                end
-
-                if isUnlocked then
-                    GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
-                end
-                GameTooltip:Show()
-                return
-            end
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffff5555no weapon oil / stone in bags|r", 0.9, 0.4, 0.4)
-        elseif sfui.buffs.playerClass == "SHAMAN" and (entry.key == "weapon_mh" or entry.key == "weapon_oh")
-            and sfui.buffs.data and sfui.buffs.data.GetAvailableShamanImbues then
-            local slot = entry.slot or 16
-            local castSpell = sfui.buffs.data.GetBestShamanImbue and sfui.buffs.data.GetBestShamanImbue(slot, rec.activeEnchant)
-            local allImbues = sfui.buffs.data.GetAvailableShamanImbues()
-            local db = SfuiDB and SfuiDB.buffReminders
-            if db and db.clickToCast ~= false and not isTestMode then
-                local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-                if inCombat then
-                    GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                elseif castSpell then
-                    GameTooltip:AddLine("|cff55ff55[click to cast]|r " .. castSpell:lower(), 0.3, 1, 0.3)
-                end
-            end
-            if allImbues and #allImbues > 1 then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("scroll wheel to select weapon imbue:", 0.5, 0.8, 1)
-                for _, iInfo in ipairs(allImbues) do
-                    if castSpell and iInfo.spellName == castSpell then
-                        GameTooltip:AddLine("  > " .. iInfo.displayName, 1, 0.82, 0)
-                    else
-                        GameTooltip:AddLine("    " .. iInfo.displayName, 0.6, 0.6, 0.6)
-                    end
-                end
-            end
-            if isUnlocked then
-                GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
-            end
-            GameTooltip:Show()
-            return
-        elseif entry.type == "pet" and sfui.buffs.pets and sfui.buffs.pets.GetSelectedPet then
-            local selectedPet, allPets = sfui.buffs.pets.GetSelectedPet()
-            if selectedPet then
-                GameTooltip:ClearLines()
-                if rec.isMissing then
-                    GameTooltip:AddLine("|cffff4444[missing]|r " .. selectedPet.displayName, 1, 1, 1)
-                else
-                    GameTooltip:AddLine("|cff00ff00[active]|r " .. selectedPet.displayName, 1, 1, 1)
-                end
-                GameTooltip:AddLine("summon your active pet", 0.6, 0.6, 0.6)
-
-                local db = SfuiDB and SfuiDB.buffReminders
-                if db and db.clickToCast ~= false and not isTestMode then
-                    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-                    if inCombat then
-                        GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                    else
-                        local castLabel = (selectedPet.cleanName or selectedPet.displayName or selectedPet.spellName:gsub("^[Ss][Uu][Mm][Mm][Oo][Nn]%s+", "")):lower()
-                        GameTooltip:AddLine("|cff55ff55[click to summon]|r " .. castLabel, 0.3, 1, 0.3)
-                    end
-                end
-
-                if allPets and #allPets > 1 then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("scroll wheel to select pet:", 0.5, 0.8, 1)
-                    for _, pInfo in ipairs(allPets) do
-                        local isCur = (pInfo.id == selectedPet.id)
-                        if isCur then
-                            GameTooltip:AddLine("  > " .. pInfo.displayName, 1, 0.82, 0)
-                        else
-                            GameTooltip:AddLine("    " .. pInfo.displayName, 0.6, 0.6, 0.6)
-                        end
-                    end
-                end
-
-                if isUnlocked then
-                    GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
-                end
-                GameTooltip:Show()
-                return
-            end
-        elseif entry.type == "party_blessing" then
-            GameTooltip:ClearLines()
-            local coloredUnit = entry.unitName or entry.unit or "party"
-            if entry.unitClass and sfui.common and sfui.common.class_color_name then
-                coloredUnit = sfui.common.class_color_name(coloredUnit, entry.unitClass)
-            end
-            local specSuffix = (entry.unitSpecLabel and entry.unitSpecLabel ~= "") and (" |cffaaaaaa(" .. entry.unitSpecLabel .. ")|r") or ""
-            local bLabel = (entry.castSpellName and entry.castSpellName:lower()) or "blessing"
-            if rec.isMissing then
-                GameTooltip:AddLine("|cffff4444[missing]|r " .. bLabel .. " -> " .. coloredUnit .. specSuffix, 1, 1, 1)
-            else
-                GameTooltip:AddLine("|cffffcc00[expiring]|r " .. bLabel .. " -> " .. coloredUnit .. specSuffix, 1, 1, 1)
-            end
-
-            if rec.expirationTime and rec.expirationTime > 0 then
-                local rem = rec.expirationTime - GetTime()
-                if rem > 0 then
-                    GameTooltip:AddLine(string_format("remaining: |cffffd100%s|r", FormatTime(rem)), 0.8, 0.8, 0.8)
-                end
-            end
-
-            local db = SfuiDB and SfuiDB.buffReminders
-            if db and db.clickToCast ~= false and not isTestMode then
-                local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-                if inCombat then
-                    GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                else
-                    GameTooltip:AddLine("|cff55ff55[click to cast]|r " .. bLabel .. " on " .. coloredUnit, 0.3, 1, 0.3)
-                end
-            end
-
-            local allBlessings = sfui.buffs.paladin and sfui.buffs.paladin.GetAvailableBlessings and sfui.buffs.paladin.GetAvailableBlessings()
-            if allBlessings and #allBlessings > 1 then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("scroll wheel to override blessing:", 0.5, 0.8, 1)
-                for _, cInfo in ipairs(allBlessings) do
-                    if cInfo.key == entry.blessingKey then
-                        GameTooltip:AddLine("  > " .. cInfo.displayName, 1, 0.82, 0)
-                    else
-                        GameTooltip:AddLine("    " .. cInfo.displayName, 0.6, 0.6, 0.6)
-                    end
-                end
-            end
-
-            if isUnlocked then
-                GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
-            end
-            GameTooltip:Show()
-            return
-        elseif sfui.buffs.playerClass == "PALADIN" and sfui.buffs.paladin and (entry.key == "aura" or entry.key == "blessing") then
-            local selectedChoice, allChoices
-            if entry.key == "aura" and sfui.buffs.paladin.GetSelectedAura then
-                selectedChoice, allChoices = sfui.buffs.paladin.GetSelectedAura()
-            elseif entry.key == "blessing" and sfui.buffs.paladin.GetSelectedBlessing then
-                selectedChoice, allChoices = sfui.buffs.paladin.GetSelectedBlessing()
-            end
-
-            if selectedChoice then
-                GameTooltip:ClearLines()
-                local label = selectedChoice.displayName or entry.name or "buff"
-                if rec.isMissing then
-                    GameTooltip:AddLine("|cffff4444[missing]|r " .. label, 1, 1, 1)
-                elseif rec.isExpiring then
-                    GameTooltip:AddLine("|cffffcc00[expiring]|r " .. label, 1, 1, 1)
-                else
-                    GameTooltip:AddLine("|cff00ff00[active]|r " .. label, 1, 1, 1)
-                end
-
-                if rec.expirationTime and rec.expirationTime > 0 then
-                    local rem = rec.expirationTime - GetTime()
-                    if rem > 0 then
-                        GameTooltip:AddLine(string_format("remaining: |cffffd100%s|r", FormatTime(rem)), 0.8, 0.8, 0.8)
-                    end
-                end
-
-                local db = SfuiDB and SfuiDB.buffReminders
-                if db and db.clickToCast ~= false and not isTestMode then
-                    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-                    if inCombat then
-                        GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                    else
-                        GameTooltip:AddLine("|cff55ff55[click to cast]|r " .. label, 0.3, 1, 0.3)
-                    end
-                end
-
-                if allChoices and #allChoices > 1 then
-                    GameTooltip:AddLine(" ")
-                    local prompt = (entry.key == "aura") and "scroll wheel to select aura:" or "scroll wheel to select blessing:"
-                    GameTooltip:AddLine(prompt, 0.5, 0.8, 1)
-                    for _, cInfo in ipairs(allChoices) do
-                        local isCur = (cInfo.key == selectedChoice.key)
-                        if isCur then
-                            GameTooltip:AddLine("  > " .. cInfo.displayName, 1, 0.82, 0)
-                        else
-                            GameTooltip:AddLine("    " .. cInfo.displayName, 0.6, 0.6, 0.6)
-                        end
-                    end
-                end
-
-                if isUnlocked then
-                    GameTooltip:AddLine("|cff888888(drag to reposition reminders)|r", 0.5, 0.5, 0.5)
-                end
-                GameTooltip:Show()
-                return
-            end
-        else
-            local db = SfuiDB and SfuiDB.buffReminders
-            if db and db.clickToCast ~= false and not isTestMode then
-                local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-                if inCombat then
-                    GameTooltip:AddLine("|cff888888[combat locked]|r", 0.6, 0.6, 0.6)
-                else
-                    local castSpell = sfui.buffs.data and sfui.buffs.data.GetBestCastSpell and
-                        sfui.buffs.data.GetBestCastSpell(entry, rec.activeEnchant)
-                    if castSpell then
-                        GameTooltip:AddLine("|cff55ff55[click to cast]|r " .. castSpell:lower(), 0.3, 1, 0.3)
-                    end
-                end
-            end
+            providers.AddStatusHeader(GameTooltip, rec)
         end
 
         if isUnlocked then
@@ -907,6 +434,7 @@ function sfui.buffs.UpdateDisplay()
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
         end
+        f.activeIconCount = 0
         f:SetAlpha(0)
         if not InCombatLockdown() then f:Hide() end
         return
@@ -920,6 +448,7 @@ function sfui.buffs.UpdateDisplay()
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
         end
+        f.activeIconCount = 0
         f:SetAlpha(0)
         if not InCombatLockdown() then
             f:Hide()
@@ -937,6 +466,7 @@ function sfui.buffs.UpdateDisplay()
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
         end
+        f.activeIconCount = 0
         f:SetAlpha(0)
         if not InCombatLockdown() then
             f:Hide()
@@ -951,6 +481,7 @@ function sfui.buffs.UpdateDisplay()
         if sfui.events and sfui.events.UnregisterUpdate then
             sfui.events.UnregisterUpdate("SfuiBuffCountdown")
         end
+        f.activeIconCount = 0
         f:SetAlpha(0)
         if not InCombatLockdown() then
             f:Hide()
@@ -966,10 +497,12 @@ function sfui.buffs.UpdateDisplay()
         records = GetTestRecords()
         numRecords = #records
     end
+    f.activeIconCount = numRecords
 
     local size = (db and db.iconSize) or DEFAULT_SIZE
     local spacing = (db and db.spacing) or DEFAULT_SPACING
     local now = GetTime()
+    local allowClick = (not db or db.clickToCast ~= false) and not isTestMode
 
     for i = 1, numRecords do
         local rec = records[i]
@@ -993,50 +526,15 @@ function sfui.buffs.UpdateDisplay()
         end
         icon.record = rec
 
-        local isFood = (rec.entry and rec.entry.key == "consumable_food")
-        local selectedFood = isFood and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFood and sfui.buffs.consumables.GetSelectedFood()
-
-        local isFlask = (rec.entry and rec.entry.key == "consumable_flask")
-        local selectedFlask = isFlask and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedFlask and sfui.buffs.consumables.GetSelectedFlask()
-
-        local isWeaponOil = (rec.entry and (rec.entry.key == "consumable_weapon_mh" or rec.entry.key == "consumable_weapon_oh" or rec.entry.key == "poison_mh" or rec.entry.key == "poison_oh"))
-        local selectedOil = isWeaponOil and sfui.buffs.consumables and sfui.buffs.consumables.GetSelectedWeaponOil and sfui.buffs.consumables.GetSelectedWeaponOil(rec.entry.slot or 16)
-
-        local isShamanImbue = (rec.entry and sfui.buffs.playerClass == "SHAMAN" and (rec.entry.key == "weapon_mh" or rec.entry.key == "weapon_oh"))
-        local shamanImbueIcon = nil
-        if isShamanImbue and sfui.buffs.data and sfui.buffs.data.GetBestShamanImbue then
-            local _, imbIcon = sfui.buffs.data.GetBestShamanImbue(rec.entry.slot or 16, rec.activeEnchant)
-            shamanImbueIcon = imbIcon
-        end
-
-        local isPet = (rec.entry and rec.entry.type == "pet")
-        local selectedPet = isPet and sfui.buffs.pets and sfui.buffs.pets.GetSelectedPet and sfui.buffs.pets.GetSelectedPet()
-
-        local isPaladinAura = (rec.entry and rec.entry.key == "aura" and sfui.buffs.playerClass == "PALADIN")
-        local selectedAura = isPaladinAura and sfui.buffs.paladin and sfui.buffs.paladin.GetSelectedAura and sfui.buffs.paladin.GetSelectedAura()
-
-        local isPaladinBlessing = (rec.entry and rec.entry.key == "blessing" and sfui.buffs.playerClass == "PALADIN")
-        local selectedBlessing = isPaladinBlessing and sfui.buffs.paladin and sfui.buffs.paladin.GetSelectedBlessing and sfui.buffs.paladin.GetSelectedBlessing()
-
-        -- Resolve & apply texture (forcing desaturation/vertex refresh whenever texture changes)
-        local targetTex = nil
-        if isFood and selectedFood and selectedFood.icon then
-            targetTex = selectedFood.icon
-        elseif isFlask and selectedFlask and selectedFlask.icon then
-            targetTex = selectedFlask.icon
-        elseif isWeaponOil and selectedOil and selectedOil.icon then
-            targetTex = selectedOil.icon
-        elseif isShamanImbue and shamanImbueIcon then
-            targetTex = shamanImbueIcon
-        elseif isPet and selectedPet and selectedPet.icon then
-            targetTex = selectedPet.icon
-        elseif isPaladinAura and selectedAura and selectedAura.icon then
-            targetTex = selectedAura.icon
-        elseif isPaladinBlessing and selectedBlessing and selectedBlessing.icon then
-            targetTex = selectedBlessing.icon
+        local provider = providers and providers.Resolve(rec.entry)
+        local targetTex, cStr
+        if provider and provider.resolveVisual then
+            targetTex, cStr = provider.resolveVisual(rec)
         else
             targetTex = rec.icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+            cStr = (providers and providers.DefaultCountText(rec)) or ""
         end
+        cStr = cStr or ""
 
         if icon._lastTexture ~= targetTex then
             icon._lastTexture = targetTex
@@ -1098,29 +596,6 @@ function sfui.buffs.UpdateDisplay()
         end
 
         -- Charges / stack count (cached to avoid redundant SetText)
-        local cStr = ""
-        if isFood then
-            if selectedFood and selectedFood.count and selectedFood.count > 0 then
-                cStr = tostring(selectedFood.count)
-            elseif rec.isMissing then
-                cStr = "0"
-            end
-        elseif isFlask then
-            if selectedFlask and selectedFlask.count and selectedFlask.count > 0 then
-                cStr = tostring(selectedFlask.count)
-            elseif rec.isMissing then
-                cStr = "0"
-            end
-        elseif isWeaponOil then
-            if selectedOil and selectedOil.count and selectedOil.count > 0 then
-                cStr = tostring(selectedOil.count)
-            elseif rec.isMissing then
-                cStr = "0"
-            end
-        elseif rec.charges and rec.charges > 1 then
-            cStr = tostring(rec.charges)
-        end
-
         if icon._lastCountText ~= cStr then
             icon._lastCountText = cStr
             if cStr ~= "" then
@@ -1155,50 +630,9 @@ function sfui.buffs.UpdateDisplay()
 
         -- Out-of-combat click-to-cast configuration with unified attribute caching
         if not inCombat then
-            local allowClick = db and db.clickToCast ~= false and not isTestMode
-            if isFood then
-                if allowClick and selectedFood and (selectedFood.count or 0) > 0 then
-                    local itemRef = selectedFood.itemID and ("item:" .. selectedFood.itemID) or selectedFood.name
-                    ApplyIconSecureAction(icon, "item", itemRef, nil, nil)
-                else
-                    ApplyIconSecureAction(icon, nil, nil, nil, nil)
-                end
-            elseif isFlask then
-                if allowClick and selectedFlask and (selectedFlask.count or 0) > 0 then
-                    local itemRef = selectedFlask.itemID and ("item:" .. selectedFlask.itemID) or selectedFlask.name
-                    ApplyIconSecureAction(icon, "item", itemRef, nil, nil)
-                else
-                    ApplyIconSecureAction(icon, nil, nil, nil, nil)
-                end
-            elseif isWeaponOil then
-                local targetSlot = (rec.entry and rec.entry.slot) or 16
-                if allowClick and selectedOil and selectedOil.itemID and (selectedOil.count or 0) > 0 then
-                    ApplyIconSecureAction(icon, "item", "item:" .. selectedOil.itemID, targetSlot, nil)
-                else
-                    ApplyIconSecureAction(icon, nil, nil, nil, nil)
-                end
-            elseif allowClick and rec.entry and rec.entry.isFishingLure then
-                local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
-                local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
-                if bestLure and bestLure.itemID then
-                    ApplyIconSecureAction(icon, "item", "item:" .. bestLure.itemID, 16, nil)
-                else
-                    ApplyIconSecureAction(icon, nil, nil, nil, nil)
-                end
-            elseif allowClick and rec.entry then
-                local castSpell, castSpellID
-                local buffsData = sfui.buffs.data
-                if buffsData and buffsData.GetBestCastSpell then
-                    castSpell, _, castSpellID = buffsData.GetBestCastSpell(rec.entry, rec.activeEnchant)
-                end
-                local targetSlot = (rec.entry.type == "weapon_enchant") and (rec.entry.slot or 16) or nil
-                local targetUnit = (not targetSlot and rec.entry.type ~= "pet") and ((rec.entry and rec.entry.unit) or rec.unit or "player") or nil
-                local spellToCast = (rec.entry.type == "pet" and castSpellID) or castSpell or castSpellID
-                if spellToCast then
-                    ApplyIconSecureAction(icon, "spell", spellToCast, targetSlot, targetUnit)
-                else
-                    ApplyIconSecureAction(icon, nil, nil, nil, nil)
-                end
+            if allowClick and provider and provider.resolveAction then
+                local aType, aVal, aSlot, aUnit = provider.resolveAction(rec)
+                ApplyIconSecureAction(icon, aType, aVal, aSlot, aUnit)
             else
                 ApplyIconSecureAction(icon, nil, nil, nil, nil)
             end
@@ -1221,7 +655,7 @@ function sfui.buffs.UpdateDisplay()
     end
 
     -- Resize container frame to encompass the active icons
-    local totalWidth = math.max(size, (numRecords * size) + (math.max(0, numRecords - 1) * spacing))
+    local totalWidth = math_max(size, (numRecords * size) + (math_max(0, numRecords - 1) * spacing))
     f:SetSize(totalWidth, size)
     f:SetAlpha(1.0)
     if not InCombatLockdown() then

@@ -1473,7 +1473,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
         icon.id = cdID
         icon.type = typeHint
         icon.cooldownID = cdID
-        local defaultTrackBuffs = (sfui.isCamelot and auraResolver and auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry({ cooldownID = cdID, spellID = meta.spellID }, cdInfo)) or nil
+        local entryHelper = sfui.tracking and sfui.tracking.entry
         icon.entry = {
             id = cdID,
             type = typeHint,
@@ -1482,8 +1482,11 @@ local function RenderAssignmentsIconPool(parent, width, entries)
             spellCategoryID = meta.spellCategoryID,
             itemID = meta.itemID,
             spellID = meta.spellID,
-            settings = { textEnabled = true, showText = true, trackBuffs = defaultTrackBuffs },
+            settings = { textEnabled = true, showText = true },
         }
+        if entryHelper and entryHelper.NormalizeEntry then
+            entryHelper.NormalizeEntry(icon.entry)
+        end
         icon.texture:SetTexture(meta.icon)
 
         -- Set attributes for the shared click/drag/tooltip handlers
@@ -1926,14 +1929,8 @@ OnZoneReceiveDrag = function(zoneFrame, panelData, isTrackedBars)
             if not entry.spellCategoryID and ((draggedInfo.info and draggedInfo.info.spellCategoryID) or (meta and meta.spellCategoryID)) then
                 entry.spellCategoryID = (draggedInfo.info and draggedInfo.info.spellCategoryID) or (meta and meta.spellCategoryID)
             end
-            if sfui.isCamelot then
-                local auraResolver = sfui.tracking and sfui.tracking.auras
-                if auraResolver and auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry(entry, draggedInfo.info) then
-                    entry.settings = entry.settings or { textEnabled = true, showText = true }
-                    if entry.settings.trackBuffs == nil then
-                        entry.settings.trackBuffs = true
-                    end
-                end
+            if sfui.tracking and sfui.tracking.entry and sfui.tracking.entry.NormalizeEntry then
+                sfui.tracking.entry.NormalizeEntry(entry, draggedInfo.info)
             end
         end
 
@@ -2096,11 +2093,8 @@ HandleExternalDrop = function(zoneFrame, panelData, isTrackedBars)
     end
 
     entry.settings = entry.settings or { textEnabled = true, showText = true }
-    if sfui.isCamelot and entry.settings.trackBuffs == nil then
-        local auraResolver = sfui.tracking and sfui.tracking.auras
-        if auraResolver and auraResolver.IsForeverSealEntry and auraResolver.IsForeverSealEntry(entry) then
-            entry.settings.trackBuffs = true
-        end
+    if sfui.tracking and sfui.tracking.entry and sfui.tracking.entry.NormalizeEntry then
+        sfui.tracking.entry.NormalizeEntry(entry)
     end
 
     local incomingId = entry.id

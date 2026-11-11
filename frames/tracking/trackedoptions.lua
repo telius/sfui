@@ -296,10 +296,11 @@ optBtn:SetScript("OnClick", function()
     end
 end)
 
-local blizzBtn = CreateFlatButton(frame, "blizzard manager", 120, 20)
-blizzBtn:SetPoint("LEFT", optBtn, "RIGHT", 5, 0)
-blizzBtn:SetScript("OnClick", function()
-    if _G.InCombatLockdown and _G.InCombatLockdown() then return end
+local function toggle_blizzard_cdm_settings()
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        common.print("cannot open blizzard cooldown manager in combat.")
+        return
+    end
     if _G.CooldownViewerSettings then
         if _G.CooldownViewerSettings:IsShown() then
             HideUIPanel(_G.CooldownViewerSettings)
@@ -307,12 +308,20 @@ blizzBtn:SetScript("OnClick", function()
             ShowUIPanel(_G.CooldownViewerSettings)
         end
     end
-end)
+end
+
+local blizzBtn = CreateFlatButton(frame, "blizzard manager", 120, 20)
+blizzBtn:SetPoint("LEFT", optBtn, "RIGHT", 5, 0)
+blizzBtn:SetScript("OnClick", toggle_blizzard_cdm_settings)
+if not (sfui.isRetail or sfui.isCamelot) then
+    blizzBtn:Hide()
+end
 
 
 -- Tab logic
 select_tab = function(frame, id)
     if not frame.tabs then return end
+    if not frame.tabs[id] then id = 1 end
     for i, tab in ipairs(frame.tabs) do
         local btn = tab.button
         if i == id then
@@ -347,6 +356,9 @@ select_tab = function(frame, id)
                     end
                     sfui.trackedoptions.buffsContent._generated = true
                     sfui.trackedoptions.buffsContent._lastSpec = currentSpec
+                    sfui.trackedoptions.buffsContent._listDirty = false
+                elseif sfui.trackedoptions.RefreshBuffsList then
+                    sfui.trackedoptions.RefreshBuffsList(sfui.trackedoptions.buffsContent)
                 end
             end
         else
@@ -449,10 +461,11 @@ function sfui.trackedoptions.initialize()
     end
 
     -- Create Tabs
+    local hasTrackedBuffs = (sfui.isRetail or sfui.isCamelot) == true
     local assignBtn = CreateTabButton("assignments", 1)
     local globalBtn = CreateTabButton("global", 2)
     local barsBtn = CreateTabButton("bars", 3)
-    local buffsBtn = CreateTabButton("buffs", 4)
+    local buffsBtn = hasTrackedBuffs and CreateTabButton("buffs", 4) or nil
 
 
     -- Content Panels
@@ -471,16 +484,21 @@ function sfui.trackedoptions.initialize()
     barsPanel:SetPoint("BOTTOMRIGHT", -10, 10)
     barsPanel:Hide()
 
-    local buffsPanel = CreateFrame("Frame", "SfuiBuffsTab", frame)
-    buffsPanel:SetPoint("TOPLEFT", 10, -65)
-    buffsPanel:SetPoint("BOTTOMRIGHT", -10, 10)
-    buffsPanel:Hide()
+    local buffsPanel
+    if hasTrackedBuffs then
+        buffsPanel = CreateFrame("Frame", "SfuiBuffsTab", frame)
+        buffsPanel:SetPoint("TOPLEFT", 10, -65)
+        buffsPanel:SetPoint("BOTTOMRIGHT", -10, 10)
+        buffsPanel:Hide()
+    end
 
     -- Populate Tabs Table
     table.insert(frame.tabs, { button = assignBtn, panel = assignPanel })
     table.insert(frame.tabs, { button = globalBtn, panel = globalPanel })
     table.insert(frame.tabs, { button = barsBtn, panel = barsPanel })
-    table.insert(frame.tabs, { button = buffsBtn, panel = buffsPanel })
+    if hasTrackedBuffs then
+        table.insert(frame.tabs, { button = buffsBtn, panel = buffsPanel })
+    end
 
     -- === THEME REGISTRATION ===
     -- window chrome follows the active theme; the callback re-runs on every theme switch
@@ -582,35 +600,37 @@ function sfui.trackedoptions.initialize()
     barsContent:SetScript("OnMouseWheel", on_bars_wheel)
 
     -- === TAB 4: BUFFS SETTINGS ===
-    local buffsScroll = CreateFrame("ScrollFrame", "SfuiBuffsScroll", buffsPanel, "UIPanelScrollFrameTemplate")
-    buffsScroll:SetPoint("TOPLEFT", 0, 0)
-    buffsScroll:SetPoint("BOTTOMRIGHT", -25, 0)
-    buffsScroll:EnableMouseWheel(true)
-    common.style_scrollbar(buffsScroll.ScrollBar)
-    local buffsContent = CreateFrame("Frame", nil, buffsScroll)
-    buffsContent:SetSize(750, 1000)
-    buffsScroll:SetScrollChild(buffsContent)
-    buffsContent:EnableMouseWheel(true)
-    sfui.trackedoptions.buffsContent = buffsContent
+    if hasTrackedBuffs and buffsPanel then
+        local buffsScroll = CreateFrame("ScrollFrame", "SfuiBuffsScroll", buffsPanel, "UIPanelScrollFrameTemplate")
+        buffsScroll:SetPoint("TOPLEFT", 0, 0)
+        buffsScroll:SetPoint("BOTTOMRIGHT", -25, 0)
+        buffsScroll:EnableMouseWheel(true)
+        common.style_scrollbar(buffsScroll.ScrollBar)
+        local buffsContent = CreateFrame("Frame", nil, buffsScroll)
+        buffsContent:SetSize(750, 1000)
+        buffsScroll:SetScrollChild(buffsContent)
+        buffsContent:EnableMouseWheel(true)
+        sfui.trackedoptions.buffsContent = buffsContent
 
-    local function on_buffs_wheel(self, delta)
-        local scrollBar = buffsScroll.ScrollBar
-        if scrollBar then
-            local minVal, maxVal = scrollBar:GetMinMaxValues()
-            if maxVal and maxVal > (minVal or 0) then
-                local cur = scrollBar:GetValue()
-                scrollBar:SetValue(math.max(minVal, math.min(maxVal, cur - delta * 30)))
-                return
+        local function on_buffs_wheel(self, delta)
+            local scrollBar = buffsScroll.ScrollBar
+            if scrollBar then
+                local minVal, maxVal = scrollBar:GetMinMaxValues()
+                if maxVal and maxVal > (minVal or 0) then
+                    local cur = scrollBar:GetValue()
+                    scrollBar:SetValue(math.max(minVal, math.min(maxVal, cur - delta * 30)))
+                    return
+                end
+            end
+            local cur = buffsScroll:GetVerticalScroll()
+            local maxScroll = buffsScroll:GetVerticalScrollRange()
+            if maxScroll > 0 then
+                buffsScroll:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - delta * 30)))
             end
         end
-        local cur = buffsScroll:GetVerticalScroll()
-        local maxScroll = buffsScroll:GetVerticalScrollRange()
-        if maxScroll > 0 then
-            buffsScroll:SetVerticalScroll(math.max(0, math.min(maxScroll, cur - delta * 30)))
-        end
+        buffsScroll:SetScript("OnMouseWheel", on_buffs_wheel)
+        buffsContent:SetScript("OnMouseWheel", on_buffs_wheel)
     end
-    buffsScroll:SetScript("OnMouseWheel", on_buffs_wheel)
-    buffsContent:SetScript("OnMouseWheel", on_buffs_wheel)
 end
 
 function sfui.trackedoptions.RenderBarsTab(parent)
@@ -1152,6 +1172,162 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     return yPos
 end
 
+function sfui.trackedoptions.SyncBuffsPositionControls(x, y)
+    local parent = sfui.trackedoptions.buffsContent
+    if not parent or not parent._generated then return end
+    if parent._xSlider and parent._xSlider.SetSliderValue then
+        parent._xSlider:SetSliderValue(x or 0)
+    end
+    if parent._ySlider and parent._ySlider.SetSliderValue then
+        parent._ySlider:SetSliderValue(y or 0)
+    end
+end
+
+local function AcquireBuffRow(parent, sec2c, index, width)
+    parent._buffRows = parent._buffRows or {}
+    local row = parent._buffRows[index]
+    if not row then
+        row = CreateFrame("Frame", nil, sec2c, "BackdropTemplate")
+        row:SetHeight(36)
+        row:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
+
+        local iconTex = row:CreateTexture(nil, "ARTWORK")
+        iconTex:SetSize(28, 28)
+        iconTex:SetPoint("LEFT", 4, 0)
+        iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        row.iconTex = iconTex
+
+        local iconBorder = row:CreateTexture(nil, "BACKGROUND")
+        iconBorder:SetPoint("TOPLEFT", iconTex, "TOPLEFT", -1, 1)
+        iconBorder:SetPoint("BOTTOMRIGHT", iconTex, "BOTTOMRIGHT", 1, -1)
+        iconBorder:SetColorTexture(0, 0, 0, 1)
+
+        local lName = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        lName:SetPoint("LEFT", iconTex, "RIGHT", 8, 0)
+        lName:SetWidth(260)
+        lName:SetWordWrap(false)
+        lName:SetJustifyH("LEFT")
+        row.lName = lName
+
+        local lID = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        lID:SetPoint("LEFT", lName, "RIGHT", 10, 0)
+        row.lID = lID
+
+        local lStatus = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        lStatus:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+        row.lStatus = lStatus
+
+        parent._buffRows[index] = row
+    elseif row:GetParent() ~= sec2c then
+        row:SetParent(sec2c)
+    end
+
+    row:SetWidth(width)
+    row:SetBackdropColor(0.1, 0.1, 0.1, (index % 2 == 0) and 0.5 or 0.3)
+    return row
+end
+
+function sfui.trackedoptions.RefreshBuffsList(parent)
+    parent = parent or sfui.trackedoptions.buffsContent
+    if not parent or not parent._sec2 or not parent._sec2c then return end
+
+    local sec2 = parent._sec2
+    local sec2c = parent._sec2c
+    local h2 = parent._sec2HeaderH or 40
+    local sec2TopY = parent._sec2TopY or -220
+    local rowWidth = (parent:GetWidth() - 40) - 10
+
+    local ly = 0
+
+    -- status / diagnostic banner if blizzard cdm cvar or edit mode visibility blocks updates
+    local statusCode, statusText = "ok", nil
+    if sfui.trackedbuffs and sfui.trackedbuffs.GetBlizzardStatus then
+        statusCode, statusText = sfui.trackedbuffs.GetBlizzardStatus()
+    end
+
+    if statusText and statusCode ~= "ok" then
+        if not parent._statusBanner then
+            local banner = sec2c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            banner:SetJustifyH("LEFT")
+            banner:SetWordWrap(true)
+            parent._statusBanner = banner
+        elseif parent._statusBanner:GetParent() ~= sec2c then
+            parent._statusBanner:SetParent(sec2c)
+        end
+        parent._statusBanner:ClearAllPoints()
+        parent._statusBanner:SetPoint("TOPLEFT", 2, ly - 4)
+        parent._statusBanner:SetWidth(rowWidth - 4)
+        if statusCode == "cvar_disabled" or statusCode == "viewer_hidden" then
+            parent._statusBanner:SetText("|cffff6666" .. statusText .. "|r")
+        else
+            parent._statusBanner:SetText("|cffffbb44" .. statusText .. "|r")
+        end
+        parent._statusBanner:Show()
+        ly = ly - 26
+    elseif parent._statusBanner then
+        parent._statusBanner:Hide()
+    end
+
+    local buffs = sfui.trackedbuffs and sfui.trackedbuffs.GetTrackedBuffs and sfui.trackedbuffs.GetTrackedBuffs()
+    local numBuffs = buffs and #buffs or 0
+
+    if numBuffs == 0 then
+        if not parent._emptyMsg then
+            local emptyMsg = sec2c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            emptyMsg:SetJustifyH("LEFT")
+            parent._emptyMsg = emptyMsg
+        elseif parent._emptyMsg:GetParent() ~= sec2c then
+            parent._emptyMsg:SetParent(sec2c)
+        end
+        parent._emptyMsg:ClearAllPoints()
+        parent._emptyMsg:SetPoint("TOPLEFT", 5, ly - 10)
+        parent._emptyMsg:SetText("no buffs currently assigned to tracked buffs in blizzard cdm. click 'open blizzard manager' to assign buffs.")
+        parent._emptyMsg:Show()
+
+        if parent._buffRows then
+            for _, row in ipairs(parent._buffRows) do
+                row:Hide()
+            end
+        end
+
+        sec2:SetHeight(h2 + math.abs(ly) + 46)
+    else
+        if parent._emptyMsg then
+            parent._emptyMsg:Hide()
+        end
+
+        for i = 1, numBuffs do
+            local info = buffs[i]
+            local row = AcquireBuffRow(parent, sec2c, i, rowWidth)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 0, ly)
+            row.iconTex:SetTexture(info.icon)
+            row.lName:SetText(info.name and info.name:lower() or ("unknown (" .. tostring(info.id) .. ")"))
+            row.lID:SetText("id: " .. tostring(info.id))
+            if info.active then
+                row.lStatus:SetText("|cff00ff00active|r")
+            else
+                row.lStatus:SetText("|cff888888inactive|r")
+            end
+            row:Show()
+            ly = ly - 40
+        end
+
+        if parent._buffRows then
+            for i = numBuffs + 1, #parent._buffRows do
+                parent._buffRows[i]:Hide()
+            end
+        end
+
+        sec2:SetHeight(h2 + math.abs(ly) + 10)
+    end
+
+    local finalY = sec2TopY - sec2:GetHeight() - 20
+    parent:SetHeight(math.abs(finalY) + 40)
+    parent._listDirty = false
+    return finalY
+end
+
 function sfui.trackedoptions.RenderBuffsTab(parent)
     if not parent then return end
 
@@ -1166,9 +1342,6 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
     if not SfuiDB.trackedBuffs then SfuiDB.trackedBuffs = {} end
     local db = SfuiDB.trackedBuffs
     local buff_cfg = cfg.trackedBuffs or {}
-
-    local defX = 0
-    local defY = 4
 
     -- heal previous default if unchanged
     if db.anchor and db.anchor.x == 0 and (db.anchor.y == -220 or db.anchor.y == -110) and not db.anchor.isCustom then
@@ -1237,8 +1410,10 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
         function(v) db.hideMounted = v end, nil, 0, s1y - 80)
     BCheck(sec1c, "hide in vehicle ui", function() return GetB("hideInVehicle", true) end,
         function(v) db.hideInVehicle = v end, nil, 0, s1y - 110)
-    BCheck(sec1c, "hide in dragonriding", function() return GetB("hideDragonriding", true) end,
-        function(v) db.hideDragonriding = v end, nil, 0, s1y - 140)
+    if sfui.isRetail then
+        BCheck(sec1c, "hide in dragonriding", function() return GetB("hideDragonriding", true) end,
+            function(v) db.hideDragonriding = v end, nil, 0, s1y - 140)
+    end
 
     BCheck(sec1c, "pandemic glow", function() return GetB("glow", true) end,
         function(v) db.glow = v end, "show pixel glow during pandemic refresh window.", 160, s1y - 20)
@@ -1255,7 +1430,7 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
     lPos:SetPoint("TOPLEFT", col2x, s1y)
     lPos:SetText("position & size")
 
-    BSlider(sec1c, "x offset", function()
+    parent._xSlider = BSlider(sec1c, "x offset", function()
         if db.anchor and db.anchor.isCustom then return db.anchor.x or 0 end
         return 0
     end, -1000, 1000, 1,
@@ -1265,7 +1440,7 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
             db.anchor.isCustom = true
         end, col2x, s1y - 20, 120)
 
-    BSlider(sec1c, "y offset", function()
+    parent._ySlider = BSlider(sec1c, "y offset", function()
         if db.anchor and db.anchor.isCustom then return db.anchor.y or 0 end
         return 0
     end, -1000, 1000, 1,
@@ -1302,9 +1477,7 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
             db.anchor.y = nil
         end
         Refresh()
-        if sfui.trackedoptions and sfui.trackedoptions.buffsContent and sfui.trackedoptions.buffsContent._generated then
-            sfui.trackedoptions.RenderBuffsTab(sfui.trackedoptions.buffsContent)
-        end
+        sfui.trackedoptions.SyncBuffsPositionControls(0, 0)
         common.print("tracked buffs reset to default position above highest tracked bar.")
     end)
     resetBtn:SetPoint("TOPLEFT", col2x + 130, s1y - 120)
@@ -1316,71 +1489,18 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
     -- SECTION 2: ASSIGNED BUFFS (CDM Category 2)
     -- ═══════════════════════════════════
     local sec2, sec2c, h2 = sfui.trackedoptions.CreateSection(parent, "tracked buffs in blizzard cdm",
-        "buffs assigned to category 2 in blizzard's cooldown manager. drag to reorder in assignments tab.", yPos, WIDTH)
+        "buffs assigned to tracked buffs in blizzard's cooldown manager.", yPos, WIDTH)
     sec2:SetPoint("TOPLEFT", 10, yPos)
-    local s2y = 0
 
-    local buffs = sfui.trackedbuffs and sfui.trackedbuffs.GetTrackedBuffs and sfui.trackedbuffs.GetTrackedBuffs()
+    local cdmBtn = CreateFlatButton(sec2, "open blizzard manager", 150, 22, toggle_blizzard_cdm_settings)
+    cdmBtn:SetPoint("TOPRIGHT", sec2, "TOPRIGHT", -10, -10)
 
-    if not buffs or #buffs == 0 then
-        local emptyMsg = sec2c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        emptyMsg:SetPoint("TOPLEFT", 5, s2y - 10)
-        emptyMsg:SetText("no buffs currently assigned to tracked buffs in blizzard cdm. use the 'assignments' tab to track buffs.")
-        sec2:SetHeight(h2 + 50)
-        yPos = yPos - sec2:GetHeight() - 20
-    else
-        local ly = s2y
-        for i, info in ipairs(buffs) do
-            local row = CreateFrame("Frame", nil, sec2c, "BackdropTemplate")
-            row:SetSize(WIDTH - 10, 36)
-            row:SetPoint("TOPLEFT", 0, ly)
-            row:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
-            row:SetBackdropColor(0.1, 0.1, 0.1, (i % 2 == 0) and 0.5 or 0.3)
+    parent._sec2 = sec2
+    parent._sec2c = sec2c
+    parent._sec2HeaderH = h2
+    parent._sec2TopY = yPos
 
-            -- Icon
-            local iconTex = row:CreateTexture(nil, "ARTWORK")
-            iconTex:SetSize(28, 28)
-            iconTex:SetPoint("LEFT", 4, 0)
-            iconTex:SetTexture(info.icon)
-            iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-
-            -- Border around icon
-            local iconBorder = row:CreateTexture(nil, "BACKGROUND")
-            iconBorder:SetPoint("TOPLEFT", iconTex, "TOPLEFT", -1, 1)
-            iconBorder:SetPoint("BOTTOMRIGHT", iconTex, "BOTTOMRIGHT", 1, -1)
-            iconBorder:SetColorTexture(0, 0, 0, 1)
-
-            -- Name
-            local lName = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            lName:SetPoint("LEFT", iconTex, "RIGHT", 8, 0)
-            lName:SetWidth(250)
-            lName:SetWordWrap(false)
-            lName:SetJustifyH("LEFT")
-            lName:SetText(info.name)
-
-            -- ID
-            local lID = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            lID:SetPoint("LEFT", lName, "RIGHT", 10, 0)
-            lID:SetText("ID: " .. tostring(info.id))
-
-            -- Active Status indicator
-            local lStatus = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            lStatus:SetPoint("RIGHT", row, "RIGHT", -10, 0)
-            if info.active then
-                lStatus:SetText("|cff00ff00active|r")
-            else
-                lStatus:SetText("|cff888888inactive|r")
-            end
-
-            ly = ly - 40
-        end
-
-        local totalRowHeight = #buffs * 40
-        sec2:SetHeight(h2 + totalRowHeight + 10)
-        yPos = yPos - sec2:GetHeight() - 20
-    end
-
-    return yPos
+    return sfui.trackedoptions.RefreshBuffsList(parent)
 end
 
 -- === SETTINGS GENERATORS ===
@@ -1968,9 +2088,12 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             end
 
             -- Aura & Alert toggles
-            local rowAuraResolver = sfui.isCamelot and sfui.tracking and sfui.tracking.auras or nil
-            local isForeverSeal = (rowAuraResolver and rowAuraResolver.IsForeverSealEntry and rowAuraResolver.IsForeverSealEntry(entry, rowCdInfo)) or false
+            local entryHelper = sfui.tracking and sfui.tracking.entry
+            local isForeverSeal = (entryHelper and entryHelper.IsForeverSeal and entryHelper.IsForeverSeal(entry, rowCdInfo)) or false
             local auraCb = common.create_checkbox(row, "aura", function()
+                if entryHelper and entryHelper.ShouldTrackBuffs then
+                    return entryHelper.ShouldTrackBuffs(entry, panel, rowCdInfo)
+                end
                 if entry.settings and entry.settings.trackBuffs ~= nil then
                     return entry.settings.trackBuffs == true
                 end
