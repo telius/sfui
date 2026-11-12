@@ -37,8 +37,8 @@ local QUEST_ACT_TEXT = {
 }
 
 local QUEST_TEXT_KEYS = {
-    MAP_OBJ_BFD_CHEST  = "loot fathom core / chest here",
-    MAP_OBJ_BFD_FATHOM = "fathom core (summons baron aquanis)",
+    MAP_OBJ_BFD_CHEST  = "loot the lorgalis manuscript from the pitted iron chest, underwater in this alcove of the pool.",
+    MAP_OBJ_BFD_FATHOM = "click the fathom stone underwater, below the walkway, to get the fathom core (summons baron aquanis).",
 }
 
 local WAYPOINT_TITLES = {
@@ -225,17 +225,26 @@ end
 
 function dj_map.FindQuestMapSpot(dungeon, questID, questName)
     if not dungeon then return nil end
-    local pins = sfui.dj_camelot and sfui.dj_camelot.mapQuestPins and sfui.dj_camelot.mapQuestPins[dungeon.id]
-    if not pins then return nil end
     local qid = tonumber(questID)
     local qname = questName and questName:lower() or nil
-    for _, pin in ipairs(pins) do
-        for _, spot in ipairs(pin.spots or {}) do
-            for _, q in ipairs(spot.quests or {}) do
-                if (qid and (q.id == qid or q.main == qid))
-                    or (qname and (q.name or ""):lower() == qname) then
-                    return { floor = pin.floor or 1, x = pin.x, y = pin.y, name = spot.name }
+    local pins = sfui.dj_camelot and sfui.dj_camelot.mapQuestPins and sfui.dj_camelot.mapQuestPins[dungeon.id]
+    if pins then
+        for _, pin in ipairs(pins) do
+            for _, spot in ipairs(pin.spots or {}) do
+                for _, q in ipairs(spot.quests or {}) do
+                    if (qid and (q.id == qid or q.main == qid))
+                        or (qname and (q.name or ""):lower() == qname) then
+                        return { floor = pin.floor or 1, x = pin.x, y = pin.y, name = spot.name }
+                    end
                 end
+            end
+        end
+    end
+    local m = sfui.dj_camelot and sfui.dj_camelot.maps and sfui.dj_camelot.maps[dungeon.id]
+    if m and qid then
+        for _, b in ipairs(m.bosses or {}) do
+            if b.quest == qid then
+                return { floor = b.floor or 1, x = b.x, y = b.y, name = b.name }
             end
         end
     end
@@ -409,10 +418,11 @@ local function CreateMapController(parent, isWorldMapOverlay)
     holder:SetPoint("CENTER", viewport, "CENTER", 0, 0)
     ctrl.holder = holder
 
-    -- Map texture
+    -- Map texture & tile fallback pool
     local mapTex = holder:CreateTexture(nil, "BACKGROUND")
     mapTex:SetAllPoints(holder)
     ctrl.mapTex = mapTex
+    ctrl.mapTiles = {}
 
     -- Hint label in bottom-right of viewport
     local hintLabel = viewport:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -474,6 +484,20 @@ local function CreateMapController(parent, isWorldMapOverlay)
         self.holder:SetSize(artW, artH)
         self.holder:ClearAllPoints()
         self.holder:SetPoint("CENTER", self.viewport, "CENTER", self.panX, self.panY)
+
+        if self.tileGrid and #self.mapTiles > 0 then
+            local g = self.tileGrid
+            local sx, sy = artW / g.layerW, artH / g.layerH
+            for i = 1, g.count do
+                local t = self.mapTiles[i]
+                if t and t:IsShown() then
+                    local col, row = (i - 1) % g.cols, math.floor((i - 1) / g.cols)
+                    t:SetSize(g.tileW * sx, g.tileH * sy)
+                    t:ClearAllPoints()
+                    t:SetPoint("TOPLEFT", self.holder, "TOPLEFT", col * g.tileW * sx, -row * g.tileH * sy)
+                end
+            end
+        end
 
         -- Reposition pins at current zoom
         for _, pin in ipairs(self.entrancePins) do
@@ -808,8 +832,47 @@ local function CreateMapController(parent, isWorldMapOverlay)
         self.floorIndex = fIdx
         local fl = m.floors[fIdx]
 
-        self.mapTex:SetTexture(fl.texture)
-        self.mapTex:SetTexCoord(0, fl.texRight or 1, 0, fl.texBottom or 1)
+        if fl.texture then
+            self.tileGrid = nil
+            for _, t in ipairs(self.mapTiles) do t:Hide() end
+            self.mapTex:SetTexture(fl.texture)
+            self.mapTex:SetTexCoord(0, fl.texRight or 1, 0, fl.texBottom or 1)
+            self.mapTex:Show()
+        else
+            self.mapTex:Hide()
+            local apiLayer, apiTextures
+            if fl.uiMapID and C_Map and type(C_Map.GetMapArtLayers) == "function" and type(C_Map.GetMapArtLayerTextures) == "function" then
+                local layers = SafePlain(C_Map.GetMapArtLayers(fl.uiMapID))
+                if type(layers) == "table" and layers[1] then
+                    local textures = SafePlain(C_Map.GetMapArtLayerTextures(fl.uiMapID, 1))
+                    if type(textures) == "table" and #textures > 0 then
+                        apiLayer, apiTextures = layers[1], textures
+                    end
+                end
+            end
+            local layerW = (apiLayer and tonumber(SafePlain(apiLayer.layerWidth))) or 1002
+            local layerH = (apiLayer and tonumber(SafePlain(apiLayer.layerHeight))) or 668
+            local tileW = (apiLayer and tonumber(SafePlain(apiLayer.tileWidth))) or 256
+            local tileH = (apiLayer and tonumber(SafePlain(apiLayer.tileHeight))) or 256
+            local cols = math.max(1, math.ceil(layerW / tileW))
+            local count = apiTextures and #apiTextures or (fl.tiles and 12 or 0)
+            self.tileGrid = count > 0 and { layerW = layerW, layerH = layerH, tileW = tileW, tileH = tileH, cols = cols, count = count } or nil
+            for i = 1, math.max(count, #self.mapTiles) do
+                local t = self.mapTiles[i]
+                if i <= count then
+                    if not t then
+                        t = self.holder:CreateTexture(nil, "BACKGROUND")
+                        self.mapTiles[i] = t
+                    end
+                    local texSrc = (apiTextures and SafePlain(apiTextures[i])) or (fl.tiles and (fl.tiles .. i))
+                    t:SetTexture(texSrc)
+                    t:SetTexCoord(0, 1, 0, 1)
+                    t:Show()
+                elseif t then
+                    t:Hide()
+                end
+            end
+        end
 
         self:ApplyTransform()
         local artW = self.baseW * self.zoom
@@ -823,6 +886,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 local pin = self.entrancePins[eUsed]
                 if not pin then
                     pin = CreateFrame("Button", nil, self.holder)
+                    pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
                     pin.tex = pin:CreateTexture(nil, "OVERLAY")
                     pin.tex:SetAllPoints()
                     pin.tex:SetTexture(ENTRANCE_TEX)
@@ -851,7 +915,17 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     GameTooltip:Show()
                 end)
                 pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                pin:SetScript("OnClick", function()
+                pin:SetScript("OnClick", function(_, button)
+                    if button == "RightButton" then
+                        if self.zoom > 1.001 then
+                            self.zoom = 1.0
+                            self.panX, self.panY = 0, 0
+                            self:ApplyTransform()
+                        elseif self.isWorldMapOverlay and self.onRightClickOut then
+                            self.onRightClickOut()
+                        end
+                        return
+                    end
                     if self.dungeon and self.dungeon.entrance then
                         dj_map.OpenWorldMapSpot(self.dungeon.entrance, self.dungeon.name .. " entrance")
                     end
@@ -860,46 +934,62 @@ local function CreateMapController(parent, isWorldMapOverlay)
             end
         end
 
-        -- 2. Floor transition ladder markers
+        -- 2. Floor transition ladder markers & traversal notes
         local lUsed = 0
         for _, tr in ipairs(m.transitions or {}) do
-            if (tr.floor or 1) == fIdx or (tr.to or 1) == fIdx then
-                local destFloor = ((tr.floor or 1) == fIdx) and tr.to or tr.floor
-                if destFloor and m.floors[destFloor] then
-                    lUsed = lUsed + 1
-                    local pin = self.ladderPins[lUsed]
-                    if not pin then
-                        pin = CreateFrame("Button", nil, self.holder)
-                        pin.tex = pin:CreateTexture(nil, "OVERLAY")
-                        pin.tex:SetAllPoints()
-                        pin.tex:SetTexture(LADDER_TEX)
-                        self.ladderPins[lUsed] = pin
-                    end
-                    local sz = math.max(24, math.floor(self.baseH * 0.068))
-                    pin:SetSize(sz, sz)
-                    pin:SetFrameLevel(self.holder:GetFrameLevel() + 10)
-                    pin.normX, pin.normY = tr.x, tr.y
-                    pin:ClearAllPoints()
-                    pin:SetPoint("CENTER", self.holder, "TOPLEFT", tr.x * artW, -(tr.y * artH))
-                    pin:SetScript("OnEnter", function(s)
-                        GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+            local isNote = (tr.note == true)
+            local destFloor = (not isNote) and tr.to or nil
+            if (tr.floor or 1) == fIdx and (isNote or (destFloor and m.floors[destFloor])) then
+                lUsed = lUsed + 1
+                local pin = self.ladderPins[lUsed]
+                if not pin then
+                    pin = CreateFrame("Button", nil, self.holder)
+                    pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                    pin.tex = pin:CreateTexture(nil, "OVERLAY")
+                    pin.tex:SetAllPoints()
+                    pin.tex:SetTexture(LADDER_TEX)
+                    self.ladderPins[lUsed] = pin
+                end
+                local sz = math.max(24, math.floor(self.baseH * 0.068))
+                pin:SetSize(sz, sz)
+                pin:SetFrameLevel(self.holder:GetFrameLevel() + 10)
+                pin.normX, pin.normY = tr.x, tr.y
+                pin:ClearAllPoints()
+                pin:SetPoint("CENTER", self.holder, "TOPLEFT", tr.x * artW, -(tr.y * artH))
+                pin:SetScript("OnEnter", function(s)
+                    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+                    if isNote then
+                        GameTooltip:SetText((tr.label or "note"):lower(), 0.35, 1.0, 0.45)
+                    else
                         local destName = m.floors[destFloor].name
                         local title = tr.label or (destName and ("go to " .. destName:lower()) or ("go to floor " .. destFloor))
                         GameTooltip:SetText(title:lower(), 1.0, 0.82, 0.25)
                         GameTooltip:AddLine("left-click: switch floor", 0.65, 0.65, 0.72)
-                        GameTooltip:Show()
-                    end)
-                    pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                    pin:SetScript("OnClick", function()
+                    end
+                    GameTooltip:Show()
+                end)
+                pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                pin:SetScript("OnClick", function(_, button)
+                    if button == "RightButton" then
+                        if self.zoom > 1.001 then
+                            self.zoom = 1.0
+                            self.panX, self.panY = 0, 0
+                            self:ApplyTransform()
+                        elseif self.isWorldMapOverlay and self.onRightClickOut then
+                            self.onRightClickOut()
+                        end
+                        return
+                    end
+                    if destFloor then
                         GameTooltip:Hide()
                         self:SetFloor(destFloor)
-                    end)
-                    pin:Show()
-                end
+                    end
+                end)
+                pin:Show()
             end
         end
 
-        -- 3. Boss portrait pins
+        -- 3. Boss & quest-target portrait pins
         local bUsed = 0
         local bossScale = GetBossIconScale()
         local pinSize = math.max(22, math.floor(self.baseH * 0.082 * bossScale + 0.5))
@@ -926,6 +1016,9 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     pin.wishIcon:SetTexture(WISHLIST_TEX)
                     pin.wishIcon:SetTexCoord(0, 1, 0, 1)
 
+                    pin.questBadge = pin:CreateTexture(nil, "OVERLAY", nil, 3)
+                    pin.questBadge:SetTexture("Interface\\TargetingFrame\\PortraitQuestBadge")
+
                     pin.lvlBadge = pin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
                     pin.lvlBadge:SetPoint("BOTTOM", pin, "BOTTOM", 0, -4)
                     self.bossPins[bUsed] = pin
@@ -935,12 +1028,28 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin:SetFrameLevel(self.holder:GetFrameLevel() + 18)
 
                 local sfuiBoss = FindSfuiBossData(self.dungeon, b)
+                local questEntry = b.quest and FindDungeonQuestEntry(self.dungeon, { id = b.quest }) or nil
+                local isQuestMobOnly = (sfuiBoss == nil) and (b.quest ~= nil)
+
                 local dispID = b.displayId or (sfuiBoss and sfuiBoss.displayId) or 0
                 if dispID > 0 and type(SetPortraitTextureFromCreatureDisplayID) == "function" then
                     SetPortraitTextureFromCreatureDisplayID(pin.portrait, dispID)
                     pin.portrait:SetTexCoord(0, 1, 0, 1)
                 else
                     pin.portrait:SetTexture("Interface\\EncounterJournal\\UI-EJ-Boss-Default")
+                end
+
+                if b.quest then
+                    local qbSize = math.max(18, math.floor(pinSize * 0.78))
+                    pin.questBadge:SetSize(qbSize, qbSize)
+                    pin.questBadge:ClearAllPoints()
+                    pin.questBadge:SetPoint("CENTER", pin, "TOPRIGHT", -2, -2)
+                    if pin.questBadge.SetDesaturated then
+                        pin.questBadge:SetDesaturated(IsQuestCompleted(b.quest))
+                    end
+                    pin.questBadge:Show()
+                else
+                    pin.questBadge:Hide()
                 end
 
                 local wishItems = GetBossWishlistItems(sfuiBoss)
@@ -969,7 +1078,8 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         GameTooltip:AddLine("level " .. tostring(lvl) .. " elite", 0.75, 0.75, 0.82)
                     end
                     if b.quest then
-                        GameTooltip:AddLine("quest: " .. tostring(b.quest):lower(), 0.55, 0.85, 1.0)
+                        local qName = (questEntry and questEntry.name and questEntry.name:lower()) or ("#" .. tostring(b.quest))
+                        GameTooltip:AddLine("quest target: " .. qName, 0.55, 0.85, 1.0)
                     end
                     if wishItems then
                         GameTooltip:AddLine(" ")
@@ -981,7 +1091,11 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         end
                     end
                     GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("left-click: view boss & loot", 0.20, 1.0, 0.20)
+                    if isQuestMobOnly then
+                        GameTooltip:AddLine("left-click: view quest in journal", 0.20, 1.0, 0.20)
+                    else
+                        GameTooltip:AddLine("left-click: view boss & loot", 0.20, 1.0, 0.20)
+                    end
                     GameTooltip:Show()
                 end)
                 pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -997,6 +1111,27 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         return
                     end
                     GameTooltip:Hide()
+                    if isQuestMobOnly then
+                        local qID = (questEntry and questEntry.id) or b.quest
+                        if self.isWorldMapOverlay then
+                            if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
+                                sfui.dungeonjournal.SelectQuest(self.dungeon.id, qID)
+                            elseif sfui.dungeonjournal and sfui.dungeonjournal.OpenToDungeon then
+                                sfui.dungeonjournal.OpenToDungeon(self.dungeon.id, "quests")
+                            end
+                            local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
+                            if djFrame then
+                                djFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+                                if djFrame.Raise then djFrame:Raise() end
+                            end
+                        elseif sfui.dungeonjournal then
+                            sfui.dungeonjournal.SetMode("quests")
+                            if qID and sfui.dungeonjournal.FocusQuest then
+                                sfui.dungeonjournal.FocusQuest(qID)
+                            end
+                        end
+                        return
+                    end
                     local targetBossName = (sfuiBoss and sfuiBoss.name) or b.targetName or b.name
                     if self.isWorldMapOverlay then
                         if sfui.dungeonjournal and sfui.dungeonjournal.OpenToBoss then
@@ -1010,7 +1145,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
                         if djFrame then
                             djFrame:SetFrameStrata("FULLSCREEN_DIALOG")
-                            if djFrame.Raise then pcall(djFrame.Raise, djFrame) end
+                            if djFrame.Raise then djFrame:Raise() end
                         end
                     else
                         if sfui.dungeonjournal then

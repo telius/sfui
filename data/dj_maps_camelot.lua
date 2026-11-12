@@ -967,6 +967,7 @@ sfui.dj_camelot.maps = {
         transitions = {
             {
                 floor = 1,
+                label = "jump down to floor 2",
                 to = 2,
                 x = 0.545,
                 y = 0.409,
@@ -1435,13 +1436,15 @@ sfui.dj_camelot.maps = {
         transitions = {
             {
                 floor = 1,
-                to = 1,
+                label = "wall jump the gate to reach roogug",
+                note = true,
                 x = 0.606,
                 y = 0.725,
             },
             {
                 floor = 1,
-                to = 1,
+                label = "jump on this vine to reach roogug",
+                note = true,
                 x = 0.626,
                 y = 0.562,
             },
@@ -7901,12 +7904,6 @@ local QUEST_START_UPDATES = {
         x = 0.12,
         y = 0.34,
     },
-    [6981] = {
-        label = "Falla Sagewind",
-        mapID = 1456,
-        x = 0.706,
-        y = 0.3,
-    },
     [7028] = {
         label = "Willow — Desolace",
         mapID = 1443,
@@ -8161,25 +8158,25 @@ local QUEST_START_UPDATES = {
         y = 0.602,
     },
     [92456] = {
-        label = "Shylamiir — Stormwind",
+        label = "Shylamiir — Stormwind City",
         mapID = 1453,
         targetName = "Shylamiir",
-        x = 0.404,
-        y = 0.652,
+        x = 0.314,
+        y = 0.628,
     },
     [92457] = {
-        label = "Image of Archmage Modera — Silverpine Forest",
-        mapID = 1421,
+        label = "Image of Archmage Modera — Lordamere Lake near Dalaran",
+        mapID = 1416,
         targetName = "Image of Archmage Modera",
-        x = 0.684,
-        y = 0.452,
+        x = 0.092,
+        y = 0.6,
     },
     [92458] = {
-        label = "Image of Archmage Modera — Silverpine Forest",
-        mapID = 1421,
+        label = "Image of Archmage Modera — Lordamere Lake near Dalaran",
+        mapID = 1416,
         targetName = "Image of Archmage Modera",
-        x = 0.684,
-        y = 0.452,
+        x = 0.092,
+        y = 0.6,
     },
     [92489] = {
         label = "High Sorcerer Andromath — Stormwind",
@@ -8242,11 +8239,11 @@ local QUEST_START_UPDATES = {
         y = 0.36,
     },
     [95682] = {
-        label = "Deathstalker Agent — Wetlands",
+        label = "Deathstalker Agent — outside Excavation Site: Wetlands",
         mapID = 1437,
         targetName = "Deathstalker Agent",
-        x = 0.514,
-        y = 0.592,
+        x = 0.478,
+        y = 0.563,
     },
     [95697] = {
         label = "Borstan — Orgrimmar",
@@ -8292,11 +8289,11 @@ local QUEST_START_UPDATES = {
         y = 0.626,
     },
     [96984] = {
-        label = "Image of Archmage Modera — Silverpine Forest",
-        mapID = 1421,
+        label = "Image of Archmage Modera — Lordamere Lake near Dalaran",
+        mapID = 1416,
         targetName = "Image of Archmage Modera",
-        x = 0.684,
-        y = 0.452,
+        x = 0.092,
+        y = 0.6,
     },
     [96986] = {
         label = "Melisara — Hillsbrad Foothills",

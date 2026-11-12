@@ -65,7 +65,18 @@ local function IsQuestPickedUpInDungeon(q)
     if q.pickedUpInDungeon == true or q.inDungeon == true then return true end
     if q.pickup then
         local lower = q.pickup:lower()
-        if lower:find("inside ") or lower:find("in dungeon") or lower:find("dropped by ") or lower:find("drop from ") or lower:find("found inside") then
+        if lower:find("inside ")
+            or lower:find("in dungeon")
+            or lower:find("dropped by ")
+            or lower:find("drops from ")
+            or lower:find("drop from ")
+            or lower:find("dropped inside")
+            or lower:find("drops in ")
+            or lower:find("item start:")
+            or lower:find("found inside")
+            or lower:find("looted in ")
+            or lower:find("looted from ")
+        then
             if not lower:find("outside") then return true end
         end
     end
@@ -91,17 +102,36 @@ local function OnEnterEntrance(pin, tooltip, pinData)
     local inLog = 0
     local completed = 0
     local pFaction = playerFaction and playerFaction:lower() or "alliance"
+    local checkClassRace = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestClassRaceEligible
+    local getChainInfo = sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo
     for _, q in ipairs(d.quests or {}) do
         local f = q.faction and q.faction:lower() or "both"
-        if f == "both" or f == pFaction then
+        local classRaceOk = (not checkClassRace) or checkClassRace(q)
+        if (f == "both" or f == pFaction) and classRaceOk then
             totalQuests = totalQuests + 1
             local minLvl = q.minLevel or (db and db.questMinLevels and db.questMinLevels[q.id]) or 1
             if pins.IsQuestCompleted(q.id) then
                 completed = completed + 1
             elseif pins.IsQuestActive(q.id) then
                 inLog = inLog + 1
-            elseif playerLevel >= minLvl then
-                available = available + 1
+            else
+                local steps, currentStep, currentStepIndex = nil, nil, nil
+                if getChainInfo then
+                    steps, currentStep, currentStepIndex = getChainInfo(q)
+                end
+                if steps and currentStep then
+                    local stepMinLvl = currentStep.minLevel
+                        or (currentStepIndex == 1 and q.chainStart and q.chainStart.minLevel)
+                        or (db and db.questMinLevels and currentStep.id and db.questMinLevels[currentStep.id])
+                        or minLvl
+                    if currentStep.id and pins.IsQuestActive(currentStep.id) then
+                        inLog = inLog + 1
+                    elseif playerLevel >= stepMinLvl then
+                        available = available + 1
+                    end
+                elseif playerLevel >= minLvl then
+                    available = available + 1
+                end
             end
         end
     end
@@ -470,14 +500,16 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
     local function ProcessQuestDungeon(d)
         if sfui.dungeonjournal and sfui.dungeonjournal.AreDungeonPinsHidden and sfui.dungeonjournal.AreDungeonPinsHidden(d.id) then return end
 
+        local checkClassRace = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestClassRaceEligible
         for _, q in ipairs(d.quests or {}) do
             local minLevel = q.minLevel or (db.questMinLevels and db.questMinLevels[q.id]) or 1
             local levelEligible = (not requireLevel) or (playerLevel >= minLevel)
             local f = q.faction and q.faction:lower() or "both"
             local pFaction = playerFaction and playerFaction:lower() or "alliance"
             local factionEligible = (f == "both" or f == pFaction)
+            local classRaceEligible = (not checkClassRace) or checkClassRace(q)
 
-            if factionEligible then
+            if factionEligible and classRaceEligible then
                 local steps, currentStep, currentStepIndex, allDone = nil, nil, nil, nil
                 if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
                     steps, currentStep, currentStepIndex, allDone = sfui.dungeonjournal.GetQuestChainInfo(q)
@@ -485,17 +517,21 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
 
                 if steps then
                     if not allDone and currentStep then
+                        local sf = currentStep.faction and currentStep.faction:lower() or f
+                        local stepFactionEligible = (sf == "both" or sf == pFaction)
+                        local stepClassRaceEligible = (not checkClassRace) or checkClassRace(currentStep)
                         local stepMinLevel = currentStep.minLevel or
                             (currentStepIndex == 1 and q.chainStart and q.chainStart.minLevel) or
                             (db.questMinLevels and currentStep.id and db.questMinLevels[currentStep.id]) or minLevel
                         local stepLevelEligible = (not requireLevel) or (playerLevel >= stepMinLevel)
                         local stepActive = currentStep.id and pins.IsQuestActive(currentStep.id)
-                        local insideDungeon = currentStep.isDungeonQuest and IsQuestPickedUpInDungeon(q)
+                        local insideDungeon = IsQuestPickedUpInDungeon(currentStep)
+                            or (currentStep.id == q.id and IsQuestPickedUpInDungeon(q))
                         local stepID = currentStep.id or q.id
                         local isStepHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and
                             sfui.dungeonjournal.IsQuestPinHidden(stepID, d.id)
 
-                        if not isStepHidden and stepLevelEligible and not stepActive and not insideDungeon then
+                        if stepFactionEligible and stepClassRaceEligible and not isStepHidden and stepLevelEligible and not stepActive and not insideDungeon then
                             local coords = currentStep.coords or (questCoords and currentStep.id and questCoords[currentStep.id])
                             if coords and coords.mapID == mapID then
                                 local cx = coords.x or 0

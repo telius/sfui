@@ -495,8 +495,28 @@ local function RenderQuestDetail(quest, dungeon)
 
             -- 0. Prerequisite chain step: point to the current step the player is on
             if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
-                local steps, currentStep, currentStepIndex, allDone = sfui.dungeonjournal.GetQuestChainInfo(quest)
+                local steps, currentStep = sfui.dungeonjournal.GetQuestChainInfo(quest)
                 if steps and currentStep then
+                    if currentStep.pickedUpInDungeon then
+                        local ec = currentStep.entranceCoords
+                        if ec and ec.mapID then
+                            local x = ec.x
+                            local y = ec.y
+                            if x and x > 1 then x = x / 100 end
+                            if y and y > 1 then y = y / 100 end
+                            return ec.mapID, x, y, "entrance", currentStep, ec.detail
+                        end
+                        local dungeon = GetCurrentDungeon()
+                        if dungeon and dungeon.entrance and dungeon.entrance.mapID then
+                            local ent = dungeon.entrance
+                            local x = ent.x
+                            local y = ent.y
+                            if x and x > 1 then x = x / 100 end
+                            if y and y > 1 then y = y / 100 end
+                            return ent.mapID, x, y, "entrance", currentStep
+                        end
+                        return nil
+                    end
                     local c = currentStep.coords or
                     (db and ((db.GetQuestCoords and db.GetQuestCoords(currentStep.id)) or (db.questCoords and db.questCoords[currentStep.id])))
                     if c and c.mapID then
@@ -509,9 +529,9 @@ local function RenderQuestDetail(quest, dungeon)
                 end
             end
 
-            -- 1. Explicit quest coordinates from database
-            local c = db and
-            ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id]))
+            -- 1. Explicit quest coordinates from database (skip outdoor coords if quest starts inside dungeon)
+            local c = (not quest.pickedUpInDungeon) and db and
+            ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id])) or nil
             if c and c.mapID then
                 local x = c.x
                 local y = c.y
@@ -867,9 +887,11 @@ local function RenderQuestDetail(quest, dungeon)
                     titleColor = "|cff777777"
                 end
 
-                local dTag = s.isDungeonQuest and " |cff00bfff(dungeon quest)|r" or ""
+                local dTag = s.pickedUpInDungeon and " |cff00bfff(inside dungeon)|r"
+                    or (s.isDungeonQuest and " |cff00bfff(dungeon quest)|r" or "")
+                local aTag = s.acceptOnly and " |cffaaaaaa(accept only)|r" or ""
                 local sName = s.name or ("quest #" .. tostring(s.id))
-                local stepHeader = string_format("%s%d.|r %s%s|r%s%s", numColor, i, titleColor, sName, dTag, statusBadge)
+                local stepHeader = string_format("%s%d.|r %s%s|r%s%s%s", numColor, i, titleColor, sName, dTag, aTag, statusBadge)
                 if s.pickup and s.pickup ~= "" then
                     local locStr = string_format("     |cff888888starts from: %s|r", s.pickup)
                     lines[#lines + 1] = stepHeader .. "\n" .. locStr
@@ -1176,16 +1198,18 @@ local function RenderQuestDetail(quest, dungeon)
     end
 end
 
--- ─── Filter Quests by Player Faction ─────────────────────────────────────────
+-- ─── Filter Quests by Player Faction, Class & Race ──────────────────────────
 local filteredQuests = {}
 local function GetFilteredQuests(allQuests)
     wipe(filteredQuests)
     if not allQuests or #allQuests == 0 then return filteredQuests end
 
     local playerFaction = GetPlayerFaction()
+    local checkClassRace = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestClassRaceEligible
     for _, q in ipairs(allQuests) do
         local f = q.faction and q.faction:lower() or "both"
-        if f == "both" or f == playerFaction then
+        local classRaceOk = (not checkClassRace) or checkClassRace(q)
+        if (f == "both" or f == playerFaction) and classRaceOk then
             filteredQuests[#filteredQuests + 1] = q
         end
     end

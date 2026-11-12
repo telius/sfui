@@ -492,6 +492,77 @@ end
 sfui.dungeonjournal.ReleaseAll = ReleaseAll
 
 
+local function IsQuestClassRaceEligible(quest)
+    if not quest then return true end
+
+    local classReq = quest.classOnly or quest.class or quest.classes
+    if classReq then
+        local playerClass = nil
+        if _G.UnitClassBase then
+            local c = _G.UnitClassBase("player")
+            if c and not (_G.issecretvalue and _G.issecretvalue(c)) then
+                playerClass = c
+            end
+        end
+        if not playerClass and _G.UnitClass then
+            local _, c = _G.UnitClass("player")
+            if c and not (_G.issecretvalue and _G.issecretvalue(c)) then
+                playerClass = c
+            end
+        end
+        if playerClass and type(playerClass) == "string" then
+            local pClass = playerClass:upper()
+            if type(classReq) == "string" then
+                if classReq:upper() ~= pClass then return false end
+            elseif type(classReq) == "table" then
+                local matched = false
+                for _, token in ipairs(classReq) do
+                    if type(token) == "string" and token:upper() == pClass then
+                        matched = true
+                        break
+                    end
+                end
+                if not matched then return false end
+            end
+        end
+    end
+
+    local raceReq = quest.races or quest.race
+    if raceReq and _G.UnitRace then
+        local raceName, raceFile = _G.UnitRace("player")
+        local pRace = nil
+        if raceFile and not (_G.issecretvalue and _G.issecretvalue(raceFile)) and type(raceFile) == "string" then
+            pRace = raceFile:lower()
+        elseif raceName and not (_G.issecretvalue and _G.issecretvalue(raceName)) and type(raceName) == "string" then
+            pRace = raceName:lower()
+        end
+        if pRace then
+            local isUndead = (pRace == "scourge" or pRace == "undead")
+            if type(raceReq) == "string" then
+                local r = raceReq:lower()
+                local rUndead = (r == "scourge" or r == "undead")
+                if r ~= pRace and not (isUndead and rUndead) then return false end
+            elseif type(raceReq) == "table" then
+                local matched = false
+                for _, token in ipairs(raceReq) do
+                    if type(token) == "string" then
+                        local r = token:lower()
+                        local rUndead = (r == "scourge" or r == "undead")
+                        if r == pRace or (isUndead and rUndead) then
+                            matched = true
+                            break
+                        end
+                    end
+                end
+                if not matched then return false end
+            end
+        end
+    end
+
+    return true
+end
+sfui.dungeonjournal.IsQuestClassRaceEligible = IsQuestClassRaceEligible
+
 function sfui.dungeonjournal.GetQuestChainInfo(quest)
     if not quest then return nil end
     local rawChain = quest.chain
@@ -502,32 +573,47 @@ function sfui.dungeonjournal.GetQuestChainInfo(quest)
 
     local steps = {}
     for _, s in ipairs(rawChain) do
-        local coords = s.coords
+        local inDung = (s.pickedUpInDungeon == true or s.inDungeon == true)
+        local coords = (not inDung) and (
+            s.coords
             or (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[s.id])
+        ) or nil
         steps[#steps + 1] = {
             id = s.id,
             name = s.name,
             pickup = s.pickup,
             coords = coords,
+            entranceCoords = s.entranceCoords,
             level = s.level,
             minLevel = s.minLevel,
             faction = s.faction,
             objective = s.objective,
+            pickedUpInDungeon = inDung or (s.id == quest.id and quest.pickedUpInDungeon == true) or nil,
+            acceptOnly = s.acceptOnly or nil,
+            classOnly = s.classOnly or nil,
+            races = s.races or nil,
             isDungeonQuest = s.isDungeonQuest or (s.id == quest.id),
         }
     end
     if steps[#steps].id ~= quest.id then
-        local qCoords = (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[quest.id]) or
-        quest.coords
+        local qInDung = (quest.pickedUpInDungeon == true or quest.inDungeon == true)
+        local qCoords = (not qInDung) and (
+            (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[quest.id])
+            or quest.coords
+        ) or nil
         steps[#steps + 1] = {
             id = quest.id,
             name = quest.name,
             pickup = quest.pickup,
             coords = qCoords,
+            entranceCoords = quest.entranceCoords,
             level = quest.level,
             minLevel = quest.minLevel,
             faction = quest.faction,
             objective = quest.objective,
+            pickedUpInDungeon = qInDung or nil,
+            classOnly = quest.classOnly or nil,
+            races = quest.races or nil,
             isDungeonQuest = true,
         }
     end
@@ -536,7 +622,10 @@ function sfui.dungeonjournal.GetQuestChainInfo(quest)
     local currentStepIndex = nil
 
     for i, s in ipairs(steps) do
-        local isDone = s.id and sfui.dungeonjournal.IsQuestCompleted(s.id)
+        local isDone = s.id and (
+            sfui.dungeonjournal.IsQuestCompleted(s.id)
+            or (s.acceptOnly and sfui.dungeonjournal.IsQuestActive(s.id))
+        )
         if not isDone then
             currentStep = s
             currentStepIndex = i
