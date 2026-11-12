@@ -345,6 +345,11 @@ local function BuildLines(itemID, expanded)
     if expandable and not expanded then
         lines[#lines + 1] = { string_format("|cff%shold shift to show all recipes|r", HEX_DIM), "" }
     end
+    local isFishSpecies = sfui.fishing_data and sfui.fishing_data.GetAllSpecies and sfui.fishing_data.GetAllSpecies()[itemID] ~= nil
+    local hasRecipeSource = sfui.recipes and sfui.recipes.GetSource and sfui.recipes.GetSource(itemID)
+    if not isFishSpecies and not (hasRecipeSource and hasRecipeSource.sources and #hasRecipeSource.sources > 0) then
+        lines[#lines + 1] = { "|cff80c0ffctrl-click to open recipe browser|r", "" }
+    end
     lines.expandable = expandable
     return lines
 end

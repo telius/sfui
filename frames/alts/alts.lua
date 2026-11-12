@@ -568,6 +568,21 @@ function sfui.alts.PerformSync(isLogout)
         end
     end
 
+    -- Persist lightweight bag item counts for Warband / Alt reagent & tooltip summaries
+    if sfui.inventory and sfui.inventory.GetAllBagCounts then
+        local liveBags = sfui.inventory.GetAllBagCounts()
+        if liveBags then
+            local savedBags = d.bagItems or {}
+            wipe(savedBags)
+            for itemID, cnt in pairs(liveBags) do
+                if type(itemID) == "number" and type(cnt) == "number" and cnt > 0 then
+                    savedBags[itemID] = cnt
+                end
+            end
+            d.bagItems = savedBags
+        end
+    end
+
     -- Hook into client provider for flavor-specific data sync
     if sfui.alts.provider and sfui.alts.provider.PerformSync then
         sfui.alts.provider.PerformSync(d, isLogout)
@@ -1555,20 +1570,170 @@ function sfui.alts.initialize()
     end
 
     local function on_sync_event()
-        sfui.alts.SyncCurrentCharacter()
+        if sfui.safety and sfui.safety.DeferOutOfCombat then
+            sfui.safety.DeferOutOfCombat("alts_char_sync", sfui.safety.OOC_P2, sfui.alts.SyncCurrentCharacter)
+        else
+            sfui.alts.SyncCurrentCharacter()
+        end
     end
     sfui.events.RegisterEvent("PLAYER_LEVEL_UP",              on_sync_event)
     sfui.events.RegisterEvent("PLAYER_XP_UPDATE",             on_sync_event)
-    sfui.events.RegisterEvent("UPDATE_EXHAUSTION",             on_sync_event)
+    sfui.events.RegisterEvent("UPDATE_EXHAUSTION",            on_sync_event)
     sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING",        on_sync_event)
     sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",     on_sync_event)
     sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE", on_sync_event)
     sfui.events.RegisterEvent("PLAYER_MONEY",                 on_sync_event)
 
+    sfui.events.RegisterMessage("SFUI_INVENTORY_DELTA", function()
+        local guid = GetCurrentCharacterGUID()
+        if guid and SfuiDB and SfuiDB.alts and SfuiDB.alts[guid] and sfui.inventory and sfui.inventory.GetAllBagCounts then
+            local liveBags = sfui.inventory.GetAllBagCounts()
+            if liveBags then
+                local savedBags = SfuiDB.alts[guid].bagItems or {}
+                wipe(savedBags)
+                for itemID, cnt in pairs(liveBags) do
+                    if type(itemID) == "number" and type(cnt) == "number" and cnt > 0 then
+                        savedBags[itemID] = cnt
+                    end
+                end
+                SfuiDB.alts[guid].bagItems = savedBags
+            end
+        end
+    end)
+
+    local _isBankOpen = false
+    local function ScanCharacterBank()
+        if not _isBankOpen then return end
+        local guid = GetCurrentCharacterGUID()
+        if not guid or not SfuiDB or not SfuiDB.alts then return end
+        SfuiDB.alts[guid] = SfuiDB.alts[guid] or {}
+        local bankCounts = SfuiDB.alts[guid].bankItems or {}
+        wipe(bankCounts)
+
+        local C_Cont = _G.C_Container
+        local getNumSlots = (C_Cont and C_Cont.GetContainerNumSlots) or _G.GetContainerNumSlots
+        local getItemInfo = (C_Cont and C_Cont.GetContainerItemInfo) or _G.GetContainerItemInfo
+        if not getNumSlots or not getItemInfo then return end
+
+        local bankContainers = { -1 }
+        if _G.REAGENTBANK_CONTAINER and type(_G.REAGENTBANK_CONTAINER) == "number" then
+            bankContainers[#bankContainers + 1] = _G.REAGENTBANK_CONTAINER
+        end
+        local firstBankBag = (_G.NUM_BAG_SLOTS or 4) + 1
+        local lastBankBag = firstBankBag + (_G.NUM_BANKBAGSLOTS or 7) - 1
+        if _G.Enum and _G.Enum.BagIndex and _G.Enum.BagIndex.CharacterBankTab_1 then
+            for i = 1, 6 do
+                local tabIdx = _G.Enum.BagIndex["CharacterBankTab_" .. i]
+                if type(tabIdx) == "number" then
+                    bankContainers[#bankContainers + 1] = tabIdx
+                end
+            end
+        else
+            for b = firstBankBag, lastBankBag do
+                bankContainers[#bankContainers + 1] = b
+            end
+        end
+
+        local issecret = (sfui.safety and sfui.safety.issecretvalue) or _G.issecretvalue
+        for _, bagID in ipairs(bankContainers) do
+            local nSlots = getNumSlots(bagID) or 0
+            for slot = 1, nSlots do
+                local info = getItemInfo(bagID, slot)
+                if type(info) == "table" then
+                    local id = info.itemID
+                    local cnt = info.stackCount or 1
+                    if id and not (issecret and issecret(id)) and not (issecret and issecret(cnt)) and cnt > 0 then
+                        bankCounts[id] = (bankCounts[id] or 0) + cnt
+                    end
+                elseif info ~= nil and _G.GetContainerItemLink then
+                    local _, cnt = _G.GetContainerItemInfo(bagID, slot)
+                    local lnk = _G.GetContainerItemLink(bagID, slot)
+                    local id = lnk and tonumber(lnk:match("item:(%d+)"))
+                    if id and type(cnt) == "number" and cnt > 0 then
+                        bankCounts[id] = (bankCounts[id] or 0) + cnt
+                    end
+                end
+            end
+        end
+        SfuiDB.alts[guid].bankItems = bankCounts
+    end
+
+    sfui.events.RegisterEvent("BANKFRAME_OPENED", function()
+        _isBankOpen = true
+        ScanCharacterBank()
+    end)
+    sfui.events.RegisterEvent("BANKFRAME_CLOSED", function()
+        _isBankOpen = false
+    end)
+    sfui.events.RegisterEvent("PLAYERBANKSLOTS_CHANGED", function()
+        if _isBankOpen then
+            if sfui.safety and sfui.safety.DeferOutOfCombat then
+                sfui.safety.DeferOutOfCombat("alts_bank_scan", sfui.safety.OOC_P2, ScanCharacterBank)
+            else
+                ScanCharacterBank()
+            end
+        end
+    end)
+
     -- Register flavor-specific events from provider
     if sfui.alts.provider and sfui.alts.provider.RegisterEvents then
         sfui.alts.provider.RegisterEvents()
     end
+end
+
+function sfui.alts.GetAccountItemSummary(itemID, excludeCurrent)
+    itemID = tonumber(itemID)
+    if not itemID or itemID <= 0 or not SfuiDB or type(SfuiDB.alts) ~= "table" then
+        return nil
+    end
+
+    local myGUID = GetCurrentCharacterGUID()
+    local totalAll = 0
+    local totalAlts = 0
+    local list = {}
+
+    for guid, alt in pairs(SfuiDB.alts) do
+        if type(alt) == "table" then
+            local isMe = (myGUID and guid == myGUID)
+            local bCnt = 0
+            if isMe and sfui.inventory and sfui.inventory.GetCount then
+                bCnt = sfui.inventory.GetCount(itemID) or 0
+            elseif type(alt.bagItems) == "table" then
+                bCnt = tonumber(alt.bagItems[itemID]) or 0
+            end
+            local kCnt = (type(alt.bankItems) == "table" and tonumber(alt.bankItems[itemID])) or 0
+            local sum = bCnt + kCnt
+            if sum > 0 then
+                totalAll = totalAll + sum
+                if not isMe then
+                    totalAlts = totalAlts + sum
+                end
+                if not (excludeCurrent and isMe) then
+                    local disp = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name or "alt"
+                    local colored = (sfui.common and sfui.common.class_color_name and sfui.common.class_color_name(disp:lower(), alt.class)) or disp:lower()
+                    list[#list + 1] = {
+                        guid        = guid,
+                        name        = disp:lower(),
+                        coloredName = colored,
+                        bags        = bCnt,
+                        bank        = kCnt,
+                        total       = sum,
+                    }
+                end
+            end
+        end
+    end
+
+    if #list == 0 then return nil end
+    table.sort(list, function(a, b)
+        if a.total ~= b.total then return a.total > b.total end
+        return (a.name or "") < (b.name or "")
+    end)
+    return {
+        total     = totalAll,
+        totalAlts = totalAlts,
+        alts      = list,
+    }
 end
 
 local _altsDebug = {}

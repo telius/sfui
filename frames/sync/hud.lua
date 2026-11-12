@@ -227,6 +227,8 @@ local function find_alt_guid_and_class(name, unit)
     if unit and UnitExists and UnitExists(unit) and UnitClass then
         local _, cls = UnitClass(unit)
         local g = UnitGUID and UnitGUID(unit)
+        if issecretvalue and issecretvalue(cls) then cls = nil end
+        if issecretvalue and issecretvalue(g) then g = nil end
         if cls then return g, cls end
     end
     local key = multibox.CleanKey(name or "")
@@ -302,9 +304,13 @@ local function collect_team_members()
         local maxIdx = isRaid and count or math_min(4, count)
         for i = 1, maxIdx do
             local u = prefix .. i
-            if UnitExists and UnitExists(u) and not (UnitIsUnit and UnitIsUnit(u, "player")) then
+            local isSelf = (common and common.SafeUnitIsUnit and common.SafeUnitIsUnit(u, "player"))
+                or (not (_G.C_Secrets and _G.C_Secrets.ShouldUnitComparisonBeSecret and _G.C_Secrets.ShouldUnitComparisonBeSecret(u, "player")) and UnitIsUnit and UnitIsUnit(u, "player"))
+            if UnitExists and UnitExists(u) and not isSelf then
                 local g = UnitGUID and UnitGUID(u)
+                if issecretvalue and issecretvalue(g) then g = nil end
                 local n = multibox.FullName(u)
+                if issecretvalue and issecretvalue(n) then n = nil end
                 if (g and multibox.IsSyncedCharacter(g)) or (n and multibox.IsSyncedCharacter(n)) then
                     local short = multibox.CommandName(n)
                     local key = multibox.CleanKey(short)

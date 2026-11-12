@@ -1418,13 +1418,40 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
 end
 
 -- ── Tooltip Post-Call Handler ─────────────────────────────────────────────────
-local function SetItemTooltip(tooltip, data)
+local _altInvScratch = {}
+local function RenderAltInventorySummary(tooltip, itemID)
+    if not SfuiDB or SfuiDB.tooltipAltInventory == false then return end
+    if not sfui.alts or not sfui.alts.GetAccountItemSummary then return end
+    local summary = sfui.alts.GetAccountItemSummary(itemID, true)
+    if not summary or not summary.alts or #summary.alts == 0 then return end
+
+    wipe(_altInvScratch)
+    local maxAlts = SfuiDB.recipesMaxAlts or 4
+    local count = #summary.alts
+    for i = 1, math.min(count, maxAlts) do
+        local entry = summary.alts[i]
+        if entry.bank and entry.bank > 0 and entry.bags and entry.bags > 0 then
+            _altInvScratch[#_altInvScratch + 1] = string.format("%s |cffaaaaaa(%d+%db)|r", entry.coloredName, entry.bags, entry.bank)
+        elseif entry.bank and entry.bank > 0 then
+            _altInvScratch[#_altInvScratch + 1] = string.format("%s |cffaaaaaa(%db)|r", entry.coloredName, entry.bank)
+        else
+            _altInvScratch[#_altInvScratch + 1] = string.format("%s |cffaaaaaa(%d)|r", entry.coloredName, entry.total)
+        end
+    end
+    local line = table.concat(_altInvScratch, ", ")
+    if count > maxAlts then
+        line = string.format("%s, |cffaaaaaa+%d more|r", line, count - maxAlts)
+    end
+    tooltip:AddLine(string.format("|cff88ccffalt bags:|r %s |cff888888(total: %d)|r", line, summary.totalAlts or summary.total or 0), 1, 1, 1, true)
+end
+
+local function SetItemTooltip(tooltip, ctxOrData)
     if not tooltip or not tooltip.AddLine then return end
     if tooltip._sfuiInRecipeBrowser then return end
-    if InCombatLockdown and InCombatLockdown() then return end
+    if (ctxOrData and ctxOrData.inCombat) or (InCombatLockdown and InCombatLockdown()) then return end
     if tooltip ~= _G.GameTooltip and tooltip ~= _G.ItemRefTooltip and tooltip ~= sfui.tooltip then return end
 
-    local itemID = (data and data.id)
+    local itemID = (ctxOrData and (ctxOrData.itemID or ctxOrData.id))
     if not itemID and TooltipUtil and TooltipUtil.GetDisplayedItem then
         itemID = select(3, TooltipUtil.GetDisplayedItem(tooltip))
     end
@@ -1449,6 +1476,8 @@ local function SetItemTooltip(tooltip, data)
         UpdateItem(itemID)
     end
 
+    RenderAltInventorySummary(tooltip, itemID)
+
     sfui.recipes.AddAltKnowledgeLines(tooltip, itemID)
 
     -- Reagent usage ("used in") section (Camelot / Classic: frames/professions/reagents.lua)
@@ -1457,12 +1486,12 @@ local function SetItemTooltip(tooltip, data)
     end
 end
 
--- ── Tooltip Registration (Retail & Classic Era Compatible) ────────────────────
-if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType and Enum.TooltipDataType.Item then
+-- ── Tooltip Registration (Unified Pipeline & Legacy Fallback) ─────────────────
+if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
+    sfui.tooltips.RegisterItemProvider("alt_inventory", 50, SetItemTooltip)
+elseif TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType and Enum.TooltipDataType.Item then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, SetItemTooltip)
 else
-    -- Fallback for legacy Classic Era clients without TooltipDataProcessor
-    -- hook both the blizzard tooltip and our private one
     if _G.GameTooltip then
         _G.GameTooltip:HookScript("OnTooltipSetItem", SetItemTooltip)
     end
@@ -1608,3 +1637,57 @@ sfui.recipes.PruneOrphanCrafts = PruneOrphanCrafts
 sfui.recipes.AddAltKnowledgeLines = sfui.recipes.AddAltKnowledgeLines
 sfui.recipes.CheckAltEligibility = CheckAltEligibility
 sfui.recipes.GetColoredCharacterName = GetColoredCharacterName
+
+function sfui.recipes.FindBestAltForRecipe(itemID)
+    EnsurePlayerContext()
+    itemID = tonumber(itemID)
+    if not itemID or not IsRecipe(itemID) or not SfuiDB or type(SfuiDB.alts) ~= "table" then
+        return nil
+    end
+
+    -- Never mail away a recipe the active character can immediately learn
+    local curStatus = GetRecipeStatus(itemID)
+    if curStatus == "KNOWN_CURRENT" or curStatus == "CAN_LEARN_CURRENT" or curStatus == "KNOWN_ALT" then
+        if curStatus == "CAN_LEARN_CURRENT" then
+            return nil
+        end
+    end
+
+    local subclassID = C_Item_GetItemInfoInstant and select(7, C_Item_GetItemInfoInstant(itemID))
+    local spellID = sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]
+    local r = spellID and sfui.recipes_camelot and sfui.recipes_camelot.recipes and sfui.recipes_camelot.recipes[spellID]
+    local skillID = r and r.skillID
+    local minSkill = r and (r.minSkill or (r.colors and r.colors[1]))
+    local outputItemID = r and r.output
+    local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
+    local reqProf, reqRank = ExtractRecipeRequirement(itemID, itemLink, subclassID)
+    if not reqProf and skillID and SKILL_ID_TO_NAME[skillID] then
+        reqProf = SKILL_ID_TO_NAME[skillID]
+    end
+    if not reqRank and minSkill then reqRank = minSkill end
+
+    local bestGUID, bestAlt, bestScore = nil, nil, -1
+    for guid, altData in pairs(SfuiDB.alts) do
+        if guid ~= myGUID and type(altData) == "table" and altData.name then
+            local alreadyKnown = IsRecipeKnownInDB(itemID, guid)
+                or (spellID and IsRecipeKnownInDB(spellID, guid))
+                or (outputItemID and SfuiDB.crafts and SfuiDB.crafts[outputItemID] and SfuiDB.crafts[outputItemID][guid])
+            if not alreadyKnown then
+                local hasProf, meetsRank, curRank = CheckAltEligibility(altData, reqProf, reqRank, subclassID, skillID)
+                if hasProf then
+                    local score = (meetsRank and 10000 or 0) + (tonumber(curRank) or 0)
+                    if score > bestScore then
+                        bestScore = score
+                        bestGUID = guid
+                        bestAlt = altData
+                    end
+                end
+            end
+        end
+    end
+
+    if bestGUID and bestAlt then
+        return bestGUID, bestAlt.name, bestAlt.realm
+    end
+    return nil
+end

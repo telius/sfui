@@ -21,6 +21,11 @@ local C_UnitAuras = _G.C_UnitAuras
 local C_Secrets = _G.C_Secrets
 local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
 
+local function IsValidTexture(tex)
+    if issecretvalue and issecretvalue(tex) then return true end
+    return tex ~= nil and tex ~= 0 and tex ~= ""
+end
+
 local function AreAurasSecret()
     if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then
         return true
@@ -469,9 +474,18 @@ local function ScanWeaponEnchant(entry)
         local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
         local lureIcon = nil
         if bestLure and bestLure.itemID then
-            lureIcon = (sfui.common and sfui.common.get_item_instant_info and select(5, sfui.common.get_item_instant_info(bestLure.itemID)))
-                or (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(bestLure.itemID))
-                or (_G.GetItemIcon and _G.GetItemIcon(bestLure.itemID))
+            local cand = (sfui.common and sfui.common.get_item_instant_info and select(5, sfui.common.get_item_instant_info(bestLure.itemID)))
+            if not IsValidTexture(cand) and _G.C_Item and _G.C_Item.GetItemIconByID then
+                cand = _G.C_Item.GetItemIconByID(bestLure.itemID)
+            end
+            if not IsValidTexture(cand) and _G.GetItemIcon then
+                cand = _G.GetItemIcon(bestLure.itemID)
+            end
+            if IsValidTexture(cand) then
+                lureIcon = cand
+            elseif _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
+                _G.C_Item.RequestLoadItemDataByID(bestLure.itemID)
+            end
         end
         lureIcon = lureIcon or entry.fallbackIcon
 
@@ -550,7 +564,7 @@ local function ScanPet(entry)
     local petIcon = nil
     if sfui.buffs.pets and sfui.buffs.pets.GetSelectedPet then
         local selectedPet = sfui.buffs.pets.GetSelectedPet()
-        if selectedPet and selectedPet.icon then
+        if selectedPet and IsValidTexture(selectedPet.icon) then
             petIcon = selectedPet.icon
         end
     end
@@ -741,7 +755,10 @@ function sfui.buffs.scan.RunScan()
                 if provider and provider.resolveScanIcon then
                     icon = provider.resolveScanIcon(entry, icon)
                 end
-                rec.icon = icon or (entry.spellIDs and data.ResolveTexture(entry.spellIDs[1], entry.fallbackIcon)) or entry.fallbackIcon
+                if not IsValidTexture(icon) then
+                    icon = (entry.spellIDs and data.ResolveTexture(entry.spellIDs[1], entry.fallbackIcon)) or entry.fallbackIcon
+                end
+                rec.icon = IsValidTexture(icon) and icon or "Interface\\Icons\\INV_Misc_QuestionMark"
                 rec.activeEnchant = extraData
                 rec.unit = nil
                 rec.unitName = nil
@@ -793,6 +810,7 @@ function sfui.buffs.scan.RunScan()
         end
         if sfui.ring and sfui.ring.request_rebuild then
             sfui.ring.request_rebuild("specs")
+            sfui.ring.request_rebuild("utility")
         end
     end
 
@@ -885,7 +903,14 @@ local function InitScanEvents()
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", on_player_unit_change)
     sfui.events.RegisterEvent("PLAYER_UPDATE_RESTING", on_player_unit_change)
     sfui.events.RegisterEvent("MINIMAP_UPDATE_TRACKING", on_knowledge_change)
+    sfui.events.RegisterEvent("GROUP_ROSTER_UPDATE", on_knowledge_change)
+    if sfui.events.RegisterMessage then
+        sfui.events.RegisterMessage("SFUI_ROLE_CONTEXT_CHANGED", on_knowledge_change)
+    end
     sfui.events.RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED", on_player_unit_change)
+    sfui.events.RegisterEvent("SPELL_UPDATE_ICON", on_player_unit_change)
+    sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", on_player_unit_change)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_player_unit_change)
 
     -- Periodic safety refresh for temporary weapon enchants and time-expiring buffs
     local cTimer = _G.C_Timer

@@ -342,6 +342,51 @@ local function EnsureBarsCreated()
     if created then
         UpdateBarColors()
     end
+
+    local mhBar = swingBars[SWING_MAIN_HAND]
+    if mhBar and mhBar.backdrop and not mhBar.backdrop._moverRegistered and sfui.movers and sfui.movers.Register then
+        mhBar.backdrop._moverRegistered = true
+        sfui.movers.Register(mhBar.backdrop, {
+            key = "swing",
+            label = "swing bars",
+            preferredPoint = "BOTTOM",
+            customSize = function()
+                local w = (mhBar.backdrop and mhBar.backdrop:GetWidth()) or 302
+                local h = math.max(16, (mhBar.backdrop and mhBar.backdrop:GetHeight()) or 10)
+                return w, h
+            end,
+            getPoint = function()
+                local cp = SfuiDB and SfuiDB.swingBarPos
+                if cp and cp.point and cp.x and cp.y then
+                    return cp.point, UIParent, cp.relPoint or cp.point, cp.x, cp.y
+                end
+                local bd = mhBar.backdrop
+                if bd and bd:GetLeft() and bd:GetBottom() and sfui.movers.CalculateRelativeCoordinates then
+                    local pt, rPt, x, y = sfui.movers.CalculateRelativeCoordinates(bd:GetLeft(), bd:GetBottom(), bd:GetWidth(), bd:GetHeight(), "BOTTOM")
+                    return pt, UIParent, rPt, x, y
+                end
+                local hX = (SfuiDB and SfuiDB.healthBarX) or 0
+                local hY = ((SfuiDB and SfuiDB.healthBarY) or 160) - 24
+                return "BOTTOM", UIParent, "BOTTOM", hX, hY
+            end,
+            setPoint = function(point, _, relPoint, x, y)
+                local pt = point or "BOTTOM"
+                local rPt = relPoint or pt
+                local sx = math.floor((x or 0) + 0.5)
+                local sy = math.floor((y or 136) + 0.5)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.swingBarPos = { point = pt, relPoint = rPt, x = sx, y = sy }
+                sfui.swing.UpdatePositions()
+            end,
+            resetPosition = function()
+                if SfuiDB then SfuiDB.swingBarPos = nil end
+                sfui.swing.UpdatePositions()
+            end,
+            isEnabled = function()
+                return sfui.swing.IsPossible()
+            end,
+        })
+    end
 end
 
 -- ─── Suppression of Blizzard's Native Swing Timer Frames ───────────────────
@@ -478,6 +523,7 @@ function sfui.swing.UpdatePositions(anchorFrame, spacing)
 
     local barCfg = cfg.swingBar or {}
     local swingSpacing = barCfg.spacing or 2
+    local customPos = SfuiDB and SfuiDB.swingBarPos
     local currentAnchor = anchorFrame
 
     local order = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
@@ -486,11 +532,17 @@ function sfui.swing.UpdatePositions(anchorFrame, spacing)
         local bar = swingBars[sType]
         if bar and bar.backdrop then
             bar.backdrop:ClearAllPoints()
-            local currentSpacing = isFirst and (spacing or swingSpacing) or swingSpacing
-            bar.backdrop:SetPoint("TOP", currentAnchor, "BOTTOM", 0, -currentSpacing)
-            if bar.backdrop:IsShown() then
+            if isFirst and customPos and customPos.point and customPos.x and customPos.y then
+                bar.backdrop:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
                 currentAnchor = bar.backdrop
                 isFirst = false
+            else
+                local currentSpacing = isFirst and (spacing or swingSpacing) or swingSpacing
+                bar.backdrop:SetPoint("TOP", currentAnchor, "BOTTOM", 0, -currentSpacing)
+                if bar.backdrop:IsShown() then
+                    currentAnchor = bar.backdrop
+                    isFirst = false
+                end
             end
         end
     end

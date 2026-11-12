@@ -16,6 +16,10 @@ local wipe = wipe or table.wipe
 local tonumber = tonumber
 local type = type
 local issecretvalue = sfui.common.issecretvalue
+local IsValidTexture = sfui.common.is_valid_texture or function(tex)
+    if issecretvalue(tex) then return true end
+    return tex ~= nil and tex ~= 0 and tex ~= ""
+end
 
 local _cdInfoCache = {}
 local _cdInfoCacheCount = 0
@@ -193,7 +197,9 @@ function E.CompileDescriptor(icon, panelConfig, getIconValueFn, getIconTextureFn
         and desc.entry == icon.entry
         and desc.id == icon.id
         and desc.panelConfig == panelConfig
-        and icon._currentTexture ~= nil then
+        and not desc._iconCold
+        and IsValidTexture(icon._currentTexture)
+        and (not icon.texture or IsValidTexture(icon.texture:GetTexture())) then
         return desc
     end
 
@@ -206,7 +212,7 @@ function E.CompileDescriptor(icon, panelConfig, getIconValueFn, getIconTextureFn
     local settings = (entry and entry.settings) or nil
     local cdID = E.GetEntryCooldownID(entry, (icon.type == "cooldown" and icon.id) or nil)
     local cdInfo = cdID and E.SafeGetCooldownInfo(cdID) or nil
-    local iconTexture, aID, rType, lIDs = getIconTextureFn(icon.id, icon.type, entry, cdInfo)
+    local iconTexture, aID, rType, lIDs, isColdIcon = getIconTextureFn(icon.id, icon.type, entry, cdInfo)
 
     local activeID = aID or icon.id
     local resolvedType = rType or icon.type
@@ -219,10 +225,13 @@ function E.CompileDescriptor(icon, panelConfig, getIconValueFn, getIconTextureFn
     icon._lastActiveID = activeID
     icon._resolvedType = resolvedType
     icon._linkedSpellIDs = linkedSpellIDs
-    if icon.texture and iconTexture and icon._currentTexture ~= iconTexture then
-        icon.texture:SetTexture(iconTexture)
-        icon._currentTexture = iconTexture
+    if icon.texture and IsValidTexture(iconTexture) then
+        if icon._currentTexture ~= iconTexture or not IsValidTexture(icon.texture:GetTexture()) then
+            icon.texture:SetTexture(iconTexture)
+            icon._currentTexture = iconTexture
+        end
     end
+    desc._iconCold = (isColdIcon == true)
 
     local auras = sfui.tracking.auras
     local isForeverSeal = false

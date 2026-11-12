@@ -367,6 +367,7 @@ frame.utilityBar = sfui.merchant.create_utility_bar(frame)
 
 sfui.merchant.update_merchant = function()
     local indices = sfui.merchant.filteredIndices or {}
+    local reagentDeficits = (sfui.merchant.mode == "merchant" and sfui.recipes and sfui.recipes.GetPinnedReagentDeficits and sfui.recipes.GetPinnedReagentDeficits()) or nil
     for i = 1, ITEMS_PER_PAGE do
         local btn, index = buttons[i], indices[sfui.merchant.scrollOffset + i]
         if index then
@@ -383,7 +384,7 @@ sfui.merchant.update_merchant = function()
                 if data.classID == 4 and data.subClassID and data.subClassID <= 4 and data.subType ~= slot then
                     typeText = slot .. (data.subType ~= "" and " - " .. data.subType or "")
                 end
-                btn.subName:SetText(typeText == "Other" and "" or typeText)
+                local baseSub = (typeText == "Other" and "") or tostring(typeText):lower()
 
                 local itemID = data.link and get_item_id(data.link)
                 local grantsXp = sfui.merchant.item_grants_decor_xp(itemID, data.link)
@@ -420,12 +421,29 @@ sfui.merchant.update_merchant = function()
                 end
                 btn.price:SetText(cost); btn.count:SetText(data.stackCount > 1 and data.stackCount or "")
 
-                local id = get_item_id(data.link)
+                local id = itemID or get_item_id(data.link)
                 local locked, reason = sfui.merchant.get_item_lock_status(index, id, data.isUsable)
                 local isRecipe = id and sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(id)
                 local rStatus, rColor
                 if isRecipe and sfui.recipes.GetRecipeStatus then
                     rStatus, rColor = sfui.recipes.GetRecipeStatus(id)
+                end
+
+                local extraBadge = nil
+                local def = id and reagentDeficits and reagentDeficits[id]
+                if def and def.deficit and def.deficit > 0 then
+                    extraBadge = string.format("|cff33ff88[need %d]|r", def.deficit)
+                elseif isRecipe then
+                    if rStatus == "CAN_LEARN_CURRENT" or rStatus == "learnable" then
+                        extraBadge = "|cff33ff88[unlearned]|r"
+                    elseif rStatus == "CAN_LEARN_ALT" or (sfui.recipes and sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(id)) then
+                        extraBadge = "|cff80c0ff[alt needs]|r"
+                    end
+                end
+                if extraBadge then
+                    btn.subName:SetText(baseSub ~= "" and (extraBadge .. " " .. baseSub) or extraBadge)
+                else
+                    btn.subName:SetText(baseSub)
                 end
 
                 if locked then

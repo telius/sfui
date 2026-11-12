@@ -1056,7 +1056,7 @@ local function GetOrCreateEditModeDialog()
     if editModeDialog then return editModeDialog end
 
     local dialog = CreateFrame("Frame", "sfui_EditModeDialog", UIParent, "BackdropTemplate")
-    dialog:SetSize(580, 76)
+    dialog:SetSize(580, 104)
     dialog:SetPoint("TOP", UIParent, "TOP", 0, -22)
     dialog:SetFrameStrata("FULLSCREEN_DIALOG")
     dialog:SetFrameLevel(100)
@@ -1203,7 +1203,7 @@ local function GetOrCreateEditModeDialog()
 
     -- ─── Row 2: Selected Mover Inspector & 1px Nudge Controls ────────────────
     local selText = dialog:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    selText:SetPoint("BOTTOMLEFT", dialog, "BOTTOMLEFT", 12, 11)
+    selText:SetPoint("TOPLEFT", dialog, "TOPLEFT", 12, -50)
     selText:SetJustifyH("LEFT")
     selText:SetText("|cff777777click or drag any frame to inspect & nudge|r")
 
@@ -1213,7 +1213,7 @@ local function GetOrCreateEditModeDialog()
             dialog:UpdateInspector()
         end
     end)
-    selResetBtn:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -8, 8)
+    selResetBtn:SetPoint("TOPRIGHT", dialog, "TOPRIGHT", -8, -46)
     selResetBtn.tooltip = "reset selected frame to default position"
 
     local function getNudgeStep()
@@ -1255,6 +1255,78 @@ local function GetOrCreateEditModeDialog()
     anchorBtn:SetPoint("RIGHT", nudgeLeftBtn, "LEFT", -6, 0)
     anchorBtn.tooltip = "cycle anchor point without moving frame (left/right click)"
 
+    -- ─── Row 3: Layout Profiles, Import/Export & Multibox Sync ───────────────
+    local divider2 = dialog:CreateTexture(nil, "ARTWORK")
+    divider2:SetPoint("TOPLEFT", dialog, "TOPLEFT", 10, -72)
+    divider2:SetPoint("TOPRIGHT", dialog, "TOPRIGHT", -10, -72)
+    divider2:SetHeight(1)
+    divider2:SetColorTexture(1, 1, 1, 0.08)
+
+    local profBtn = CreateButton(dialog, "profile: default", 156, 20)
+    profBtn:SetPoint("BOTTOMLEFT", dialog, "BOTTOMLEFT", 10, 7)
+    profBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    profBtn.tooltip = "left-click: cycle & load saved profile • right-click: overwrite active profile"
+    profBtn:SetScript("OnClick", function(_, button)
+        if button == "RightButton" then
+            local cur = movers.GetActiveProfile()
+            movers.SaveProfile(cur)
+            dialog:UpdateButtons()
+        else
+            local names = movers.GetProfileNames()
+            if #names == 0 then
+                movers.SaveProfile("default")
+                dialog:UpdateButtons()
+                return
+            end
+            local cur = movers.GetActiveProfile()
+            local nextIdx = 1
+            for i = 1, #names do
+                if names[i] == cur then
+                    nextIdx = (i % #names) + 1
+                    break
+                end
+            end
+            movers.LoadProfile(names[nextIdx])
+            dialog:UpdateButtons()
+        end
+    end)
+
+    local saveAsBtn = CreateButton(dialog, "save as", 62, 20, function()
+        movers.OpenProfileStringModal("save")
+    end)
+    saveAsBtn:SetPoint("LEFT", profBtn, "RIGHT", 6, 0)
+    saveAsBtn.tooltip = "save current hud positions under a new profile name"
+
+    local exportBtn = CreateButton(dialog, "export", 58, 20, function()
+        movers.OpenProfileStringModal("export")
+    end)
+    exportBtn:SetPoint("LEFT", saveAsBtn, "RIGHT", 6, 0)
+    exportBtn.tooltip = "export active layout profile as a shareable text string"
+
+    local importBtn = CreateButton(dialog, "import", 58, 20, function()
+        movers.OpenProfileStringModal("import")
+    end)
+    importBtn:SetPoint("LEFT", exportBtn, "RIGHT", 6, 0)
+    importBtn.tooltip = "import a layout profile string and apply positions"
+
+    local syncLayoutBtn = CreateButton(dialog, "sync layout", 84, 20, function()
+        movers.BroadcastLayoutProfile(movers.GetActiveProfile())
+    end)
+    syncLayoutBtn:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -8, 7)
+    syncLayoutBtn.tooltip = "broadcast active layout profile to trusted synced multibox accounts"
+
+    local delProfBtn = CreateButton(dialog, "delete", 54, 20, function()
+        local cur = movers.GetActiveProfile()
+        if cur and cur ~= "default" then
+            movers.DeleteProfile(cur)
+            dialog:UpdateButtons()
+        elseif sfui.common and sfui.common.print then
+            sfui.common.print("cannot delete default profile.")
+        end
+    end)
+    delProfBtn:SetPoint("RIGHT", syncLayoutBtn, "LEFT", -6, 0)
+    delProfBtn.tooltip = "delete active non-default layout profile"
+
     function dialog:UpdateInspector()
         local key = movers.selectedKey
         local mover = key and movers.list[key]
@@ -1290,6 +1362,7 @@ local function GetOrCreateEditModeDialog()
         snapBtn:SetText(movers.snappingEnabled and string_format("snap: %dpx", movers.snapThreshold or 14) or "snap: off")
         gapBtn:SetText(string_format("gap: %dpx", movers.anchorGap or 4))
         gridBtn:SetText(movers.gridEnabled and "grid: on" or "grid: off")
+        profBtn:SetText("profile: " .. (movers.GetActiveProfile() or "default"))
         self:UpdateInspector()
     end
 
@@ -1561,4 +1634,367 @@ function movers.ResetAllPositions()
     if sfui.common and sfui.common.print then
         sfui.common.print("all mover positions reset to defaults.")
     end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Named Layout Profiles, Import/Export Strings & Multibox Layout Broadcast
+-- ─────────────────────────────────────────────────────────────────────────────
+local function normalizeProfileName(name)
+    if type(name) ~= "string" then return "default" end
+    local clean = name:match("^%s*(.-)%s*$") or ""
+    clean = clean:gsub("[|;:]+", ""):lower()
+    if clean == "" then return "default" end
+    return clean
+end
+
+local function ensureLayoutDB()
+    SfuiDB = SfuiDB or {}
+    SfuiDB.layoutProfiles = SfuiDB.layoutProfiles or {}
+    return SfuiDB.layoutProfiles
+end
+
+function movers.GetActiveProfile()
+    local p = SfuiDB and SfuiDB.activeLayoutProfile
+    if type(p) == "string" and p ~= "" then
+        return p:lower()
+    end
+    return "default"
+end
+
+function movers.GetProfileNames()
+    local profiles = SfuiDB and SfuiDB.layoutProfiles
+    local out = {}
+    if type(profiles) == "table" then
+        for name in pairs(profiles) do
+            if type(name) == "string" and name ~= "" then
+                out[#out + 1] = name
+            end
+        end
+    end
+    table.sort(out)
+    return out
+end
+
+function movers.SaveProfile(name, silent)
+    local pName = normalizeProfileName(name or movers.GetActiveProfile())
+    local profiles = ensureLayoutDB()
+    local positions = {}
+    local count = 0
+
+    for key, reg in pairs(movers.registry) do
+        if reg and reg.getPoint then
+            local pt, _, relPt, x, y = reg.getPoint()
+            if pt and type(pt) == "string" then
+                positions[key] = {
+                    point    = pt,
+                    relPoint = (type(relPt) == "string" and relPt) or pt,
+                    x        = math_floor((tonumber(x) or 0) + 0.5),
+                    y        = math_floor((tonumber(y) or 0) + 0.5),
+                }
+                count = count + 1
+            end
+        end
+    end
+
+    profiles[pName] = {
+        updatedAt = (_G.time and _G.time()) or 0,
+        positions = positions,
+    }
+    SfuiDB.activeLayoutProfile = pName
+
+    if not silent and sfui.common and sfui.common.print then
+        sfui.common.print(string_format("saved layout profile '%s' (%d frames).", pName, count))
+    end
+    if editModeDialog and editModeDialog.UpdateButtons then
+        editModeDialog:UpdateButtons()
+    end
+    return pName, count
+end
+
+local function applyProfileImmediate(pName, prof, silent)
+    local positions = prof and prof.positions
+    if type(positions) ~= "table" then return false end
+
+    local applied = 0
+    for key, pos in pairs(positions) do
+        local reg = movers.registry[key]
+        if reg and reg.setPoint and type(pos) == "table" and pos.point then
+            local pt = tostring(pos.point)
+            local rPt = tostring(pos.relPoint or pt)
+            local x = tonumber(pos.x) or 0
+            local y = tonumber(pos.y) or 0
+            local mover = movers.list[key]
+            reg.setPoint(pt, UIParent, rPt, x, y, mover)
+            if mover then
+                mover._anchorPoint = pt
+                mover._lastSavedPt = pt
+                mover._lastSavedX = x
+                mover._lastSavedY = y
+                mover:ClearAllPoints()
+                mover:SetPoint(pt, UIParent, rPt, x, y)
+            end
+            applied = applied + 1
+        end
+    end
+
+    SfuiDB = SfuiDB or {}
+    SfuiDB.activeLayoutProfile = pName
+
+    if sfui.bars and sfui.bars.update_bar_positions then
+        sfui.bars.update_bar_positions()
+    end
+    if editModeDialog and editModeDialog.UpdateButtons then
+        editModeDialog:UpdateButtons()
+    end
+    if not silent and sfui.common and sfui.common.print then
+        sfui.common.print(string_format("loaded layout profile '%s' (%d frames applied).", pName, applied))
+    end
+    return true
+end
+
+function movers.LoadProfile(name, silent)
+    local pName = normalizeProfileName(name)
+    local profiles = SfuiDB and SfuiDB.layoutProfiles
+    local prof = profiles and profiles[pName]
+    if not prof or type(prof.positions) ~= "table" then
+        if not silent and sfui.common and sfui.common.print then
+            sfui.common.print(string_format("layout profile '%s' not found.", pName))
+        end
+        return false
+    end
+
+    if sfui.safety and sfui.safety.DeferOutOfCombat then
+        sfui.safety.DeferOutOfCombat("movers_load_profile", sfui.safety.OOC_P0, applyProfileImmediate, pName, prof, silent)
+        return true
+    end
+    if InCombatLockdown() then
+        if not silent and sfui.common and sfui.common.print then
+            sfui.common.print("cannot load layout profile during combat lockdown.")
+        end
+        return false
+    end
+    return applyProfileImmediate(pName, prof, silent)
+end
+
+function movers.DeleteProfile(name)
+    local pName = normalizeProfileName(name)
+    local profiles = SfuiDB and SfuiDB.layoutProfiles
+    if not profiles or not profiles[pName] then return false end
+    profiles[pName] = nil
+    if SfuiDB.activeLayoutProfile == pName then
+        SfuiDB.activeLayoutProfile = "default"
+    end
+    if sfui.common and sfui.common.print then
+        sfui.common.print(string_format("deleted layout profile '%s'.", pName))
+    end
+    if editModeDialog and editModeDialog.UpdateButtons then
+        editModeDialog:UpdateButtons()
+    end
+    return true
+end
+
+function movers.ExportProfileString(name)
+    local pName = normalizeProfileName(name or movers.GetActiveProfile())
+    local profiles = ensureLayoutDB()
+    if not profiles[pName] then
+        movers.SaveProfile(pName, true)
+    end
+    local prof = profiles[pName]
+    if not prof or type(prof.positions) ~= "table" then return "" end
+
+    local keys = {}
+    for k in pairs(prof.positions) do
+        keys[#keys + 1] = k
+    end
+    table.sort(keys)
+
+    local parts = {}
+    for i = 1, #keys do
+        local k = keys[i]
+        local p = prof.positions[k]
+        if p and p.point then
+            parts[#parts + 1] = string_format("%s:%s,%s,%d,%d",
+                tostring(k),
+                tostring(p.point),
+                tostring(p.relPoint or p.point),
+                math_floor((tonumber(p.x) or 0) + 0.5),
+                math_floor((tonumber(p.y) or 0) + 0.5)
+            )
+        end
+    end
+
+    return "sfui1:" .. pName .. "|" .. table.concat(parts, ";")
+end
+
+function movers.ImportProfileString(rawStr, overrideName, autoLoad, silent)
+    if type(rawStr) ~= "string" then return false end
+    local trimmed = rawStr:match("^%s*(.-)%s*$") or ""
+    local embeddedName, body = trimmed:match("^sfui1:([^|]+)|(.*)$")
+    if not embeddedName or not body then
+        if not silent and sfui.common and sfui.common.print then
+            sfui.common.print("invalid layout string (expected sfui1:... format).")
+        end
+        return false
+    end
+
+    local targetName = normalizeProfileName((overrideName and overrideName ~= "" and overrideName) or embeddedName)
+    local positions = {}
+    local count = 0
+
+    for token in body:gmatch("[^;]+") do
+        local key, pt, rPt, xs, ys = token:match("^([^:]+):([^,]+),([^,]+),([%-?%d]+),([%-?%d]+)$")
+        if key and pt then
+            positions[key] = {
+                point    = pt,
+                relPoint = rPt or pt,
+                x        = tonumber(xs) or 0,
+                y        = tonumber(ys) or 0,
+            }
+            count = count + 1
+        end
+    end
+
+    if count == 0 then
+        if not silent and sfui.common and sfui.common.print then
+            sfui.common.print("layout string contained no valid frame positions.")
+        end
+        return false
+    end
+
+    local profiles = ensureLayoutDB()
+    profiles[targetName] = {
+        updatedAt = (_G.time and _G.time()) or 0,
+        positions = positions,
+    }
+
+    if not silent and sfui.common and sfui.common.print then
+        sfui.common.print(string_format("imported layout profile '%s' (%d frames).", targetName, count))
+    end
+
+    if autoLoad ~= false then
+        movers.LoadProfile(targetName, silent)
+    elseif editModeDialog and editModeDialog.UpdateButtons then
+        editModeDialog:UpdateButtons()
+    end
+    return true, targetName, count
+end
+
+function movers.BroadcastLayoutProfile(name)
+    if not (sfui.sync and sfui.sync.Broadcast) then
+        if sfui.common and sfui.common.print then
+            sfui.common.print("sync module unavailable.")
+        end
+        return false
+    end
+    local pName = normalizeProfileName(name or movers.GetActiveProfile())
+    movers.SaveProfile(pName, true)
+    local payload = movers.ExportProfileString(pName)
+    if payload == "" then return false end
+    sfui.sync.Broadcast("DATA_LAYOUT_PROFILE", { name = pName, payload = payload }, true, false)
+    if sfui.common and sfui.common.print then
+        sfui.common.print(string_format("broadcasted layout profile '%s' to synced peers.", pName))
+    end
+    return true
+end
+
+local profileModal = nil
+function movers.OpenProfileStringModal(mode)
+    if not profileModal then
+        local m = CreateFrame("Frame", "sfui_LayoutProfileModal", UIParent, "BackdropTemplate")
+        m:SetSize(440, 138)
+        m:SetPoint("TOP", UIParent, "TOP", 0, -134)
+        m:SetFrameStrata("FULLSCREEN_DIALOG")
+        m:SetFrameLevel(120)
+        m:EnableMouse(true)
+        m:SetMovable(true)
+        m:RegisterForDrag("LeftButton")
+        m:SetScript("OnDragStart", function(self) self:StartMoving() end)
+        m:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+        if sfui.common and sfui.common.register_special_frame then
+            sfui.common.register_special_frame(m)
+        end
+
+        local app = sfui.config and sfui.config.appearance
+        local borderCol = (app and app.accentColor) or { 0.40, 0.00, 1.00, 1 }
+        if sfui.common and sfui.common.apply_flat_backdrop then
+            sfui.common.apply_flat_backdrop(m, { 0.05, 0.05, 0.07, 0.98 }, { borderCol[1], borderCol[2], borderCol[3], 1 })
+        end
+
+        m.title = m:CreateFontString(nil, "OVERLAY", (sfui.config and sfui.config.font) or "GameFontNormal")
+        m.title:SetPoint("TOPLEFT", m, "TOPLEFT", 12, -10)
+        m.title:SetText("layout profile")
+
+        m.hint = m:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        m.hint:SetPoint("TOPLEFT", m, "TOPLEFT", 12, -28)
+        m.hint:SetText("|cff888888enter profile name or string|r")
+
+        local ebBg = CreateFrame("Frame", nil, m, "BackdropTemplate")
+        ebBg:SetPoint("TOPLEFT", m, "TOPLEFT", 12, -48)
+        ebBg:SetPoint("TOPRIGHT", m, "TOPRIGHT", -12, -48)
+        ebBg:SetHeight(34)
+        if sfui.common and sfui.common.apply_flat_backdrop then
+            sfui.common.apply_flat_backdrop(ebBg, { 0.02, 0.02, 0.03, 0.95 }, { 0.25, 0.25, 0.30, 1 })
+        end
+
+        local eb = CreateFrame("EditBox", nil, ebBg)
+        eb:SetPoint("TOPLEFT", ebBg, "TOPLEFT", 8, -6)
+        eb:SetPoint("BOTTOMRIGHT", ebBg, "BOTTOMRIGHT", -8, 6)
+        eb:SetFontObject("ChatFontNormal")
+        eb:SetAutoFocus(false)
+        eb:SetScript("OnEscapePressed", function() m:Hide() end)
+        m.editBox = eb
+
+        local CreateButton = sfui.common.create_flat_button
+        local cancelBtn = CreateButton(m, "close", 68, 22, function() m:Hide() end)
+        cancelBtn:SetPoint("BOTTOMRIGHT", m, "BOTTOMRIGHT", -12, 10)
+
+        local actionBtn = CreateButton(m, "apply", 88, 22, function()
+            local txt = m.editBox:GetText() or ""
+            if m._mode == "save" then
+                movers.SaveProfile(txt)
+                m:Hide()
+            elseif m._mode == "import" then
+                if movers.ImportProfileString(txt, nil, true, false) then
+                    m:Hide()
+                end
+            else
+                m:Hide()
+            end
+        end)
+        actionBtn:SetPoint("RIGHT", cancelBtn, "LEFT", -8, 0)
+        m.actionBtn = actionBtn
+
+        eb:SetScript("OnEnterPressed", function()
+            actionBtn:Click()
+        end)
+
+        profileModal = m
+    end
+
+    profileModal._mode = mode or "export"
+    if profileModal._mode == "save" then
+        profileModal.title:SetText("|cff9966ffsave layout profile|r")
+        profileModal.hint:SetText("|cff888888enter a lowercase profile name (e.g. raid, mplus, leveling)|r")
+        profileModal.editBox:SetText(movers.GetActiveProfile())
+        profileModal.actionBtn:SetText("save")
+        profileModal.actionBtn:Show()
+    elseif profileModal._mode == "import" then
+        profileModal.title:SetText("|cff9966ffimport layout string|r")
+        profileModal.hint:SetText("|cff888888paste an sfui1:... layout string below and press enter|r")
+        profileModal.editBox:SetText("")
+        profileModal.actionBtn:SetText("import")
+        profileModal.actionBtn:Show()
+    else
+        local cur = movers.GetActiveProfile()
+        local exported = movers.ExportProfileString(cur)
+        profileModal.title:SetText("|cff9966ffexport layout string|r")
+        profileModal.hint:SetText("|cff888888press ctrl+c to copy layout profile '" .. cur .. "'|r")
+        profileModal.editBox:SetText(exported)
+        profileModal.actionBtn:SetText("done")
+        profileModal.actionBtn:Show()
+    end
+
+    profileModal:Show()
+    profileModal.editBox:SetFocus()
+    profileModal.editBox:HighlightText()
 end

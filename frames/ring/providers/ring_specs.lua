@@ -399,7 +399,47 @@ local function build_classic_consumables_and_buffs_ring(out)
         end
     end
 
-    -- ── 4. Optional Dual Spec Swap Slice (if unlocked on Forever / Classic) ───
+    -- ── 4. Classic Role Context Quick-Switch & Optional Dual Spec Swap ───────
+    if sfui.gear and sfui.gear.SelectClassicRole and sfui.gear.CLASSIC_ROLES_BY_SPEC then
+        local curSpecID = (sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id())
+            or (sfui.talents and sfui.talents.get_current_spec_id and sfui.talents.get_current_spec_id())
+        local numSpec = tonumber(curSpecID) or 0
+        local roleList = sfui.gear.CLASSIC_ROLES_BY_SPEC[curSpecID] or sfui.gear.CLASSIC_ROLES_BY_SPEC[numSpec]
+        if roleList and #roleList > 1 then
+            local sdb = _G.SfuiDB and _G.SfuiDB.gear and (_G.SfuiDB.gear[curSpecID] or _G.SfuiDB.gear[numSpec])
+            local activeRole = sdb and sdb.classic_role
+            local iconMap = sfui.gear.CLASSIC_ROLE_ICONS and (sfui.gear.CLASSIC_ROLE_ICONS[curSpecID] or sfui.gear.CLASSIC_ROLE_ICONS[numSpec])
+            for rIdx = 1, #roleList do
+                local rKey = roleList[rIdx]
+                local isRoleActive = (activeRole == rKey)
+                local roleLabel = "role: " .. string_lower(tostring(rKey))
+                if isRoleActive then
+                    roleLabel = roleLabel .. " (active)"
+                end
+                local roleIcon = (iconMap and iconMap[rKey]) or "Interface\\Icons\\INV_Misc_QuestionMark"
+                local targetSpecID = curSpecID or numSpec
+                out[#out + 1] = {
+                    id            = "classic_role_" .. tostring(rKey),
+                    label         = roleLabel,
+                    icon          = roleIcon,
+                    active        = isRoleActive,
+                    color         = isRoleActive and { 0.45, 1.0, 0.65 } or { 0.82, 0.88, 1.0 },
+                    insecure_func = function()
+                        if InCombatLockdown and InCombatLockdown() then
+                            if _G.UIErrorsFrame and _G.ERR_NOT_IN_COMBAT then
+                                _G.UIErrorsFrame:AddMessage(_G.ERR_NOT_IN_COMBAT, 1, 0.1, 0.1)
+                            end
+                            return
+                        end
+                        if sfui.gear and sfui.gear.SelectClassicRole then
+                            sfui.gear.SelectClassicRole(targetSpecID, rKey)
+                        end
+                    end,
+                }
+            end
+        end
+    end
+
     local numGroups = (GetNumSpecGroups and GetNumSpecGroups())
         or (GetCombatConfigIDForSpecGroup and GetCombatConfigIDForSpecGroup(2) and 2)
         or 0
@@ -428,6 +468,9 @@ local function build_classic_consumables_and_buffs_ring(out)
                 end
                 if SetActiveSpecGroup then
                     SetActiveSpecGroup(targetGroup)
+                end
+                if sfui.events and sfui.events.SendMessage then
+                    sfui.events.SendMessage("SFUI_ROLE_CONTEXT_CHANGED", "spec_group_" .. tostring(targetGroup), curSpecID)
                 end
                 if PlaySound and SOUNDKIT and SOUNDKIT.UI_CLASS_TALENT_SPEC_ACTIVATE then
                     PlaySound(SOUNDKIT.UI_CLASS_TALENT_SPEC_ACTIVATE)
@@ -475,6 +518,9 @@ local function build_specs_ring(out)
                         if SetSpecialization then
                             SetSpecialization(specIndex)
                         end
+                        if sfui.events and sfui.events.SendMessage then
+                            sfui.events.SendMessage("SFUI_ROLE_CONTEXT_CHANGED", labelText, specID)
+                        end
                         if PlaySound and SOUNDKIT and SOUNDKIT.UI_CLASS_TALENT_SPEC_ACTIVATE then
                             PlaySound(SOUNDKIT.UI_CLASS_TALENT_SPEC_ACTIVATE)
                         end
@@ -503,9 +549,12 @@ sfui.ring.register_provider("specs", {
 })
 
 if sfui.events and sfui.events.RegisterMessage then
-    sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", function()
+    local function rebuild_specs_ring()
         if sfui.ring and sfui.ring.request_rebuild then
             sfui.ring.request_rebuild("specs")
         end
-    end)
+    end
+    sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", rebuild_specs_ring)
+    sfui.events.RegisterMessage("SFUI_GEAR_ROLE_CHANGED", rebuild_specs_ring)
+    sfui.events.RegisterMessage("SFUI_ROLE_CONTEXT_CHANGED", rebuild_specs_ring)
 end

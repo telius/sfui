@@ -66,6 +66,9 @@ function sfui.highest.ClearCache()
     if sfui.common and sfui.common.clear_item_stats_cache then
         sfui.common.clear_item_stats_cache()
     end
+    if sfui.highest.InvalidateUpgradeEvalCache then
+        sfui.highest.InvalidateUpgradeEvalCache()
+    end
 end
 sfui.highest.ClearValidationCache = sfui.highest.ClearCache
 

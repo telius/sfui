@@ -308,6 +308,9 @@ local function CacheGroupMembers()
         local guid = UnitGUID(unit)
         local name = UnitName(unit)
         local _, class = UnitClass(unit)
+        if issecretvalue(guid) then guid = nil end
+        if issecretvalue(name) then name = nil end
+        if issecretvalue(class) then class = nil end
         if guid and name then
             idx = idx + 1
             local entry = _playerList[idx]
@@ -315,7 +318,9 @@ local function CacheGroupMembers()
                 entry = {}; _playerList[idx] = entry
             end
             entry.unit = unit; entry.guid = guid; entry.name = name; entry.class = class
-            _playerClasses[name] = class
+            if class then
+                _playerClasses[name] = class
+            end
         end
     end
     -- Nil out stale entries beyond current count
@@ -3059,10 +3064,12 @@ local function ShowHUD(forceDungeon)
     if not MF then BuildHUDFrame() end
 
     -- Restore saved position (matches objective tracker position)
+    local pt = (SfuiDB and SfuiDB.mythicHudPoint) or "TOPRIGHT"
+    local relPt = (SfuiDB and SfuiDB.mythicHudRelPoint) or pt
     local posX = (SfuiDB and (SfuiDB.mythicHudX or SfuiDB.questlogX)) or mcfg.posX or -10
     local posY = (SfuiDB and (SfuiDB.mythicHudY or SfuiDB.questlogY)) or mcfg.posY or -10
     MF:ClearAllPoints()
-    MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, posY)
+    MF:SetPoint(pt, UIParent, relPt, posX, posY)
 
     if sfui.SuppressBlizzardTracker then
         sfui.SuppressBlizzardTracker()
@@ -3127,10 +3134,12 @@ end
 
 function sfui.mythic.ResetPosition()
     if SfuiDB then
-        SfuiDB.mythicHudX = nil
-        SfuiDB.mythicHudY = nil
-        SfuiDB.questlogX  = nil
-        SfuiDB.questlogY  = nil
+        SfuiDB.mythicHudPoint    = nil
+        SfuiDB.mythicHudRelPoint = nil
+        SfuiDB.mythicHudX        = nil
+        SfuiDB.mythicHudY        = nil
+        SfuiDB.questlogX         = nil
+        SfuiDB.questlogY         = nil
     end
     if MF then
         MF:ClearAllPoints()
@@ -3247,10 +3256,12 @@ function sfui.mythic.ShowPreview()
     end
 
     -- Restore saved position (matches objective tracker position)
+    local pt = (SfuiDB and SfuiDB.mythicHudPoint) or "TOPRIGHT"
+    local relPt = (SfuiDB and SfuiDB.mythicHudRelPoint) or pt
     local posX = (SfuiDB and (SfuiDB.mythicHudX or SfuiDB.questlogX)) or mcfg.posX or -10
     local posY = (SfuiDB and (SfuiDB.mythicHudY or SfuiDB.questlogY)) or mcfg.posY or -10
     MF:ClearAllPoints()
-    MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, posY)
+    MF:SetPoint(pt, UIParent, relPt, posX, posY)
 
     -- Set mode to mythic for preview rendering
     _mode = "mythic"
@@ -3525,3 +3536,64 @@ if sfui.RegisterModule then
     sfui.mythic.GetDebugInfo = sfui.mythic_debug_info
     sfui.RegisterModule("mythic", sfui.mythic)
 end
+
+local function RegisterMythicMover()
+    if not (sfui.movers and sfui.movers.Register) then return end
+    if not MF then BuildHUDFrame() end
+    if not MF or MF._moverRegistered then return end
+    MF._moverRegistered = true
+
+    sfui.movers.Register(MF, {
+        key = "mythic_hud",
+        label = "mythic+ hud",
+        preferredPoint = "TOPRIGHT",
+        customSize = function()
+            local h = (MF and MF:GetHeight()) or 0
+            return HUD_W or 280, (h > 40 and h) or 140
+        end,
+        getPoint = function()
+            local pt = (SfuiDB and SfuiDB.mythicHudPoint) or "TOPRIGHT"
+            local relPt = (SfuiDB and SfuiDB.mythicHudRelPoint) or pt
+            local x = (SfuiDB and (SfuiDB.mythicHudX or SfuiDB.questlogX)) or mcfg.posX or -10
+            local y = (SfuiDB and (SfuiDB.mythicHudY or SfuiDB.questlogY)) or mcfg.posY or -10
+            return pt, UIParent, relPt, x, y
+        end,
+        setPoint = function(point, _, relPoint, x, y)
+            local pt = point or "TOPRIGHT"
+            local rPt = relPoint or pt
+            local sx = math_floor((x or -10) + 0.5)
+            local sy = math_floor((y or -10) + 0.5)
+            SfuiDB = SfuiDB or {}
+            SfuiDB.mythicHudPoint    = pt
+            SfuiDB.mythicHudRelPoint = rPt
+            SfuiDB.mythicHudX        = sx
+            SfuiDB.mythicHudY        = sy
+            if MF then
+                MF:ClearAllPoints()
+                MF:SetPoint(pt, UIParent, rPt, sx, sy)
+            end
+        end,
+        resetPosition = function()
+            sfui.mythic.ResetPosition()
+        end,
+        isEnabled = function()
+            return sfui.mythic.IsEnabled()
+        end,
+        onEnterEditMode = function()
+            if MF and not MF:IsShown() and sfui.mythic.ShowPreview then
+                MF._editModePreview = true
+                sfui.mythic.ShowPreview()
+            end
+        end,
+        onExitEditMode = function()
+            if MF and MF._editModePreview then
+                MF._editModePreview = nil
+                if sfui.mythic.HidePreview then
+                    sfui.mythic.HidePreview()
+                end
+            end
+        end,
+    })
+end
+
+sfui.events.RegisterEvent("PLAYER_LOGIN", RegisterMythicMover)

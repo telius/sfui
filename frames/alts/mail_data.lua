@@ -933,6 +933,63 @@ function mail.FindDestinationForBagItem(bag, slot, candidateAlts, preloadedInfo,
         end
     end
 
+    -- 4. Smart Interoperability Presets (Pinned Reagents, Unlearned Alt Recipes, Cloth & BoE Auto-Detect)
+    local presets = settings.smartPresets
+    if type(presets) == "table" then
+        -- 4a. Pinned Reagents needed by an Alt
+        if presets.pinnedMats and SfuiDB and type(SfuiDB.altPinnedReagents) == "table" then
+            -- Do not send away reagents our OWN pinned recipes currently need
+            local myPinned = myGUID and SfuiDB.altPinnedReagents[myGUID]
+            local localNeed = myPinned and tonumber(myPinned[itemID]) or 0
+            local localHave = (sfui.inventory and sfui.inventory.GetCount and sfui.inventory.GetCount(itemID)) or 0
+            if localNeed <= 0 or localHave > localNeed then
+                for _, alt in ipairs(candidateAlts) do
+                    local altMap = SfuiDB.altPinnedReagents[alt.guid]
+                    local altNeed = altMap and tonumber(altMap[itemID]) or 0
+                    if altNeed > 0 then
+                        local altObj = SfuiDB.alts and SfuiDB.alts[alt.guid]
+                        local altHave = ((altObj and altObj.bagItems and altObj.bagItems[itemID]) or 0)
+                            + ((altObj and altObj.bankItems and altObj.bankItems[itemID]) or 0)
+                        if altHave < altNeed then
+                            return alt.guid, alt.name, alt.realm, "pinned_reagent", info
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 4b. Unlearned Recipe Scrolls for Eligible Alts
+        if presets.altRecipes and sfui.recipes and sfui.recipes.FindBestAltForRecipe then
+            local rGUID, rName, rRealm = sfui.recipes.FindBestAltForRecipe(itemID)
+            if rGUID and rName and rGUID ~= myGUID then
+                return rGUID, rName, rRealm, "alt_recipe", info
+            end
+        end
+
+        -- 4c. Auto Cloth -> Tailor & BoE -> Enchanter (even without manual route checkboxes)
+        if presets.clothBoes then
+            if classID and subclassID and MatchesTradeskillCategory(classID, subclassID, "sendCloth", itemID, itemLink) then
+                for _, alt in ipairs(candidateAlts) do
+                    local profs = mail.GetAltProfessions(alt.guid)
+                    for _, p in ipairs(profs or {}) do
+                        if p.name and p.name:lower():find("tailor", 1, true) then
+                            return alt.guid, alt.name, alt.realm, "preset_cloth", info
+                        end
+                    end
+                end
+            elseif mail.IsDisenchantableBoE(itemID, itemLink, classID, subclassID, quality, bindType) then
+                for _, alt in ipairs(candidateAlts) do
+                    local profs = mail.GetAltProfessions(alt.guid)
+                    for _, p in ipairs(profs or {}) do
+                        if p.name and p.name:lower():find("enchant", 1, true) then
+                            return alt.guid, alt.name, alt.realm, "disenchant_boe", info
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     return nil
 end
 

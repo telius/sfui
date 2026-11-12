@@ -530,6 +530,9 @@ function sfui.api.UnitUsesAmmo(unit)
     end
     if not IS_RETAIL then
         local _, class = _G.UnitClass(unit)
+        if _G.issecretvalue and _G.issecretvalue(class) then
+            return false
+        end
         return class == "HUNTER"
     end
     return false

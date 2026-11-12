@@ -389,6 +389,7 @@ sfui.ring.register_provider("utility", {
         "NEW_TOY_ADDED",
         "GET_ITEM_INFO_RECEIVED",
         "ITEM_DATA_LOAD_RESULT",
+        "PLAYER_EQUIPMENT_CHANGED",
     },
     build  = function(out)
         local playerClass, specID = get_class_and_spec()
@@ -483,5 +484,136 @@ sfui.ring.register_provider("utility", {
                 end
             end
         end
+
+        -- ── Dynamic Context Slices (fishing weapon restore + missing buff/consumable actions) ──
+        local allowDynamic = true
+        if sfui.db and sfui.db.Get then
+            allowDynamic = (sfui.db.Get("ring", "dynamic_context_slices", true) ~= false)
+        end
+        if allowDynamic then
+            local fish = sfui.fishing
+            if fish and ((fish.IsPoleEquipped and fish.IsPoleEquipped()) or (fish.HasSavedWeapons and fish.HasSavedWeapons())) then
+                local weaponIcon = "Interface\\Icons\\INV_Sword_04"
+                local saved = fish.GetSavedWeapons and fish.GetSavedWeapons()
+                if saved and saved.mainHand then
+                    local _, mhIcon = get_item_details(saved.mainHand)
+                    if mhIcon then weaponIcon = mhIcon end
+                end
+                out[#out + 1] = {
+                    id             = "util_restore_weapons",
+                    label          = "restore combat weapons",
+                    icon           = weaponIcon,
+                    color          = { 0.45, 1.0, 0.65 },
+                    selectionColor = { 0.25, 0.95, 0.45 },
+                    insecure_func  = function()
+                        if sfui.fishing and sfui.fishing.RestoreWeapons then
+                            sfui.fishing.RestoreWeapons()
+                        end
+                    end,
+                }
+            end
+
+            local records = sfui.buffs and sfui.buffs.scan and sfui.buffs.scan.GetResults and sfui.buffs.scan.GetResults()
+            if records and #records > 0 then
+                local addedReminders = 0
+                local buffsData = sfui.buffs.data
+                local buffsCons = sfui.buffs.consumables
+                for rIdx = 1, #records do
+                    if addedReminders >= 3 then break end
+                    local rec = records[rIdx]
+                    local entry = rec and rec.entry
+                    if entry then
+                        local prefix = rec.isMissing and "[missing] " or "[expiring] "
+                        local tint = rec.isMissing and { 1.0, 0.78, 0.78 } or { 1.0, 0.92, 0.65 }
+                        local selCol = rec.isMissing and { 1.0, 0.30, 0.30 } or { 1.0, 0.80, 0.15 }
+
+                        if entry.key == "consumable_food" and buffsCons and buffsCons.GetSelectedFood then
+                            local food = buffsCons.GetSelectedFood()
+                            if food and food.itemID and (food.count or 0) > 0 then
+                                local fKey = "item:" .. tostring(food.itemID)
+                                if not seen[fKey] then
+                                    seen[fKey] = true
+                                    addedReminders = addedReminders + 1
+                                    out[#out + 1] = {
+                                        id             = "util_rem_food_" .. tostring(food.itemID),
+                                        itemID         = food.itemID,
+                                        label          = prefix .. tostring(food.name or "food"):lower(),
+                                        icon           = food.icon or entry.fallbackIcon or "Interface\\Icons\\INV_Misc_Food_15",
+                                        count          = food.count,
+                                        color          = tint,
+                                        selectionColor = selCol,
+                                        attrs          = {
+                                            type = "item",
+                                            item = "item:" .. tostring(food.itemID),
+                                        },
+                                    }
+                                end
+                            end
+                        elseif entry.key == "consumable_flask" and buffsCons and buffsCons.GetSelectedFlask then
+                            local flask = buffsCons.GetSelectedFlask()
+                            if flask and flask.itemID and (flask.count or 0) > 0 then
+                                local flKey = "item:" .. tostring(flask.itemID)
+                                if not seen[flKey] then
+                                    seen[flKey] = true
+                                    addedReminders = addedReminders + 1
+                                    out[#out + 1] = {
+                                        id             = "util_rem_flask_" .. tostring(flask.itemID),
+                                        itemID         = flask.itemID,
+                                        label          = prefix .. tostring(flask.name or "flask"):lower(),
+                                        icon           = flask.icon or entry.fallbackIcon or "Interface\\Icons\\INV_Potion_97",
+                                        count          = flask.count,
+                                        color          = tint,
+                                        selectionColor = selCol,
+                                        attrs          = {
+                                            type = "item",
+                                            item = "item:" .. tostring(flask.itemID),
+                                        },
+                                    }
+                                end
+                            end
+                        elseif buffsData and buffsData.GetBestCastSpell then
+                            local castSpell, castIcon, castSpellID = buffsData.GetBestCastSpell(entry, rec.activeEnchant)
+                            local spellToCast = (entry.type == "pet" and castSpellID) or castSpell or castSpellID
+                            if spellToCast then
+                                local spKey = "spell:" .. tostring(castSpellID or spellToCast) .. ":" .. tostring(entry.unit or rec.unit or "player")
+                                if not seen[spKey] and not seen["spell:" .. tostring(castSpellID or spellToCast)] then
+                                    seen[spKey] = true
+                                    addedReminders = addedReminders + 1
+                                    local attrs = {
+                                        type  = "spell",
+                                        spell = spellToCast,
+                                    }
+                                    if entry.type == "weapon_enchant" then
+                                        attrs["target-slot"] = entry.slot or 16
+                                    elseif entry.type ~= "pet" and entry.type ~= "stance" and entry.type ~= "tracking" then
+                                        attrs.unit = entry.unit or rec.unit or "player"
+                                    end
+                                    local rawName = (entry.type == "party_blessing" and entry.name) or castSpell or entry.name or tostring(spellToCast)
+                                    out[#out + 1] = {
+                                        id             = "util_rem_" .. tostring(entry.key or spellToCast),
+                                        spellID        = tonumber(castSpellID or spellToCast),
+                                        label          = prefix .. tostring(rawName):lower(),
+                                        icon           = castIcon or rec.icon or entry.fallbackIcon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                                        color          = tint,
+                                        selectionColor = selCol,
+                                        attrs          = attrs,
+                                    }
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end,
 })
+
+if sfui.events and sfui.events.RegisterMessage then
+    local function rebuild_utility_ring()
+        if sfui.ring and sfui.ring.request_rebuild then
+            sfui.ring.request_rebuild("utility")
+        end
+    end
+    sfui.events.RegisterMessage("SFUI_ROLE_CONTEXT_CHANGED", rebuild_utility_ring)
+    sfui.events.RegisterMessage("SFUI_GEAR_ROLE_CHANGED", rebuild_utility_ring)
+end

@@ -338,6 +338,30 @@ local function DungeonHasWishlist(dungeon)
     return count > 0, count
 end
 
+local function DungeonGetUpgradeCount(dungeon)
+    if not dungeon or not dungeon.bosses or not (sfui.gear and sfui.gear.EvaluateItemUpgrade) then
+        return 0
+    end
+    local count = 0
+    local seen = {}
+    for _, b in ipairs(dungeon.bosses) do
+        for _, it in ipairs(b.items or {}) do
+            local id = tonumber(type(it) == "table" and (it.id or it[1]) or it)
+            if id and not seen[id] then
+                seen[id] = true
+                local name, link = common.get_item_info(id)
+                if name then
+                    local eval = sfui.gear.EvaluateItemUpgrade(link or id, nil, true)
+                    if eval and eval.isUpgrade and not eval.isOffSpec then
+                        count = count + 1
+                    end
+                end
+            end
+        end
+    end
+    return count
+end
+
 local function AcquireButton(pool, parent)
     for _, btn in ipairs(pool) do
         if not btn:IsShown() then
@@ -573,6 +597,7 @@ local function RefreshSidebarImpl()
 
             -- Wishlist indicator
             local hasWish, wishCount = DungeonHasWishlist(dungeon)
+            local upgCount = DungeonGetUpgradeCount(dungeon)
             if btn.wishIcon then
                 if hasWish then
                     btn.wishIcon:Show()
@@ -585,15 +610,16 @@ local function RefreshSidebarImpl()
                 end
             end
 
+            local upgSuffix = (upgCount > 0) and string.format("  |cff33ff88+%d upg|r", upgCount) or ""
             if prog and prog.noticeText and prog.noticeText ~= "" then
                 if lvlStr ~= "" then
-                    btn.levelText:SetText(lvlStr .. "  " .. prog.noticeText)
+                    btn.levelText:SetText(lvlStr .. "  " .. prog.noticeText .. upgSuffix)
                 else
-                    btn.levelText:SetText(prog.noticeText)
+                    btn.levelText:SetText(prog.noticeText .. upgSuffix)
                 end
                 btn.levelText:Show()
-            elseif lvlStr ~= "" then
-                btn.levelText:SetText(lvlStr)
+            elseif lvlStr ~= "" or upgSuffix ~= "" then
+                btn.levelText:SetText(lvlStr .. upgSuffix)
                 btn.levelText:Show()
             else
                 btn.levelText:Hide()
@@ -624,6 +650,11 @@ local function RefreshSidebarImpl()
                     if prog.locked > 0 then
                         GameTooltip:AddLine(string.format("  - locked (requires higher level): %d", prog.locked), 0.7, 0.4, 0.4)
                     end
+                end
+
+                if upgCount > 0 then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine(string.format("|cff33ff88+%d spec upgrade%s cached|r", upgCount, upgCount == 1 and "" or "s"), 0.2, 1, 0.53)
                 end
 
                 if hasWish then

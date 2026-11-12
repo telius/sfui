@@ -25,26 +25,10 @@ local function DJ_DB()
     return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
 end
 
-local function OnTooltipSetItem(tooltip, data)
-    if not tooltip then return end
-    if DJ_DB().showItemTooltips == false then return end
-
-    local itemID = data and data.id
-    if not itemID and TooltipUtil and TooltipUtil.GetDisplayedItem then
-        local _, _, id = TooltipUtil.GetDisplayedItem(tooltip)
-        itemID = id
-    end
-    if not itemID and tooltip.GetItem then
-        local _, link = tooltip:GetItem()
-        if link then
-            itemID = tonumber(link:match("item:(%d+)"))
-        end
-    end
-
-    if not itemID then return end
-
-    -- Prevent duplicate annotations on the same tooltip render pass
-    if tooltip._sfuiDJAnnotated == itemID then return end
+local function RenderDropSource(tooltip, ctx)
+    if not tooltip or DJ_DB().showItemTooltips == false then return end
+    local itemID = ctx and ctx.itemID
+    if not itemID or tooltip._sfuiDJAnnotated == itemID then return end
 
     local source = sfui.dj_camelot and sfui.dj_camelot.GetItemSource and sfui.dj_camelot.GetItemSource(itemID)
     if not source then return end
@@ -69,8 +53,20 @@ local function OnTooltipSetItem(tooltip, data)
     end
 
     tooltip:AddLine(source.tooltipLine, 1, 1, 1, true)
+end
 
-    if sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and sfui.dungeonjournal.IsWishlisted(itemID) then
+local function RenderWishlist(tooltip, ctx)
+    if not tooltip or DJ_DB().showItemTooltips == false then return end
+    local itemID = ctx and ctx.itemID
+    if not itemID or tooltip._sfuiDJWishAnnotated == itemID then return end
+
+    local isLocalWish = sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and sfui.dungeonjournal.IsWishlisted(itemID)
+    local peerOwners = sfui.sync and sfui.sync.GetPeerWishlistOwners and sfui.sync.GetPeerWishlistOwners(itemID)
+    if not isLocalWish and (not peerOwners or #peerOwners == 0) then return end
+
+    tooltip._sfuiDJWishAnnotated = itemID
+
+    if isLocalWish then
         local wishChars = sfui.dungeonjournal.GetWishlistCharacters and sfui.dungeonjournal.GetWishlistCharacters(itemID)
         if wishChars and #wishChars > 0 then
             tooltip:AddLine("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffloot wishlist:|r " .. table.concat(wishChars, ", "), 1, 1, 1, true)
@@ -78,42 +74,43 @@ local function OnTooltipSetItem(tooltip, data)
             tooltip:AddLine("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffloot wishlist active|r", 1, 1, 1, false)
         end
     end
+
+    if peerOwners and #peerOwners > 0 then
+        tooltip:AddLine("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc66ffparty wishlist:|r " .. table.concat(peerOwners, ", "), 1, 1, 1, true)
+    end
 end
 
 local function OnTooltipCleared(tooltip)
     if tooltip then
         tooltip._sfuiDJAnnotated = nil
+        tooltip._sfuiDJWishAnnotated = nil
     end
 end
 
-local function HookClearEvents(tip)
-    if not tip then return end
-    if tip.HookScript then
-        tip:HookScript("OnTooltipCleared", OnTooltipCleared)
-        tip:HookScript("OnHide", OnTooltipCleared)
-    end
-end
-
--- ─── Tooltip Registration (Retail & Classic Era Compatible) ──────────────────
-if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
-    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipSetItem)
+if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
+    sfui.tooltips.RegisterItemProvider("drop_source", 20, RenderDropSource)
+    sfui.tooltips.RegisterItemProvider("wishlist", 30, RenderWishlist)
+    sfui.tooltips.RegisterClearCallback("dj_tooltips", OnTooltipCleared)
 else
-    if GameTooltip then
-        GameTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
+    local function LegacySetItem(tooltip, data)
+        local itemID = data and data.id
+        if not itemID and TooltipUtil and TooltipUtil.GetDisplayedItem then
+            local _, _, id = TooltipUtil.GetDisplayedItem(tooltip)
+            itemID = id
+        end
+        if not itemID and tooltip and tooltip.GetItem then
+            local _, link = tooltip:GetItem()
+            if link then itemID = tonumber(link:match("item:(%d+)")) end
+        end
+        if not itemID then return end
+        local ctx = { itemID = itemID }
+        RenderDropSource(tooltip, ctx)
+        RenderWishlist(tooltip, ctx)
     end
-    local sfuiTip = sfui.common.get_tooltip and sfui.common.get_tooltip() or sfui.tooltip
-    if sfuiTip and sfuiTip ~= GameTooltip then
-        sfuiTip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, LegacySetItem)
+    elseif GameTooltip then
+        GameTooltip:HookScript("OnTooltipSetItem", LegacySetItem)
+        if ItemRefTooltip then ItemRefTooltip:HookScript("OnTooltipSetItem", LegacySetItem) end
     end
-    if ItemRefTooltip then
-        ItemRefTooltip:HookScript("OnTooltipSetItem", OnTooltipSetItem)
-    end
-end
-
--- Hook clear/hide unconditionally so _sfuiDJAnnotated is reset on every hide
-HookClearEvents(GameTooltip)
-HookClearEvents(ItemRefTooltip)
-local sfuiTip = sfui.common.get_tooltip and sfui.common.get_tooltip() or sfui.tooltip
-if sfuiTip and sfuiTip ~= GameTooltip then
-    HookClearEvents(sfuiTip)
 end

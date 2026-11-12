@@ -446,6 +446,126 @@ function sfui.merchant.create_utility_bar(frame)
     end)
     sfui.merchant.catalogBtn = catalogBtn
 
+    -- Buy Pinned Reagents quick button
+    local buyReagentsBtn = CreateFlatButton(utilityBar, "buy reagents", cfg.utility_bar.button_large,
+        cfg.utility_bar.button_height)
+    buyReagentsBtn:SetPoint("LEFT", catalogBtn, "RIGHT", 5, 0)
+    common.set_color(buyReagentsBtn, cfg.button_colors.normal)
+
+    local function ScanVendorReagentPurchases()
+        local deficits = sfui.recipes and sfui.recipes.GetPinnedReagentDeficits and sfui.recipes.GetPinnedReagentDeficits()
+        if not deficits or not next(deficits) then return nil, 0 end
+        local getNum = (_G.C_MerchantFrame and _G.C_MerchantFrame.GetNumMerchantItems) or _G.GetMerchantNumItems
+        local totalMerchant = (getNum and getNum()) or 0
+        if totalMerchant <= 0 then return nil, 0 end
+
+        local plan = {}
+        local totalCopper = 0
+        local seenItem = {}
+        for idx = 1, totalMerchant do
+            local data = sfui.merchant.get_item_data and sfui.merchant.get_item_data(idx, "merchant")
+            local id = data and data.link and common.get_item_id(data.link)
+            local def = id and not seenItem[id] and deficits[id]
+            if def and def.deficit and def.deficit > 0 and not data.hasExtendedCost then
+                local avail = data.numAvailable
+                if avail == nil or avail == -1 or avail > 0 then
+                    local unitStack = math.max(1, tonumber(data.stackCount) or 1)
+                    local purchasesNeeded = math.ceil(def.deficit / unitStack)
+                    if avail and avail > 0 and purchasesNeeded > avail then
+                        purchasesNeeded = avail
+                    end
+                    if purchasesNeeded > 0 then
+                        seenItem[id] = true
+                        local cost = (tonumber(data.price) or 0) * purchasesNeeded
+                        totalCopper = totalCopper + cost
+                        plan[#plan + 1] = {
+                            index     = idx,
+                            itemID    = id,
+                            name      = data.name or ("item #" .. id),
+                            link      = data.link,
+                            purchases = purchasesNeeded,
+                            qty       = purchasesNeeded * unitStack,
+                            deficit   = def.deficit,
+                            cost      = cost,
+                        }
+                    end
+                end
+            end
+        end
+        if #plan == 0 then return nil, 0 end
+        return plan, totalCopper
+    end
+
+    buyReagentsBtn:SetScript("OnClick", function()
+        local plan, totalCopper = ScanVendorReagentPurchases()
+        if not plan or #plan == 0 then
+            if sfui.print then
+                sfui.print("|cffaaaaaano pinned recipe reagents needed from this vendor.|r")
+            end
+            return
+        end
+        local money = (_G.GetMoney and _G.GetMoney()) or 0
+        if totalCopper > money then
+            if sfui.print then
+                sfui.print("|cffff5555not enough gold to buy pinned reagents (" .. common.SafeGetCoinTextureString(totalCopper) .. ").|r")
+            end
+            return
+        end
+
+        local buyFn = _G.BuyMerchantItem
+        local getMaxStack = _G.GetMerchantItemMaxStack
+        if not buyFn then return end
+
+        local boughtTypes = 0
+        for _, entry in ipairs(plan) do
+            local remaining = entry.purchases
+            local maxBatch = (getMaxStack and tonumber(getMaxStack(entry.index))) or 20
+            if not maxBatch or maxBatch < 1 then maxBatch = 1 end
+            while remaining > 0 do
+                local batch = math.min(remaining, maxBatch)
+                buyFn(entry.index, batch)
+                remaining = remaining - batch
+            end
+            boughtTypes = boughtTypes + 1
+        end
+        if sfui.print and boughtTypes > 0 then
+            sfui.print(string.format("|cff33ff88bought %d reagent type%s for pinned recipes (%s).|r",
+                boughtTypes, boughtTypes == 1 and "" or "s", common.SafeGetCoinTextureString(totalCopper)))
+        end
+    end)
+
+    buyReagentsBtn:SetScript("OnEnter", function(self)
+        common.set_color(self, cfg.button_colors.filter_hover)
+        if GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:AddLine("buy pinned reagents", 1, 1, 1)
+            local plan, totalCopper = ScanVendorReagentPurchases()
+            if plan and #plan > 0 then
+                for _, entry in ipairs(plan) do
+                    GameTooltip:AddDoubleLine(
+                        string.format("%dx %s", entry.qty, (entry.name or "reagent"):lower()),
+                        common.SafeGetCoinTextureString(entry.cost),
+                        0.3, 1, 0.55, 1, 1, 1
+                    )
+                end
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddDoubleLine("total cost:", common.SafeGetCoinTextureString(totalCopper), 0.85, 0.85, 0.85, 1, 0.82, 0)
+            else
+                GameTooltip:AddLine("auto-buys missing vendor reagents for your tracked/pinned recipes.", 0.7, 0.7, 0.7, true)
+                GameTooltip:AddLine("no missing vendor reagents at this merchant.", 0.5, 0.5, 0.5)
+            end
+            GameTooltip:Show()
+        end
+    end)
+
+    buyReagentsBtn:SetScript("OnLeave", function(self)
+        common.set_color(self, cfg.button_colors.normal)
+        if GameTooltip and GameTooltip:IsShown() then
+            GameTooltip:Hide()
+        end
+    end)
+    sfui.merchant.buyReagentsBtn = buyReagentsBtn
+
     -- Guild repair button
     local hasGuildBankRepair = (not sfui.isEra) and (_G.CanGuildBankRepair ~= nil)
     local guildRepairBtn = CreateFrame("Button", nil, utilityBar, "BackdropTemplate")

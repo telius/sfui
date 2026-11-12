@@ -966,6 +966,54 @@ function sfui.mem.GetModuleStats()
     end
     stats["sync"] = syncMod
 
+    -- Declarative auto-discovery for any registered module providing GetDebugInfo()
+    if type(sfui.modules) == "table" then
+        for modKey, mod in pairs(sfui.modules) do
+            if not stats[modKey] and type(mod) == "table" and type(mod.GetDebugInfo) == "function" then
+                local ok, info = pcall(mod.GetDebugInfo, mod)
+                if ok and type(info) == "table" then
+                    local statusStr = "|cff888888ready|r"
+                    if sfui.IsModuleEnabled and not sfui.IsModuleEnabled(modKey) then
+                        statusStr = "|cffff4444disabled|r"
+                    elseif info.enabled == false then
+                        statusStr = "|cffff4444disabled|r"
+                    elseif info.active or info.shown or info.isShown or info.inCombat then
+                        statusStr = "|cff00ff88active|r"
+                    end
+
+                    local keys = {}
+                    for k, v in pairs(info) do
+                        local tv = type(v)
+                        if k ~= "enabled" and (tv == "number" or tv == "string" or tv == "boolean") then
+                            keys[#keys + 1] = tostring(k)
+                        end
+                    end
+                    table.sort(keys)
+
+                    local p1, p2 = {}, {}
+                    for idx = 1, #keys do
+                        local k = keys[idx]
+                        local v = info[k]
+                        local formatted = (type(v) == "boolean") and (v and "yes" or "no") or tostring(v)
+                        local pairStr = string_format("%s: %s", k:lower(), formatted:lower())
+                        if idx <= 2 then
+                            p1[#p1 + 1] = pairStr
+                        elseif idx <= 4 then
+                            p2[#p2 + 1] = pairStr
+                        end
+                    end
+
+                    stats[modKey] = {
+                        name   = tostring(mod.displayName or modKey):lower(),
+                        status = statusStr,
+                        line1  = (#p1 > 0) and table.concat(p1, " • ") or "registered module",
+                        line2  = (#p2 > 0) and table.concat(p2, " • ") or (mod._file and tostring(mod._file):lower() or "active"),
+                    }
+                end
+            end
+        end
+    end
+
     return stats
 end
 

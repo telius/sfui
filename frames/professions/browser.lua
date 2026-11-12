@@ -597,10 +597,13 @@ function B.CreateBrowserFrame()
     placeholder:SetPoint("LEFT", sb, "LEFT", 6, 0)
     placeholder:SetText("search recipes, npcs, zones...")
 
-    sb:SetScript("OnTextChanged", function(self)
+    sb:SetScript("OnTextChanged", function(self, userInput)
         local txt = self:GetText():trim()
         placeholder:SetShown(txt == "")
         B.filterText = txt
+        if not userInput then return end
+        B.activeReagentItemID = nil
+        B.activeReagentSpellSet = nil
         B.RebuildFilteredList()
         B.ResetScroll()
         B.UpdateList()
@@ -929,6 +932,8 @@ end
 --- @param vendorName string
 function sfui.recipes.OpenBrowserForVendor(vendorName)
     local f = B.CreateBrowserFrame()
+    B.activeReagentItemID = nil
+    B.activeReagentSpellSet = nil
     if vendorName and vendorName ~= "" then
         B.sourceFilters.vendor = true
         B.sourceFilters.trainer = false
@@ -962,11 +967,29 @@ function sfui.recipes.OpenBrowserToRecipe(spellID)
     local r = db and db[spellID]
     local f = B.CreateBrowserFrame()
 
+    B.activeReagentItemID = nil
+    B.activeReagentSpellSet = nil
+    B.activeCategoryFilter = nil
+    B.activeSpecFilter = nil
+    B.showCurrentZoneOnly = false
+    for k in pairs(B.sourceFilters) do
+        B.sourceFilters[k] = false
+    end
+
     if r then
         if r.skillID then
             B.selectedSkillID = r.skillID
         elseif r.profession then
             B:SelectProfession(r.profession)
+        end
+        local isLearned = B.IsRecipeLearned and B.IsRecipeLearned(spellID, r)
+        if isLearned and B.filterState == "unlearned" then
+            B.filterState = "all"
+        elseif not isLearned and B.filterState == "learned" then
+            B.filterState = "all"
+        end
+        if r.isEvent or r.event or (B.EVENT_RECIPES and B.EVENT_RECIPES[spellID]) then
+            B.showEventRecipes = true
         end
         if r.name then
             B.filterText = r.name:lower()
@@ -977,12 +1000,96 @@ function sfui.recipes.OpenBrowserToRecipe(spellID)
     end
 
     B.UpdateProfessionTabs()
+    if B.UpdateStateButtons then B.UpdateStateButtons() end
+    if B.UpdateEventsButton then B.UpdateEventsButton() end
+    if B.UpdateZoneButton then B.UpdateZoneButton() end
     B.UpdateSourceButtons()
     if B.UpdateSpecButtons then B.UpdateSpecButtons() end
     B.RebuildFilteredList()
     B.ResetScroll()
     B.UpdateList()
     f:Show()
+end
+
+--- Open the recipe browser window pre-filtered to recipes consuming a given reagent item
+--- @param itemID number
+--- @return boolean opened
+function sfui.recipes.OpenBrowserForReagent(itemID)
+    itemID = tonumber(itemID)
+    if not itemID or not sfui.recipes.GetRecipesUsingReagent then return false end
+    local spellIDs = sfui.recipes.GetRecipesUsingReagent(itemID)
+    if not spellIDs or #spellIDs == 0 then return false end
+
+    local db = sfui.recipes_camelot and sfui.recipes_camelot.recipes
+    if not db then return false end
+
+    local spellSet = {}
+    local skillCounts = {}
+    for _, sid in ipairs(spellIDs) do
+        spellSet[sid] = true
+        local r = db[sid]
+        if r and r.skillID then
+            skillCounts[r.skillID] = (skillCounts[r.skillID] or 0) + 1
+        end
+    end
+
+    local f = B.CreateBrowserFrame()
+
+    local bestSkillID = nil
+    local bestKnownCount = 0
+    for skillID, cnt in pairs(skillCounts) do
+        local rank = (B.GetCurrentProfessionRank and B.GetCurrentProfessionRank(skillID)) or 0
+        if rank > 0 and cnt > bestKnownCount then
+            bestKnownCount = cnt
+            bestSkillID = skillID
+        end
+    end
+    if not bestSkillID then
+        if B.selectedSkillID and skillCounts[B.selectedSkillID] then
+            bestSkillID = B.selectedSkillID
+        else
+            local maxCnt = 0
+            for skillID, cnt in pairs(skillCounts) do
+                if cnt > maxCnt then
+                    maxCnt = cnt
+                    bestSkillID = skillID
+                end
+            end
+        end
+    end
+    if bestSkillID then
+        B.selectedSkillID = bestSkillID
+    end
+
+    B.activeReagentItemID = itemID
+    B.activeReagentSpellSet = spellSet
+    B.filterState = "all"
+    B.activeCategoryFilter = nil
+    B.activeSpecFilter = nil
+    B.showCurrentZoneOnly = false
+    for k in pairs(B.sourceFilters) do
+        B.sourceFilters[k] = false
+    end
+
+    local itemName = (_G.C_Item and _G.C_Item.GetItemNameByID and _G.C_Item.GetItemNameByID(itemID))
+        or (sfui.common and sfui.common.get_item_info and sfui.common.get_item_info(itemID))
+        or ("item #" .. itemID)
+    local label = tostring(itemName):lower()
+    B.filterText = label
+    if B.ui.searchBox then
+        B.ui.searchBox:SetText(label)
+    end
+
+    B.UpdateProfessionTabs()
+    if B.UpdateStateButtons then B.UpdateStateButtons() end
+    if B.UpdateZoneButton then B.UpdateZoneButton() end
+    B.UpdateSourceButtons()
+    if B.UpdateSpecButtons then B.UpdateSpecButtons() end
+    B.RebuildFilteredList()
+    B.ResetScroll()
+    B.UpdateList()
+    f:Show()
+    return true
 end
 
 --- Close the recipe browser window

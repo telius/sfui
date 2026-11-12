@@ -34,6 +34,10 @@ local ipairs = ipairs
 local tonumber = tonumber
 local type = type
 local issecretvalue = sfui.common.issecretvalue
+local IsValidTexture = sfui.common.is_valid_texture or function(tex)
+    if issecretvalue(tex) then return true end
+    return tex ~= nil and tex ~= 0 and tex ~= ""
+end
 
 local panels = {} -- Active icon panels
 local _needsStateUpdate = true
@@ -315,6 +319,25 @@ local function UpdateIconState(icon, panelConfig, event)
 end
 
 -- Shared Helper for Texture Resolution
+local function SafeSpellTexture(spellID)
+    if not spellID or issecretvalue(spellID) then return nil end
+    local tex = sfui.common.get_spell_icon and sfui.common.get_spell_icon(spellID)
+    if IsValidTexture(tex) then return tex end
+    tex = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(spellID)
+    if IsValidTexture(tex) then return tex end
+    return nil
+end
+
+local function SafeItemTexture(itemID)
+    if not itemID or issecretvalue(itemID) then return nil end
+    local tex = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)
+    if IsValidTexture(tex) then return tex end
+    if C_Item and C_Item.RequestLoadItemDataByID and type(itemID) == "number" and itemID > 0 then
+        C_Item.RequestLoadItemDataByID(itemID)
+    end
+    return nil
+end
+
 function sfui.trackedicons.GetIconTexture(id, iconType, entry, preFetchedCdInfo)
     local activeID = id
     local iconTexture
@@ -341,26 +364,34 @@ function sfui.trackedicons.GetIconTexture(id, iconType, entry, preFetchedCdInfo)
 
     if equipSlot then
         resolvedType = "item"
-        activeID = GetInventoryItemID and GetInventoryItemID("player", equipSlot) or equipSlot
+        local eqItemID = GetInventoryItemID and GetInventoryItemID("player", equipSlot) or nil
+        activeID = eqItemID or equipSlot
         iconTexture = GetInventoryItemTexture and GetInventoryItemTexture("player", equipSlot)
-        if not iconTexture then
+        if not IsValidTexture(iconTexture) and eqItemID then
+            iconTexture = SafeItemTexture(eqItemID)
+        end
+        if not IsValidTexture(iconTexture) then
             local slotName = (equipSlot == 14) and "Trinket1Slot" or "Trinket0Slot"
             local _, slotTex = GetInventorySlotInfo(slotName)
-            iconTexture = slotTex
+            if IsValidTexture(slotTex) then
+                iconTexture = slotTex
+            end
         end
-        return iconTexture or 134400, activeID, resolvedType, nil
+        local isColdEquip = not IsValidTexture(iconTexture)
+        return (not isColdEquip and iconTexture) or 134400, activeID, resolvedType, nil, isColdEquip
     end
 
     if spellCategoryID then
         resolvedType = "item"
         local catData = (sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA and sfui.tracking.SPELL_CATEGORY_METADATA[spellCategoryID])
         activeID = (cdInfo and cdInfo.lastItemIDForCategory) or (entry and entry.itemID) or (catData and catData.fallbackItemID) or id
-        if catData and catData.icon then
+        if catData and IsValidTexture(catData.icon) then
             iconTexture = catData.icon
-        elseif activeID and activeID > 0 then
-            iconTexture = C_Item.GetItemIconByID(activeID)
+        elseif activeID and not issecretvalue(activeID) and type(activeID) == "number" and activeID > 0 then
+            iconTexture = SafeItemTexture(activeID)
         end
-        return iconTexture or 134400, activeID, resolvedType, nil
+        local isColdCat = not IsValidTexture(iconTexture)
+        return (not isColdCat and iconTexture) or 134400, activeID, resolvedType, nil, isColdCat
     end
 
     if cdID then
@@ -368,54 +399,55 @@ function sfui.trackedicons.GetIconTexture(id, iconType, entry, preFetchedCdInfo)
             linkedSpellIDs = cdInfo.linkedSpellIDs
             if cdInfo.spellID and cdInfo.spellID > 0 then
                 activeID = cdInfo.overrideSpellID or cdInfo.spellID
-                iconTexture = C_Spell.GetSpellTexture(activeID)
+                iconTexture = SafeSpellTexture(activeID)
                 resolvedType = "spell"
             elseif cdInfo.itemID and cdInfo.itemID > 0 then
                 activeID = cdInfo.itemID
-                iconTexture = C_Item.GetItemIconByID(activeID)
+                iconTexture = SafeItemTexture(activeID)
                 resolvedType = "item"
             end
         elseif entry then
             if entry.spellID and entry.spellID > 0 then
                 activeID = entry.spellID
-                iconTexture = C_Spell.GetSpellTexture(activeID)
+                iconTexture = SafeSpellTexture(activeID)
                 resolvedType = "spell"
             elseif entry.itemID and entry.itemID > 0 then
                 activeID = entry.itemID
-                iconTexture = C_Item.GetItemIconByID(activeID)
+                iconTexture = SafeItemTexture(activeID)
                 resolvedType = "item"
             else
                 activeID = entry.spellID or id
-                iconTexture = C_Spell.GetSpellTexture(activeID)
+                iconTexture = SafeSpellTexture(activeID)
                 resolvedType = "spell"
-                if not iconTexture then
-                    iconTexture = C_Item.GetItemIconByID(activeID)
-                    if iconTexture then resolvedType = "item" end
+                if not IsValidTexture(iconTexture) then
+                    iconTexture = SafeItemTexture(activeID)
+                    if IsValidTexture(iconTexture) then resolvedType = "item" end
                 end
             end
         end
     elseif iconType == "item" then
         activeID = (entry and entry.itemID) or id
-        iconTexture = C_Item.GetItemIconByID(activeID)
+        iconTexture = SafeItemTexture(activeID)
         resolvedType = "item"
     else
         -- Plain spell / aura entry (never pass raw spellID to GetCooldownViewerCooldownInfo)
         if sfui.isEra and sfui.tracking and sfui.tracking.ResolveClassicSpellID then
             activeID = sfui.tracking.ResolveClassicSpellID(activeID) or activeID
         end
-        iconTexture = C_Spell.GetSpellTexture(activeID)
+        iconTexture = SafeSpellTexture(activeID)
         resolvedType = "spell"
-        if not iconTexture then
-            iconTexture = C_Item.GetItemIconByID(activeID)
-            if iconTexture then resolvedType = "item" end
+        if not IsValidTexture(iconTexture) then
+            iconTexture = SafeItemTexture(activeID)
+            if IsValidTexture(iconTexture) then resolvedType = "item" end
         end
     end
 
-    if not iconTexture and activeID then
-        iconTexture = C_Spell.GetSpellTexture(activeID) or C_Item.GetItemIconByID(activeID) or 134400
+    if not IsValidTexture(iconTexture) and activeID then
+        iconTexture = SafeSpellTexture(activeID) or SafeItemTexture(activeID)
     end
 
-    return iconTexture, activeID, resolvedType, linkedSpellIDs
+    local isColdIcon = not IsValidTexture(iconTexture)
+    return (not isColdIcon and iconTexture) or 134400, activeID, resolvedType, linkedSpellIDs, isColdIcon
 end
 
 -- Apply square icon + border style from config
@@ -1590,6 +1622,32 @@ function sfui.trackedicons.initialize()
     sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
         _needsStateUpdate = true
     end)
+
+    local function OnIconAssetLoaded()
+        local hasColdIcon = false
+        for _, panel in pairs(panels) do
+            if panel.icons then
+                for _, icon in pairs(panel.icons) do
+                    if icon:IsShown() and (
+                        (icon._desc and icon._desc._iconCold)
+                        or not IsValidTexture(icon._currentTexture)
+                        or (icon.texture and not IsValidTexture(icon.texture:GetTexture()))
+                    ) then
+                        hasColdIcon = true
+                        break
+                    end
+                end
+            end
+            if hasColdIcon then break end
+        end
+        if hasColdIcon then
+            entryHelper.BumpConfigRevision()
+            _needsStateUpdate = true
+        end
+    end
+    sfui.events.RegisterEvent("SPELL_UPDATE_ICON", OnIconAssetLoaded)
+    sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", OnIconAssetLoaded)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnIconAssetLoaded)
 
     -- 12.0.5+: Blizzard aura data provider switch (e.g. M+ restricted mode transitions)
     sfui.events.RegisterEvent("AURA_DATA_PROVIDER_SWITCH", function(_event, useRealDataProvider)

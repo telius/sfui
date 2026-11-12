@@ -788,6 +788,42 @@ local function create_triage_prompt()
         f:SetPoint(defPos.point, UIParent, defPos.relativePoint or defPos.point, defPos.x, defPos.y)
     end
 
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(f, {
+            key = "triage",
+            label = "bag triage",
+            preferredPoint = "BOTTOM",
+            getPoint = function()
+                local sp = SfuiDB and SfuiDB.triagePos
+                if sp and sp.point and sp.x and sp.y then
+                    return sp.point, UIParent, sp.relPoint or sp.point, sp.x, sp.y
+                end
+                local defPos = (sfui.config.triage and sfui.config.triage.pos) or { point = "BOTTOM", x = 0, y = 220 }
+                return defPos.point or "BOTTOM", UIParent, defPos.relativePoint or defPos.point or "BOTTOM", defPos.x or 0, defPos.y or 220
+            end,
+            setPoint = function(point, _, relPoint, x, y)
+                local pt = point or "BOTTOM"
+                local rPt = relPoint or pt
+                local sx = math.floor((x or 0) + 0.5)
+                local sy = math.floor((y or 220) + 0.5)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.triagePos = { point = pt, relPoint = rPt, x = sx, y = sy }
+                f:ClearAllPoints()
+                f:SetPoint(pt, UIParent, rPt, sx, sy)
+            end,
+            resetPosition = function()
+                if SfuiDB then SfuiDB.triagePos = nil end
+                local defPos = (sfui.config.triage and sfui.config.triage.pos) or { point = "BOTTOM", x = 0, y = 220 }
+                f:ClearAllPoints()
+                f:SetPoint(defPos.point or "BOTTOM", UIParent, defPos.relativePoint or defPos.point or "BOTTOM", defPos.x or 0, defPos.y or 220)
+            end,
+            isEnabled = function()
+                local enabled = (sfui.db and sfui.db.Get and sfui.db.Get("triage", "enabled", true))
+                return enabled ~= false
+            end,
+        })
+    end
+
     -- Elevated header frame & title
     local headerFrame = CreateFrame("Frame", nil, f)
     headerFrame:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)

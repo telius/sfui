@@ -141,26 +141,36 @@ end
 
 local function GetTargetHealthColor()
     if cachedHealthR then
-        return cachedHealthR, cachedHealthG, cachedHealthB
+        return cachedHealthR, cachedHealthG, cachedHealthB, false
     end
 
     if not UnitIsConnected("target") then
         cachedHealthR, cachedHealthG, cachedHealthB = 0.50, 0.50, 0.50
-        return 0.50, 0.50, 0.50
+        return 0.50, 0.50, 0.50, false
     end
     if UnitIsPlayer("target") then
         local _, class = UnitClass("target")
-        if class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class] then
-            local c = RAID_CLASS_COLORS[class]
-            cachedHealthR, cachedHealthG, cachedHealthB = c.r, c.g, c.b
-            return c.r, c.g, c.b
+        if class then
+            if issecretvalue(class) then
+                local getClassColor = _G.C_ClassColor and _G.C_ClassColor.GetClassColor
+                if getClassColor then
+                    local cc = getClassColor(class)
+                    if cc then
+                        return cc.r, cc.g, cc.b, true
+                    end
+                end
+            elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[class] then
+                local c = RAID_CLASS_COLORS[class]
+                cachedHealthR, cachedHealthG, cachedHealthB = c.r, c.g, c.b
+                return c.r, c.g, c.b, false
+            end
         end
     end
     local isTapDenied = UnitIsTapDenied("target")
     local isPlayerControlled = UnitPlayerControlled("target")
     if not issecretvalue(isTapDenied) and not issecretvalue(isPlayerControlled) and isTapDenied and not isPlayerControlled then
         cachedHealthR, cachedHealthG, cachedHealthB = 0.55, 0.55, 0.55
-        return 0.55, 0.55, 0.55
+        return 0.55, 0.55, 0.55, false
     end
     local reaction = UnitReaction("target", "player")
     if reaction and not issecretvalue(reaction) then
@@ -171,10 +181,10 @@ local function GetTargetHealthColor()
         else
             cachedHealthR, cachedHealthG, cachedHealthB = 0.20, 0.75, 0.25 -- Friendly Green
         end
-        return cachedHealthR, cachedHealthG, cachedHealthB
+        return cachedHealthR, cachedHealthG, cachedHealthB, false
     end
     cachedHealthR, cachedHealthG, cachedHealthB = 0.85, 0.22, 0.22
-    return 0.85, 0.22, 0.22
+    return 0.85, 0.22, 0.22, false
 end
 
 -- ─── Blizzard TargetFrame Clean Suppression (ElvUI HiddenFrame pattern) ──────
@@ -216,23 +226,49 @@ local CLASSIC_DEBUFF_COLORS = {
     None    = { 0.80, 0.00, 0.00 },
 }
 
+local function IsValidTexture(tex)
+    if issecretvalue and issecretvalue(tex) then return true end
+    return tex ~= nil and tex ~= 0 and tex ~= ""
+end
+
 local function GetClassicAuraByIndex(unit, index, filter)
     if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then
-        return nil
+        return false
     end
     if _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex then
         local checkIndexSecret = _G.C_Secrets and _G.C_Secrets.ShouldUnitAuraIndexBeSecret
         if checkIndexSecret and checkIndexSecret(unit, index, filter) then
-            return nil
+            return false
         end
         local aura = _G.C_UnitAuras.GetAuraDataByIndex(unit, index, filter)
-        if not aura then return nil end
-        return aura.icon, aura.applications, aura.dispelName, aura.duration, aura.expirationTime
+        if not aura then return false end
+        local icon = aura.icon
+        if not IsValidTexture(icon) then
+            local spellId = aura.spellId
+            if not (issecretvalue and issecretvalue(spellId)) and spellId then
+                icon = common.get_spell_icon and common.get_spell_icon(spellId)
+            end
+            if not IsValidTexture(icon) then
+                icon = 134400
+            end
+        end
+        return true, icon, aura.applications, aura.dispelName, aura.duration, aura.expirationTime
     elseif _G.UnitAura then
-        local _, icon, count, dispelName, duration, expirationTime = _G.UnitAura(unit, index, filter)
-        return icon, count, dispelName, duration, expirationTime
+        local name, icon, count, dispelName, duration, expirationTime, _, _, _, spellId = _G.UnitAura(unit, index, filter)
+        if not (issecretvalue and issecretvalue(name)) and not name and not IsValidTexture(icon) then
+            return false
+        end
+        if not IsValidTexture(icon) then
+            if not (issecretvalue and issecretvalue(spellId)) and spellId then
+                icon = common.get_spell_icon and common.get_spell_icon(spellId)
+            end
+            if not IsValidTexture(icon) then
+                icon = 134400
+            end
+        end
+        return true, icon, count, dispelName, duration, expirationTime
     end
-    return nil
+    return false
 end
 
 local function CreateClassicAuraContainer(name, parent, unit, filter, maxCount, size, spacing, isDebuff, growLeft)
@@ -312,8 +348,8 @@ local function CreateClassicAuraContainer(name, parent, unit, filter, maxCount, 
         local shown = 0
         local auraIndex = 1
         while shown < maxCount do
-            local icon, applications, dispelName, duration, expirationTime = GetClassicAuraByIndex(unit, auraIndex, filter)
-            if not icon then
+            local hasAura, icon, applications, dispelName, duration, expirationTime = GetClassicAuraByIndex(unit, auraIndex, filter)
+            if not hasAura then
                 break
             end
 
@@ -328,9 +364,9 @@ local function CreateClassicAuraContainer(name, parent, unit, filter, maxCount, 
             end
 
             btn.auraIndex = auraIndex
-            btn.icon:SetTexture(icon)
+            btn.icon:SetTexture(IsValidTexture(icon) and icon or 134400)
 
-            if applications and applications > 1 then
+            if not issecretvalue(applications) and applications and applications > 1 then
                 btn.count:SetText(applications)
                 btn.count:Show()
             else
@@ -338,12 +374,13 @@ local function CreateClassicAuraContainer(name, parent, unit, filter, maxCount, 
             end
 
             if isDebuff and btn.border then
-                local col = (dispelName and CLASSIC_DEBUFF_COLORS[dispelName]) or CLASSIC_DEBUFF_COLORS.None
+                local col = (not issecretvalue(dispelName) and dispelName and CLASSIC_DEBUFF_COLORS[dispelName]) or CLASSIC_DEBUFF_COLORS.None
                 btn.border:SetVertexColor(col[1], col[2], col[3], 1)
             end
 
             if btn.cd then
-                if duration and duration > 0 and expirationTime and expirationTime > 0 then
+                if not issecretvalue(duration) and not issecretvalue(expirationTime)
+                    and duration and duration > 0 and expirationTime and expirationTime > 0 then
                     if _G.CooldownFrame_Set then
                         _G.CooldownFrame_Set(btn.cd, expirationTime - duration, duration, true, true)
                     elseif btn.cd.SetCooldown then
@@ -684,12 +721,65 @@ local function UpdateLayoutAnchors(force)
 end
 
 -- ─── Aura Row Refresh ────────────────────────────────────────────────────────
+local function PreloadColdTargetAuraSpells(filter, maxCount)
+    local reqLoad = _G.C_Spell and _G.C_Spell.RequestLoadSpellData
+    local getAura = _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex
+    if not reqLoad or not getAura then return end
+    if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then
+        return
+    end
+    local checkIndexSecret = _G.C_Secrets and _G.C_Secrets.ShouldUnitAuraIndexBeSecret
+    local isCached = _G.C_Spell.IsSpellDataCached
+    for idx = 1, maxCount do
+        if checkIndexSecret and checkIndexSecret("target", idx, filter) then
+            break
+        end
+        local aura = getAura("target", idx, filter)
+        if not aura then break end
+        if not IsValidTexture(aura.icon) then
+            local spellId = aura.spellId
+            if not (issecretvalue and issecretvalue(spellId)) and type(spellId) == "number" and spellId > 0 then
+                if not isCached or not isCached(spellId) then
+                    reqLoad(spellId)
+                end
+            end
+        end
+    end
+end
+
 local function UpdateAuras()
     if buffContainer then
         buffContainer:UpdateAllAuras()
     end
     if debuffContainer then
         debuffContainer:UpdateAllAuras()
+    end
+    if HAS_NATIVE_AURA_CONTAINER and UnitExists("target") then
+        local auraCfg = cfg.auras or {}
+        PreloadColdTargetAuraSpells("HELPFUL", auraCfg.maxBuffs or 6)
+        PreloadColdTargetAuraSpells("HARMFUL", auraCfg.maxDebuffs or 6)
+    end
+end
+
+local _pendingAuraIconRefresh = false
+local function RefreshTargetAuraIcons()
+    _pendingAuraIconRefresh = false
+    if targetContainer and targetContainer:IsShown() and UnitExists("target") then
+        UpdateAuras()
+    end
+end
+
+local function RequestTargetAuraIconRefresh()
+    if _pendingAuraIconRefresh then return end
+    if not targetContainer or not targetContainer:IsShown() or not UnitExists("target") then
+        return
+    end
+    local cTimer = _G.C_Timer
+    if cTimer and cTimer.After then
+        _pendingAuraIconRefresh = true
+        cTimer.After(0, RefreshTargetAuraIcons)
+    else
+        UpdateAuras()
     end
 end
 
@@ -768,8 +858,11 @@ local function UpdateTargetHealth()
     healthBar:SetMinMaxValues(0, maxHp)
     healthBar:SetValue(curHp)
 
-    local r, g, b = GetTargetHealthColor()
-    if r ~= lastBarR or g ~= lastBarG or b ~= lastBarB then
+    local r, g, b, isSecretColor = GetTargetHealthColor()
+    if isSecretColor or issecretvalue(r) then
+        lastBarR, lastBarG, lastBarB = nil, nil, nil
+        healthBar:SetStatusBarColor(r, g, b)
+    elseif r ~= lastBarR or g ~= lastBarG or b ~= lastBarB then
         lastBarR, lastBarG, lastBarB = r, g, b
         healthBar:SetStatusBarColor(r, g, b)
     end
@@ -888,6 +981,8 @@ local function UpdateTargetPower()
     powerBar:SetValue(curPower)
 
     local powerType, powerToken = UnitPowerType("target")
+    if issecretvalue(powerType) then powerType = nil end
+    if issecretvalue(powerToken) then powerToken = nil end
     if powerType ~= lastPowerType or powerToken ~= lastPowerToken then
         lastPowerType, lastPowerToken = powerType, powerToken
         local pColor = (powerToken and PowerBarColor and PowerBarColor[powerToken])
@@ -1015,7 +1110,13 @@ local function UpdateRaidTargetMarker()
         return
     end
     local index = GetRaidTargetIndex and GetRaidTargetIndex("target")
-    if issecretvalue(index) then return end
+    if issecretvalue(index) then
+        if lastRaidIndex ~= nil then
+            raidTargetIcon:Hide()
+            lastRaidIndex = nil
+        end
+        return
+    end
     if index ~= lastRaidIndex then
         lastRaidIndex = index
         if index and index >= 1 and index <= 8 then
@@ -1216,7 +1317,12 @@ end
 
 local function IsTargetInRange()
     if not UnitExists("target") then return true end
-    if UnitIsUnit("target", "player") then return true end
+    if sfui.safety and sfui.safety.SafeUnitIsUnit then
+        if sfui.safety.SafeUnitIsUnit("target", "player") then return true end
+    elseif not (_G.C_Secrets and _G.C_Secrets.ShouldUnitComparisonBeSecret and _G.C_Secrets.ShouldUnitComparisonBeSecret("target", "player"))
+        and UnitIsUnit("target", "player") then
+        return true
+    end
     if UnitIsDeadOrGhost("target") then return true end
 
     if not cachedPlayerClass then
@@ -1998,6 +2104,9 @@ local function Initialize()
     end)
     sfui.events.RegisterEvent("SPELLS_CHANGED", ResetRangeSpellCache)
     sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", ResetRangeSpellCache)
+    sfui.events.RegisterEvent("SPELL_UPDATE_ICON", RequestTargetAuraIconRefresh)
+    sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", RequestTargetAuraIconRefresh)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", RequestTargetAuraIconRefresh)
 
     if UnitExists("target") and not (SfuiDB and SfuiDB.enableTargetBar == false) then
         UpdateAll(true)

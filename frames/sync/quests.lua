@@ -10,15 +10,16 @@ local quests   = sfui.sync.quests
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/sync/quests.lua
---  Synced-Party Quest, Gossip, Dialog, Abandon & Smart Reward Selection
+--  Synced-Party Quest, Gossip, Dialog, Abandon & Quest Reward Advisor
 --
---  Loaded and active ONLY when in a party with a synced character:
+--  Loaded and active ONLY when in a party with a synced character (except the
+--  read-only visual reward advisor badges, which also run solo):
 --    1. Synchronized Quest Abandon (`DELTA_QUEST_ABANDON`) with completed-quest
 --       safety protection.
 --    2. Multi-Step Turn-In Catch-Up (`GossipFrame` -> `QuestFrameProgressPanel`
---       -> `QuestFrameRewardPanel`).
---    3. Smart Quest Reward Selection & Manual Override (`QuestInfoFrame.itemChoice`,
---       armor/class fit, and highest vendor value fallback).
+--       -> `QuestFrameRewardPanel` / `DUIQuestFrame`).
+--    3. Quest Reward Advisor Badges (`+X% upg`, `+X% off`, `best gold`) — strictly
+--       advisory; never pre-selects or accepts a quest reward when there is a choice.
 --    4. Gossip / Dialog / Safe StaticPopup Mirroring & Missing-Quest Auto-Share.
 -- ══════════════════════════════════════════════════════════════════════════════
 
@@ -155,7 +156,7 @@ end
 
 local function score_quest_reward_choice(choiceIdx)
     local link = _G.GetQuestItemLink and _G.GetQuestItemLink("choice", choiceIdx)
-    if not link then return 0, 0, nil, nil end
+    if not link then return 0, 0, nil, nil, nil end
     local itemID = tonumber(string_match(link, "item:(%d+)"))
     local GetItemInfo = (sfui.common and sfui.common.get_item_info) or _G.GetItemInfo
     local _, _, _, _, _, _, _, _, equipLoc, _, sellPrice, classID, subclassID = GetItemInfo(link)
@@ -173,113 +174,226 @@ local function score_quest_reward_choice(choiceIdx)
     local armorClass  = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Armor) or 4
 
     if classID ~= weaponClass and classID ~= armorClass then
-        return (isUsable and 2 or 0), sellPrice, itemID, classID
+        return (isUsable and 2 or 0), sellPrice, itemID, classID, nil
+    end
+
+    -- Consult stat-weighted upgrade evaluator first
+    if sfui.gear and sfui.gear.EvaluateItemUpgrade then
+        local eval = sfui.gear.EvaluateItemUpgrade(link, nil, true)
+        if eval and eval.isUpgrade then
+            local baseTier = eval.isOffSpec and 50 or 100
+            local gain = math.min(49, math.floor((eval.pctGain or 0) * 10 + 0.5) / 10)
+            return baseTier + gain, sellPrice, itemID, classID, eval
+        end
     end
 
     if not isUsable then
-        return 0, sellPrice, itemID, classID
+        return 0, sellPrice, itemID, classID, nil
     end
 
     if equipLoc == "INVTYPE_CLOAK" or equipLoc == "INVTYPE_NECK" or equipLoc == "INVTYPE_FINGER" or equipLoc == "INVTYPE_TRINKET" or equipLoc == "INVTYPE_HOLDABLE" then
-        return 2, sellPrice, itemID, classID
+        return 2, sellPrice, itemID, classID, nil
     end
 
     if classID == armorClass and subclassID and subclassID >= 1 and subclassID <= 4 then
         local wanted = get_expected_armor_subclass()
         if subclassID == wanted then
-            return 3, sellPrice, itemID, classID
+            return 3, sellPrice, itemID, classID, nil
         elseif subclassID < wanted then
-            return 1, sellPrice, itemID, classID
+            return 1, sellPrice, itemID, classID, nil
         else
-            return 0, sellPrice, itemID, classID
+            return 0, sellPrice, itemID, classID, nil
         end
     end
 
-    return 2, sellPrice, itemID, classID
+    return 2, sellPrice, itemID, classID, nil
 end
 
-local function get_manual_reward_choice()
-    if _G.QuestInfoFrame and tonumber(_G.QuestInfoFrame.itemChoice) and tonumber(_G.QuestInfoFrame.itemChoice) > 0 then
-        return tonumber(_G.QuestInfoFrame.itemChoice)
-    end
-    if _G.QuestFrameRewardPanel and tonumber(_G.QuestFrameRewardPanel.itemChoice) and tonumber(_G.QuestFrameRewardPanel.itemChoice) > 0 then
-        return tonumber(_G.QuestFrameRewardPanel.itemChoice)
-    end
-    return nil
-end
+local _advisorBadgesList = {}
 
-local function highlight_reward_choice(choiceIdx)
-    if not choiceIdx or choiceIdx <= 0 then return end
-    local btn = (_G.QuestInfo_GetRewardButton and _G.QuestInfo_GetRewardButton(_G.QuestInfoRewardsFrame, choiceIdx))
-        or _G["QuestInfoRewardsFrameQuestInfoItem" .. choiceIdx]
-        or _G["QuestRewardItem" .. choiceIdx]
-    if btn and _G.QuestInfoItem_OnClick then
-        _G.QuestInfoItem_OnClick(btn)
+local function hide_all_advisor_badges()
+    for i = 1, #_advisorBadgesList do
+        _advisorBadgesList[i]:Hide()
     end
 end
 
--- Returns an unambiguous reward index to auto-pick, or (nil, bestCandidateIdx) if multiple gear choices tie
-local function resolve_auto_quest_reward(numChoices, leadRewardItemID)
-    if numChoices <= 0 then return nil, nil end
-    if numChoices == 1 then return 1, 1 end
-
-    local manual = get_manual_reward_choice()
-    if manual and manual >= 1 and manual <= numChoices then
-        return manual, manual
+-- Uses explicit OVERLAY sublevels (6/7) rather than BackdropTemplate BACKGROUND so badges render
+-- cleanly above DialogueUI's flattenRenderLayers="true" item cards as well as Blizzard's QuestFrame.
+local function ensure_button_advisor_badge(btn, isDialogueUI)
+    local b = btn._sfuiAdvisorBadge
+    if b then
+        return b
+    end
+    b = _G.CreateFrame("Frame", nil, btn)
+    b:SetFrameLevel((btn:GetFrameLevel() or 2) + 6)
+    b:SetHeight(14)
+    if isDialogueUI then
+        b:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -2, 5)
+    else
+        b:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
     end
 
-    local bestFit = -1
-    local bestFitCount = 0
-    local bestFitTopHint = 1
-    local bestFitTopPrice = -1
-    local bestSellIdx = 1
-    local bestSellPrice = -1
-    local leadMatchIdx = nil
-    local leadMatchClassID = nil
+    local border = b:CreateTexture(nil, "OVERLAY", nil, 6)
+    border:SetAllPoints()
+    border:SetColorTexture(0.25, 0.75, 0.45, 0.90)
+    b.border = border
+
+    local bg = b:CreateTexture(nil, "OVERLAY", nil, 7)
+    bg:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+    bg:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+    bg:SetColorTexture(0.05, 0.06, 0.08, 0.94)
+    b.bg = bg
+
+    local fs = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    if fs.SetDrawLayer then
+        fs:SetDrawLayer("OVERLAY", 7)
+    end
+    fs:SetPoint("CENTER", 0, 0)
+    b.fs = fs
+
+    btn._sfuiAdvisorBadge = b
+    _advisorBadgesList[#_advisorBadgesList + 1] = b
+
+    -- Enable Ctrl-Click recipe/fishing deep-linking on DialogueUI item buttons
+    if isDialogueUI and not btn._sfuiCtrlHooked and btn.HookScript then
+        btn._sfuiCtrlHooked = true
+        btn:HookScript("OnClick", function(self, mouseBtn)
+            if mouseBtn == "LeftButton" and _G.IsControlKeyDown and _G.IsControlKeyDown()
+                and not (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
+                and not (_G.IsAltKeyDown and _G.IsAltKeyDown()) then
+                if self.objectType == "item" and sfui.nav and sfui.nav.OpenRecipeOrFishing then
+                    local link = (_G.GetQuestItemLink and self.type and self.index and _G.GetQuestItemLink(self.type, self.index)) or nil
+                    sfui.nav.OpenRecipeOrFishing(link or self.itemID)
+                end
+            end
+        end)
+    end
+
+    return b
+end
+
+local function apply_badge_state(btn, isDialogueUI, eval, isBestGold)
+    if eval and eval.isUpgrade then
+        local badge = ensure_button_advisor_badge(btn, isDialogueUI)
+        local pct = (eval.pctGain >= 99.5) and "+upgrade" or string.format("+%.0f%%", eval.pctGain)
+        if eval.isOffSpec then
+            badge.fs:SetText("|cff66ccff" .. pct .. " off|r")
+            badge.border:SetColorTexture(0.35, 0.75, 1.0, 0.88)
+        else
+            badge.fs:SetText("|cff33ff88" .. pct .. " upg|r")
+            badge.border:SetColorTexture(0.20, 0.85, 0.45, 0.92)
+        end
+        badge:SetWidth(math.max(44, (badge.fs:GetStringWidth() or 36) + 10))
+        badge:Show()
+    elseif isBestGold then
+        local badge = ensure_button_advisor_badge(btn, isDialogueUI)
+        badge.fs:SetText("|cffffd100best gold|r")
+        badge.border:SetColorTexture(0.95, 0.78, 0.20, 0.88)
+        badge:SetWidth(math.max(54, (badge.fs:GetStringWidth() or 44) + 10))
+        badge:Show()
+    elseif btn._sfuiAdvisorBadge then
+        btn._sfuiAdvisorBadge:Hide()
+    end
+end
+
+local function eval_fixed_quest_reward(rewardIdx)
+    if not (sfui.gear and sfui.gear.EvaluateItemUpgrade and _G.GetQuestItemLink) then
+        return nil
+    end
+    local link = _G.GetQuestItemLink("reward", rewardIdx)
+    if not link then return nil end
+    local GetItemInfo = (sfui.common and sfui.common.get_item_info) or _G.GetItemInfo
+    local classID = select(12, GetItemInfo(link))
+    local weaponClass = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Weapon) or 2
+    local armorClass  = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Armor) or 4
+    if classID ~= weaponClass and classID ~= armorClass then
+        return nil
+    end
+    return sfui.gear.EvaluateItemUpgrade(link, nil, true)
+end
+
+local _choiceEvalScratch = {}
+local _rewardEvalScratch = {}
+
+local function has_quest_reward_choice()
+    local numChoices = (_G.GetNumQuestChoices and _G.GetNumQuestChoices()) or 0
+    if numChoices > 0 then return true end
+    local duiFrame = _G.DUIQuestFrame
+    if duiFrame and duiFrame.IsShown and duiFrame:IsShown() and duiFrame.chooseItems then
+        return true
+    end
+    return false
+end
+
+local function decorate_quest_reward_choices()
+    hide_all_advisor_badges()
+    if SfuiDB and SfuiDB.questRewardAdvisor == false then return end
+
+    local numChoices = (_G.GetNumQuestChoices and _G.GetNumQuestChoices()) or 0
+    local numRewards = (_G.GetNumQuestRewards and _G.GetNumQuestRewards()) or 0
+    if numChoices <= 0 and numRewards <= 0 then return end
+
+    wipe(_choiceEvalScratch)
+    wipe(_rewardEvalScratch)
+
+    local bestUpgradeIdx = nil
+    local bestUpgradeScore = 0
+    local bestSellIdx = nil
+    local bestSellPrice = 0
 
     for i = 1, numChoices do
-        local fitScore, sellPrice, itemID, classID = score_quest_reward_choice(i)
+        local fitScore, sellPrice, _, _, eval = score_quest_reward_choice(i)
+        _choiceEvalScratch[i] = eval
+        if eval and eval.isUpgrade and fitScore > bestUpgradeScore then
+            bestUpgradeScore = fitScore
+            bestUpgradeIdx = i
+        end
         if sellPrice > bestSellPrice then
             bestSellPrice = sellPrice
             bestSellIdx = i
         end
-        if leadRewardItemID and itemID == leadRewardItemID then
-            leadMatchIdx = i
-            leadMatchClassID = classID
+    end
+
+    for i = 1, numRewards do
+        _rewardEvalScratch[i] = eval_fixed_quest_reward(i)
+    end
+
+    -- 1. Standard Blizzard QuestInfoRewardsFrame / QuestFrameRewardPanel buttons
+    for i = 1, numChoices do
+        local btn = (_G.QuestInfo_GetRewardButton and _G.QuestInfo_GetRewardButton(_G.QuestInfoRewardsFrame, i))
+            or _G["QuestInfoRewardsFrameQuestInfoItem" .. i]
+            or _G["QuestRewardItem" .. i]
+        if btn and btn:IsShown() then
+            local eval = _choiceEvalScratch[i]
+            local isGoldBest = (not bestUpgradeIdx) and (numChoices > 1) and (i == bestSellIdx) and (bestSellPrice > 0)
+            apply_badge_state(btn, false, eval, isGoldBest)
         end
-        if fitScore > bestFit then
-            bestFit = fitScore
-            bestFitCount = 1
-            bestFitTopHint = i
-            bestFitTopPrice = sellPrice
-        elseif fitScore == bestFit then
-            bestFitCount = bestFitCount + 1
-            if sellPrice > bestFitTopPrice then
-                bestFitTopPrice = sellPrice
-                bestFitTopHint = i
+    end
+    for i = 1, numRewards do
+        local btnIdx = numChoices + i
+        local btn = (_G.QuestInfo_GetRewardButton and _G.QuestInfo_GetRewardButton(_G.QuestInfoRewardsFrame, btnIdx))
+            or _G["QuestInfoRewardsFrameQuestInfoItem" .. btnIdx]
+            or _G["QuestRewardItem" .. btnIdx]
+        if btn and btn:IsShown() then
+            apply_badge_state(btn, false, _rewardEvalScratch[i], false)
+        end
+    end
+
+    -- 2. DialogueUI (DUIQuestFrame.itemButtonPool) on Forever & Retail
+    local duiFrame = _G.DUIQuestFrame
+    if duiFrame and duiFrame.IsShown and duiFrame:IsShown() and duiFrame.itemButtonPool and duiFrame.itemButtonPool.ProcessActiveObjects then
+        duiFrame.itemButtonPool:ProcessActiveObjects(function(btn)
+            if not btn or not btn:IsShown() or btn.objectType ~= "item" then return end
+            if btn.type == "choice" and btn.index then
+                local i = btn.index
+                local eval = _choiceEvalScratch[i]
+                local isGoldBest = (not bestUpgradeIdx) and (numChoices > 1) and (i == bestSellIdx) and (bestSellPrice > 0)
+                apply_badge_state(btn, true, eval, isGoldBest)
+            elseif btn.type == "reward" and btn.index then
+                apply_badge_state(btn, true, _rewardEvalScratch[btn.index], false)
             end
-        end
+        end)
     end
-
-    -- 1. If the lead picked a non-weapon/non-armor reward (e.g. bag, box, consumable) offered on our panel, match it
-    local weaponClass = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Weapon) or 2
-    local armorClass  = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Armor) or 4
-    if leadMatchIdx and leadMatchClassID and leadMatchClassID ~= weaponClass and leadMatchClassID ~= armorClass then
-        return leadMatchIdx, leadMatchIdx
-    end
-
-    -- 2. If none of the choices are usable gear for this character, pick highest vendor price automatically
-    if bestFit <= 0 then
-        return bestSellIdx, bestSellIdx
-    end
-
-    -- 3. If exactly one choice is the top armor/weapon fit for this character, pick it automatically
-    if bestFitCount == 1 then
-        return bestFitTopHint, bestFitTopHint
-    end
-
-    -- Multiple usable gear choices tied: highlight the highest vendor-value one among them and let user confirm
-    return nil, bestFitTopHint
 end
 
 -- ── 2. Synchronized Quest Abandon (`Mama/Actions.lua:284-319`) ────────────────
@@ -516,20 +630,30 @@ local function drain_pending_dialogs()
                 return true
             end
         elseif sameNPC then
+            local duiFrame = _G.DUIQuestFrame
+            local duiShown = duiFrame and duiFrame.IsShown and duiFrame:IsShown()
+            local isGossipOpen = (_G.GossipFrame and _G.GossipFrame:IsShown())
+                or (_G.QuestFrameGreetingPanel and _G.QuestFrameGreetingPanel:IsShown())
+                or (duiShown and (duiFrame.handler == "HandleGossip" or duiFrame.handler == "HandleQuestGreeting"))
+            local isProgressOpen = (_G.QuestFrameProgressPanel and _G.QuestFrameProgressPanel:IsShown())
+                or (duiShown and duiFrame.handler == "HandleQuestProgress")
+            local isRewardOpen = (_G.QuestFrameRewardPanel and _G.QuestFrameRewardPanel:IsShown())
+                or (duiShown and duiFrame.handler == "HandleQuestComplete")
+
             if p.verb == "opt" then
                 if replay_gossip_option(p.id, p.text) then
                     table_remove(pendingDialogChoices, idx)
                     return true
                 end
             elseif p.verb == "avail" or p.verb == "active" then
-                if (_G.GossipFrame and _G.GossipFrame:IsShown()) or (_G.QuestFrameGreetingPanel and _G.QuestFrameGreetingPanel:IsShown()) then
+                if isGossipOpen then
                     if replay_quest_pick(p.verb, p.id, p.text) then
                         table_remove(pendingDialogChoices, idx)
                         return true
                     end
                 end
             elseif p.verb == "prog" then
-                if _G.QuestFrameProgressPanel and _G.QuestFrameProgressPanel:IsShown() then
+                if isProgressOpen then
                     if _G.IsQuestCompletable and _G.IsQuestCompletable() and _G.CompleteQuest then
                         table_remove(pendingDialogChoices, idx)
                         replayingDialog = true
@@ -537,31 +661,24 @@ local function drain_pending_dialogs()
                         replayingDialog = false
                         return true
                     end
-                elseif (_G.GossipFrame and _G.GossipFrame:IsShown()) or (_G.QuestFrameGreetingPanel and _G.QuestFrameGreetingPanel:IsShown()) then
+                elseif isGossipOpen then
                     -- Multi-step catch-up: open the active quest first, keep `prog` queued for QUEST_PROGRESS
                     if replay_quest_pick("active", p.id, p.text) then
                         return true
                     end
                 end
             elseif p.verb == "turnin" then
-                if _G.QuestFrameRewardPanel and _G.QuestFrameRewardPanel:IsShown() and _G.GetQuestReward then
-                    local numChoices = (_G.GetNumQuestChoices and _G.GetNumQuestChoices()) or 0
+                if isRewardOpen and _G.GetQuestReward then
                     local numRewards = (_G.GetNumQuestRewards and _G.GetNumQuestRewards()) or 0
                     table_remove(pendingDialogChoices, idx)
-                    if numChoices == 0 and numRewards == 0 then
+                    decorate_quest_reward_choices()
+                    if not has_quest_reward_choice() and numRewards == 0 then
                         replayingDialog = true
                         _G.GetQuestReward(nil)
                         replayingDialog = false
-                        return true
-                    elseif numChoices > 1 then
-                        local _, hintIdx = resolve_auto_quest_reward(numChoices, p.rewardID)
-                        if hintIdx then
-                            highlight_reward_choice(hintIdx)
-                        end
-                        return true
                     end
                     return true
-                elseif _G.QuestFrameProgressPanel and _G.QuestFrameProgressPanel:IsShown() then
+                elseif isProgressOpen then
                     -- Multi-step catch-up: step through CompleteQuest(), keep `turnin` queued for QUEST_COMPLETE
                     if _G.IsQuestCompletable and _G.IsQuestCompletable() and _G.CompleteQuest then
                         replayingDialog = true
@@ -569,7 +686,7 @@ local function drain_pending_dialogs()
                         replayingDialog = false
                         return true
                     end
-                elseif (_G.GossipFrame and _G.GossipFrame:IsShown()) or (_G.QuestFrameGreetingPanel and _G.QuestFrameGreetingPanel:IsShown()) then
+                elseif isGossipOpen then
                     -- Multi-step catch-up: select the active quest first, keep `turnin` queued
                     if replay_quest_pick("active", p.questID or 0, p.text) then
                         return true
@@ -716,6 +833,7 @@ end
 
 local function on_quest_detail()
     current_npc_name()
+    decorate_quest_reward_choices()
     if not should_automate_quests() then return end
     if _G.QuestGetAutoAccept and _G.QuestGetAutoAccept() then
         if _G.CloseQuest then _G.CloseQuest() end
@@ -745,17 +863,14 @@ end
 
 local function on_quest_complete()
     current_npc_name()
-    if not should_automate_quests() then return end
+    decorate_quest_reward_choices()
+    if not should_automate_quests() then
+        return
+    end
     if retry_pending_dialogs() then return end
-    local numChoices = (_G.GetNumQuestChoices and _G.GetNumQuestChoices()) or 0
     local numRewards = (_G.GetNumQuestRewards and _G.GetNumQuestRewards()) or 0
-    if numChoices == 0 and numRewards == 0 and _G.GetQuestReward then
+    if not has_quest_reward_choice() and numRewards == 0 and _G.GetQuestReward then
         _G.GetQuestReward(nil)
-    elseif numChoices > 1 then
-        local _, hintIdx = resolve_auto_quest_reward(numChoices, nil)
-        if hintIdx then
-            highlight_reward_choice(hintIdx)
-        end
     end
 end
 
@@ -994,6 +1109,77 @@ function quests.Disable()
             sfui.events.UnregisterEvent(entry[1], entry[2])
         end
     end
+end
+
+-- Always-on Quest Reward Advisor + DialogueUI support (active even when multibox sync is off)
+local _dialogueUIHooked = false
+
+local function is_any_quest_dialog_open()
+    if _G.DUIQuestFrame and _G.DUIQuestFrame.IsShown and _G.DUIQuestFrame:IsShown() then
+        return true
+    end
+    if _G.QuestFrame and _G.QuestFrame.IsShown and _G.QuestFrame:IsShown() then
+        return true
+    end
+    return false
+end
+
+local function refresh_open_quest_advisor()
+    if not is_any_quest_dialog_open() then return end
+    decorate_quest_reward_choices()
+end
+
+local function hook_dialogue_ui()
+    if _dialogueUIHooked then return end
+    local duiFrame = _G.DUIQuestFrame
+    if not (duiFrame and _G.hooksecurefunc) then return end
+    _dialogueUIHooked = true
+
+    if duiFrame.HandleQuestDetail then
+        _G.hooksecurefunc(duiFrame, "HandleQuestDetail", decorate_quest_reward_choices)
+    end
+    if duiFrame.HandleQuestComplete then
+        _G.hooksecurefunc(duiFrame, "HandleQuestComplete", decorate_quest_reward_choices)
+    end
+    if duiFrame.ReleaseAllObjects then
+        _G.hooksecurefunc(duiFrame, "ReleaseAllObjects", hide_all_advisor_badges)
+    end
+    if duiFrame.HookScript then
+        duiFrame:HookScript("OnHide", hide_all_advisor_badges)
+    end
+end
+
+hook_dialogue_ui()
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", hook_dialogue_ui)
+    sfui.events.RegisterEvent("ADDON_LOADED", function(_, loadedAddon)
+        if loadedAddon == "DialogueUI" then
+            hook_dialogue_ui()
+        end
+    end)
+    sfui.events.RegisterEvent("QUEST_DETAIL", function()
+        if not isActive then decorate_quest_reward_choices() end
+    end)
+    sfui.events.RegisterEvent("QUEST_COMPLETE", function()
+        if not isActive then decorate_quest_reward_choices() end
+    end)
+    sfui.events.RegisterEvent("QUEST_ITEM_UPDATE", function()
+        if sfui.common and sfui.common.debounce then
+            sfui.common.debounce("quest_advisor_item_update", 0.06, refresh_open_quest_advisor)
+        else
+            refresh_open_quest_advisor()
+        end
+    end)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function()
+        if not is_any_quest_dialog_open() then return end
+        if sfui.common and sfui.common.debounce then
+            sfui.common.debounce("quest_advisor_item_info", 0.08, refresh_open_quest_advisor)
+        else
+            refresh_open_quest_advisor()
+        end
+    end)
+    sfui.events.RegisterEvent("QUEST_FINISHED", hide_all_advisor_badges)
 end
 
 if multibox and multibox.RegisterPartySubmodule then

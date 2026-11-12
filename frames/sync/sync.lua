@@ -2178,6 +2178,17 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
         if sync.ApplySharedSettings(data, sender, false) then
             peer.lastSync = now
         end
+    elseif msgType == "DATA_LAYOUT_PROFILE" and type(data) == "table" and type(data.payload) == "string" then
+        if sfui.movers and sfui.movers.ImportProfileString then
+            local ok, importedName = sfui.movers.ImportProfileString(data.payload, data.name, true, true)
+            if ok then
+                peer.lastSync = now
+                if sfui.common and sfui.common.print then
+                    sfui.common.print(string_format("sync: applied layout profile '%s' from |cff00ffff%s|r.",
+                        tostring(importedName or data.name or "default"):lower(), string_lower(tostring(sender))))
+                end
+            end
+        end
     elseif msgType == "CMD_RELOAD" then
         sync_machine_store()
         if _G.InCombatLockdown and _G.InCombatLockdown() then
@@ -2621,14 +2632,16 @@ local function build_party_guid_and_name_maps()
     if not (IsInGroup and IsInGroup()) then
         return cachedPartyGuidMap, cachedPartyNameMap
     end
-    local UnitIsUnit = _G.UnitIsUnit
+    local safeUnitIsUnit = sfui.safety and sfui.safety.SafeUnitIsUnit
     local isRaid = IsInRaid and IsInRaid()
     local count = (GetNumGroupMembers and GetNumGroupMembers()) or 0
     local prefix = isRaid and "raid" or "party"
     local maxIdx = isRaid and count or math.min(4, count)
     for i = 1, maxIdx do
         local u = prefix .. i
-        if UnitExists and UnitExists(u) and not (UnitIsUnit and UnitIsUnit(u, "player")) then
+        local isSelf = (safeUnitIsUnit and safeUnitIsUnit(u, "player"))
+            or (not (_G.C_Secrets and _G.C_Secrets.ShouldUnitComparisonBeSecret and _G.C_Secrets.ShouldUnitComparisonBeSecret(u, "player")) and _G.UnitIsUnit and _G.UnitIsUnit(u, "player"))
+        if UnitExists and UnitExists(u) and not isSelf then
             local g = UnitGUID and UnitGUID(u)
             local full = sync.FullName(u)
             local n = UnitName and UnitName(u)
@@ -3314,6 +3327,63 @@ function sync:OnSettingsChanged(key, value)
 end
 
 sync.GetDebugInfo = sfui.sync_debug_info
+
+function sync.GetPeerWishlistOwners(itemID)
+    local id = tonumber(itemID)
+    if not id or not SfuiDB or not SfuiDB.dungeonjournal or type(SfuiDB.dungeonjournal.charWishlist) ~= "table" then
+        return nil
+    end
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    local peersTbl = SfuiDB.sync and SfuiDB.sync.peers
+    local out = nil
+    local seen = {}
+    for guid, charMap in pairs(SfuiDB.dungeonjournal.charWishlist) do
+        if guid ~= myGUID and type(charMap) == "table" and charMap[id] == true then
+            local alt = SfuiDB.alts and SfuiDB.alts[guid]
+            -- Only return peers NOT already surfaced by local SfuiDB.alts (or surface peer entries)
+            if not alt and type(peersTbl) == "table" then
+                for peerKey, p in pairs(peersTbl) do
+                    if type(p) == "table" and p.guid == guid then
+                        local raw = p.name or peerKey
+                        local clean = (tostring(raw):match("^([^%-]+)") or tostring(raw)):lower()
+                        if clean ~= "" and not seen[clean] then
+                            seen[clean] = true
+                            local colored = (common and common.class_color_name and p.class and common.class_color_name(clean, p.class)) or clean
+                            out = out or {}
+                            out[#out + 1] = colored
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    return out
+end
+
+function sync.IsItemWishlistedByChar(itemID, targetGUID, targetName)
+    local id = tonumber(itemID)
+    if not id or not SfuiDB or not SfuiDB.dungeonjournal or type(SfuiDB.dungeonjournal.charWishlist) ~= "table" then
+        return false
+    end
+    local cw = SfuiDB.dungeonjournal.charWishlist
+    if targetGUID and cw[targetGUID] and cw[targetGUID][id] == true then
+        return true
+    end
+    if targetName and targetName ~= "" then
+        local shortTarget = (tostring(targetName):match("^([^%-]+)") or tostring(targetName)):lower()
+        for guid, charMap in pairs(cw) do
+            if type(charMap) == "table" and charMap[id] == true then
+                local alt = SfuiDB.alts and SfuiDB.alts[guid]
+                local aName = alt and alt.name and (tostring(alt.name):match("^([^%-]+)") or tostring(alt.name)):lower()
+                if aName and aName == shortTarget then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
 
 if sfui.RegisterModule then
     sfui.RegisterModule("sync", sync)

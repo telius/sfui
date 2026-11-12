@@ -627,6 +627,7 @@ local function on_autofollow_end()
 
     if (_G.GossipFrame and _G.GossipFrame:IsShown())
         or (_G.QuestFrame and _G.QuestFrame:IsShown())
+        or (_G.DUIQuestFrame and _G.DUIQuestFrame:IsShown())
         or (_G.MerchantFrame and _G.MerchantFrame:IsShown())
         or (_G.TaxiFrame and _G.TaxiFrame:IsShown())
         or (_G.FlightMapFrame and _G.FlightMapFrame:IsShown())

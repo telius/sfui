@@ -770,6 +770,7 @@ function sfui.gear.SelectClassicRole(specID, rKey)
     end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_GEAR_ROLE_CHANGED", specID, rKey)
+        sfui.events.SendMessage("SFUI_ROLE_CONTEXT_CHANGED", rKey, specID)
     end
     sfui.gear.UpdateStatUI()
     sfui.gear.Update()

@@ -15,6 +15,13 @@ local InCombatLockdown = _G.InCombatLockdown
 
 local QUESTION_MARK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 P.QUESTION_MARK_ICON = QUESTION_MARK_ICON
+local issecretvalue = _G.issecretvalue or (sfui.common and sfui.common.issecretvalue)
+
+local function IsValidTexture(tex)
+    if issecretvalue and issecretvalue(tex) then return true end
+    return tex ~= nil and tex ~= 0 and tex ~= ""
+end
+P.IsValidTexture = IsValidTexture
 
 local providersById = {}
 
@@ -42,7 +49,8 @@ end
 P.DefaultCountText = DefaultCountText
 
 function P.DefaultResolveVisual(rec)
-    local tex = (rec and rec.icon) or QUESTION_MARK_ICON
+    local icon = rec and rec.icon
+    local tex = (IsValidTexture(icon) and icon) or QUESTION_MARK_ICON
     return tex, DefaultCountText(rec)
 end
 

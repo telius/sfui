@@ -17,16 +17,23 @@ local function UpdateCurrencyAnchors()
     local isChonky = sfui.common.is_addon_loaded("ChonkyCharacterSheet")
     local anchorParent = isChonky and (_G.CharacterFrameBgbg or _G.CharacterFrameBg or CharacterFrame) or CharacterFrame
     local offsetY = isChonky and -54 or -110
+    local customPos = SfuiDB and SfuiDB.currencyPos
 
     if cFrame then
         cFrame:ClearAllPoints()
-        cFrame:SetPoint("TOPLEFT", anchorParent, "BOTTOMLEFT", 0, offsetY)
+        if customPos and customPos.point and customPos.x and customPos.y then
+            cFrame:SetPoint(customPos.point, _G.UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
+        else
+            cFrame:SetPoint("TOPLEFT", anchorParent, "BOTTOMLEFT", 0, offsetY)
+        end
     end
 
     if iFrame then
         iFrame:ClearAllPoints()
         if cFrame and cFrame:IsShown() then
             iFrame:SetPoint("TOPLEFT", cFrame, "BOTTOMLEFT", 0, -2)
+        elseif customPos and customPos.point and customPos.x and customPos.y then
+            iFrame:SetPoint(customPos.point, _G.UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
         else
             iFrame:SetPoint("TOPLEFT", anchorParent, "BOTTOMLEFT", 0, offsetY)
         end
@@ -109,6 +116,46 @@ do
                 sfui.update_currency_display()
             end
         end)
+
+        if sfui.movers and sfui.movers.Register then
+            sfui.movers.Register(widget_frame, {
+                key = "currency",
+                label = "currency bar",
+                preferredPoint = "TOPLEFT",
+                customSize = function()
+                    local w = (widget_frame and widget_frame:GetWidth() and widget_frame:GetWidth() > 0 and widget_frame:GetWidth()) or c.width or 320
+                    local h = math.max(22, (widget_frame and widget_frame:GetHeight()) or c.height or 24)
+                    return w, h
+                end,
+                getPoint = function()
+                    local cp = SfuiDB and SfuiDB.currencyPos
+                    if cp and cp.point and cp.x and cp.y then
+                        return cp.point, _G.UIParent, cp.relPoint or cp.point, cp.x, cp.y
+                    end
+                    if widget_frame and widget_frame:GetLeft() and widget_frame:GetBottom() and sfui.movers.CalculateRelativeCoordinates then
+                        local pt, rPt, x, y = sfui.movers.CalculateRelativeCoordinates(widget_frame:GetLeft(), widget_frame:GetBottom(), widget_frame:GetWidth(), widget_frame:GetHeight(), "TOPLEFT")
+                        return pt, _G.UIParent, rPt, x, y
+                    end
+                    return "TOPLEFT", _G.UIParent, "TOPLEFT", 16, -540
+                end,
+                setPoint = function(point, _, relPoint, x, y)
+                    local pt = point or "TOPLEFT"
+                    local rPt = relPoint or pt
+                    local sx = math.floor((x or 16) + 0.5)
+                    local sy = math.floor((y or -540) + 0.5)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.currencyPos = { point = pt, relPoint = rPt, x = sx, y = sy }
+                    UpdateCurrencyAnchors()
+                end,
+                resetPosition = function()
+                    if SfuiDB then SfuiDB.currencyPos = nil end
+                    UpdateCurrencyAnchors()
+                end,
+                isEnabled = function()
+                    return SfuiDB == nil or SfuiDB.enableCurrencyFrame ~= false
+                end,
+            })
+        end
     end
 end
 

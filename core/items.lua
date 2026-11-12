@@ -135,7 +135,35 @@ function sfui.items.populate_slots_for_invtype(targetTable, equipLoc, canDualWie
 end
 sfui.common.populate_slots_for_invtype = sfui.items.populate_slots_for_invtype
 
+local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or _G.issecretvalue
+
+local function normalize_item_arg(item)
+    if not item then return nil end
+    if issecretvalue and issecretvalue(item) then return nil end
+    local t = type(item)
+    if t == "table" then
+        item = item.link or item.itemLink or item.hyperlink or item.itemID or item.id or item[1]
+        if not item or (issecretvalue and issecretvalue(item)) then
+            return nil
+        end
+        t = type(item)
+    end
+    if t == "number" then
+        if item > 0 and item == item then
+            return item
+        end
+        return nil
+    elseif t == "string" then
+        if item ~= "" then
+            return item
+        end
+        return nil
+    end
+    return nil
+end
+
 function sfui.items.get_item_id(item)
+    item = normalize_item_arg(item)
     if not item then return nil end
     if type(item) == "number" then return item end
     if type(item) == "string" then
@@ -143,7 +171,7 @@ function sfui.items.get_item_id(item)
         if id then return id end
         if item:find("keystone:", 1, true) then return 180653 end
         local numeric = tonumber(item)
-        if numeric then return numeric end
+        if numeric and numeric > 0 then return numeric end
         if C_Item_GetItemInfoInstant then
             local instantID = C_Item_GetItemInfoInstant(item)
             if instantID then return instantID end
@@ -156,6 +184,7 @@ sfui.common.get_item_id = sfui.items.get_item_id
 sfui.common.get_item_id_from_link = sfui.items.get_item_id
 
 function sfui.items.get_item_level(itemLinkOrID)
+    itemLinkOrID = normalize_item_arg(itemLinkOrID)
     if not itemLinkOrID then return 0 end
     local ilvl = C_Item_GetDetailedItemLevelInfo and C_Item_GetDetailedItemLevelInfo(itemLinkOrID)
     if not ilvl or ilvl == 0 then
@@ -168,6 +197,7 @@ end
 sfui.common.get_item_level = sfui.items.get_item_level
 
 function sfui.items.get_item_instant_info(item)
+    item = normalize_item_arg(item)
     if not item then return end
     if C_Item_GetItemInfoInstant then
         return C_Item_GetItemInfoInstant(item)
@@ -176,6 +206,7 @@ end
 sfui.common.get_item_instant_info = sfui.items.get_item_instant_info
 
 function sfui.items.get_item_info(item)
+    item = normalize_item_arg(item)
     if not item then return end
     if C_Item_GetItemInfo then
         return C_Item_GetItemInfo(item)
@@ -184,6 +215,7 @@ end
 sfui.common.get_item_info = sfui.items.get_item_info
 
 function sfui.items.get_item_equip_loc(item)
+    item = normalize_item_arg(item)
     if not item then return end
     if C_Item_GetItemInfoInstant then
         local equipLoc = select(4, C_Item_GetItemInfoInstant(item))

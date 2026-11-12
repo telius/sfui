@@ -266,6 +266,66 @@ function sfui.dungeonjournal.GetWishlist()
     return db.wishlist or {}
 end
 
+function sfui.dungeonjournal.AddWishlistItem(itemID, silent)
+    local id = tonumber(itemID)
+    if not id then return false end
+    local db = DJ_DB()
+    db.wishlist = db.wishlist or {}
+    db.charWishlist = db.charWishlist or {}
+    db.charWishlistRev = db.charWishlistRev or {}
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    if myGUID then
+        db.charWishlist[myGUID] = db.charWishlist[myGUID] or {}
+        if db.charWishlist[myGUID][id] == true then
+            return false
+        end
+        db.charWishlist[myGUID][id] = true
+        db.charWishlistRev[myGUID] = (_G.time and _G.time()) or 1
+    elseif db.wishlist[id] == true then
+        return false
+    end
+    db.wishlist[id] = true
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_DJ_WISHLIST_UPDATED", id, true)
+    end
+    if not silent and sfui.print then
+        local _, link = common.get_item_info(id)
+        sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist added:|r " .. (link or ("item #" .. id)))
+    end
+    return true
+end
+
+function sfui.dungeonjournal.FulfillWishlistItem(itemID)
+    local id = tonumber(itemID)
+    if not id then return false end
+    local db = DJ_DB()
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    if not myGUID or type(db.charWishlist) ~= "table" or not db.charWishlist[myGUID] or not db.charWishlist[myGUID][id] then
+        return false
+    end
+    db.charWishlist[myGUID][id] = nil
+    db.charWishlistRev = db.charWishlistRev or {}
+    db.charWishlistRev[myGUID] = (_G.time and _G.time()) or 1
+    local stillWanted = false
+    for _, charMap in pairs(db.charWishlist) do
+        if type(charMap) == "table" and charMap[id] == true then
+            stillWanted = true
+            break
+        end
+    end
+    if db.wishlist then
+        db.wishlist[id] = stillWanted and true or nil
+    end
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_DJ_WISHLIST_UPDATED", id, false)
+    end
+    if sfui.print then
+        local _, link = common.get_item_info(id)
+        sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cff33ff88wishlist fulfilled:|r " .. (link or ("item #" .. id)))
+    end
+    return true
+end
+
 -- ─── Data access ─────────────────────────────────────────────────────────────
 local function GetData()
     return sfui.dj_camelot
@@ -383,6 +443,10 @@ local function HandleItemClick(btn, mouseBtn, itemID)
             if isChatLink then
                 InsertItemLinkIntoChat(itemLink)
             elseif isDressUp then
+                local targetID = (btn and btn.itemID) or itemID or itemLink
+                if sfui.nav and sfui.nav.OpenRecipeOrFishing and sfui.nav.OpenRecipeOrFishing(itemLink or targetID) then
+                    return
+                end
                 if not (_G.HandleModifiedItemClick and _G.HandleModifiedItemClick(itemLink)) then
                     if _G.DressUpItemLink then
                         _G.DressUpItemLink(itemLink)

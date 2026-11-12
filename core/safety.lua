@@ -333,17 +333,30 @@ function sfui.safety.SafeAddMoneyLine(tooltip, label, amount)
 end
 sfui.common.SafeAddMoneyLine = sfui.safety.SafeAddMoneyLine
 
--- Safely compare units (UnitIsUnit crashes on secret values if execution is tainted)
+-- Safely compare units (UnitIsUnit returns secret booleans on restricted maps / compound tokens)
 function sfui.safety.SafeUnitIsUnit(unit1, unit2)
     if not unit1 or not unit2 then return false end
     if issecretvalue(unit1) or issecretvalue(unit2) then
-        if type(unit1) == "string" and type(unit2) == "string" then
-            return unit1 == unit2
-        end
         return false
     end
+    if unit1 == unit2 then
+        return true
+    end
+    local cSecrets = _G.C_Secrets
+    if cSecrets then
+        if cSecrets.CanCompareUnitTokens and not cSecrets.CanCompareUnitTokens(unit1, unit2) then
+            return false
+        end
+        if cSecrets.ShouldUnitComparisonBeSecret and cSecrets.ShouldUnitComparisonBeSecret(unit1, unit2) then
+            return false
+        end
+    end
     if UnitIsUnit then
-        return UnitIsUnit(unit1, unit2) or false
+        local res = UnitIsUnit(unit1, unit2)
+        if issecretvalue(res) then
+            return false
+        end
+        return res or false
     end
     return false
 end
@@ -364,66 +377,249 @@ end
 sfui.common.copy = sfui.safety.copy
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Unified Out-of-Combat Execution Queue
+-- Priority-Budgeted Out-of-Combat Execution Queue (P0 / P1 / P2)
 -- ─────────────────────────────────────────────────────────────────────────────
 sfui.combat = sfui.combat or {}
 
-local outOfCombatQueue = {}
-local outOfCombatOrder = {}
+local OOC_P0 = 0 -- Immediate synchronous on PLAYER_REGEN_ENABLED (secure frames, unitwatches, bindings, rings)
+local OOC_P1 = 1 -- Same-frame up to 4.0ms budget (HUD visibility & layout)
+local OOC_P2 = 2 -- Background frame-sliced <= 2.5ms/frame (alt scans, sync deltas, scoring, triage)
+
+sfui.safety.OOC_P0 = OOC_P0
+sfui.safety.OOC_P1 = OOC_P1
+sfui.safety.OOC_P2 = OOC_P2
+sfui.combat.P0 = OOC_P0
+sfui.combat.P1 = OOC_P1
+sfui.combat.P2 = OOC_P2
+
+local oocItemsByKey = {}
+local oocOrderByTier = {
+    [0] = {},
+    [1] = {},
+    [2] = {},
+}
+local oocReadIdx = {
+    [0] = 1,
+    [1] = 1,
+    [2] = 1,
+}
+local _oocAnonSeq = 0
+local _oocSliceScheduled = false
 local _inCombatLockdown = _G.InCombatLockdown
+local _unitAffectingCombat = _G.UnitAffectingCombat
+local _debugprofilestop = _G.debugprofilestop
+local _cTimer = _G.C_Timer
 
 local function is_in_combat()
     if _inCombatLockdown and _inCombatLockdown() then return true end
     if sfui.common and sfui.common.is_in_combat and sfui.common.is_in_combat() then return true end
+    if _unitAffectingCombat and _unitAffectingCombat("player") then return true end
     return false
 end
 
-local function drain_combat_queue()
-    if is_in_combat() then return end
-    if #outOfCombatOrder == 0 then return end
-
-    local keys = outOfCombatOrder
-    outOfCombatOrder = {}
-
-    for i = 1, #keys do
-        local key = keys[i]
-        local item = outOfCombatQueue[key]
-        if item then
-            outOfCombatQueue[key] = nil
-            if type(item.fn) == "function" then
-                if item.args and #item.args > 0 then
-                    pcall(item.fn, unpack(item.args))
-                else
-                    pcall(item.fn)
-                end
-            end
+local function execute_ooc_item(item, contextLabel)
+    if not item or type(item.fn) ~= "function" then return end
+    local argc = item.argc or 0
+    if sfui.events and sfui.events.SafeCall then
+        if argc > 0 then
+            sfui.events.SafeCall(item.fn, "ooc", "PLAYER_REGEN_ENABLED", contextLabel, unpack(item.args, 1, argc))
+        else
+            sfui.events.SafeCall(item.fn, "ooc", "PLAYER_REGEN_ENABLED", contextLabel)
+        end
+    else
+        if argc > 0 then
+            pcall(item.fn, unpack(item.args, 1, argc))
+        else
+            pcall(item.fn)
         end
     end
 end
 
+local function compact_tier_if_empty(tier)
+    local list = oocOrderByTier[tier]
+    if oocReadIdx[tier] > #list then
+        for i = #list, 1, -1 do list[i] = nil end
+        oocReadIdx[tier] = 1
+        return true
+    end
+    return false
+end
+
+local function drain_tier_unbounded(tier, labelPrefix)
+    local list = oocOrderByTier[tier]
+    while oocReadIdx[tier] <= #list do
+        if is_in_combat() then return false end
+        local idx = oocReadIdx[tier]
+        local key = list[idx]
+        list[idx] = nil
+        oocReadIdx[tier] = idx + 1
+        local item = key and oocItemsByKey[key]
+        if item and item.tier == tier then
+            oocItemsByKey[key] = nil
+            execute_ooc_item(item, labelPrefix .. tostring(key))
+        end
+    end
+    compact_tier_if_empty(tier)
+    return true
+end
+
+local function drain_tier_budgeted(tier, budgetMs, labelPrefix)
+    local list = oocOrderByTier[tier]
+    local startMs = _debugprofilestop and _debugprofilestop() or nil
+    local ranAny = false
+    while oocReadIdx[tier] <= #list do
+        if is_in_combat() then return false end
+        if ranAny and startMs and budgetMs and (_debugprofilestop() - startMs) >= budgetMs then
+            return false
+        end
+        local idx = oocReadIdx[tier]
+        local key = list[idx]
+        list[idx] = nil
+        oocReadIdx[tier] = idx + 1
+        local item = key and oocItemsByKey[key]
+        if item and item.tier == tier then
+            oocItemsByKey[key] = nil
+            ranAny = true
+            execute_ooc_item(item, labelPrefix .. tostring(key))
+        end
+    end
+    compact_tier_if_empty(tier)
+    return true
+end
+
+local function schedule_ooc_slice()
+    if _oocSliceScheduled then return end
+    if not (_cTimer and _cTimer.After) then
+        drain_tier_unbounded(OOC_P1, "ooc:p1:")
+        drain_tier_unbounded(OOC_P2, "ooc:p2:")
+        return
+    end
+    _oocSliceScheduled = true
+    _cTimer.After(0, function()
+        _oocSliceScheduled = false
+        if is_in_combat() then return end
+
+        -- Always clear any P0 that arrived between frames first
+        if not drain_tier_unbounded(OOC_P0, "ooc:p0:") then return end
+        if not drain_tier_budgeted(OOC_P1, 3.0, "ooc:p1:") then
+            schedule_ooc_slice()
+            return
+        end
+        if not drain_tier_budgeted(OOC_P2, 2.5, "ooc:p2:") then
+            schedule_ooc_slice()
+            return
+        end
+    end)
+end
+
+local function drain_combat_queue()
+    if is_in_combat() then return end
+
+    -- P0: 100% synchronous on PLAYER_REGEN_ENABLED (secure frames, bindings, unitwatches)
+    if not drain_tier_unbounded(OOC_P0, "ooc:p0:") then return end
+
+    -- P1: same-frame HUD/layout updates up to 4.0ms
+    local p1Done = drain_tier_budgeted(OOC_P1, 4.0, "ooc:p1:")
+
+    -- P2 (or remaining P1): sliced cleanly across subsequent frames
+    local p2Empty = compact_tier_if_empty(OOC_P2)
+    if not p1Done or not p2Empty then
+        schedule_ooc_slice()
+    end
+end
+
 --- Queue an action to run immediately if out of combat, or deferred to PLAYER_REGEN_ENABLED.
---- Deduplicates by key to prevent redundant execution of deferred updates.
---- @param key string Unique identifier for this action (e.g. "reanchor_bars", "scale_target")
---- @param func function Function to execute
---- @param ... any Optional arguments to pass to func
-function sfui.combat.after_combat(key, func, ...)
-    if type(func) ~= "function" then return end
-    key = key or tostring(func)
+--- Deduplicates by key and supports 3 priority tiers (`0` = P0 immediate, `1` = P1 HUD, `2` = P2 background).
+--- @param key string|nil Unique identifier for deduplication (nil generates an anonymous unique slot)
+--- @param priority number|function Priority tier (0, 1, 2) or callback if omitted
+--- @param func function|any Callback when priority is numeric
+function sfui.safety.DeferOutOfCombat(key, priority, func, ...)
+    local tier = OOC_P1
+    local cb = func
+    local argc
+    local args
+
+    if type(key) == "function" then
+        cb = key
+        key = nil
+        tier = OOC_P1
+        argc = select("#", priority, func, ...)
+        if argc > 0 then args = { priority, func, ... } end
+    elseif type(priority) == "function" then
+        cb = priority
+        tier = OOC_P0
+        argc = select("#", func, ...)
+        if argc > 0 then args = { func, ... } end
+    else
+        if priority == OOC_P0 or priority == OOC_P1 or priority == OOC_P2 then
+            tier = priority
+        end
+        argc = select("#", ...)
+        if argc > 0 then args = { ... } end
+    end
+
+    if type(cb) ~= "function" then return end
+    if sfui.events and sfui.events.RecordCaller then
+        sfui.events.RecordCaller(cb, nil, "ooc")
+    end
 
     if not is_in_combat() then
-        func(...)
+        local label = "ooc:immediate:" .. tostring(key or "anon")
+        if sfui.events and sfui.events.SafeCall then
+            if argc and argc > 0 then
+                sfui.events.SafeCall(cb, "ooc", "DeferOutOfCombat", label, unpack(args, 1, argc))
+            else
+                sfui.events.SafeCall(cb, "ooc", "DeferOutOfCombat", label)
+            end
+        else
+            if argc and argc > 0 then
+                cb(unpack(args, 1, argc))
+            else
+                cb()
+            end
+        end
         return
     end
 
-    if not outOfCombatQueue[key] then
-        outOfCombatOrder[#outOfCombatOrder + 1] = key
+    if key == nil then
+        _oocAnonSeq = _oocAnonSeq + 1
+        key = "_anon_" .. _oocAnonSeq
+    else
+        key = tostring(key)
     end
-    outOfCombatQueue[key] = {
-        fn = func,
-        args = { ... },
-    }
+
+    local existing = oocItemsByKey[key]
+    if existing then
+        -- Promote priority if re-queued at a higher priority (lower tier number)
+        if tier < existing.tier then
+            existing.tier = tier
+            local list = oocOrderByTier[tier]
+            list[#list + 1] = key
+        end
+        existing.fn = cb
+        existing.args = args
+        existing.argc = argc or 0
+    else
+        oocItemsByKey[key] = {
+            tier = tier,
+            fn   = cb,
+            args = args,
+            argc = argc or 0,
+        }
+        local list = oocOrderByTier[tier]
+        list[#list + 1] = key
+    end
 end
 
+function sfui.combat.after_combat(key, func, ...)
+    if type(key) == "function" then
+        return sfui.safety.DeferOutOfCombat(nil, OOC_P1, key, func, ...)
+    end
+    return sfui.safety.DeferOutOfCombat(key, OOC_P0, func, ...)
+end
+
+sfui.combat.DeferOutOfCombat = sfui.safety.DeferOutOfCombat
+sfui.common.DeferOutOfCombat = sfui.safety.DeferOutOfCombat
 sfui.combat.run_after_combat = sfui.combat.after_combat
 sfui.common.after_combat = sfui.combat.after_combat
 sfui.common.run_after_combat = sfui.combat.after_combat

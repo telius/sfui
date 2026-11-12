@@ -24,6 +24,59 @@ local RECRAFT_MODES = { false, true }
 
 local GetQLState = sfui.questlog.GetState
 
+sfui.recipes = sfui.recipes or {}
+
+if not sfui.recipes.GetPinnedReagentDeficits then
+    function sfui.recipes.GetPinnedReagentDeficits()
+        if not C_TradeSkillUI or not C_TradeSkillUI.GetRecipesTracked or not C_TradeSkillUI.GetRecipeSchematic then
+            return {}
+        end
+        local totals = {}
+        for _, isRecraft in ipairs(RECRAFT_MODES) do
+            local tracked = C_TradeSkillUI.GetRecipesTracked(isRecraft)
+            if tracked then
+                for _, recipeID in ipairs(tracked) do
+                    if type(recipeID) == "number" and recipeID > 0 then
+                        local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, isRecraft)
+                        if schematic and schematic.reagentSlotSchematics then
+                            for _, slot in ipairs(schematic.reagentSlotSchematics) do
+                                local req = tonumber(slot.quantityRequired) or 1
+                                local reagent = slot.reagents and slot.reagents[1]
+                                local itemID = reagent and tonumber(reagent.itemID)
+                                if itemID and itemID > 0 then
+                                    totals[itemID] = (totals[itemID] or 0) + req
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+        if myGUID and _G.SfuiDB then
+            _G.SfuiDB.altPinnedReagents = _G.SfuiDB.altPinnedReagents or {}
+            _G.SfuiDB.altPinnedReagents[myGUID] = next(totals) and totals or nil
+        end
+
+        local deficits = {}
+        for itemID, needed in pairs(totals) do
+            local have = (sfui.inventory and sfui.inventory.GetCount and sfui.inventory.GetCount(itemID))
+                or (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, true))
+                or (_G.GetItemCount and _G.GetItemCount(itemID, true))
+                or 0
+            if needed > have then
+                deficits[itemID] = {
+                    needed  = needed,
+                    have    = have,
+                    deficit = needed - have,
+                }
+            end
+        end
+        return deficits
+    end
+end
+
 local RecipesModule = {
     id       = "recipes",
     priority = 60,
@@ -75,14 +128,17 @@ function RecipesModule:BuildBlocks(container)
                                     local curCount = 0
 
                                     if itemID then
-                                        curCount = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID)) or (_G.GetItemCount and _G.GetItemCount(itemID)) or 0
+                                        curCount = (sfui.inventory and sfui.inventory.GetCount and sfui.inventory.GetCount(itemID))
+                                            or (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID))
+                                            or (_G.GetItemCount and _G.GetItemCount(itemID))
+                                            or 0
                                         if C_Item and C_Item.GetItemNameByID then
                                             rName = C_Item.GetItemNameByID(itemID)
                                         end
                                         if not rName and _G.GetItemInfo then
                                             rName = _G.GetItemInfo(itemID)
                                         end
-                                        rName = rName or ("Item #" .. tostring(itemID))
+                                        rName = rName or ("item #" .. tostring(itemID))
                                     elseif currencyID then
                                         local cInfo = sfui.common.get_currency_info(currencyID)
                                         if cInfo then
@@ -97,8 +153,15 @@ function RecipesModule:BuildBlocks(container)
                                         if not isDone then allReagentsMet = false end
 
                                         if isExpanded then
+                                            local altTag = ""
+                                            if not isDone and itemID and sfui.alts and sfui.alts.GetAccountItemSummary then
+                                                local altSum = sfui.alts.GetAccountItemSummary(itemID, true)
+                                                if altSum and altSum.totalAlts and altSum.totalAlts > 0 then
+                                                    altTag = string_format(" · +%d alts", altSum.totalAlts)
+                                                end
+                                            end
                                             table_insert(lines, {
-                                                text      = string_format("%s (%d/%d)", rName, curCount, req),
+                                                text      = string_format("%s (%d/%d%s)", rName:lower(), curCount, req, altTag),
                                                 completed = isDone,
                                             })
                                         end
@@ -108,10 +171,10 @@ function RecipesModule:BuildBlocks(container)
                         end
 
                         local isComplete = (hasAnyReagent and allReagentsMet)
-                        local recPrefix = isRecraft and "[Recraft] " or "[Recipe] "
+                        local recPrefix = isComplete and "[ready] " or (isRecraft and "[recraft] " or "[recipe] ")
 
                         table_insert(blocks, {
-                            title      = recPrefix .. schematic.name,
+                            title      = recPrefix .. schematic.name:lower(),
                             titleColor = isComplete and { 0.2, 1.0, 0.2, 1 } or { 1.0, 0.70, 0.40, 1 },
                             isRecipe   = true,
                             recipeID   = recipeID,

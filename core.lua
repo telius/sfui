@@ -652,6 +652,14 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
                 func = function() sfui.toggle_options_panel() end,
             },
             {
+                text = "|cffff66fffind (/sf find)|r",
+                func = function()
+                    if sfui.find and sfui.find.Toggle then
+                        sfui.find.Toggle()
+                    end
+                end,
+            },
+            {
                 text = "|cff00ffffedit mode (movers)|r",
                 func = function()
                     if sfui.movers and sfui.movers.Toggle then

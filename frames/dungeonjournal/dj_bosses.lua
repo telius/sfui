@@ -759,6 +759,11 @@ local function RenderLoot(boss, dungeon)
                 if bossHeaderFrame.mapBtn then
                     bossHeaderFrame.mapBtn:Hide()
                 end
+                if bossHeaderFrame.wishUpgBtn then
+                    bossHeaderFrame.wishUpgBtn:ClearAllPoints()
+                    bossHeaderFrame.wishUpgBtn:SetPoint("TOPRIGHT", bossHeaderFrame, "TOPRIGHT", 0, -2)
+                    bossHeaderFrame.wishUpgBtn:Show()
+                end
             else
                 local hasWish = GetBossWishlistInfo(boss)
                 local wishTag = hasWish and "  |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:16:16:0:0|t" or ""
@@ -804,8 +809,18 @@ local function RenderLoot(boss, dungeon)
                         bossHeaderFrame.mapBtn.bossName = boss.name
                         bossHeaderFrame.mapBtn.dungeon = dungeon
                         bossHeaderFrame.mapBtn:Show()
+                        if bossHeaderFrame.wishUpgBtn then
+                            bossHeaderFrame.wishUpgBtn:ClearAllPoints()
+                            bossHeaderFrame.wishUpgBtn:SetPoint("RIGHT", bossHeaderFrame.mapBtn, "LEFT", -6, 0)
+                            bossHeaderFrame.wishUpgBtn:Show()
+                        end
                     else
                         bossHeaderFrame.mapBtn:Hide()
+                        if bossHeaderFrame.wishUpgBtn then
+                            bossHeaderFrame.wishUpgBtn:ClearAllPoints()
+                            bossHeaderFrame.wishUpgBtn:SetPoint("TOPRIGHT", bossHeaderFrame, "TOPRIGHT", 0, -2)
+                            bossHeaderFrame.wishUpgBtn:Show()
+                        end
                     end
                 end
             end
@@ -822,6 +837,9 @@ local function RenderLoot(boss, dungeon)
             end
             if bossHeaderFrame.mapBtn then
                 bossHeaderFrame.mapBtn:Hide()
+            end
+            if bossHeaderFrame.wishUpgBtn then
+                bossHeaderFrame.wishUpgBtn:Hide()
             end
         end
     end
@@ -985,6 +1003,16 @@ local function RenderLoot(boss, dungeon)
                 end
                 typeLabel = typeLabel .. badge
             end
+            local upgEval = sfui.gear and sfui.gear.EvaluateItemUpgrade and sfui.gear.EvaluateItemUpgrade(link or itemID, nil, true)
+            if upgEval and upgEval.isUpgrade then
+                local pctTag = (upgEval.pctGain >= 99.5) and "+upgrade" or string.format("+%.0f%%", upgEval.pctGain)
+                local clr = upgEval.isOffSpec and "|cff66ccff" or "|cff33ff88"
+                local sep = (typeLabel ~= "") and "  ·  " or ""
+                typeLabel = typeLabel .. sep .. clr .. "[" .. pctTag .. "]|r"
+                if not isWish then
+                    btn:SetBackdropBorderColor(0.20, 0.75, 0.45, 0.65)
+                end
+            end
             if isWish and sfui.dungeonjournal and sfui.dungeonjournal.GetWishlistCharacters then
                 local wishChars = sfui.dungeonjournal.GetWishlistCharacters(itemID)
                 if wishChars and #wishChars > 0 then
@@ -1034,11 +1062,11 @@ local function RenderLoot(boss, dungeon)
                     local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or
                         itemID
                     local isPinned = sfui.recipes.IsRecipePinned and sfui.recipes.IsRecipePinned(sID)
+                    GameTooltip:AddLine("|cff80c0ffctrl-click: open recipe catalogue|r", 0.5, 0.8, 1)
                     GameTooltip:AddLine(
-                        string.format("|cff00ff88ctrl-click: %s objective tracker|r",
+                        string.format("|cff00ff88right-click: %s objective tracker|r",
                             isPinned and "unpin from" or "track in"),
                         0.2, 1, 0.4)
-                    GameTooltip:AddLine("|cff888888alt-click: open recipe catalogue|r", 0.7, 0.7, 0.7)
                 else
                     GameTooltip:AddLine(" ")
                     GameTooltip:AddLine("|cff888888<shift-click to link · ctrl-click to view>|r", 0.6, 0.6, 0.6)
@@ -1051,15 +1079,20 @@ local function RenderLoot(boss, dungeon)
 
             btn:SetScript("OnClick", function(self, mouseBtn)
                 local isRecipe = sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
-                if isRecipe and _G.IsControlKeyDown and _G.IsControlKeyDown() then
+                if isRecipe and mouseBtn == "RightButton" then
                     local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or
                         itemID
                     if sfui.recipes.TogglePinRecipe then
                         sfui.recipes.TogglePinRecipe(sID)
+                        if GameTooltip:IsOwned(self) and self:GetScript("OnEnter") then
+                            self:GetScript("OnEnter")(self)
+                        end
                         return
                     end
                 end
-                if isRecipe and _G.IsAltKeyDown and _G.IsAltKeyDown() then
+                if isRecipe and mouseBtn == "LeftButton" and _G.IsControlKeyDown and _G.IsControlKeyDown()
+                    and not (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
+                    and not (_G.IsAltKeyDown and _G.IsAltKeyDown()) then
                     local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or
                         itemID
                     if sfui.recipes.OpenBrowserToRecipe then
@@ -1302,7 +1335,7 @@ local function OnFrameCreated(arg1, arg2)
     local bossTitle = bossHeaderFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     bossHeaderFrame.name = bossTitle
     bossTitle:SetPoint("TOPLEFT", portraitFrame, "TOPRIGHT", 10, -2)
-    bossTitle:SetPoint("TOPRIGHT", bossHeaderFrame, "TOPRIGHT", -130, -2)
+    bossTitle:SetPoint("TOPRIGHT", bossHeaderFrame, "TOPRIGHT", -225, -2)
     bossTitle:SetJustifyH("LEFT")
     bossTitle:SetWordWrap(false)
 
@@ -1347,6 +1380,68 @@ local function OnFrameCreated(arg1, arg2)
         end
     end)
     mapBtn:Hide()
+
+    local wishUpgBtn = CreateFrame("Button", nil, bossHeaderFrame, "BackdropTemplate")
+    bossHeaderFrame.wishUpgBtn = wishUpgBtn
+    wishUpgBtn:SetSize(116, 20)
+    wishUpgBtn:SetPoint("TOPRIGHT", bossHeaderFrame, "TOPRIGHT", 0, -2)
+    local wufs = wishUpgBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    wishUpgBtn.fs = wufs
+    wufs:SetPoint("CENTER")
+    wufs:SetText("wishlist upgrades")
+    if sfui.theme and sfui.theme.ApplyButtonStyle then
+        sfui.theme.ApplyButtonStyle(wishUpgBtn, false)
+        sfui.theme.RegisterButton(wishUpgBtn, false)
+    else
+        common.apply_flat_backdrop(wishUpgBtn, { 0.10, 0.10, 0.14, 0.9 }, { 0.24, 0.24, 0.28, 1 })
+    end
+    wishUpgBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("wishlist dungeon upgrades", 1, 0.82, 0)
+        GameTooltip:AddLine("adds all spec upgrades across this dungeon to your wishlist.", 0.85, 0.85, 0.85, true)
+        GameTooltip:Show()
+    end)
+    wishUpgBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    wishUpgBtn:SetScript("OnClick", function()
+        GameTooltip:Hide()
+        local dungeon = GetCurrentDungeon()
+        if not dungeon or not dungeon.bosses or not (sfui.gear and sfui.gear.EvaluateItemUpgrade) then return end
+        local added = 0
+        local uncached = 0
+        local seen = {}
+        for _, b in ipairs(dungeon.bosses) do
+            for _, it in ipairs(b.items or {}) do
+                local id = tonumber(type(it) == "table" and (it.id or it[1]) or it)
+                if id and not seen[id] then
+                    seen[id] = true
+                    local nm, link = common.get_item_info(id)
+                    if not nm then
+                        uncached = uncached + 1
+                        if common.request_item_load then common.request_item_load(id) end
+                    else
+                        local eval = sfui.gear.EvaluateItemUpgrade(link or id, nil, true)
+                        if eval and eval.isUpgrade and not eval.isOffSpec then
+                            if sfui.dungeonjournal and sfui.dungeonjournal.AddWishlistItem and sfui.dungeonjournal.AddWishlistItem(id, true) then
+                                added = added + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        if sfui.print then
+            local dName = (dungeon.name and dungeon.name:lower()) or "dungeon"
+            if added > 0 then
+                sfui.print(string.format("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cff33ff88wishlisted %d upgrade%s in %s.|r", added, added == 1 and "" or "s", dName))
+            elseif uncached > 0 then
+                sfui.print(string.format("|cffaaaaaa%d item(s) still caching for %s; click again in a moment.|r", uncached, dName))
+            else
+                sfui.print(string.format("|cffaaaaaano new main-spec upgrades found in %s.|r", dName))
+            end
+        end
+        RefreshBossView()
+    end)
+    wishUpgBtn:Hide()
 
     -- Divider under boss header
     local div = detailContainer:CreateTexture(nil, "ARTWORK")

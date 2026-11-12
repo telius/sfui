@@ -120,8 +120,9 @@ SlashCmdList["SFCPU"] = function(msg)
     end
 end
 
--- Master SFUI Options & Command Router (/sfui)
+-- Master SFUI Options & Command Router (/sfui, /sf)
 SLASH_SFUI1 = "/sfui"
+SLASH_SFUI2 = "/sf"
 SlashCmdList["SFUI"] = function(msg)
     local raw = msg and _G.strtrim and _G.strtrim(msg) or (msg or "")
     local clean = raw:lower()
@@ -131,6 +132,26 @@ SlashCmdList["SFUI"] = function(msg)
     if cmd == "" or cmd == "options" or cmd == "opt" or cmd == "config" or cmd == "menu" then
         if sfui.toggle_options_panel then
             sfui.toggle_options_panel(arg ~= "" and arg or nil)
+        end
+    elseif cmd == "find" or cmd == "search" or cmd == "f" then
+        if sfui.find and sfui.find.Toggle then
+            sfui.find.Toggle(arg ~= "" and arg or nil)
+        end
+    elseif cmd == "profile" or cmd == "profiles" or cmd == "layout" then
+        if sfui.movers then
+            local sub, pName = (arg or ""):match("^(%S+)%s*(.*)$")
+            sub = sub or ""
+            if sub == "save" and pName ~= "" and sfui.movers.SaveProfile then
+                sfui.movers.SaveProfile(pName)
+            elseif (sub == "load" or sub == "use") and pName ~= "" and sfui.movers.LoadProfile then
+                sfui.movers.LoadProfile(pName)
+            elseif sub == "sync" and sfui.movers.BroadcastActiveLayout then
+                sfui.movers.BroadcastActiveLayout()
+            elseif sfui.movers.GetProfileNames and sfui.common and sfui.common.print then
+                local list = sfui.movers.GetProfileNames()
+                local active = (sfui.movers.GetActiveProfileName and sfui.movers.GetActiveProfileName()) or "default"
+                sfui.common.print("layout profiles (active: " .. active .. "): " .. (#list > 0 and table.concat(list, ", ") or "default") .. " | usage: /sf profile <save|load|sync> [name]")
+            end
         end
     elseif cmd == "reload" or cmd == "popup" or cmd == "reloadpopup" then
         if sfui.hide and sfui.hide.ShowEditModeReloadPopup then
@@ -281,9 +302,9 @@ SlashCmdList["SFUI"] = function(msg)
     elseif cmd == "help" or cmd == "?" then
         if sfui.common and sfui.common.print then
             if sfui.isRetail then
-                sfui.common.print("commands: /sfui [tab] | /sfui edit | /sfui theme [mode] | /sfui portals | /sfmem | /rl")
+                sfui.common.print("commands: /sf find [query] | /sf [tab] | /sf edit | /sf profile <save|load|sync> | /sf theme [mode] | /sf portals | /sfmem | /rl")
             else
-                sfui.common.print("commands: /sfui [tab] | /sfui edit | /sfui theme [mode] | /sfui recipes | /sfui portals | /sfui shards | /sfmem | /rl | /totembar")
+                sfui.common.print("commands: /sf find [query] | /sf [tab] | /sf edit | /sf profile <save|load|sync> | /sf theme [mode] | /sf recipes | /sf portals | /sf shards | /sfmem | /rl | /totembar")
             end
         end
     else
@@ -293,6 +314,15 @@ SlashCmdList["SFUI"] = function(msg)
         elseif sfui.common and sfui.common.print then
             sfui.common.print("unknown command: /sfui " .. tostring(cmd) .. ". type /sfui for options.")
         end
+    end
+end
+
+-- Dedicated Omnibox Search Command (/sffind [query])
+SLASH_SFFIND1 = "/sffind"
+SlashCmdList["SFFIND"] = function(msg)
+    local q = msg and _G.strtrim and _G.strtrim(msg) or (msg or "")
+    if sfui.find and sfui.find.Toggle then
+        sfui.find.Toggle(q ~= "" and q or nil)
     end
 end
 

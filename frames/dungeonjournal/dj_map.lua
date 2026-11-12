@@ -1538,9 +1538,14 @@ local function RenderRouteOnWorldMap()
                 if button == "RightButton" then
                     GameTooltip:Hide()
                     dj_map.ClearRouteOnWorldMap()
-                elseif wp.mapID and wp.mapID ~= currentMapID and WorldMapFrame.SetMapID then
+                elseif wp.mapID and wp.mapID ~= currentMapID then
                     GameTooltip:Hide()
-                    WorldMapFrame:SetMapID(wp.mapID)
+                    if InCombatLockdown and InCombatLockdown() then return end
+                    if C_Map and type(C_Map.OpenWorldMap) == "function" then
+                        C_Map.OpenWorldMap(wp.mapID)
+                    elseif WorldMapFrame.SetMapID then
+                        WorldMapFrame:SetMapID(wp.mapID)
+                    end
                 end
             end)
             wf:Show()
@@ -1600,16 +1605,19 @@ local function EnsureWorldMapOverlay()
     wmToggleBtn:Hide()
 
     local function ShowWorldMap()
+        if InCombatLockdown and InCombatLockdown() then return end
         wmShowWorld = true
         wmOverlayHolder:Hide()
         wmToggleBtn.label:SetText("dungeon map")
         local d = wmOverlayHolder.ctrl.dungeon
         local outMap = (d and d.entrance and d.entrance.mapID) or 1415
-        if WorldMapFrame and WorldMapFrame.SetMapID then
-            wmAdjustingMap = true
+        wmAdjustingMap = true
+        if C_Map and type(C_Map.OpenWorldMap) == "function" then
+            C_Map.OpenWorldMap(outMap)
+        elseif WorldMapFrame and WorldMapFrame.SetMapID then
             WorldMapFrame:SetMapID(outMap)
-            wmAdjustingMap = false
         end
+        wmAdjustingMap = false
     end
 
     local function ShowDungeonMap()
@@ -1693,23 +1701,24 @@ function dj_map.InitWorldMapOverlay()
         end)
     end
 
-    local ev = CreateFrame("Frame")
-    ev:RegisterEvent("PLAYER_ENTERING_WORLD")
-    ev:RegisterEvent("ZONE_CHANGED")
-    ev:RegisterEvent("ZONE_CHANGED_INDOORS")
-    ev:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-    ev:SetScript("OnEvent", function()
-        if WorldMapFrame and WorldMapFrame:IsShown() then
-            SyncWorldMapOverlay()
+    if sfui.events then
+        local function onWorldMapZoneSync()
+            if WorldMapFrame and WorldMapFrame:IsShown() then
+                SyncWorldMapOverlay()
+            end
         end
-    end)
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", onWorldMapZoneSync)
+        sfui.events.RegisterEvent("ZONE_CHANGED", onWorldMapZoneSync)
+        sfui.events.RegisterEvent("ZONE_CHANGED_INDOORS", onWorldMapZoneSync)
+        sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", onWorldMapZoneSync)
+    end
 end
 
-local initFrame = CreateFrame("Frame")
-initFrame:RegisterEvent("PLAYER_LOGIN")
-initFrame:SetScript("OnEvent", function()
-    dj_map.InitWorldMapOverlay()
-end)
+if sfui.events then
+    sfui.events.RegisterEvent("PLAYER_LOGIN", function()
+        dj_map.InitWorldMapOverlay()
+    end)
+end
 
 if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_DJ_WISHLIST_UPDATED", function()

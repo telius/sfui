@@ -323,11 +323,15 @@ local function update_position()
     local totalHealthBackdropH = hH + hPad * 2
 
     -- anchor directly to UIParent to prevent propagating secure taint to bar0.backdrop
-    local petX = hX + (totalHealthBackdropW / 2) + spacing
-    local petY = hY + totalHealthBackdropH
-
+    local customPos = SfuiDB and SfuiDB.petBarPos
     container:ClearAllPoints()
-    container:SetPoint("TOPLEFT", UIParent, "BOTTOM", petX, petY)
+    if customPos and customPos.point and customPos.x and customPos.y then
+        container:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
+    else
+        local petX = hX + (totalHealthBackdropW / 2) + spacing
+        local petY = hY + totalHealthBackdropH
+        container:SetPoint("TOPLEFT", UIParent, "BOTTOM", petX, petY)
+    end
 end
 
 local function set_bar_texture(texturePath)
@@ -633,6 +637,62 @@ local function init_pet_frame()
     update_position()
     update_all()
     update_visibility()
+
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(container, {
+            key = "pet_unit",
+            label = "pet frame",
+            preferredPoint = "BOTTOM",
+            getPoint = function()
+                local cp = SfuiDB and SfuiDB.petBarPos
+                if cp and cp.point and cp.x and cp.y then
+                    return cp.point, UIParent, cp.relPoint or cp.point, cp.x, cp.y
+                end
+                if container and container:GetLeft() and container:GetBottom() and sfui.movers.CalculateRelativeCoordinates then
+                    local pt, rPt, x, y = sfui.movers.CalculateRelativeCoordinates(container:GetLeft(), container:GetBottom(), container:GetWidth(), container:GetHeight(), "BOTTOM")
+                    return pt, UIParent, rPt, x, y
+                end
+                return "BOTTOM", UIParent, "BOTTOM", 170, 160
+            end,
+            setPoint = function(point, _, relPoint, x, y)
+                local pt = point or "BOTTOM"
+                local rPt = relPoint or pt
+                local sx = math_floor((x or 170) + 0.5)
+                local sy = math_floor((y or 160) + 0.5)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.petBarPos = { point = pt, relPoint = rPt, x = sx, y = sy }
+                if sfui.safety and sfui.safety.DeferOutOfCombat then
+                    sfui.safety.DeferOutOfCombat("pet_unit_pos", sfui.safety.OOC_P0, update_position)
+                elseif not (InCombatLockdown and InCombatLockdown()) then
+                    update_position()
+                end
+            end,
+            resetPosition = function()
+                if SfuiDB then SfuiDB.petBarPos = nil end
+                if sfui.safety and sfui.safety.DeferOutOfCombat then
+                    sfui.safety.DeferOutOfCombat("pet_unit_pos", sfui.safety.OOC_P0, update_position)
+                elseif not (InCombatLockdown and InCombatLockdown()) then
+                    update_position()
+                end
+            end,
+            isEnabled = function()
+                return (SfuiDB == nil or SfuiDB.enablePetBar ~= false)
+            end,
+            onEnterEditMode = function()
+                if not container or (InCombatLockdown and InCombatLockdown()) then return end
+                if UnregisterStateDriver then
+                    UnregisterStateDriver(container, "visibility")
+                end
+                lastVisibilityDriver = nil
+                container:Show()
+                container:SetAlpha(1)
+            end,
+            onExitEditMode = function()
+                if not container or (InCombatLockdown and InCombatLockdown()) then return end
+                update_visibility()
+            end,
+        })
+    end
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

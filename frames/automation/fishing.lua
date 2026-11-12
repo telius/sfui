@@ -1218,8 +1218,19 @@ local function is_channeling_fishing()
     return _state.isFishing == true
 end
 
+local function has_saved_weapons()
+    local saved = _state.previousWeapons or (_G.SfuiDB and _G.SfuiDB.fishingSavedWeapons)
+    return saved ~= nil and saved.mainHand ~= nil and saved.mainHand ~= ""
+end
+
+sfui.fishing.IsPoleEquipped = is_fishing_pole_equipped
+sfui.fishing.HasSavedWeapons = has_saved_weapons
+sfui.fishing.GetSavedWeapons = function()
+    return _state.previousWeapons or (_G.SfuiDB and _G.SfuiDB.fishingSavedWeapons)
+end
+
 local function end_session(equipWeapons)
-    if not _state.sessionActive and not _state.isFishing and not is_fishing_pole_equipped() then return end
+    if not _state.sessionActive and not _state.isFishing and not is_fishing_pole_equipped() and not (equipWeapons and has_saved_weapons()) then return end
 
     _state.sessionActive = false
     _state.isFishing = false
@@ -1231,12 +1242,23 @@ local function end_session(equipWeapons)
         arm_fishing_keys()
     end
 
-    if equipWeapons and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
-        -- Restore previous weapons if saved
-        if _state.previousWeapons and _state.previousWeapons.mainHand then
-            local mh = _state.previousWeapons.mainHand
-            local oh = _state.previousWeapons.offHand
+    if equipWeapons then
+        if _G.InCombatLockdown and _G.InCombatLockdown() then
+            if sfui.common and sfui.common.queue_ooc then
+                sfui.common.queue_ooc(sfui.common.OOC_P0 or 0, "fishing_restore_weapons", function()
+                    end_session(true)
+                end)
+            end
+            return
+        end
+
+        -- Restore previous weapons if saved (in memory or persisted across /reload)
+        local saved = _state.previousWeapons or (_G.SfuiDB and _G.SfuiDB.fishingSavedWeapons)
+        if saved and saved.mainHand then
+            local mh = saved.mainHand
+            local oh = saved.offHand
             _state.previousWeapons = nil
+            if _G.SfuiDB then _G.SfuiDB.fishingSavedWeapons = nil end
             if mh and mh ~= "" then
                 EquipItemByName(mh, 16)
                 if oh and oh ~= "" then
@@ -1251,9 +1273,15 @@ local function end_session(equipWeapons)
 
         -- Trigger auto-gear to equip best combat weapons
         sfui.gear.Update(true)
+        if sfui.ring and sfui.ring.request_rebuild then
+            sfui.ring.request_rebuild("utility")
+        end
     end
 end
 sfui.fishing.EndSession = end_session
+sfui.fishing.RestoreWeapons = function()
+    end_session(true)
+end
 
 local function start_session_timer(delay, callback)
     cancel_session_timer()
@@ -1310,12 +1338,15 @@ local function equip_fishing_pole_from_bags()
     local pole = find_fishing_pole_in_bags()
     if not pole then return false end
 
-    -- Save previous weapons before swapping
+    -- Save previous weapons before swapping (and persist across /reload)
     if _G.GetInventoryItemLink then
         local mh = _G.GetInventoryItemLink("player", 16)
         local oh = _G.GetInventoryItemLink("player", 17)
         if mh and not is_fishing_pole_item(nil, mh) then
-            _state.previousWeapons = { mainHand = mh, offHand = oh }
+            local saved = { mainHand = mh, offHand = oh }
+            _state.previousWeapons = saved
+            _G.SfuiDB = _G.SfuiDB or {}
+            _G.SfuiDB.fishingSavedWeapons = saved
         end
     end
 

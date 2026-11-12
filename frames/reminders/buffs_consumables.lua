@@ -123,7 +123,10 @@ end
 --  SHARED ITEM METADATA & ICON HELPERS
 -- ─────────────────────────────────────────────────────────────
 
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+
 local function IsValidTexture(tex)
+    if issecretvalue and issecretvalue(tex) then return true end
     return tex ~= nil and tex ~= "" and tex ~= 0
 end
 
@@ -974,6 +977,11 @@ if (sfui.isCamelot or sfui.isClassic) and sfui.events then
             end
         end
     end)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function()
+        if isFoodScanDirty or isFlaskScanDirty or isOilScanDirty then
+            ScheduleColdConsumableRetry()
+        end
+    end)
 end
 
 -- ─────────────────────────────────────────────────────────────
@@ -998,11 +1006,16 @@ if P and P.Register then
             scanType = spec.scanType,
             resolveScanIcon = function(entry, icon)
                 local selected = spec.getSelected(entry)
-                return (selected and selected.icon) or icon
+                local selIcon = selected and selected.icon
+                return (IsValidTexture(selIcon) and selIcon) or (IsValidTexture(icon) and icon) or nil
             end,
             resolveVisual = function(rec)
                 local selected = spec.getSelected(rec and rec.entry)
-                local tex = (selected and selected.icon) or (rec and rec.icon) or P.QUESTION_MARK_ICON
+                local selIcon = selected and selected.icon
+                local recIcon = rec and rec.icon
+                local tex = (IsValidTexture(selIcon) and selIcon)
+                    or (IsValidTexture(recIcon) and recIcon)
+                    or P.QUESTION_MARK_ICON
                 return tex, ResolveConsumableCountText(selected, rec)
             end,
             resolveAction = function(rec)

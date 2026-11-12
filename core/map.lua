@@ -109,12 +109,16 @@ end
 
 --- Safely toggles the WorldMap frame.
 --- Execution is deferred to the next tick via C_Timer.After(0) to break hardware click taint stacks.
+--- Uses C_Map.OpenWorldMap() when opening so WORLD_MAP_OPEN runs on an untainted C stack.
 function map.ToggleWorldMap()
     if is_in_combat() then return end
 
     C_Timer.After(0, function()
         if is_in_combat() then return end
-        if _G.ToggleWorldMap then
+        local wmf = _G.WorldMapFrame
+        if (not wmf or not wmf:IsShown()) and C_Map and type(C_Map.OpenWorldMap) == "function" then
+            pcall(C_Map.OpenWorldMap)
+        elseif _G.ToggleWorldMap then
             pcall(_G.ToggleWorldMap)
         end
     end)
@@ -122,6 +126,7 @@ end
 
 --- Safely opens the WorldMap to a specific mapID, optionally focusing a waypoint.
 --- Execution is deferred to the next tick via C_Timer.After(0) to break hardware click taint stacks.
+--- Prefers C_Map.OpenWorldMap(uiMapID) so Blizzard sets WorldMapFrame.mapID via untainted WORLD_MAP_OPEN.
 --- @param mapID number|nil
 --- @param hasWaypoint boolean|nil optional flag indicating if a waypoint was set
 --- @param onOpenCallback function|nil optional callback executed after map is opened
@@ -131,7 +136,16 @@ function map.OpenWorldMap(mapID, hasWaypoint, onOpenCallback)
     C_Timer.After(0, function()
         if is_in_combat() then return end
 
-        if hasWaypoint and _G.OpenMapToUserWaypoint then
+        if C_Map and type(C_Map.OpenWorldMap) == "function" then
+            local targetMapID = mapID
+            if hasWaypoint and C_Map.GetUserWaypoint then
+                local ok, wp = pcall(C_Map.GetUserWaypoint)
+                if ok and wp and wp.uiMapID then
+                    targetMapID = wp.uiMapID
+                end
+            end
+            pcall(C_Map.OpenWorldMap, targetMapID)
+        elseif hasWaypoint and _G.OpenMapToUserWaypoint then
             pcall(_G.OpenMapToUserWaypoint)
         elseif _G.OpenWorldMap and mapID then
             pcall(_G.OpenWorldMap, mapID)
@@ -165,8 +179,17 @@ function map.OpenToEventPoi(poiID)
 
     C_Timer.After(0, function()
         if is_in_combat() then return end
+        if C_Map and type(C_Map.OpenWorldMap) == "function" and _G.C_EventScheduler and _G.C_EventScheduler.GetEventUiMapID then
+            local ok, mapID = pcall(_G.C_EventScheduler.GetEventUiMapID, poiID)
+            if ok and mapID then
+                pcall(C_Map.OpenWorldMap, mapID)
+                return
+            end
+        end
         if _G.OpenMapToEventPoi then
             pcall(_G.OpenMapToEventPoi, poiID)
+        elseif C_Map and type(C_Map.OpenWorldMap) == "function" then
+            pcall(C_Map.OpenWorldMap)
         elseif _G.ToggleWorldMap then
             pcall(_G.ToggleWorldMap)
         end

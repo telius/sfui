@@ -807,14 +807,57 @@ function sfui.buffs.paladin.GetAvailableBlessings()
     return cachedAvailableBlessings
 end
 
+local _paladinSortScratch = {}
+function sfui.buffs.paladin.GetPartyPaladinRank()
+    if not _G.IsInGroup or not _G.IsInGroup() or (_G.IsInRaid and _G.IsInRaid()) then
+        return 1, 1
+    end
+    wipe(_paladinSortScratch)
+    local issecret = _G.issecretvalue
+    local function addUnit(u)
+        if not (_G.UnitExists and _G.UnitExists(u)) then return end
+        if _G.UnitIsConnected and not _G.UnitIsConnected(u) then return end
+        local _, cls = _G.UnitClass(u)
+        if issecret and issecret(cls) then return end
+        if cls ~= "PALADIN" then return end
+        local guid = _G.UnitGUID and _G.UnitGUID(u)
+        if issecret and issecret(guid) then guid = nil end
+        local nm = _G.UnitName and _G.UnitName(u)
+        if issecret and issecret(nm) then nm = nil end
+        local key = (type(guid) == "string" and guid ~= "" and guid) or (type(nm) == "string" and nm:lower()) or u
+        _paladinSortScratch[#_paladinSortScratch + 1] = {
+            key      = key,
+            isPlayer = (u == "player") or (sfui.safety and sfui.safety.SafeUnitIsUnit and sfui.safety.SafeUnitIsUnit(u, "player")) or false,
+        }
+    end
+    addUnit("player")
+    for i = 1, 4 do
+        local pu = "party" .. i
+        local isSelf = (sfui.safety and sfui.safety.SafeUnitIsUnit and sfui.safety.SafeUnitIsUnit(pu, "player")) or false
+        if not isSelf then
+            addUnit(pu)
+        end
+    end
+    local total = #_paladinSortScratch
+    if total <= 1 then
+        return 1, 1
+    end
+    table.sort(_paladinSortScratch, function(a, b)
+        return a.key < b.key
+    end)
+    for idx = 1, total do
+        if _paladinSortScratch[idx].isPlayer then
+            return idx, total
+        end
+    end
+    return 1, total
+end
+
 function sfui.buffs.paladin.GetSelectedAura()
     local all = sfui.buffs.paladin.GetAvailableAuras()
     if not all or #all == 0 then
         cachedSelectedAura = nil
         return nil, all
-    end
-    if cachedSelectedAura and not aurasDirty then
-        return cachedSelectedAura, all
     end
     local db = SfuiDB and SfuiDB.buffReminders
     local saved = db and db.selectedPaladinAura
@@ -826,6 +869,12 @@ function sfui.buffs.paladin.GetSelectedAura()
             end
         end
     end
+    local pRank, pTotal = sfui.buffs.paladin.GetPartyPaladinRank()
+    if pTotal > 1 and #all > 1 then
+        local idx = ((pRank - 1) % #all) + 1
+        cachedSelectedAura = all[idx]
+        return cachedSelectedAura, all
+    end
     cachedSelectedAura = all[1]
     return cachedSelectedAura, all
 end
@@ -836,9 +885,6 @@ function sfui.buffs.paladin.GetSelectedBlessing()
         cachedSelectedBlessing = nil
         return nil, all
     end
-    if cachedSelectedBlessing and not blessingsDirty then
-        return cachedSelectedBlessing, all
-    end
     local db = SfuiDB and SfuiDB.buffReminders
     local saved = db and db.selectedPaladinBlessing
     if saved then
@@ -848,6 +894,12 @@ function sfui.buffs.paladin.GetSelectedBlessing()
                 return cachedSelectedBlessing, all
             end
         end
+    end
+    local pRank, pTotal = sfui.buffs.paladin.GetPartyPaladinRank()
+    if pTotal > 1 and #all > 1 then
+        local idx = ((pRank - 1) % #all) + 1
+        cachedSelectedBlessing = all[idx]
+        return cachedSelectedBlessing, all
     end
     cachedSelectedBlessing = all[1]
     return cachedSelectedBlessing, all
@@ -1582,12 +1634,15 @@ if P and P.Register then
         resolveScanIcon = function(entry, icon)
             local slot = (entry and entry.slot) or 16
             local _, imbIcon = sfui.buffs.data.GetBestShamanImbue(slot)
-            return imbIcon or icon
+            return (P.IsValidTexture(imbIcon) and imbIcon) or (P.IsValidTexture(icon) and icon) or nil
         end,
         resolveVisual = function(rec)
             local slot = (rec.entry and rec.entry.slot) or 16
             local _, imbIcon = sfui.buffs.data.GetBestShamanImbue(slot, rec.activeEnchant)
-            return imbIcon or rec.icon or P.QUESTION_MARK_ICON, P.DefaultCountText(rec)
+            local tex = (P.IsValidTexture(imbIcon) and imbIcon)
+                or (P.IsValidTexture(rec.icon) and rec.icon)
+                or P.QUESTION_MARK_ICON
+            return tex, P.DefaultCountText(rec)
         end,
         cycle = function(rec, delta)
             local slot = (rec.entry and rec.entry.slot) or 16
@@ -1608,11 +1663,15 @@ if P and P.Register then
         scanType = "pet",
         resolveScanIcon = function(_, icon)
             local selectedPet = sfui.buffs.pets.GetSelectedPet()
-            return (selectedPet and selectedPet.icon) or icon
+            local petIcon = selectedPet and selectedPet.icon
+            return (P.IsValidTexture(petIcon) and petIcon) or (P.IsValidTexture(icon) and icon) or nil
         end,
         resolveVisual = function(rec)
             local selectedPet = sfui.buffs.pets.GetSelectedPet()
-            local tex = (selectedPet and selectedPet.icon) or rec.icon or P.QUESTION_MARK_ICON
+            local petIcon = selectedPet and selectedPet.icon
+            local tex = (P.IsValidTexture(petIcon) and petIcon)
+                or (P.IsValidTexture(rec.icon) and rec.icon)
+                or P.QUESTION_MARK_ICON
             return tex, P.DefaultCountText(rec)
         end,
         cycle = function(_, delta)
@@ -1637,11 +1696,15 @@ if P and P.Register then
             scanType = "aura",
             resolveScanIcon = function(_, icon)
                 local selected = getSelectedFn()
-                return (selected and selected.icon) or icon
+                local selIcon = selected and selected.icon
+                return (P.IsValidTexture(selIcon) and selIcon) or (P.IsValidTexture(icon) and icon) or nil
             end,
             resolveVisual = function(rec)
                 local selected = getSelectedFn()
-                local tex = (selected and selected.icon) or rec.icon or P.QUESTION_MARK_ICON
+                local selIcon = selected and selected.icon
+                local tex = (P.IsValidTexture(selIcon) and selIcon)
+                    or (P.IsValidTexture(rec.icon) and rec.icon)
+                    or P.QUESTION_MARK_ICON
                 return tex, P.DefaultCountText(rec)
             end,
             cycle = function(_, delta, btn)

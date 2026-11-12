@@ -913,7 +913,21 @@ local function RenderQuestDetail(quest, dungeon)
             info.syncText:SetWordWrap(true)
             if info.syncText.SetSpacing then info.syncText:SetSpacing(3) end
         end
-        info.syncLabel:SetText("synced characters:")
+        local pReady, pTotal = 0, 0
+        for _, peer in ipairs(peerStatuses) do
+            if peer.inParty then
+                pTotal = pTotal + 1
+                if peer.status == "active" or peer.status == "ready" or peer.status == "completed" then
+                    pReady = pReady + 1
+                end
+            end
+        end
+        if pTotal > 0 then
+            local meReady = (IsQuestCompleted(quest.id) or IsQuestInLog(quest.id)) and 1 or 0
+            info.syncLabel:SetText(string_format("synced characters (party %d/%d ready):", pReady + meReady, pTotal + 1))
+        else
+            info.syncLabel:SetText("synced characters:")
+        end
         info.syncLabel:SetTextColor(accent[1], accent[2], accent[3], 1)
         info.syncLabel:ClearAllPoints()
         info.syncLabel:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
@@ -1100,6 +1114,17 @@ local function RenderQuestDetail(quest, dungeon)
                 subLabel = tostring(class):lower()
             end
 
+            local upgEval = sfui.gear and sfui.gear.EvaluateItemUpgrade and sfui.gear.EvaluateItemUpgrade(link or itemID, nil, true)
+            if upgEval and upgEval.isUpgrade then
+                local pctTag = (upgEval.pctGain >= 99.5) and "+upgrade" or string.format("+%.0f%%", upgEval.pctGain)
+                local clr = upgEval.isOffSpec and "|cff66ccff" or "|cff33ff88"
+                local sep = (subLabel ~= "") and "  ·  " or ""
+                subLabel = subLabel .. sep .. clr .. "[" .. pctTag .. "]|r"
+                btn:SetBackdropBorderColor(0.20, 0.75, 0.45, 0.65)
+            else
+                btn:SetBackdropBorderColor(0.15, 0.15, 0.18, 0.8)
+            end
+
             if subLabel and subLabel ~= "" then
                 btn.subText:SetText(subLabel)
                 btn.subText:Show()
@@ -1281,9 +1306,28 @@ local function RefreshQuestView()
         if shareable == false then
             badges[#badges + 1] = "|cff888888no share|r"
         end
-        local missingParty = q.id and sfui.sync and sfui.sync.GetPartyMissingQuestPeers and sfui.sync.GetPartyMissingQuestPeers(q.id)
-        if missingParty and #missingParty > 0 then
-            badges[#badges + 1] = "|cffff5555[!party]|r"
+        local rowPeers = q.id and sfui.sync and sfui.sync.GetQuestPeerStatuses and sfui.sync.GetQuestPeerStatuses(q.id, true)
+        if rowPeers and #rowPeers > 0 then
+            local pCount, pHave = 0, 0
+            for _, rp in ipairs(rowPeers) do
+                if rp.inParty then
+                    pCount = pCount + 1
+                    if rp.status == "active" or rp.status == "ready" or rp.status == "completed" then
+                        pHave = pHave + 1
+                    end
+                end
+            end
+            if pCount > 0 then
+                local tot = pCount + 1
+                local rdy = pHave + ((isDone or isActive) and 1 or 0)
+                local clr = (rdy == tot) and "|cff33ff88" or (rdy > 0 and "|cff88ccff" or "|cffff5555")
+                badges[#badges + 1] = string_format("%sparty %d/%d|r", clr, rdy, tot)
+            end
+        else
+            local missingParty = q.id and sfui.sync and sfui.sync.GetPartyMissingQuestPeers and sfui.sync.GetPartyMissingQuestPeers(q.id)
+            if missingParty and #missingParty > 0 then
+                badges[#badges + 1] = "|cffff5555[!party]|r"
+            end
         end
 
         if #badges > 0 then

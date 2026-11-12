@@ -527,6 +527,50 @@ local function CreateSoulFragmentsFrame()
     countText:SetPoint("CENTER", container, "CENTER", 0, 0)
     common.style_text(countText, sfui.config.font, 12, "")
 
+    if sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(container, {
+            key = "soulfragments",
+            label = "soul fragments",
+            preferredPoint = "BOTTOM",
+            customSize = function()
+                local w = (container and container:GetWidth() and container:GetWidth() > 0 and container:GetWidth()) or 176
+                local h = math.max(16, (container and container:GetHeight()) or 14)
+                return w, h
+            end,
+            getPoint = function()
+                local cp = SfuiDB and SfuiDB.soulFragmentsPos
+                if cp and cp.point and cp.x and cp.y then
+                    return cp.point, UIParent, cp.relPoint or cp.point, cp.x, cp.y
+                end
+                if container and container:GetLeft() and container:GetBottom() and sfui.movers.CalculateRelativeCoordinates then
+                    local pt, rPt, x, y = sfui.movers.CalculateRelativeCoordinates(container:GetLeft(), container:GetBottom(), container:GetWidth(), container:GetHeight(), "BOTTOM")
+                    return pt, UIParent, rPt, x, y
+                end
+                local hX = (SfuiDB and SfuiDB.healthBarX) or 0
+                local hY = ((SfuiDB and SfuiDB.healthBarY) or 160) + 26
+                return "BOTTOM", UIParent, "BOTTOM", hX, hY
+            end,
+            setPoint = function(point, _, relPoint, x, y)
+                local pt = point or "BOTTOM"
+                local rPt = relPoint or pt
+                local sx = math.floor((x or 0) + 0.5)
+                local sy = math.floor((y or 186) + 0.5)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.soulFragmentsPos = { point = pt, relPoint = rPt, x = sx, y = sy }
+                sfui.soulfragments:UpdatePosition()
+            end,
+            resetPosition = function()
+                if SfuiDB then SfuiDB.soulFragmentsPos = nil end
+                sfui.soulfragments:UpdatePosition()
+            end,
+            isEnabled = function()
+                local sp = common.get_current_spec_id and common.get_current_spec_id() or 0
+                local c = sfui.config.soulFragments or {}
+                return (SPEC_CONFIGS[sp] ~= nil) and (c.enabled ~= false) and (SfuiDB == nil or SfuiDB.enableSoulFragments ~= false)
+            end,
+        })
+    end
+
     return container
 end
 
@@ -868,6 +912,8 @@ function sfui.soulfragments:UpdatePosition()
     local width  = healthWidth * widthMultiplier
     local height = cfg.height or 14
 
+    local customPos = SfuiDB and SfuiDB.soulFragmentsPos
+
     if spec == SPEC_DEVOURER then
         if not metaContainer then
             CreateVoidMetaFrame()
@@ -875,7 +921,9 @@ function sfui.soulfragments:UpdatePosition()
         if metaContainer then
             metaContainer:SetSize(width, 12)
             metaContainer:ClearAllPoints()
-            if target then
+            if customPos and customPos.point and customPos.x and customPos.y then
+                metaContainer:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
+            elseif target then
                 metaContainer:SetPoint("BOTTOM", target, "TOP", 0, spacing)
             else
                 local posY = (SfuiDB and SfuiDB.healthBarY)
@@ -889,6 +937,8 @@ function sfui.soulfragments:UpdatePosition()
         container:ClearAllPoints()
         if metaContainer then
             container:SetPoint("BOTTOM", metaContainer, "TOP", 0, spacing)
+        elseif customPos and customPos.point and customPos.x and customPos.y then
+            container:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
         elseif target then
             container:SetPoint("BOTTOM", target, "TOP", 0, spacing)
         end
@@ -898,7 +948,9 @@ function sfui.soulfragments:UpdatePosition()
         end
         container:SetSize(width, height)
         container:ClearAllPoints()
-        if target then
+        if customPos and customPos.point and customPos.x and customPos.y then
+            container:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
+        elseif target then
             container:SetPoint("BOTTOM", target, "TOP", 0, spacing)
         else
             local posY = (SfuiDB and SfuiDB.healthBarY)

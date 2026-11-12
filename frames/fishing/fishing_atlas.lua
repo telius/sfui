@@ -500,15 +500,40 @@ local function BindSpeciesTooltip(btn)
         if not self.speciesID then return end
         local tip = common.get_tooltip()
         if tip then
+            tip._sfuiInFishingAtlas = true
             tip:SetOwner(self, "ANCHOR_RIGHT")
             tip:SetHyperlink("item:" .. self.speciesID)
             append_species_caught_by_tooltip(tip, self.speciesID)
+            if sfui.recipes and sfui.recipes.GetRecipesUsingReagent and sfui.recipes.GetRecipesUsingReagent(self.speciesID) then
+                tip:AddLine("|cff80c0ffctrl-click to open recipe browser|r", 0.5, 0.8, 1)
+            end
             tip:Show()
         end
     end)
     btn:SetScript("OnLeave", function()
+        local tip = common.get_tooltip()
+        if tip then
+            tip._sfuiInFishingAtlas = nil
+        end
         common.hide_tooltip()
     end)
+end
+
+local function HandleSpeciesButtonModifierClick(speciesID)
+    if not speciesID then return false end
+    if _G.IsShiftKeyDown and _G.IsShiftKeyDown() then
+        local _, link = common.get_item_info(speciesID)
+        link = link or ("item:" .. speciesID)
+        if common.insert_link_to_chat and common.insert_link_to_chat(link) then
+            return true
+        end
+    end
+    if _G.IsControlKeyDown and _G.IsControlKeyDown() and sfui.nav and sfui.nav.OpenRecipeOrFishing then
+        if sfui.nav.OpenRecipeOrFishing(speciesID) then
+            return true
+        end
+    end
+    return false
 end
 
 local function UpdateSpeciesDetail(speciesID)
@@ -699,6 +724,7 @@ local function UpdateZoneDetail(mapID)
 
             row.speciesID = itemID
             row:SetScript("OnClick", function()
+                if HandleSpeciesButtonModifierClick(itemID) then return end
                 ATLAS.ShowTab("atlas")
                 selectedSpeciesID = itemID
                 UpdateSpeciesDetail(itemID)
@@ -796,6 +822,7 @@ RefreshAtlasView = function()
             card.skillFs = skillFs
 
             card:SetScript("OnClick", function(self)
+                if HandleSpeciesButtonModifierClick(self.speciesID) then return end
                 selectedSpeciesID = self.speciesID
                 UpdateSpeciesDetail(self.speciesID)
             end)
@@ -1129,6 +1156,36 @@ function ATLAS.Toggle()
     end
 end
 
+function ATLAS.OpenToSpecies(itemID)
+    local id = tonumber(itemID)
+    if not id then return false end
+    local f = atlasFrame or CreateAtlasWindow()
+    speciesFilterText = ""
+    speciesCategoryFilter = "all"
+    selectedSpeciesID = id
+    if f.atlasPanel and f.atlasPanel.searchBox then
+        f.atlasPanel.searchBox:SetText("")
+    end
+    f:Show()
+    ATLAS.ShowTab("atlas")
+    return true
+end
+
+function ATLAS.OpenToZone(mapID)
+    local id = tonumber(mapID)
+    if not id then return false end
+    local f = atlasFrame or CreateAtlasWindow()
+    watersFilterText = ""
+    watersContinentFilter = "all"
+    selectedZoneMapID = id
+    if f.watersPanel and f.watersPanel.searchBox then
+        f.watersPanel.searchBox:SetText("")
+    end
+    f:Show()
+    ATLAS.ShowTab("waters")
+    return true
+end
+
 function ATLAS.Update()
     if atlasFrame and atlasFrame:IsShown() then
         RefreshActiveTab()
@@ -1171,4 +1228,54 @@ if events and events.RegisterEvent then
             ATLAS.Update()
         end
     end)
+end
+
+-- ─── Item Tooltip Hint Provider ──────────────────────────────────────────────
+
+local function OnFishingItemTooltip(tip, ctxOrData)
+    if not tip or not tip.AddLine or tip._sfuiInFishingAtlas or tip._sfuiFishingHintDone then return end
+    if not data or not data.GetAllSpecies then return end
+
+    local itemID = (ctxOrData and (ctxOrData.itemID or ctxOrData.id)) or nil
+    if not itemID and tip.GetItem then
+        local _, link = tip:GetItem()
+        if link and type(link) == "string" then
+            itemID = _G.tonumber(link:match("item:(%d+)"))
+        end
+    end
+    if not itemID then return end
+
+    local allSpecies = data.GetAllSpecies()
+    if not allSpecies or not allSpecies[itemID] then return end
+
+    tip._sfuiFishingHintDone = true
+    local totalCaught = 0
+    if sfui.fishing and sfui.fishing.GetSpeciesCharBreakdown then
+        local _, total = sfui.fishing.GetSpeciesCharBreakdown(itemID)
+        totalCaught = total or 0
+    elseif SfuiDB and SfuiDB.fishing and SfuiDB.fishing.species and SfuiDB.fishing.species[itemID] then
+        totalCaught = SfuiDB.fishing.species[itemID].n or 0
+    end
+
+    tip:AddLine(" ")
+    if totalCaught > 0 then
+        tip:AddLine(string_format("|cff00e5fffishing atlas:|r caught %d · |cff80c0ffctrl-click to open|r", totalCaught), 0.5, 0.8, 1)
+    else
+        tip:AddLine("|cff80c0ffctrl-click to open fishing atlas|r", 0.5, 0.8, 1)
+    end
+    if tip:IsShown() then
+        tip:Show()
+    end
+end
+
+local function ClearFishingItemTooltip(tip)
+    if tip then
+        tip._sfuiFishingHintDone = nil
+        tip._sfuiInFishingAtlas = nil
+    end
+end
+
+if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
+    sfui.tooltips.RegisterItemProvider("fishing_atlas", 45, OnFishingItemTooltip)
+    sfui.tooltips.RegisterClearCallback("fishing_atlas", ClearFishingItemTooltip)
 end

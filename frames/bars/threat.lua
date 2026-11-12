@@ -101,14 +101,19 @@ local function UpdateDimensionsAndPosition(force)
     local height = (SfuiDB and SfuiDB.threatBar_height) or (cfg and cfg.height) or 4
     local pad = (cfg and cfg.backdrop and cfg.backdrop.padding) or 1
 
-    if force or threatW ~= lastThreatW or height ~= lastThreatH or pad ~= lastPad or anchor ~= lastAnchorFrame then
+    local customPos = SfuiDB and SfuiDB.threatBarPos
+    if force or customPos or threatW ~= lastThreatW or height ~= lastThreatH or pad ~= lastPad or anchor ~= lastAnchorFrame then
         lastThreatW, lastThreatH, lastPad, lastAnchorFrame = threatW, height, pad, anchor
         threatBar:SetSize(threatW, height)
         threatBar.backdrop:SetSize(threatW + pad * 2, height + pad * 2)
 
-        -- Anchor: Directly on top of player health bar (+1px offset)
         threatBar.backdrop:ClearAllPoints()
-        threatBar.backdrop:SetPoint("BOTTOM", anchor, "TOP", 0, 1)
+        if customPos and customPos.point and customPos.x and customPos.y then
+            threatBar.backdrop:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
+        else
+            -- Anchor: Directly on top of player health bar (+1px offset)
+            threatBar.backdrop:SetPoint("BOTTOM", anchor, "TOP", 0, 1)
+        end
     end
 end
 
@@ -320,6 +325,50 @@ local function Initialize()
     -- Register with theme engine so the backdrop gets restyled on theme switches
     if bar and sfui.theme and sfui.theme.RegisterBar then
         sfui.theme.RegisterBar(bar, "threat")
+    end
+
+    if bar and bar.backdrop and sfui.movers and sfui.movers.Register then
+        sfui.movers.Register(bar.backdrop, {
+            key = "threat",
+            label = "threat bar",
+            preferredPoint = "BOTTOM",
+            customSize = function()
+                local w = (bar.backdrop and bar.backdrop:GetWidth()) or 180
+                local h = math.max(14, (bar.backdrop and bar.backdrop:GetHeight()) or 8)
+                return w, h
+            end,
+            getPoint = function()
+                local cp = SfuiDB and SfuiDB.threatBarPos
+                if cp and cp.point and cp.x and cp.y then
+                    return cp.point, UIParent, cp.relPoint or cp.point, cp.x, cp.y
+                end
+                local bd = bar.backdrop
+                if bd and bd:GetLeft() and bd:GetBottom() and sfui.movers.CalculateRelativeCoordinates then
+                    local pt, rPt, x, y = sfui.movers.CalculateRelativeCoordinates(bd:GetLeft(), bd:GetBottom(), bd:GetWidth(), bd:GetHeight(), "BOTTOM")
+                    return pt, UIParent, rPt, x, y
+                end
+                local hX = (SfuiDB and SfuiDB.healthBarX) or 0
+                local hY = ((SfuiDB and SfuiDB.healthBarY) or 160) + 26
+                return "BOTTOM", UIParent, "BOTTOM", hX, hY
+            end,
+            setPoint = function(point, _, relPoint, x, y)
+                local pt = point or "BOTTOM"
+                local rPt = relPoint or pt
+                local sx = math_floor((x or 0) + 0.5)
+                local sy = math_floor((y or 186) + 0.5)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.threatBarPos = { point = pt, relPoint = rPt, x = sx, y = sy }
+                UpdateDimensionsAndPosition(true)
+            end,
+            resetPosition = function()
+                if SfuiDB then SfuiDB.threatBarPos = nil end
+                InvalidateAnchorCache()
+                UpdateDimensionsAndPosition(true)
+            end,
+            isEnabled = function()
+                return not (SfuiDB and SfuiDB.enableThreatBar == false)
+            end,
+        })
     end
 
     -- Register unit threat events

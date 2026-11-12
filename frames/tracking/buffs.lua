@@ -53,6 +53,12 @@ local pendingTabRefresh = false
 local pendingLayoutPreview = false
 local _buffsDirty = false
 local _pendingBuffsSync = false
+local ResolveBuffDisplay
+
+local function IsValidTexture(tex)
+    if issecretvalue and issecretvalue(tex) then return true end
+    return tex ~= nil and tex ~= 0 and tex ~= ""
+end
 
 local PANDEMIC_GLOW_OPTS = {
     glowType = "pixel",
@@ -304,6 +310,14 @@ local function GetOrCreateSlot(index)
     bg:SetAllPoints(slot)
     bg:SetColorTexture(0, 0, 0, 1)
     slot.bg = bg
+
+    -- fallback icon on our own slot frame (never touches blizzFrame -> zero taint)
+    local fallbackIcon = slot:CreateTexture(nil, "ARTWORK")
+    fallbackIcon:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
+    fallbackIcon:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
+    fallbackIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    fallbackIcon:Hide()
+    slot.fallbackIcon = fallbackIcon
 
     slots[index] = slot
     return slot
@@ -958,6 +972,31 @@ SyncWithBlizzard = function()
             blizzFrame:Show()
         end
 
+        if slot.fallbackIcon then
+            local liveTex = blizzFrame.Icon and blizzFrame.Icon.GetTexture and blizzFrame.Icon:GetTexture()
+            if IsValidTexture(liveTex) then
+                if slot.fallbackIcon:IsShown() then
+                    slot.fallbackIcon:Hide()
+                end
+            else
+                local cid = blizzFrame.cooldownID
+                local fbTex = 134400
+                if not (issecretvalue and issecretvalue(cid)) and type(cid) == "number" then
+                    local _, resolvedTex = ResolveBuffDisplay(cid)
+                    if IsValidTexture(resolvedTex) then
+                        fbTex = resolvedTex
+                    end
+                end
+                if slot._fallbackTex ~= fbTex then
+                    slot._fallbackTex = fbTex
+                    slot.fallbackIcon:SetTexture(fbTex)
+                end
+                if not slot.fallbackIcon:IsShown() then
+                    slot.fallbackIcon:Show()
+                end
+            end
+        end
+
         -- pandemic / alert glow
         SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
 
@@ -1029,7 +1068,7 @@ function sfui.trackedbuffs.GetBlizzardStatus()
     return "ok", nil
 end
 
-local function ResolveBuffDisplay(id, info)
+ResolveBuffDisplay = function(id, info)
     info = info or GetCooldownInfoSafe(id)
     local name, icon
 
@@ -1037,26 +1076,38 @@ local function ResolveBuffDisplay(id, info)
         local spellID = (info.overrideSpellID and info.overrideSpellID > 0 and info.overrideSpellID) or info.spellID
         if spellID and spellID > 0 then
             name = common.get_spell_name(spellID)
-            icon = common.get_spell_icon(spellID)
+            local sIcon = common.get_spell_icon(spellID)
+            if IsValidTexture(sIcon) then icon = sIcon end
         elseif info.itemID and info.itemID > 0 then
             name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(info.itemID)
-            icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(info.itemID)
+            local iIcon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(info.itemID)
+            if IsValidTexture(iIcon) then
+                icon = iIcon
+            elseif C_Item and C_Item.RequestLoadItemDataByID then
+                C_Item.RequestLoadItemDataByID(info.itemID)
+            end
         end
         if (not name or not icon) and info.linkedSpellIDs and info.linkedSpellIDs[1] then
             local linkedID = info.linkedSpellIDs[1]
             name = name or common.get_spell_name(linkedID)
-            icon = icon or common.get_spell_icon(linkedID)
+            if not icon then
+                local lIcon = common.get_spell_icon(linkedID)
+                if IsValidTexture(lIcon) then icon = lIcon end
+            end
         end
     end
 
-    if not icon and _liveIcon[id] then
+    if not icon and IsValidTexture(_liveIcon[id]) then
         icon = _liveIcon[id]
     end
     if not name then name = common.get_spell_name(id) end
-    if not icon then icon = common.get_spell_icon(id) end
+    if not icon then
+        local fbIcon = common.get_spell_icon(id)
+        if IsValidTexture(fbIcon) then icon = fbIcon end
+    end
 
     return name or ("unknown (" .. id .. ")"),
-        icon or (cfg and cfg.textures and cfg.textures.white) or 134400
+        (IsValidTexture(icon) and icon) or 134400
 end
 
 local function IsHideByDefault(info)
@@ -1105,7 +1156,7 @@ function sfui.trackedbuffs.GetTrackedBuffs()
                     _liveIndex[id] = blizzFrame.layoutIndex
                 end
                 local tex = blizzFrame.Icon and blizzFrame.Icon.GetTexture and blizzFrame.Icon:GetTexture()
-                if tex and (not issecretvalue or not issecretvalue(tex)) then
+                if (not issecretvalue or not issecretvalue(tex)) and IsValidTexture(tex) then
                     _liveIcon[id] = tex
                 end
             end
@@ -1294,6 +1345,9 @@ local function RegisterEvents()
         HookBlizzardViewer()
         RequestBuffsSync(true)
     end
+    local function onIconAssetLoaded()
+        RequestBuffsSync(false)
+    end
 
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", onLayoutEvent)
     sfui.events.RegisterEvent("COOLDOWN_VIEWER_DATA_LOADED", onLayoutEvent)
@@ -1301,6 +1355,9 @@ local function RegisterEvents()
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onLayoutEvent)
     sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", onLayoutEvent)
     sfui.events.RegisterEvent("SPELLS_CHANGED", onLayoutEvent)
+    sfui.events.RegisterEvent("SPELL_UPDATE_ICON", onIconAssetLoaded)
+    sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", onIconAssetLoaded)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", onIconAssetLoaded)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", onStateEvent)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", onStateEvent)
     sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", onStateEvent)

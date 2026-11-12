@@ -184,6 +184,9 @@ end
 
 local function is_quest_completed(questID)
     if not questID then return false end
+    if sfui.queststate and sfui.queststate.IsCompleted then
+        return sfui.queststate.IsCompleted(questID)
+    end
     if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
         return C_QuestLog.IsQuestFlaggedCompleted(questID)
     end
@@ -367,27 +370,104 @@ end
 local cachedResult = {}
 local lastScanTime = 0
 
-sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
+sfui.events.RegisterMessage("SFUI_INVENTORY_DELTA", function()
     lastScanTime = 0
+    if sfui.ring and sfui.ring.request_rebuild then
+        sfui.ring.request_rebuild("questitems")
+    end
 end)
 
-sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
+sfui.events.RegisterMessage("SFUI_QUEST_STATE_UPDATED", function()
     lastScanTime = 0
+    if sfui.ring and sfui.ring.request_rebuild then
+        sfui.ring.request_rebuild("questitems")
+    end
 end)
+
+local function evaluate_bag_item(itemID, bag, slot, count, iconHint, includeChests, includeKnowledge, includeCollectibles, seen, items)
+    if not itemID or seen[itemID] or EXCLUDED_ITEMS[itemID] then return end
+    local itemName = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)) or ("item " .. itemID)
+    local isKeyOrCharm = is_key_or_charm(itemID, itemName)
+    count = count or (sfui.inventory and sfui.inventory.GetCount and sfui.inventory.GetCount(itemID)) or (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID)) or 1
+
+    local cat = nil
+    local dist = 900000000
+    local itemQuestID, startsQuest
+
+    if not isKeyOrCharm then
+        local isQuest, isQuestActive
+        isQuest, itemQuestID, isQuestActive = get_container_quest_info(bag, slot)
+        local hasSpell = C_Item and C_Item.GetItemSpell and C_Item.GetItemSpell(itemID)
+        startsQuest = itemQuestID and not isQuestActive and not is_quest_completed(itemQuestID)
+        local isQuestOnLog = isQuestActive
+            or (itemQuestID and sfui.queststate and sfui.queststate.IsActive and sfui.queststate.IsActive(itemQuestID))
+            or (itemQuestID and C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(itemQuestID))
+
+        -- category 1: active usable quest items
+        if isQuest and hasSpell and (isQuestOnLog or not is_quest_completed(itemQuestID)) then
+            cat = 1
+            dist = get_quest_distance(itemQuestID)
+
+        -- category 2: quest starters
+        elseif startsQuest then
+            cat = 2
+            dist = get_quest_distance(itemQuestID)
+
+        -- category 3: weekly treatises and profession knowledge
+        elseif includeKnowledge and TREATISE_QUESTS[itemID] then
+            if is_treatise_available(itemID) then
+                cat = 3
+            end
+        elseif includeKnowledge and is_usable_knowledge(bag, slot, itemID) then
+            cat = 3
+
+        -- category 4: openable caches/chests
+        elseif includeChests and is_openable_container(bag, slot, itemID, itemName) then
+            cat = 4
+
+        -- category 5: uncollected toys, mounts, and battle pets
+        elseif includeCollectibles and (is_uncollected_toy(itemID) or is_uncollected_mount(itemID) or is_uncollected_pet(itemID)) then
+            cat = 5
+        end
+    elseif includeChests and THRESHOLD_ITEMS[itemID] and count >= THRESHOLD_ITEMS[itemID] then
+        -- category 4: threshold items (e.g. 100 coffer key shards)
+        cat = 4
+    end
+
+    if cat then
+        seen[itemID] = true
+        local itemIcon = iconHint or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or 134400
+
+        items[#items + 1] = {
+            id          = "qi_" .. itemID,
+            itemID      = itemID,
+            bag         = bag,
+            slot        = slot,
+            questID     = itemQuestID,
+            startsQuest = (cat == 2) or startsQuest,
+            category    = cat,
+            label       = itemName:lower(),
+            icon        = itemIcon,
+            count       = count,
+            dist        = dist,
+            attrs       = {
+                type      = "macro",
+                macrotext = "/use item:" .. itemID,
+            },
+        }
+    end
+end
 
 sfui.ring.register_provider("questitems", {
     name   = "quest items",
     title  = "quest items",
     events = {
-        "QUEST_LOG_UPDATE",
-        "BAG_UPDATE_DELAYED",
         "ZONE_CHANGED_NEW_AREA",
         "ZONE_CHANGED",
         "PLAYER_ENTERING_WORLD",
         "TOYS_UPDATED",
         "NEW_MOUNT_ADDED",
         "NEW_PET_ADDED",
-        "QUEST_TURNED_IN",
     },
     build  = function(out)
         -- in combat: never perform heavy multi-slot bag scanning or map queries
@@ -416,81 +496,26 @@ sfui.ring.register_provider("questitems", {
         local seen = {}
         local items = {}
 
-        -- 1. scan player bags for usable quest items, chests, knowledge, and collectibles
-        local maxBags = (sfui.isRetail or (select(4, _G.GetBuildInfo()) >= 100000)) and 5 or 4
-        if C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemID then
-            for bag = 0, maxBags do
-                local numSlots = C_Container.GetContainerNumSlots(bag) or 0
-                for slot = 1, numSlots do
-                    local itemID = C_Container.GetContainerItemID(bag, slot)
-                    if itemID and not seen[itemID] and not EXCLUDED_ITEMS[itemID] then
-                        local itemName = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)) or ("item " .. itemID)
-                        local isKeyOrCharm = is_key_or_charm(itemID, itemName)
-                        local count = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID)) or 1
-
-                        local cat = nil
-                        local dist = 900000000
-                        local itemQuestID, startsQuest
-
-                        if not isKeyOrCharm then
-                            local isQuest, isQuestActive
-                            isQuest, itemQuestID, isQuestActive = get_container_quest_info(bag, slot)
-                            local hasSpell = C_Item and C_Item.GetItemSpell and C_Item.GetItemSpell(itemID)
-                            startsQuest = itemQuestID and not isQuestActive and not is_quest_completed(itemQuestID)
-                            local isQuestOnLog = isQuestActive or (itemQuestID and C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(itemQuestID))
-
-                            -- category 1: active usable quest items
-                            if isQuest and hasSpell and (isQuestOnLog or not is_quest_completed(itemQuestID)) then
-                                cat = 1
-                                dist = get_quest_distance(itemQuestID)
-
-                            -- category 2: quest starters
-                            elseif startsQuest then
-                                cat = 2
-                                dist = get_quest_distance(itemQuestID)
-
-                            -- category 3: weekly treatises and profession knowledge
-                            elseif includeKnowledge and TREATISE_QUESTS[itemID] then
-                                if is_treatise_available(itemID) then
-                                    cat = 3
-                                end
-                            elseif includeKnowledge and is_usable_knowledge(bag, slot, itemID) then
-                                cat = 3
-
-                            -- category 4: openable caches/chests
-                            elseif includeChests and is_openable_container(bag, slot, itemID, itemName) then
-                                cat = 4
-
-                            -- category 5: uncollected toys, mounts, and battle pets
-                            elseif includeCollectibles and (is_uncollected_toy(itemID) or is_uncollected_mount(itemID) or is_uncollected_pet(itemID)) then
-                                cat = 5
-                            end
-                        elseif includeChests and THRESHOLD_ITEMS[itemID] and count >= THRESHOLD_ITEMS[itemID] then
-                            -- category 4: threshold items (e.g. 100 coffer key shards)
-                            cat = 4
-                        end
-
-                        if cat then
-                            seen[itemID] = true
-                            local itemIcon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or 134400
-
-                            items[#items + 1] = {
-                                id          = "qi_" .. itemID,
-                                itemID      = itemID,
-                                bag         = bag,
-                                slot        = slot,
-                                questID     = itemQuestID,
-                                startsQuest = (cat == 2) or startsQuest,
-                                category    = cat,
-                                label       = itemName:lower(),
-                                icon        = itemIcon,
-                                count       = count,
-                                dist        = dist,
-                                attrs       = {
-                                    type      = "macro",
-                                    macrotext = "/use item:" .. itemID,
-                                },
-                            }
+        -- 1. scan unique bag items via incremental core/inventory index (fallback to container scan if not ready)
+        local bagCounts = sfui.inventory and sfui.inventory.GetAllBagCounts and sfui.inventory.GetAllBagCounts()
+        if bagCounts and next(bagCounts) ~= nil then
+            for itemID, count in pairs(bagCounts) do
+                if count and count > 0 and not seen[itemID] and not EXCLUDED_ITEMS[itemID] then
+                    local slotInfo = sfui.inventory.GetFirstSlot(itemID)
+                    if slotInfo then
+                        evaluate_bag_item(itemID, slotInfo.bag, slotInfo.slot, count, slotInfo.icon, includeChests, includeKnowledge, includeCollectibles, seen, items)
+                    end
+                end
+            end
+        else
+            local maxBags = (sfui.isRetail or (select(4, _G.GetBuildInfo()) >= 100000)) and 5 or 4
+            if C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemID then
+                for bag = 0, maxBags do
+                    local numSlots = C_Container.GetContainerNumSlots(bag) or 0
+                    for slot = 1, numSlots do
+                        local itemID = C_Container.GetContainerItemID(bag, slot)
+                        if itemID and not seen[itemID] and not EXCLUDED_ITEMS[itemID] then
+                            evaluate_bag_item(itemID, bag, slot, nil, nil, includeChests, includeKnowledge, includeCollectibles, seen, items)
                         end
                     end
                 end

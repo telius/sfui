@@ -2522,8 +2522,6 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterEvent("MYTHIC_PLUS_CURRENT_AFFIX_UPDATE", on_sync)
         sfui.events.RegisterEvent("WEEKLY_REWARDS_UPDATE", on_sync)
         sfui.events.RegisterEvent("UPDATE_INSTANCE_INFO", on_sync)
-        sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE", on_sync)
-        sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", on_sync)
         sfui.events.RegisterEvent("ITEM_CHANGED", on_sync)
         sfui.events.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", on_sync)
         sfui.events.RegisterThrottledEvent("BAG_UPDATE_DELAYED", 1.0, on_sync)

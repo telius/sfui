@@ -381,6 +381,10 @@ local function CreateRowFrame(parent)
 
         if self.itemLink then
             tip:SetHyperlink(self.itemLink)
+            if self.canQuickEquip then
+                tip:AddLine(" ")
+                tip:AddLine("|cff33ff88shift+right-click: equip upgrade|r", 0.2, 1, 0.53)
+            end
             tip:Show()
         elseif self.currencyID and tip.SetCurrencyByID then
             tip:SetCurrencyByID(self.currencyID)
@@ -436,6 +440,24 @@ local function CreateRowFrame(parent)
 
     row:SetScript("OnClick", function(self, button)
         if button == "RightButton" then
+            if self.canQuickEquip and self.itemLink and IsShiftKeyDown and IsShiftKeyDown() then
+                local equipFn = _G.EquipItemByName or (_G.C_Item and _G.C_Item.EquipItemByName)
+                if equipFn then
+                    local linkToEquip = self.itemLink
+                    if InCombatLockdown and InCombatLockdown() then
+                        if sfui.safety and sfui.safety.DeferOutOfCombat then
+                            sfui.safety.DeferOutOfCombat("lootfeed_equip_" .. tostring(linkToEquip), "OOC_P0", function(lnk)
+                                equipFn(lnk)
+                            end, linkToEquip)
+                            if sfui.print then
+                                sfui.print("|cff33ff88queued equip after combat:|r " .. linkToEquip)
+                            end
+                        end
+                    else
+                        equipFn(linkToEquip)
+                    end
+                end
+            end
             sfui.lootfeed.DismissRow(self)
             return
         end
@@ -444,6 +466,9 @@ local function CreateRowFrame(parent)
             if IsShiftKeyDown and IsShiftKeyDown() then
                 sfui.common.insert_link_to_chat(self.itemLink)
             elseif IsControlKeyDown and IsControlKeyDown() then
+                if sfui.nav and sfui.nav.OpenRecipeOrFishing and sfui.nav.OpenRecipeOrFishing(self.itemLink or self.itemID) then
+                    return
+                end
                 if DressUpLink then
                     DressUpLink(self.itemLink)
                 elseif HandleModifiedItemClick then
@@ -763,6 +788,7 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
     row.tooltipDesc = data.tooltipDesc
     row.isOther = (data.isOther == true) or (data.looter ~= nil and data.looter ~= "")
     row.looter = data.looter
+    row.canQuickEquip = (data.canQuickEquip == true)
 
     -- Colors & Accent
     local col = data.color or { 1, 1, 1 }
@@ -812,18 +838,31 @@ function sfui.lootfeed.DisplayLoot(data, fromQueue)
         end
     end
 
-    -- Dungeon Journal Wishlist Highlight
+    -- Dungeon Journal Wishlist & Gear Upgrade Highlights
     if data.isWishlist then
         if row.SetBackdropBorderColor then
             row:SetBackdropBorderColor(0.8, 0.27, 1.0, 1.0)
         end
+        local wishPart = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffwishlist|r"
+        if data.upgradeTag and data.upgradeTag ~= "" then
+            wishPart = data.upgradeTag .. " " .. wishPart
+        end
         if data.badgeText and data.badgeText ~= "" then
-            row.badge:SetText(data.badgeText .. " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t")
+            row.badge:SetText(data.badgeText .. " " .. wishPart)
         else
-            row.badge:SetText("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffWISHLIST|r")
+            row.badge:SetText(wishPart)
         end
         if _G.PlaySound and _G.SOUNDKIT and _G.SOUNDKIT.UI_EPICLOOT_TOAST then
             pcall(_G.PlaySound, _G.SOUNDKIT.UI_EPICLOOT_TOAST)
+        end
+    elseif data.isUpgrade and data.upgradeTag then
+        if row.SetBackdropBorderColor then
+            row:SetBackdropBorderColor(0.20, 0.85, 0.45, 0.95)
+        end
+        if data.badgeText and data.badgeText ~= "" then
+            row.badge:SetText(data.badgeText .. " " .. data.upgradeTag)
+        else
+            row.badge:SetText(data.upgradeTag)
         end
     end
 
@@ -985,9 +1024,10 @@ OnItemLoot = function(msg, looterName)
     if looterName and looterName ~= "" then
         local cleanLooter = string_match(looterName, "^([^-]+)") or looterName
         local _, classFile = UnitClass(looterName)
-        if not classFile and cleanLooter ~= looterName then
+        if (not classFile or IsSecret(classFile)) and cleanLooter ~= looterName then
             _, classFile = UnitClass(cleanLooter)
         end
+        if IsSecret(classFile) then classFile = nil end
         local cColor = classFile and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classFile]
         local cTag = cColor and string_format("|c%s%s|r", cColor.colorStr or "ffffffff", cleanLooter) or cleanLooter
         displayTitle = string_format("%s (|cffa0a0a0%s|r)", itemLink, cTag)
@@ -996,6 +1036,23 @@ OnItemLoot = function(msg, looterName)
     local isWishlist = false
     if itemID and sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted then
         isWishlist = sfui.dungeonjournal.IsWishlisted(itemID)
+        if isWishlist and not isPartyLoot and sfui.dungeonjournal.FulfillWishlistItem then
+            sfui.dungeonjournal.FulfillWishlistItem(itemID)
+        end
+    end
+
+    local isUpgrade = false
+    local upgradeTag = nil
+    local canQuickEquip = false
+    if not isPartyLoot and sfui.gear and sfui.gear.EvaluateItemUpgrade then
+        local eval = sfui.gear.EvaluateItemUpgrade(itemLink, nil, false)
+        if eval and eval.isUpgrade then
+            isUpgrade = true
+            local clr = eval.isOffSpec and "|cff66ccff" or "|cff33ff88"
+            local pct = (eval.pctGain >= 99.5) and "+upgrade" or string_format("+%.0f%%", eval.pctGain)
+            upgradeTag = clr .. "[" .. pct .. "]|r"
+            canQuickEquip = not eval.requiresHigherLevel
+        end
     end
 
     sfui.lootfeed.DisplayLoot({
@@ -1008,6 +1065,9 @@ OnItemLoot = function(msg, looterName)
         badgeText = badge,
         itemLink = itemLink,
         isWishlist = isWishlist,
+        isUpgrade = isUpgrade,
+        upgradeTag = upgradeTag,
+        canQuickEquip = canQuickEquip,
         isOther = isPartyLoot,
         looter = looterName,
     })

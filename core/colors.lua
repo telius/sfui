@@ -10,6 +10,7 @@ sfui.common = sfui.common or {}
 
 local RAID_CLASS_COLORS = _G.RAID_CLASS_COLORS
 local C_ClassColor      = _G.C_ClassColor
+local issecretvalue     = _G.issecretvalue or function() return false end
 local GetSpecializationInfoByID = (_G.C_SpecializationInfo and _G.C_SpecializationInfo.GetSpecializationInfoByID) or _G.GetSpecializationInfoByID
 local select, tonumber, type = _G.select, _G.tonumber, _G.type
 local math_floor = math.floor
@@ -63,7 +64,9 @@ sfui.common.hex_to_rgb = sfui.colors.hex_to_rgb
 --- @param className string?
 --- @return number r, number g, number b, string hex
 function sfui.colors.get_class_color(className)
-    if not className then return 0.8, 0.8, 0.8, "ffcccccc" end
+    if not className or issecretvalue(className) or type(className) ~= "string" then
+        return 0.8, 0.8, 0.8, "ffcccccc"
+    end
     local upper = className:upper()
     local cc = (C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(upper))
         or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[upper])

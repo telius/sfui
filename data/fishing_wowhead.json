@@ -1383,7 +1383,7 @@
       "name": "Badlands",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952415
+      "fetched_at": 1794384164
     },
     "1419": {
       "uimap": 1419,
@@ -3515,7 +3515,7 @@
       "name": "Searing Gorge",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952416
+      "fetched_at": 1794384165
     },
     "1428": {
       "uimap": 1428,
@@ -12215,9 +12215,82 @@
       "uimap": 1455,
       "wh_zone_id": 1537,
       "name": "Ironforge",
-      "total_count": 0,
-      "items": [],
-      "fetched_at": 1793952416
+      "total_count": 687,
+      "items": [
+        {
+          "id": 858,
+          "name": "lesser healing potion",
+          "count": 2,
+          "classs": 0,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 3385,
+          "name": "lesser mana potion",
+          "count": 1,
+          "classs": 0,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6289,
+          "name": "raw longjaw mud snapper",
+          "count": 408,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6291,
+          "name": "raw brilliant smallfish",
+          "count": 110,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6308,
+          "name": "raw bristle whisker catfish",
+          "count": 160,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6309,
+          "name": "17 pound catfish",
+          "count": 3,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 6311,
+          "name": "22 pound catfish",
+          "count": 1,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 19975,
+          "name": "zulian mudskunk",
+          "count": 2,
+          "classs": 12,
+          "subclass": 0,
+          "quality": 1,
+          "slot": 0
+        }
+      ],
+      "fetched_at": 1794384165
     },
     "1456": {
       "uimap": 1456,
@@ -13474,9 +13547,109 @@
       "uimap": 2521,
       "wh_zone_id": 16593,
       "name": "Zephras Isle",
-      "total_count": 0,
-      "items": [],
-      "fetched_at": 1793952418
+      "total_count": 1914,
+      "items": [
+        {
+          "id": 118,
+          "name": "minor healing potion",
+          "count": 6,
+          "classs": 0,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 774,
+          "name": "malachite",
+          "count": 1,
+          "classs": 7,
+          "subclass": 11,
+          "quality": 2,
+          "slot": 0
+        },
+        {
+          "id": 2455,
+          "name": "minor mana potion",
+          "count": 1,
+          "classs": 0,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 4663,
+          "name": "journeyman's belt",
+          "count": 1,
+          "classs": 4,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 6
+        },
+        {
+          "id": 4665,
+          "name": "burnt cloak",
+          "count": 1,
+          "classs": 4,
+          "subclass": -6,
+          "quality": 1,
+          "slot": 16
+        },
+        {
+          "id": 6289,
+          "name": "raw longjaw mud snapper",
+          "count": 710,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6291,
+          "name": "raw brilliant smallfish",
+          "count": 1157,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6292,
+          "name": "10 pound mud snapper",
+          "count": 17,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 6294,
+          "name": "12 pound mud snapper",
+          "count": 13,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 6295,
+          "name": "15 pound mud snapper",
+          "count": 2,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 6643,
+          "name": "bloated brilliant smallfish",
+          "count": 5,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 2,
+          "slot": 0
+        }
+      ],
+      "fetched_at": 1794384167
     },
     "2482": {
       "uimap": 2482,
@@ -13484,15 +13657,151 @@
       "name": "Mount Hyjal",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952418
+      "fetched_at": 1794384166
     },
     "2548": {
       "uimap": 2548,
       "wh_zone_id": 16591,
       "name": "Riverglades",
-      "total_count": 0,
-      "items": [],
-      "fetched_at": 1793952419
+      "total_count": 263,
+      "items": [
+        {
+          "id": 3820,
+          "name": "stranglekelp",
+          "count": 4,
+          "classs": 7,
+          "subclass": 9,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 3827,
+          "name": "mana potion",
+          "count": 1,
+          "classs": 0,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 4603,
+          "name": "raw spotted yellowtail",
+          "count": 26,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6308,
+          "name": "raw bristle whisker catfish",
+          "count": 34,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6309,
+          "name": "17 pound catfish",
+          "count": 1,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 6355,
+          "name": "sturdy locked chest",
+          "count": 1,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6357,
+          "name": "sealed crate",
+          "count": 1,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6358,
+          "name": "oily blackmouth",
+          "count": 17,
+          "classs": 7,
+          "subclass": 11,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6359,
+          "name": "firefin snapper",
+          "count": 23,
+          "classs": 7,
+          "subclass": 11,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6362,
+          "name": "raw rockscale cod",
+          "count": 87,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 8365,
+          "name": "raw mithril head trout",
+          "count": 40,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13422,
+          "name": "stonescale eel",
+          "count": 6,
+          "classs": 7,
+          "subclass": 11,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 21150,
+          "name": "iron bound trunk",
+          "count": 1,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 21153,
+          "name": "raw greater sagefish",
+          "count": 17,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 21228,
+          "name": "mithril bound trunk",
+          "count": 4,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 1,
+          "slot": 0
+        }
+      ],
+      "fetched_at": 1794384168
     },
     "100718": {
       "uimap": 100718,
@@ -13500,7 +13809,7 @@
       "name": "Wailing Caverns",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952421
+      "fetched_at": 1794384170
     },
     "100719": {
       "uimap": 100719,
@@ -13508,7 +13817,7 @@
       "name": "Blackfathom Deeps",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952423
+      "fetched_at": 1794384171
     },
     "100796": {
       "uimap": 100796,
@@ -13516,7 +13825,7 @@
       "name": "Scarlet Monastery",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952423
+      "fetched_at": 1794384172
     },
     "101477": {
       "uimap": 101477,
@@ -13524,7 +13833,7 @@
       "name": "Sunken Temple",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952425
+      "fetched_at": 1794384173
     },
     "101977": {
       "uimap": 101977,
@@ -13532,7 +13841,7 @@
       "name": "Zul'Gurub",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952425
+      "fetched_at": 1794384175
     },
     "102017": {
       "uimap": 102017,
@@ -13540,7 +13849,7 @@
       "name": "Stratholme",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952427
+      "fetched_at": 1794384176
     },
     "102057": {
       "uimap": 102057,
@@ -13548,7 +13857,7 @@
       "name": "Scholomance",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952428
+      "fetched_at": 1794384176
     },
     "102100": {
       "uimap": 102100,
@@ -13556,7 +13865,7 @@
       "name": "Maraudon",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952429
+      "fetched_at": 1794384178
     },
     "102557": {
       "uimap": 102557,
@@ -13564,7 +13873,7 @@
       "name": "Dire Maul",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952430
+      "fetched_at": 1794384178
     },
     "2652": {
       "uimap": 2652,
@@ -13572,7 +13881,7 @@
       "name": "Shen'dralas",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1793952421
+      "fetched_at": 1794384170
     }
   },
   "species": {
@@ -13659,6 +13968,13 @@
           "count": 120854,
           "outof": 1086748,
           "share": 11.1
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 26,
+          "outof": 263,
+          "share": 9.9
         },
         {
           "uimap": 2548,
@@ -13851,6 +14167,13 @@
           "share": 59.8
         },
         {
+          "uimap": 1455,
+          "name": "ironforge",
+          "count": 408,
+          "outof": 687,
+          "share": 59.4
+        },
+        {
           "uimap": 1456,
           "name": "thunder bluff",
           "count": 30407,
@@ -13874,6 +14197,13 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
+          "count": 710,
+          "outof": 1914,
+          "share": 37.1
+        },
+        {
+          "uimap": 2521,
+          "name": "zephras isle",
           "count": 370,
           "outof": 1000,
           "share": 37.0
@@ -13891,13 +14221,6 @@
           "count": 200,
           "outof": 1000,
           "share": 20.0
-        },
-        {
-          "uimap": 1455,
-          "name": "ironforge",
-          "count": 380,
-          "outof": 1000,
-          "share": 38.0
         }
       ]
     },
@@ -14027,6 +14350,13 @@
           "share": 16.9
         },
         {
+          "uimap": 1455,
+          "name": "ironforge",
+          "count": 110,
+          "outof": 687,
+          "share": 16.0
+        },
+        {
           "uimap": 1456,
           "name": "thunder bluff",
           "count": 8607,
@@ -14046,6 +14376,13 @@
           "count": 2578,
           "outof": 21972,
           "share": 11.7
+        },
+        {
+          "uimap": 2521,
+          "name": "zephras isle",
+          "count": 1157,
+          "outof": 1914,
+          "share": 60.4
         },
         {
           "uimap": 2521,
@@ -14117,6 +14454,13 @@
           "count": 67,
           "outof": 22505,
           "share": 0.3
+        },
+        {
+          "uimap": 2521,
+          "name": "zephras isle",
+          "count": 17,
+          "outof": 1914,
+          "share": 0.9
         }
       ]
     },
@@ -14174,6 +14518,13 @@
           "count": 52,
           "outof": 22505,
           "share": 0.2
+        },
+        {
+          "uimap": 2521,
+          "name": "zephras isle",
+          "count": 13,
+          "outof": 1914,
+          "share": 0.7
         }
       ]
     },
@@ -14209,6 +14560,13 @@
           "name": "elwynn forest",
           "count": 52,
           "outof": 61987,
+          "share": 0.1
+        },
+        {
+          "uimap": 2521,
+          "name": "zephras isle",
+          "count": 2,
+          "outof": 1914,
           "share": 0.1
         }
       ]
@@ -14545,6 +14903,13 @@
           "share": 22.3
         },
         {
+          "uimap": 1455,
+          "name": "ironforge",
+          "count": 160,
+          "outof": 687,
+          "share": 23.3
+        },
+        {
           "uimap": 1456,
           "name": "thunder bluff",
           "count": 11113,
@@ -14568,6 +14933,13 @@
         {
           "uimap": 2548,
           "name": "riverglades",
+          "count": 34,
+          "outof": 263,
+          "share": 12.9
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
           "count": 150,
           "outof": 1000,
           "share": 15.0
@@ -14585,13 +14957,6 @@
           "count": 420,
           "outof": 1000,
           "share": 42.0
-        },
-        {
-          "uimap": 1455,
-          "name": "ironforge",
-          "count": 300,
-          "outof": 1000,
-          "share": 30.0
         }
       ]
     },
@@ -14700,6 +15065,13 @@
           "share": 0.3
         },
         {
+          "uimap": 1455,
+          "name": "ironforge",
+          "count": 3,
+          "outof": 687,
+          "share": 0.4
+        },
+        {
           "uimap": 1456,
           "name": "thunder bluff",
           "count": 147,
@@ -14719,6 +15091,13 @@
           "count": 47,
           "outof": 21972,
           "share": 0.2
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 1,
+          "outof": 263,
+          "share": 0.4
         }
       ]
     },
@@ -14867,6 +15246,13 @@
           "name": "thousand needles",
           "count": 4,
           "outof": 3190,
+          "share": 0.1
+        },
+        {
+          "uimap": 1455,
+          "name": "ironforge",
+          "count": 1,
+          "outof": 687,
           "share": 0.1
         }
       ]
@@ -15056,6 +15442,13 @@
           "count": 426,
           "outof": 186285,
           "share": 0.2
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 1,
+          "outof": 263,
+          "share": 0.4
         }
       ]
     },
@@ -15121,6 +15514,13 @@
           "count": 466,
           "outof": 186285,
           "share": 0.3
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 1,
+          "outof": 263,
+          "share": 0.4
         }
       ]
     },
@@ -15280,6 +15680,13 @@
         {
           "uimap": 2548,
           "name": "riverglades",
+          "count": 17,
+          "outof": 263,
+          "share": 6.5
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
           "count": 25,
           "outof": 1000,
           "share": 2.5
@@ -15297,13 +15704,6 @@
           "count": 130,
           "outof": 1000,
           "share": 13.0
-        },
-        {
-          "uimap": 1455,
-          "name": "ironforge",
-          "count": 140,
-          "outof": 1000,
-          "share": 14.0
         }
       ]
     },
@@ -15414,6 +15814,13 @@
         {
           "uimap": 2548,
           "name": "riverglades",
+          "count": 23,
+          "outof": 263,
+          "share": 8.7
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
           "count": 45,
           "outof": 1000,
           "share": 4.5
@@ -15488,13 +15895,6 @@
           "count": 170,
           "outof": 1000,
           "share": 17.0
-        },
-        {
-          "uimap": 1455,
-          "name": "ironforge",
-          "count": 180,
-          "outof": 1000,
-          "share": 18.0
         }
       ]
     },
@@ -15566,6 +15966,13 @@
           "count": 25119,
           "outof": 1086748,
           "share": 2.3
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 87,
+          "outof": 263,
+          "share": 33.1
         },
         {
           "uimap": 2548,
@@ -15688,6 +16095,13 @@
           "count": 12,
           "outof": 22505,
           "share": 0.1
+        },
+        {
+          "uimap": 2521,
+          "name": "zephras isle",
+          "count": 5,
+          "outof": 1914,
+          "share": 0.3
         }
       ]
     },
@@ -15899,6 +16313,13 @@
         {
           "uimap": 2548,
           "name": "riverglades",
+          "count": 40,
+          "outof": 263,
+          "share": 15.2
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
           "count": 340,
           "outof": 1000,
           "share": 34.0
@@ -15981,6 +16402,13 @@
           "count": 128658,
           "outof": 1086748,
           "share": 11.8
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 6,
+          "outof": 263,
+          "share": 2.3
         },
         {
           "uimap": 102100,
@@ -17546,6 +17974,13 @@
           "share": 3.6
         },
         {
+          "uimap": 1455,
+          "name": "ironforge",
+          "count": 2,
+          "outof": 687,
+          "share": 0.3
+        },
+        {
           "uimap": 101977,
           "name": "zul'gurub",
           "count": 250,
@@ -17725,6 +18160,13 @@
           "share": 2.7
         },
         {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 1,
+          "outof": 263,
+          "share": 0.4
+        },
+        {
           "uimap": 2482,
           "name": "mount hyjal",
           "count": 12,
@@ -17752,6 +18194,13 @@
           "count": 26467,
           "outof": 506684,
           "share": 5.2
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
+          "count": 17,
+          "outof": 263,
+          "share": 6.5
         },
         {
           "uimap": 2548,
@@ -17799,6 +18248,13 @@
         {
           "uimap": 2548,
           "name": "riverglades",
+          "count": 4,
+          "outof": 263,
+          "share": 1.5
+        },
+        {
+          "uimap": 2548,
+          "name": "riverglades",
           "count": 8,
           "outof": 1000,
           "share": 0.8
@@ -17817,12 +18273,19 @@
           "count": 25,
           "outof": 1000,
           "share": 2.5
+        },
+        {
+          "uimap": 1433,
+          "name": "redridge mountains",
+          "count": 25,
+          "outof": 1000,
+          "share": 2.5
         }
       ]
     }
   },
   "custom_fish_by_zone": {
-    "2521": [
+    "1433": [
       {
         "itemID": 251524,
         "share": 2.5,

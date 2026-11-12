@@ -475,9 +475,57 @@ function mail.CreateMailboxSidecar()
     common.set_button_mail_icon(cfgBtn, 14)
     f.cfgBtn = cfgBtn
 
+    -- Smart Preset Pills Row (Pinned Mats · Alt Recipes · Cloth & BoEs)
+    local presetBar = CreateFrame("Frame", nil, f)
+    presetBar:SetPoint("TOPLEFT", 8, -32)
+    presetBar:SetPoint("TOPRIGHT", -8, -32)
+    presetBar:SetHeight(20)
+    f.presetBar = presetBar
+
+    local PRESET_DEFS = {
+        { key = "pinnedMats", label = "pinned mats", tip = "route unbound reagents needed by an alt's pinned recipes" },
+        { key = "altRecipes", label = "alt recipes", tip = "route unbound recipes unlearned by an eligible alt" },
+        { key = "clothBoes",  label = "cloth & boes", tip = "auto-route cloth to tailor alt & boes to enchanter alt" },
+    }
+    f.presetBtns = {}
+    local function UpdatePresetPillStyles()
+        local settings = mail.GetSettings()
+        local presets = settings.smartPresets or {}
+        for _, pBtn in ipairs(f.presetBtns) do
+            local active = presets[pBtn.presetKey] == true
+            if active then
+                pBtn:SetBackdropColor(0.14, 0.34, 0.22, 0.92)
+                pBtn:SetBackdropBorderColor(0.25, 0.85, 0.50, 0.95)
+                if pBtn.text then pBtn.text:SetTextColor(0.35, 1.0, 0.60, 1) end
+            else
+                pBtn:SetBackdropColor(0.06, 0.06, 0.08, 0.85)
+                pBtn:SetBackdropBorderColor(0.20, 0.20, 0.24, 0.85)
+                if pBtn.text then pBtn.text:SetTextColor(0.65, 0.65, 0.72, 1) end
+            end
+        end
+    end
+    f.UpdatePresetPillStyles = UpdatePresetPillStyles
+
+    for idx, def in ipairs(PRESET_DEFS) do
+        local pBtn = common.create_flat_button(presetBar, def.label, 85, 18, function()
+            local settings = mail.GetSettings()
+            settings.smartPresets = settings.smartPresets or {}
+            settings.smartPresets[def.key] = not settings.smartPresets[def.key]
+            UpdatePresetPillStyles()
+            InvalidateManifestCache()
+            RefreshSidecar(true)
+        end)
+        pBtn.presetKey = def.key
+        pBtn.tooltip = def.tip
+        pBtn:ClearAllPoints()
+        pBtn:SetPoint("LEFT", presetBar, "LEFT", (idx - 1) * 89, 0)
+        f.presetBtns[#f.presetBtns + 1] = pBtn
+    end
+    UpdatePresetPillStyles()
+
     -- Scroll Area for Manifest Rows
     local scroll = CreateFrame("ScrollFrame", nil, f)
-    scroll:SetPoint("TOPLEFT", 8, -32)
+    scroll:SetPoint("TOPLEFT", 8, -56)
     scroll:SetPoint("BOTTOMRIGHT", -8, 60)
     scroll:EnableMouseWheel(true)
     scroll:SetScript("OnMouseWheel", function(self, delta)

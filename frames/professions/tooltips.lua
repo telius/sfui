@@ -1,11 +1,11 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
-sfui = sfui or {}
-sfui.recipes = sfui.recipes or {}
+sfui                   = sfui or {}
+sfui.recipes           = sfui.recipes or {}
 
-local g      = sfui.config
-local common = sfui.common
-local cfg    = g.recipes or g.professions or {}
+local g                = sfui.config
+local common           = sfui.common
+local cfg              = g.recipes or g.professions or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/professions/tooltips.lua
@@ -19,28 +19,27 @@ local cfg    = g.recipes or g.professions or {}
 if sfui.isRetail then return end
 
 -- Localized APIs
-local GameTooltip                   = sfui.common.get_tooltip()
-local ItemRefTooltip                = _G.ItemRefTooltip
-local TooltipDataProcessor          = _G.TooltipDataProcessor
-local Enum                          = _G.Enum or {}
-local hooksecurefunc                = _G.hooksecurefunc
-local IsControlKeyDown              = _G.IsControlKeyDown
-local tonumber, tostring            = _G.tonumber, _G.tostring
-local pairs, ipairs                 = _G.pairs, _G.ipairs
-local min                           = math.min
+local GameTooltip          = sfui.common.get_tooltip()
+local ItemRefTooltip       = _G.ItemRefTooltip
+local TooltipDataProcessor = _G.TooltipDataProcessor
+local Enum                 = _G.Enum or {}
+local hooksecurefunc       = _G.hooksecurefunc
+local IsControlKeyDown     = _G.IsControlKeyDown
+local tonumber, tostring   = _G.tonumber, _G.tostring
+local pairs, ipairs        = _G.pairs, _G.ipairs
+local min                  = math.min
 
-local MAX_SOURCE_LINES = 3
+local MAX_SOURCE_LINES     = 3
 
 --- Check if an item is a recipe scroll or recipe-related item
-local function OnItemTooltip(tooltip, data)
+local function OnItemTooltip(tooltip, ctxOrData)
     if not tooltip or not tooltip.AddLine then return end
+    if tooltip._sfuiInRecipeBrowser then return end
     if SfuiDB and SfuiDB.recipesShowSources == false then return end
     if tooltip.sfuiRecipeSourceDone then return end
 
-    local itemID = nil
-    if data and data.id then
-        itemID = data.id
-    else
+    local itemID = (ctxOrData and (ctxOrData.itemID or ctxOrData.id)) or nil
+    if not itemID and tooltip.GetItem then
         local _, link = tooltip:GetItem()
         if link then
             itemID = tonumber(link:match("item:(%d+)"))
@@ -87,9 +86,13 @@ local function OnItemTooltip(tooltip, data)
         tooltip:AddLine(string.format("  |cff888888+%d more locations|r", #res.sources - MAX_SOURCE_LINES), 0.6, 0.6, 0.6)
     end
 
+    local isRecipeScroll = sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID] ~= nil
+    local isDressable = (_G.C_Item and _G.C_Item.IsDressableItemByID and _G.C_Item.IsDressableItemByID(itemID)) or false
+    if isRecipeScroll or not isDressable then
+        tooltip:AddLine("|cff80c0ffctrl-click to open recipe browser|r", 0.5, 0.8, 1)
+    end
     if bestWaypoint then
         tooltip._sfuiRecipeWaypoint = bestWaypoint
-        tooltip:AddLine("|cff80c0ffctrl-click to set map waypoint|r", 0.5, 0.8, 1)
     end
 
     tooltip:Show()
@@ -103,11 +106,16 @@ local function ClearTooltip(tooltip)
     end
 end
 
--- ── Tooltip Registration (TooltipDataProcessor & Fallbacks) ───────────────────
-if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType and Enum.TooltipDataType.Item then
+-- ── Tooltip Registration (Unified Pipeline & Fallbacks) ──────────────────────
+if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
+    sfui.tooltips.RegisterItemProvider("professions", 40, OnItemTooltip)
+    sfui.tooltips.RegisterClearCallback("professions_tooltips", ClearTooltip)
+elseif TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType and Enum.TooltipDataType.Item then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tt, data)
         OnItemTooltip(tt, data)
     end)
+    if GameTooltip then GameTooltip:HookScript("OnTooltipCleared", ClearTooltip) end
+    if ItemRefTooltip then ItemRefTooltip:HookScript("OnTooltipCleared", ClearTooltip) end
 else
     if GameTooltip then
         GameTooltip:HookScript("OnTooltipSetItem", function(tt) OnItemTooltip(tt) end)
@@ -117,32 +125,6 @@ else
         ItemRefTooltip:HookScript("OnTooltipSetItem", function(tt) OnItemTooltip(tt) end)
         ItemRefTooltip:HookScript("OnTooltipCleared", ClearTooltip)
     end
-end
-
-if GameTooltip then
-    GameTooltip:HookScript("OnTooltipCleared", ClearTooltip)
-end
-if ItemRefTooltip then
-    ItemRefTooltip:HookScript("OnTooltipCleared", ClearTooltip)
-end
-
--- ── Ctrl-Click Item Link -> Waypoint Hook ─────────────────────────────────────
-if hooksecurefunc then
-    hooksecurefunc("HandleModifiedItemClick", function(link)
-        if not link or not IsControlKeyDown() then return end
-        local itemID = tonumber(link:match("item:(%d+)"))
-        if itemID then
-            local res = sfui.recipes.GetSource(itemID)
-            if res and res.sources then
-                for _, s in ipairs(res.sources) do
-                    if s.mapID and s.x and s.y then
-                        sfui.recipes.SetWaypoint(s)
-                        break
-                    end
-                end
-            end
-        end
-    end)
 end
 
 -- ── ProfessionsFrame / SchematicForm Integration (Camelot) ───────────────────
@@ -201,12 +183,14 @@ local function HookSchematicForm()
                 end
 
                 if #res.sources > 4 then
-                    GameTooltip:AddLine(string.format("  |cff888888+%d more locations|r", #res.sources - 4), 0.6, 0.6, 0.6)
+                    GameTooltip:AddLine(string.format("  |cff888888+%d more locations|r", #res.sources - 4), 0.6, 0.6,
+                    0.6)
                 end
 
                 if bestSource and bestSource.mapID and bestSource.x and bestSource.y then
                     GameTooltip:AddLine("|cff80c0ffclick to set map waypoint|r", 0.5, 0.8, 1)
                 end
+                GameTooltip:AddLine("|cff80c0ffctrl-click to open recipe browser|r", 0.5, 0.8, 1)
                 GameTooltip:Show()
             end)
 
@@ -215,6 +199,10 @@ local function HookSchematicForm()
             end)
 
             self.RecipeSourceButton:SetScript("OnClick", function()
+                if IsControlKeyDown and IsControlKeyDown() and sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
+                    sfui.recipes.OpenBrowserToRecipe(recipeID)
+                    return
+                end
                 if bestSource then
                     sfui.recipes.SetWaypoint(bestSource)
                 end

@@ -52,6 +52,10 @@ local dumpJunkBtn     = nil
 local REASON_LABELS = {
     assigned_item              = "assigned item",
     disenchant_boe             = "disenchant boe",
+    wishlist                   = "wishlist",
+    pinned_reagent             = "pinned mat",
+    alt_recipe                 = "alt recipe",
+    preset_cloth               = "cloth",
     category_sendHerbs         = "herbs",
     category_sendOre           = "ore & stone",
     category_sendCloth         = "cloth",
@@ -176,8 +180,15 @@ local function scan_routed_items_for_partner(partnerAltGUID, partnerName, manual
                     local matchedLabel = nil
                     local routedElsewhere = false
 
-                    -- 1. Check sfui.alts.mail routing rules first (pass pre-built candidateAlts & info)
-                    if mail and mail.FindDestinationForBagItem then
+                    -- 1. Check synced Dungeon Journal wishlist for trade partner first
+                    if sync.IsItemWishlistedByChar and sync.IsItemWishlistedByChar(info.itemID, partnerAltGUID, partnerName) then
+                        if not sync.IsItemWishlistedByChar(info.itemID, myGUID, nil) then
+                            matchedLabel = "wishlist"
+                        end
+                    end
+
+                    -- 2. Check sfui.alts.mail routing rules (pass pre-built candidateAlts & info)
+                    if not matchedLabel and mail and mail.FindDestinationForBagItem then
                         local destGUID, destName, _, reason = mail.FindDestinationForBagItem(bag, slot, candidateAlts, info, true)
                         if destGUID or destName then
                             if (partnerAltGUID and destGUID == partnerAltGUID)

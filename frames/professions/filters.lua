@@ -1265,7 +1265,9 @@ function B.RebuildFilteredList()
 
                                 if passSource then
                                     local passSearch = true
-                                    if searchPattern then
+                                    if B.activeReagentSpellSet then
+                                        passSearch = (B.activeReagentSpellSet[spellID] == true)
+                                    elseif searchPattern then
                                         passSearch = false
                                         local rLower = r._lowerName
                                         if not rLower then

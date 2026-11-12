@@ -492,22 +492,30 @@ function sfui.buffs.party.AppendPartyReminders(activeResults, count, now, cfg)
     local thresholdLong = (cfg and cfg.thresholdLong) or 300
     local overrides = cfg and cfg.partyBlessingOverrides
 
-    local hasOtherPaladin = false
-    for idx = 1, 4 do
-        local u = PARTY_UNITS[idx]
-        if UnitExists and UnitExists(u) and not (UnitIsUnit and UnitIsUnit(u, "player")) then
-            local _, uClass = UnitClass(u)
-            if IsSafeValue(uClass) and uClass == "PALADIN" then
-                hasOtherPaladin = true
-                break
+    local paladinRank, totalPaladins = 1, 1
+    if sfui.buffs.paladin.GetPartyPaladinRank then
+        paladinRank, totalPaladins = sfui.buffs.paladin.GetPartyPaladinRank()
+    end
+    local hasOtherPaladin = (totalPaladins > 1)
+    if not hasOtherPaladin then
+        for idx = 1, 4 do
+            local u = PARTY_UNITS[idx]
+            local isSelf = (sfui.safety and sfui.safety.SafeUnitIsUnit and sfui.safety.SafeUnitIsUnit(u, "player")) or false
+            if UnitExists and UnitExists(u) and not isSelf then
+                local _, uClass = UnitClass(u)
+                if IsSafeValue(uClass) and uClass == "PALADIN" then
+                    hasOtherPaladin = true
+                    break
+                end
             end
         end
     end
 
     for idx = 1, 4 do
         local unit = PARTY_UNITS[idx]
+        local isSelf = (sfui.safety and sfui.safety.SafeUnitIsUnit and sfui.safety.SafeUnitIsUnit(unit, "player")) or false
         if UnitExists and UnitExists(unit)
-            and not (UnitIsUnit and UnitIsUnit(unit, "player"))
+            and not isSelf
             and (not UnitIsConnected or UnitIsConnected(unit))
             and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost(unit))
             and (not UnitIsVisible or UnitIsVisible(unit))
@@ -585,12 +593,22 @@ function sfui.buffs.party.AppendPartyReminders(activeResults, count, now, cfg)
 
                 if not chosenBlessing then
                     local prioList = GetPriorityList(classFile, archetype)
+                    local targetSlot = (totalPaladins > 1) and paladinRank or 1
+                    local matchedCount = 0
+                    local firstValid = nil
                     for p = 1, #prioList do
                         local k = prioList[p]
                         if knownBlessingsByKey[k] and not otherBlessingsScratch[k] then
-                            chosenBlessing = knownBlessingsByKey[k]
-                            break
+                            if not firstValid then firstValid = knownBlessingsByKey[k] end
+                            matchedCount = matchedCount + 1
+                            if matchedCount == targetSlot then
+                                chosenBlessing = knownBlessingsByKey[k]
+                                break
+                            end
                         end
+                    end
+                    if not chosenBlessing then
+                        chosenBlessing = firstValid
                     end
                 end
 

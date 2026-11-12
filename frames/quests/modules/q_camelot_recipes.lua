@@ -238,6 +238,14 @@ end
 local function GetLocalItemCount(itemID)
     itemID = tonumber(itemID)
     if not itemID or itemID <= 0 then return 0 end
+    if sfui.inventory and sfui.inventory.GetCount then
+        local bagCnt = sfui.inventory.GetCount(itemID) or 0
+        local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+        local bankCnt = (myGUID and SfuiDB and SfuiDB.alts and SfuiDB.alts[myGUID] and SfuiDB.alts[myGUID].bankItems and SfuiDB.alts[myGUID].bankItems[itemID]) or 0
+        if bagCnt + bankCnt > 0 then
+            return bagCnt + bankCnt
+        end
+    end
     if C_Item and C_Item.GetItemCount then
         return tonumber(C_Item.GetItemCount(itemID, true)) or 0
     end
@@ -340,6 +348,43 @@ local function ExtractRecipeReagents(spellID, rData, isRecraft, fallbackReqs)
     end
 
     return out, schematic
+end
+
+sfui.recipes = sfui.recipes or {}
+
+function sfui.recipes.GetPinnedReagentDeficits()
+    local trackedMap = CollectLocalTrackedMap()
+    local db = sfui.recipes_camelot and sfui.recipes_camelot.recipes
+    local totals = {}
+    for spellID, entry in pairs(trackedMap) do
+        local rData = db and db[spellID]
+        local reagents = ExtractRecipeReagents(spellID, rData, entry.isRecraft)
+        for _, rg in ipairs(reagents) do
+            if rg.itemID and rg.itemID > 0 then
+                totals[rg.itemID] = (totals[rg.itemID] or 0) + (rg.req or 1)
+            end
+        end
+    end
+
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    if myGUID and SfuiDB then
+        SfuiDB.altPinnedReagents = SfuiDB.altPinnedReagents or {}
+        SfuiDB.altPinnedReagents[myGUID] = next(totals) and totals or nil
+    end
+
+    local deficits = {}
+    for itemID, needed in pairs(totals) do
+        local have = GetLocalItemCount(itemID)
+        local def = needed - have
+        if def > 0 then
+            deficits[itemID] = {
+                needed  = needed,
+                have    = have,
+                deficit = def,
+            }
+        end
+    end
+    return deficits
 end
 
 local function BroadcastPinnedRecipes(force, isInit)
@@ -822,6 +867,20 @@ function CamelotRecipesModule:BuildBlocks(container)
                         table_insert(holderParts, string_format("%s: %d", vp.coloredName, pCnt))
                     end
                 end
+                if (localCount + peerCount) < req and sfui.alts and sfui.alts.GetAccountItemSummary then
+                    local altSum = sfui.alts.GetAccountItemSummary(itemID, true)
+                    if altSum and altSum.totalAlts and altSum.totalAlts > 0 then
+                        rg._altCount = altSum.totalAlts
+                        holderParts = holderParts or {}
+                        for _, aEntry in ipairs(altSum.alts or {}) do
+                            table_insert(holderParts, string_format("%s (alt): %d", aEntry.coloredName, aEntry.total))
+                        end
+                    else
+                        rg._altCount = nil
+                    end
+                else
+                    rg._altCount = nil
+                end
             elseif currencyID then
                 local cInfo = sfui.common.get_currency_info(currencyID)
                 if cInfo then
@@ -843,6 +902,8 @@ function CamelotRecipesModule:BuildBlocks(container)
                 local lineText
                 if peerCount > 0 then
                     lineText = string_format("%s (%d/%d · %d+%d)", rName:lower(), totalCount, req, localCount, peerCount)
+                elseif rg._altCount and rg._altCount > 0 then
+                    lineText = string_format("%s (%d/%d · +%d alts)", rName:lower(), totalCount, req, rg._altCount)
                 else
                     lineText = string_format("%s (%d/%d)", rName:lower(), totalCount, req)
                 end

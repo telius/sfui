@@ -289,7 +289,7 @@ sfui.options.RegisterTab({
             cb_sources = create_checkbox(panel, "show 'where to get it' on tooltips",
                 function() return SfuiDB.recipesShowSources ~= false end,
                 function(v) SfuiDB.recipesShowSources = v end,
-                "shows vendor, trainer, quest, and drop locations on recipe tooltips and inside the profession window (ctrl-click to set a map waypoint).")
+                "shows vendor, trainer, quest, and drop locations on recipe tooltips and inside the profession window (ctrl-click to open in recipe browser).")
             cb_sources:SetPoint("TOPLEFT", map_header, "BOTTOMLEFT", 0, -8)
 
             cb_map_pins = create_checkbox(panel, "show unlearned recipe pins on world map",

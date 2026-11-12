@@ -15,6 +15,12 @@ local InCombatLockdown = _G.InCombatLockdown
 
 local providers = sfui.buffs.providers
 local FormatTime = providers and providers.FormatTime
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+
+local function IsValidTexture(tex)
+    if issecretvalue and issecretvalue(tex) then return true end
+    return tex ~= nil and tex ~= 0 and tex ~= ""
+end
 
 -- Default settings
 local DEFAULT_SIZE = 36
@@ -531,15 +537,26 @@ function sfui.buffs.UpdateDisplay()
         if provider and provider.resolveVisual then
             targetTex, cStr = provider.resolveVisual(rec)
         else
-            targetTex = rec.icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+            targetTex = rec.icon
             cStr = (providers and providers.DefaultCountText(rec)) or ""
+        end
+        if not IsValidTexture(targetTex) then
+            targetTex = "Interface\\Icons\\INV_Misc_QuestionMark"
         end
         cStr = cStr or ""
 
-        if icon._lastTexture ~= targetTex then
+        local loadedTex = icon.texture:GetTexture()
+        if icon._lastTexture ~= targetTex or not IsValidTexture(loadedTex) then
             icon._lastTexture = targetTex
             icon.texture:SetTexture(targetTex)
             icon._lastStatus = nil
+            if not IsValidTexture(icon.texture:GetTexture()) and sfui.common and sfui.common.debounce then
+                sfui.common.debounce("sfui_buff_tex_retry", 0.15, function()
+                    if sfui.buffs and sfui.buffs.UpdateDisplay and not (InCombatLockdown and InCombatLockdown()) then
+                        sfui.buffs.UpdateDisplay()
+                    end
+                end)
+            end
         end
 
         -- Appearance based on status (missing or expiring only)

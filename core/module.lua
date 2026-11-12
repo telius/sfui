@@ -74,6 +74,127 @@ local function _safe_call_no_self(mod, method, ...)
     end
 end
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Scoped Dispatcher Handle Mixins & Canonical Enable/Disable Gating
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local LEGACY_DB_ENABLE_CHECKS = {
+    actionbars = function(db) return db.enableActionBars ~= false end,
+    target     = function(db) return db.enableTargetBar ~= false end,
+    pet        = function(db) return db.enablePetBar ~= false end,
+    minimap    = function(db) return db.enableMinimap ~= false end,
+    buffs      = function(db) return not (db.buffReminders and db.buffReminders.enabled == false) end,
+}
+
+--- Check whether a registered module is currently enabled.
+--- @param name string
+--- @return boolean
+function sfui.IsModuleEnabled(name)
+    if not name then return false end
+    local db = _G.SfuiDB
+    if db then
+        if type(db.disabledModules) == "table" and db.disabledModules[name] == true then
+            return false
+        end
+        local legacyCheck = LEGACY_DB_ENABLE_CHECKS[name]
+        if legacyCheck and not legacyCheck(db) then
+            return false
+        end
+    end
+    return true
+end
+
+local ModuleScopedMethods = {}
+
+function ModuleScopedMethods:RegisterEvent(event, callback)
+    if not sfui.events or not event or type(callback) ~= "function" then return end
+    self._scopedHandles = self._scopedHandles or {}
+    sfui.events.RegisterEvent(event, callback)
+    self._scopedHandles[#self._scopedHandles + 1] = { kind = "event", event = event, cb = callback }
+    return callback
+end
+
+function ModuleScopedMethods:RegisterUnitEvent(event, unit, callback)
+    if not sfui.events or not event or not unit or type(callback) ~= "function" then return end
+    self._scopedHandles = self._scopedHandles or {}
+    sfui.events.RegisterUnitEvent(event, unit, callback)
+    self._scopedHandles[#self._scopedHandles + 1] = { kind = "unit_event", event = event, unit = unit, cb = callback }
+    return callback
+end
+
+function ModuleScopedMethods:RegisterUnitEvents(events, unit, callback)
+    if not sfui.events or type(events) ~= "table" or not unit or type(callback) ~= "function" then return end
+    for i = 1, #events do
+        self:RegisterUnitEvent(events[i], unit, callback)
+    end
+    return callback
+end
+
+function ModuleScopedMethods:RegisterThrottledEvent(event, interval, callback)
+    if not sfui.events or not event or type(callback) ~= "function" then return end
+    self._scopedHandles = self._scopedHandles or {}
+    local wrapper = sfui.events.RegisterThrottledEvent(event, interval, callback)
+    if wrapper then
+        self._scopedHandles[#self._scopedHandles + 1] = { kind = "event", event = event, cb = wrapper }
+    end
+    return wrapper
+end
+
+function ModuleScopedMethods:RegisterDebouncedEvent(event, delay, callback)
+    if not sfui.events or not event or type(callback) ~= "function" then return end
+    self._scopedHandles = self._scopedHandles or {}
+    local wrapper = sfui.events.RegisterDebouncedEvent(event, delay, callback)
+    if wrapper then
+        self._scopedHandles[#self._scopedHandles + 1] = { kind = "event", event = event, cb = wrapper }
+    end
+    return wrapper
+end
+
+function ModuleScopedMethods:RegisterMessage(message, callback)
+    if not sfui.events or not message or type(callback) ~= "function" then return end
+    self._scopedHandles = self._scopedHandles or {}
+    sfui.events.RegisterMessage(message, callback)
+    self._scopedHandles[#self._scopedHandles + 1] = { kind = "message", message = message, cb = callback }
+    return callback
+end
+
+function ModuleScopedMethods:RegisterUpdate(arg1, arg2, arg3)
+    if not sfui.events then return end
+    self._scopedHandles = self._scopedHandles or {}
+    sfui.events.RegisterUpdate(arg1, arg2, arg3)
+    local target = (type(arg1) == "string" and arg1) or arg2
+    self._scopedHandles[#self._scopedHandles + 1] = { kind = "update", target = target }
+    return target
+end
+
+function ModuleScopedMethods:UnregisterAllScoped()
+    local list = self._scopedHandles
+    if not list or not sfui.events then return end
+    for i = #list, 1, -1 do
+        local h = list[i]
+        list[i] = nil
+        if h then
+            if h.kind == "event" then
+                sfui.events.UnregisterEvent(h.event, h.cb)
+            elseif h.kind == "unit_event" then
+                sfui.events.UnregisterUnitEvent(h.event, h.unit, h.cb)
+            elseif h.kind == "message" then
+                sfui.events.UnregisterMessage(h.message, h.cb)
+            elseif h.kind == "update" then
+                sfui.events.UnregisterUpdate(h.target)
+            end
+        end
+    end
+end
+
+local function _attach_scoped_methods(target)
+    for k, fn in pairs(ModuleScopedMethods) do
+        if target[k] == nil then
+            target[k] = fn
+        end
+    end
+end
+
 --- Register a module with standard lifecycle hooks.
 --- @param name string Unique module identifier (e.g. "bars", "castbars", "gear")
 --- @param def table Table containing module definition and lifecycle methods
@@ -101,6 +222,7 @@ function sfui.RegisterModule(name, def)
     target._file = target._file or regFile
     def.name = name
     def._file = target._file
+    _attach_scoped_methods(target)
     sfui[name] = target
     modules[name] = target
 
@@ -109,7 +231,7 @@ function sfui.RegisterModule(name, def)
         target._initRan = true
         _safe_call(target, "OnInit")
     end
-    if _isPlayerLoggedIn and not target._enabledRan then
+    if _isPlayerLoggedIn and not target._enabledRan and sfui.IsModuleEnabled(name) then
         target._enabledRan = true
         if type(target.OnEnable) == "function" then
             _safe_call(target, "OnEnable")
@@ -128,6 +250,48 @@ function sfui.GetModule(name)
     return modules[name]
 end
 
+--- Enable or disable a registered module at runtime without requiring `/reload`.
+--- @param name string
+--- @param enabled boolean
+--- @return boolean applied
+function sfui.SetModuleEnabled(name, enabled)
+    if not name or type(name) ~= "string" then return false end
+    local wantEnabled = (enabled ~= false)
+    if _G.SfuiDB then
+        _G.SfuiDB.disabledModules = _G.SfuiDB.disabledModules or {}
+        _G.SfuiDB.disabledModules[name] = (not wantEnabled) and true or nil
+    end
+
+    local mod = modules[name]
+    if mod then
+        if wantEnabled then
+            if not mod._initRan then
+                mod._initRan = true
+                _safe_call(mod, "OnInit")
+            end
+            if not mod._enabledRan then
+                mod._enabledRan = true
+                if type(mod.OnEnable) == "function" then
+                    _safe_call(mod, "OnEnable")
+                elseif type(mod.initialize) == "function" then
+                    _safe_call_no_self(mod, "initialize")
+                end
+            end
+        else
+            if type(mod.UnregisterAllScoped) == "function" then
+                mod:UnregisterAllScoped()
+            end
+            mod._enabledRan = false
+            _safe_call(mod, "OnDisable")
+        end
+    end
+
+    if sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_MODULE_STATE_CHANGED", name, wantEnabled)
+    end
+    return true
+end
+
 --- Execute OnInit() across all registered modules (called during ADDON_LOADED).
 function sfui.InitModules()
     _isAddonLoaded = true
@@ -139,11 +303,11 @@ function sfui.InitModules()
     end
 end
 
---- Execute OnEnable() across all registered modules (called during PLAYER_LOGIN).
+--- Execute OnEnable() across all enabled registered modules (called during PLAYER_LOGIN).
 function sfui.EnableModules()
     _isPlayerLoggedIn = true
-    for _, mod in pairs(modules) do
-        if not mod._enabledRan then
+    for name, mod in pairs(modules) do
+        if not mod._enabledRan and sfui.IsModuleEnabled(name) then
             mod._enabledRan = true
             if type(mod.OnEnable) == "function" then
                 _safe_call(mod, "OnEnable")

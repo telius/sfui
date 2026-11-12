@@ -143,7 +143,14 @@ local C_Spell_GetSpellName             = C_Spell.GetSpellName
 local C_Spell_GetSpellTexture          = C_Spell.GetSpellTexture or _G.GetSpellTexture
 local C_Spell_GetSpellCooldown         = C_Spell.GetSpellCooldown or _G.GetSpellCooldown
 local C_Spell_GetSpellCooldownDuration = C_Spell.GetSpellCooldownDuration
+local C_Spell_IsSpellDataCached        = C_Spell.IsSpellDataCached
 local C_Spell_RequestLoadSpellData     = C_Spell.RequestLoadSpellData
+
+-- Secret-safe texture validator (treats secret values as valid; rejects nil, 0, and "")
+function sfui.common.is_valid_texture(tex)
+    if issecretvalue(tex) then return true end
+    return tex ~= nil and tex ~= 0 and tex ~= ""
+end
 
 -- Returns unified spell info table or nil
 -- Compatible with both modern C_Spell.GetSpellInfo (table) and legacy _G.GetSpellInfo (multi-return)
@@ -203,18 +210,23 @@ function sfui.common.get_spell_icon(spellID)
     if issecretvalue(spellID) or not spellID then return nil end
     if C_Spell_GetSpellTexture then
         local icon = C_Spell_GetSpellTexture(spellID)
-        if not issecretvalue(icon) and icon then return icon end
+        if not issecretvalue(icon) and icon ~= nil and icon ~= 0 and icon ~= "" then return icon end
     end
     if C_Spell_GetSpellInfo then
         local info = C_Spell_GetSpellInfo(spellID)
-        if info and not issecretvalue(info) then
+        if not issecretvalue(info) and info then
             local icon = info.iconID or info.originalIconID
-            if not issecretvalue(icon) and icon then return icon end
+            if not issecretvalue(icon) and icon ~= nil and icon ~= 0 and icon ~= "" then return icon end
         end
     end
     if _G.GetSpellTexture then
         local icon = _G.GetSpellTexture(spellID)
-        if not issecretvalue(icon) and icon then return icon end
+        if not issecretvalue(icon) and icon ~= nil and icon ~= 0 and icon ~= "" then return icon end
+    end
+    if C_Spell_RequestLoadSpellData and type(spellID) == "number" and spellID > 0 then
+        if not C_Spell_IsSpellDataCached or not C_Spell_IsSpellDataCached(spellID) then
+            C_Spell_RequestLoadSpellData(spellID)
+        end
     end
     return nil
 end
@@ -506,15 +518,8 @@ local secondaryResourcesCache = {
 }
 
 -- ────────────────────────────────────────────────────────────────────────────
--- Central Out-of-Combat Action Queue
+-- Trailing-Edge Debounce & Unified Out-of-Combat Queue Delegation
 -- ────────────────────────────────────────────────────────────────────────────
-local _oocQueue = {}
-local _oocProcessing = false
-
---- Enqueue a callback to be executed when the player is out of combat lockdown.
---- If not currently in combat lockdown, the callback executes immediately.
---- Callbacks are executed inside pcall to prevent errors from breaking the queue.
---- @param callback function
 -- trailing-edge debounce: only the last call per key within `delay` seconds runs.
 -- uses a generation counter instead of timer handles (C_Timer.After returns nil).
 local _debounceGen = {}
@@ -546,57 +551,22 @@ function sfui.common.debounce(key, delay, fn)
     end)
 end
 
-function sfui.common.run_after_combat(callback)
-    if type(callback) ~= "function" then return end
-    if sfui.events and sfui.events.RecordCaller then
-        sfui.events.RecordCaller(callback, nil, "ooc")
-    end
-    if not InCombatLockdown() then
-        if sfui.events and sfui.events.SafeCall then
-            sfui.events.SafeCall(callback, "ooc", "run_after_combat", "run_after_combat (immediate)")
-        else
-            local ok, err = pcall(callback)
-            if not ok then
-                print("|cff6600ffsfui|r run_after_combat error: " .. tostring(err))
-            end
+--- Enqueue a callback via the unified priority-budgeted OOC queue in `core/safety.lua`.
+--- Supports both legacy `run_after_combat(fn)` and keyed `run_after_combat(key, fn, ...)`.
+function sfui.common.run_after_combat(keyOrFn, maybeFn, ...)
+    if sfui.safety and sfui.safety.DeferOutOfCombat then
+        if type(keyOrFn) == "function" then
+            return sfui.safety.DeferOutOfCombat(nil, sfui.safety.OOC_P1, keyOrFn, maybeFn, ...)
         end
-    else
-        _oocQueue[#_oocQueue + 1] = callback
+        return sfui.safety.DeferOutOfCombat(keyOrFn, maybeFn, ...)
+    end
+    local cb = type(keyOrFn) == "function" and keyOrFn or maybeFn
+    if type(cb) == "function" and not InCombatLockdown() then
+        cb(...)
     end
 end
-
-local function flush_ooc_queue()
-    if _oocProcessing or #_oocQueue == 0 then return end
-    _oocProcessing = true
-    local count = #_oocQueue
-    for i = 1, count do
-        local fn = _oocQueue[i]
-        _oocQueue[i] = nil
-        if fn then
-            if sfui.events and sfui.events.SafeCall then
-                sfui.events.SafeCall(fn, "ooc", "PLAYER_REGEN_ENABLED", "run_after_combat (queued)")
-            else
-                local ok, err = pcall(fn)
-                if not ok then
-                    print("|cff6600ffsfui|r ooc callback error: " .. tostring(err))
-                end
-            end
-        end
-    end
-    -- Compact any items enqueued during callback execution
-    local remaining = #_oocQueue
-    if remaining > 0 then
-        local writeIdx = 1
-        for i = count + 1, remaining do
-            _oocQueue[writeIdx] = _oocQueue[i]
-            _oocQueue[i] = nil
-            writeIdx = writeIdx + 1
-        end
-    end
-    _oocProcessing = false
-end
-
-sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", flush_ooc_queue)
+sfui.common.after_combat = sfui.common.run_after_combat
+sfui.common.DeferOutOfCombat = sfui.safety and sfui.safety.DeferOutOfCombat
 
 -- ------------------------------------------------------------
 -- Central Combat State Tracker
