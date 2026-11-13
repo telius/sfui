@@ -386,7 +386,8 @@ sanitize_and_merge_peers_table = function(peersTbl)
                 local matchedGuid, matchedAlt = nil, nil
                 local matchCount = 0
                 for g, alt in pairs(SfuiDB.alts) do
-                    if type(alt) == "table" and alt.name then
+                    local sameRuleset = not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(alt, g)
+                    if type(alt) == "table" and alt.name and sameRuleset then
                         local disp = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, g)) or alt.name
                         local dLower = string_lower(disp)
                         local aFirst = string_lower(string_match(alt.name, "^([^%-]+)") or alt.name)
@@ -553,7 +554,8 @@ local function is_self_character(nameOrFull)
     if SfuiDB and SfuiDB.alts and shortName then
         local lowerShort = string_lower(shortName)
         for guid, alt in pairs(SfuiDB.alts) do
-            if type(alt) == "table" and alt.name then
+            local sameRuleset = not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(alt, guid)
+            if type(alt) == "table" and alt.name and sameRuleset then
                 local disp = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name
                 if string_lower(disp) == lowerShort or string_lower(alt.name) == lowerShort then
                     if UnitGUID and guid == UnitGUID("player") then
@@ -3375,9 +3377,12 @@ function sync.IsItemWishlistedByChar(itemID, targetGUID, targetName)
         for guid, charMap in pairs(cw) do
             if type(charMap) == "table" and charMap[id] == true then
                 local alt = SfuiDB.alts and SfuiDB.alts[guid]
-                local aName = alt and alt.name and (tostring(alt.name):match("^([^%-]+)") or tostring(alt.name)):lower()
-                if aName and aName == shortTarget then
-                    return true
+                local sameRuleset = not alt or not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(alt, guid)
+                if sameRuleset then
+                    local aName = alt and alt.name and (tostring(alt.name):match("^([^%-]+)") or tostring(alt.name)):lower()
+                    if aName and aName == shortTarget then
+                        return true
+                    end
                 end
             end
         end

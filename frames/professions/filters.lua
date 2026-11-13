@@ -1059,7 +1059,13 @@ function sfui.recipes.IsAltNeeded(recipeOrID)
         if guid ~= myGUID and altData then
             local altRealm = altData.realm or myRealm
             local normAltRealm = altRealm and altRealm:gsub("[%s%-']", ""):lower() or ""
-            if sfui.isCamelot or normAltRealm == "" or normMyRealm == "" or normAltRealm == normMyRealm then
+            local inScope
+            if sfui.isCamelot or (_G.RegionalUniqueNamesEnabled and _G.RegionalUniqueNamesEnabled()) then
+                inScope = not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(altData, guid)
+            else
+                inScope = (normAltRealm == "" or normMyRealm == "" or normAltRealm == normMyRealm)
+            end
+            if inScope then
                 local hasProf = false
                 if altData.professions then
                     if altData.professions.primaries then

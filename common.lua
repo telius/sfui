@@ -1485,6 +1485,51 @@ function sfui.common.get_player_display_name()
     return "Unknown"
 end
 
+sfui.common.CAMELOT_RULESETS = { "normal", "pvp", "rp", "rppvp" }
+
+function sfui.common.parse_camelot_ruleset(raw)
+    if type(raw) ~= "string" or raw == "" then return nil end
+    local trimmed = raw:match("^%s*(.-)%s*$")
+    if not trimmed or trimmed == "" then return nil end
+    local low = trimmed:lower()
+    local compact = low:gsub("[%s%-_]", "")
+    if compact == "normal" or compact == "pve" then return "normal" end
+    if compact == "pvp" then return "pvp" end
+    if compact == "rp" then return "rp" end
+    if compact == "rppvp" then return "rppvp" end
+
+    -- Backend shard server names (e.g. "CAMWOW EU5 Realm 1 PvE", "CAMWOW EU5 Realm 9 RPPvP")
+    if low:find("^camwow") or low:find("realm", 1, true) then
+        if low:match("rp%-?pvp%s*$") then return "rppvp" end
+        if low:match("%spvp%s*$") or compact:match("%dpvp$") then return "pvp" end
+        if low:match("%srp%s*$") or compact:match("%drp$") then return "rp" end
+        if low:match("%spve%s*$") or compact:match("%dpve$") then return "normal" end
+    end
+    return nil
+end
+
+function sfui.common.get_camelot_ruleset()
+    if not (sfui.isCamelot or (_G.RegionalUniqueNamesEnabled and _G.RegionalUniqueNamesEnabled())) then
+        return nil
+    end
+    local C_GR = _G.C_GameRules
+    local GR = _G.Enum and _G.Enum.GameRule
+    if C_GR and C_GR.IsGameRuleActive and GR then
+        local isPvP = (GR.PvPRuleset ~= nil) and (C_GR.IsGameRuleActive(GR.PvPRuleset) == true) or false
+        local isRP  = (GR.RPRuleset ~= nil) and (C_GR.IsGameRuleActive(GR.RPRuleset) == true) or false
+        if isPvP and isRP then
+            return "rppvp"
+        elseif isPvP then
+            return "pvp"
+        elseif isRP then
+            return "rp"
+        end
+        return "normal"
+    end
+    local realm = (_G.GetRealmName and _G.GetRealmName()) or ""
+    return sfui.common.parse_camelot_ruleset(realm) or "normal"
+end
+
 -- helper to systematically hide blizzard cooldownviewer frames without mutating EditModeSystemMixin anchors
 local cooldownViewersInitialized = false
 
@@ -1925,25 +1970,31 @@ function sfui.character.AlignHeaderButtons()
     local isChonky = (sfui.common and sfui.common.is_addon_loaded and sfui.common.is_addon_loaded("ChonkyCharacterSheet"))
         or _G.CCSsetbtn ~= nil
 
-    local gearBtn = _G.SfuiGearToggleBtn
-    local statsBtn = _G.SfuiCombatStatsToggleBtn
+    local buttons = {
+        _G.SfuiGearToggleBtn,
+        _G.SfuiCombatStatsToggleBtn,
+        _G.SfuiTrainerToggleBtn,
+    }
 
     -- chonky's buttons (settings gear + camera) sit to the left of the close button (~42px)
     local baseOffset = isChonky and -56 or -6
+    local prevBtn = nil
 
-    if gearBtn then
-        gearBtn:SetSize(16, 16)
-        gearBtn:ClearAllPoints()
-        gearBtn:SetPoint("RIGHT", closeBtn, "LEFT", baseOffset, 0)
-    end
-
-    if statsBtn then
-        statsBtn:SetSize(16, 16)
-        statsBtn:ClearAllPoints()
-        if gearBtn and gearBtn:IsShown() then
-            statsBtn:SetPoint("RIGHT", gearBtn, "LEFT", -4, 0)
-        else
-            statsBtn:SetPoint("RIGHT", closeBtn, "LEFT", baseOffset, 0)
+    for i = 1, #buttons do
+        local btn = buttons[i]
+        if btn then
+            btn:SetSize(16, 16)
+            btn:ClearAllPoints()
+            if btn:IsShown() then
+                if prevBtn then
+                    btn:SetPoint("RIGHT", prevBtn, "LEFT", -4, 0)
+                else
+                    btn:SetPoint("RIGHT", closeBtn, "LEFT", baseOffset, 0)
+                end
+                prevBtn = btn
+            else
+                btn:SetPoint("RIGHT", closeBtn, "LEFT", baseOffset, 0)
+            end
         end
     end
 end

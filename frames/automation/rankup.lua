@@ -4,46 +4,74 @@ sfui.rankup = {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/automation/rankup.lua
---  Automatic Spell Rank Upgrade on Action Bars (Classic Forever / Camelot)
+--  Automatic Spell & Pet Spell Rank Upgrade on Action Bars (Camelot / Classic)
 --
---  Automatically replaces lower-rank spells on action bars (slots 1-120) with
---  the newly learned highest rank when training at a class trainer.
---  Preserves intentional downranking (e.g. Frostbolt Rank 1 alongside max rank).
+--  * Scans slots 1-180 (player + stance/bonus/page bars), skipping macros.
+--  * Uses C_SpellBook.IsSpellBookItemLowRank when available (Camelot 16001)
+--    with a rank-subtext parser fallback for Classic Era (11509).
+--  * Tracks highest seen spellID per character GUID and per pet (family:name)
+--    in SfuiDB.spellUprankKnown so intentional downranks stay untouched across
+--    reloads and sessions.
+--  * Defers bar swaps until out of combat and cursor is empty.
 -- ══════════════════════════════════════════════════════════════════════════════
 
--- Rank-up automation is exclusive to Classic Forever (Camelot) & Classic Era where spell ranks exist.
 if not (sfui.isCamelot or sfui.isClassic) then return end
 
-local _G = _G
+local _G               = _G
 local InCombatLockdown = _G.InCombatLockdown
-local ClearCursor = _G.ClearCursor
-local PlaceAction = _G.PlaceAction
-local GetActionInfo = _G.GetActionInfo
-local GetCursorInfo = _G.GetCursorInfo
-local C_Spell = _G.C_Spell
-local C_SpellBook = _G.C_SpellBook
-local C_Timer = _G.C_Timer
-local tonumber = _G.tonumber
-local string_lower = _G.string.lower
-local string_format = _G.string.format
-local string_match = _G.string.match
-local table_insert = _G.table.insert
-local ipairs, pairs = _G.ipairs, _G.pairs
+local ClearCursor      = _G.ClearCursor
+local PlaceAction      = _G.PlaceAction
+local GetActionInfo    = _G.GetActionInfo
+local GetCursorInfo    = _G.GetCursorInfo
+local UnitGUID         = _G.UnitGUID
+local UnitCreatureFamily = _G.UnitCreatureFamily
+local UnitName         = _G.UnitName
+local C_Spell          = _G.C_Spell
+local C_SpellBook      = _G.C_SpellBook
+local C_Timer          = _G.C_Timer
+local Enum             = _G.Enum
+local tonumber         = _G.tonumber
+local string_format    = _G.string.format
+local string_lower     = _G.string.lower
+local string_match     = _G.string.match
+local next, pairs      = _G.next, _G.pairs
 
-local scanTimer = nil
-local retryTimer = nil
+local MAX_ACTION_SLOT  = 180
+local SCAN_DEBOUNCE    = 0.15
 
-local function parseRank(subtext)
-    if not subtext or subtext == "" then return 0 end
-    local r = string_match(subtext, "(%d+)")
-    return tonumber(r) or 0
+local BANK_PLAYER = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 1
+local BANK_PET    = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet) or 2
+local SPELL_ITEM_TYPE = (Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell) or 1
+
+local hasModernLowRank = (C_SpellBook
+    and C_SpellBook.IsSpellBookItemLowRank
+    and C_SpellBook.GetNumSpellBookSkillLines
+    and C_SpellBook.GetSpellBookSkillLineInfo
+    and C_SpellBook.GetSpellBookItemInfo) and true or false
+
+local pendingPlayer = {} -- oldSpellID -> newSpellID
+local pendingPet    = {} -- oldSpellID -> newSpellID
+local petSlots      = {} -- petSpellID -> pet spellbook slotIndex
+local scanTimer     = nil
+local petDirty      = false
+local active        = false
+
+local events = _G.CreateFrame("Frame")
+
+local function GetAccentPrefix()
+    local cyan = (sfui.config and sfui.config.colors and sfui.config.colors.cyan) or { 0, 1, 1 }
+    return string_format("|cff%02x%02x%02x", (cyan[1] or 0) * 255, (cyan[2] or 1) * 255, (cyan[3] or 1) * 255)
 end
 
-local function getSpellName(spellID)
-    return sfui.common.get_spell_name(spellID)
+local function GetSpellNameSafe(spellID)
+    if not spellID then return nil end
+    if sfui.common and sfui.common.get_spell_name then
+        return sfui.common.get_spell_name(spellID)
+    end
+    return C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID)
 end
 
-local function getSpellSubtext(spellID)
+local function GetSpellSubtextSafe(spellID)
     if not spellID then return nil end
     if C_Spell and C_Spell.GetSpellSubtext then
         local sub = C_Spell.GetSpellSubtext(spellID)
@@ -56,241 +84,413 @@ local function getSpellSubtext(spellID)
     return nil
 end
 
-local function pickupSpell(spellID, slotIndex, spellBank)
-    if C_Spell and C_Spell.PickupSpell then
-        C_Spell.PickupSpell(spellID)
-    elseif _G.PickupSpell then
-        _G.PickupSpell(spellID)
-    elseif slotIndex and C_SpellBook and C_SpellBook.PickupSpellBookItem then
-        C_SpellBook.PickupSpellBookItem(slotIndex, spellBank or (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 1)
-    elseif slotIndex and _G.PickupSpellBookItem then
-        _G.PickupSpellBookItem(slotIndex, _G.BOOKTYPE_SPELL or "spell")
-    end
+local function ParseRankNumber(subtext)
+    if not subtext or subtext == "" then return 0 end
+    local r = string_match(subtext, "(%d+)")
+    return tonumber(r) or 0
 end
 
-local function GetHighestKnownSpells()
-    local knownHighest = {}
-    local spellBank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 1
+local function GetCharStore()
+    local guid = UnitGUID and UnitGUID("player")
+    if not guid or not _G.SfuiDB then return nil end
+    local root = _G.SfuiDB.spellUprankKnown
+    if not root then
+        root = {}
+        _G.SfuiDB.spellUprankKnown = root
+    end
+    local charStore = root[guid]
+    if not charStore then
+        charStore = { player = {}, pets = {} }
+        root[guid] = charStore
+    elseif not charStore.pets then
+        charStore.pets = {}
+    end
+    return charStore
+end
 
-    if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines then
-        local numSkillLines = C_SpellBook.GetNumSpellBookSkillLines()
-        for skillLineIndex = 1, numSkillLines do
-            local skillLineInfo = C_SpellBook.GetSpellBookSkillLineInfo(skillLineIndex)
-            if skillLineInfo and not skillLineInfo.shouldHide and not skillLineInfo.offSpecID then
-                local offset = skillLineInfo.itemIndexOffset or 0
-                local numSpells = skillLineInfo.numSpellBookItems or 0
-                for i = 1, numSpells do
-                    local slotIndex = offset + i
-                    local itemInfo = C_SpellBook.GetSpellBookItemInfo(slotIndex, spellBank)
-                    if itemInfo and not itemInfo.isPassive and not itemInfo.isOffSpec then
-                        local spellID = itemInfo.spellID or itemInfo.actionID
-                        local spellName = itemInfo.name or (spellID and getSpellName(spellID))
-                        local subtext = itemInfo.subName or (spellID and getSpellSubtext(spellID))
-                        local rank = parseRank(subtext)
-                        if spellID and spellName and rank > 0 then
-                            local nameKey = string_lower(spellName)
-                            if not knownHighest[nameKey] or rank > knownHighest[nameKey].rank then
-                                knownHighest[nameKey] = {
-                                    spellID   = spellID,
-                                    rank      = rank,
-                                    name      = spellName,
-                                    subtext   = subtext,
-                                    slotIndex = slotIndex,
-                                    spellBank = spellBank,
-                                }
+local function GetPetKey()
+    local family = UnitCreatureFamily and UnitCreatureFamily("pet")
+    local name = UnitName and UnitName("pet")
+    local unknown = _G.UNKNOWNOBJECT or "Unknown"
+    if not family or family == "" or family == unknown then return nil end
+    if not name or name == "" or name == unknown then return nil end
+    return family .. ":" .. name
+end
+
+local function IsPlayerSpellKnown(spellID)
+    if C_SpellBook and C_SpellBook.IsSpellKnown then
+        return C_SpellBook.IsSpellKnown(spellID)
+    end
+    if _G.IsPlayerSpell then
+        return _G.IsPlayerSpell(spellID)
+    end
+    if _G.IsSpellKnown then
+        return _G.IsSpellKnown(spellID)
+    end
+    return false
+end
+
+local function CollectPlayerBook(highestByName, lowRanksByName)
+    if hasModernLowRank then
+        local numLines = C_SpellBook.GetNumSpellBookSkillLines()
+        for tab = 1, numLines do
+            local line = C_SpellBook.GetSpellBookSkillLineInfo(tab)
+            if line and not line.isGuild and not line.offSpecID then
+                local offset = line.itemIndexOffset or 0
+                local numItems = line.numSpellBookItems or 0
+                for i = 1, numItems do
+                    local slot = offset + i
+                    local info = C_SpellBook.GetSpellBookItemInfo(slot, BANK_PLAYER)
+                    if info and not info.isPassive and not info.isOffSpec
+                        and info.itemType == SPELL_ITEM_TYPE and info.spellID and info.name then
+                        if C_SpellBook.IsSpellBookItemLowRank(slot, BANK_PLAYER) then
+                            local list = lowRanksByName[info.name]
+                            if not list then
+                                list = {}
+                                lowRanksByName[info.name] = list
                             end
+                            list[info.spellID] = true
+                        else
+                            highestByName[info.name] = info.spellID
                         end
                     end
                 end
             end
         end
+        return
     end
 
-    -- Fallback to classic GetNumSpellTabs if C_SpellBook didn't populate anything
-    if not next(knownHighest) and _G.GetNumSpellTabs then
+    if _G.GetNumSpellTabs then
+        local bestRankByName = {}
+        local allByName = {}
+        local bookType = _G.BOOKTYPE_SPELL or "spell"
         local numTabs = _G.GetNumSpellTabs()
         for tab = 1, numTabs do
             local _, _, offset, numSpells = _G.GetSpellTabInfo(tab)
-            for s = (offset or 0) + 1, (offset or 0) + (numSpells or 0) do
-                local spellName, subName = _G.GetSpellBookItemName(s, _G.BOOKTYPE_SPELL or "spell")
-                local slotType, spellID = _G.GetSpellBookItemInfo(s, _G.BOOKTYPE_SPELL or "spell")
-                if slotType == "SPELL" and spellName then
-                    local rank = parseRank(subName)
-                    if spellID and rank > 0 then
-                        local nameKey = string_lower(spellName)
-                        if not knownHighest[nameKey] or rank > knownHighest[nameKey].rank then
-                            knownHighest[nameKey] = {
-                                spellID   = spellID,
-                                rank      = rank,
-                                name      = spellName,
-                                subtext   = subName,
-                                slotIndex = s,
-                                spellBank = _G.BOOKTYPE_SPELL or "spell",
-                            }
+            for slot = (offset or 0) + 1, (offset or 0) + (numSpells or 0) do
+                local slotType, spellID = _G.GetSpellBookItemInfo(slot, bookType)
+                local spellName, subName = _G.GetSpellBookItemName(slot, bookType)
+                if slotType == "SPELL" and spellID and spellName then
+                    local rank = ParseRankNumber(subName or GetSpellSubtextSafe(spellID))
+                    if rank > 0 then
+                        local list = allByName[spellName]
+                        if not list then
+                            list = {}
+                            allByName[spellName] = list
+                        end
+                        list[spellID] = true
+                        if not bestRankByName[spellName] or rank > bestRankByName[spellName] then
+                            bestRankByName[spellName] = rank
+                            highestByName[spellName] = spellID
                         end
                     end
                 end
             end
         end
+        for name, bestID in pairs(highestByName) do
+            local allIDs = allByName[name]
+            if allIDs then
+                local lowList = {}
+                for sid in pairs(allIDs) do
+                    if sid ~= bestID then
+                        lowList[sid] = true
+                    end
+                end
+                if next(lowList) then
+                    lowRanksByName[name] = lowList
+                end
+            end
+        end
     end
-
-    return knownHighest
 end
 
-local function GetBarSpells()
-    local barSpells = {}
+local function CollectPetBook(highestByName, lowRanksByName)
+    for k in pairs(petSlots) do petSlots[k] = nil end
 
-    for slot = 1, 120 do
-        local actionType, id = GetActionInfo(slot)
-        if actionType == "spell" and id and id > 0 then
-            local spellName = getSpellName(id)
-            if spellName then
-                local subtext = getSpellSubtext(id)
-                local rank = parseRank(subtext)
+    local numPet = (C_SpellBook and C_SpellBook.HasPetSpells and C_SpellBook.HasPetSpells())
+        or (_G.HasPetSpells and _G.HasPetSpells())
+    if not numPet or numPet <= 0 then return false end
+
+    if hasModernLowRank then
+        for slot = 1, numPet do
+            local info = C_SpellBook.GetSpellBookItemInfo(slot, BANK_PET)
+            if info and not info.isPassive and info.spellID and info.name then
+                petSlots[info.spellID] = slot
+                if C_SpellBook.IsSpellBookItemLowRank(slot, BANK_PET) then
+                    local list = lowRanksByName[info.name]
+                    if not list then
+                        list = {}
+                        lowRanksByName[info.name] = list
+                    end
+                    list[info.spellID] = true
+                else
+                    highestByName[info.name] = info.spellID
+                end
+            end
+        end
+        return true
+    end
+
+    if _G.GetSpellBookItemInfo and _G.GetSpellBookItemName then
+        local bookType = _G.BOOKTYPE_PET or "pet"
+        local bestRankByName = {}
+        local allByName = {}
+        for slot = 1, numPet do
+            local slotType, spellID = _G.GetSpellBookItemInfo(slot, bookType)
+            local spellName, subName = _G.GetSpellBookItemName(slot, bookType)
+            if (slotType == "PETACTION" or slotType == "SPELL") and spellID and spellName then
+                petSlots[spellID] = slot
+                local rank = ParseRankNumber(subName or GetSpellSubtextSafe(spellID))
                 if rank > 0 then
-                    local nameKey = string_lower(spellName)
-                    if not barSpells[nameKey] then
-                        barSpells[nameKey] = { maxRank = 0, slots = {} }
+                    local list = allByName[spellName]
+                    if not list then
+                        list = {}
+                        allByName[spellName] = list
                     end
-                    table_insert(barSpells[nameKey].slots, {
-                        slot    = slot,
-                        spellID = id,
-                        rank    = rank,
-                    })
-                    if rank > barSpells[nameKey].maxRank then
-                        barSpells[nameKey].maxRank = rank
+                    list[spellID] = true
+                    if not bestRankByName[spellName] or rank > bestRankByName[spellName] then
+                        bestRankByName[spellName] = rank
+                        highestByName[spellName] = spellID
                     end
                 end
             end
         end
+        for name, bestID in pairs(highestByName) do
+            local allIDs = allByName[name]
+            if allIDs then
+                local lowList = {}
+                for sid in pairs(allIDs) do
+                    if sid ~= bestID then
+                        lowList[sid] = true
+                    end
+                end
+                if next(lowList) then
+                    lowRanksByName[name] = lowList
+                end
+            end
+        end
+        return true
     end
 
-    return barSpells
+    return false
 end
 
-function sfui.rankup.ScanAndUpgrade()
-    if SfuiDB and SfuiDB.autoRankUp == false then return end
-    if InCombatLockdown and InCombatLockdown() then
+local function ReconcileBook(known, highestByName, lowRanksByName, pending, forceAll)
+    local isFirstScan = (next(known) == nil)
+    for spellName, bestID in pairs(highestByName) do
+        local prevID = known[spellName]
+        if isFirstScan or forceAll then
+            local lows = lowRanksByName[spellName]
+            if lows then
+                for lowID in pairs(lows) do
+                    pending[lowID] = bestID
+                end
+            end
+        elseif prevID and prevID ~= bestID then
+            pending[prevID] = bestID
+        end
+        known[spellName] = bestID
+    end
+end
+
+local function ScanBooks(forceAll)
+    local store = GetCharStore()
+    if not store then return end
+
+    local pHighest, pLows = {}, {}
+    CollectPlayerBook(pHighest, pLows)
+    ReconcileBook(store.player, pHighest, pLows, pendingPlayer, forceAll)
+
+    local petKey = GetPetKey()
+    if petKey then
+        local petHighest, petLows = {}, {}
+        if CollectPetBook(petHighest, petLows) then
+            local petStore = store.pets[petKey]
+            if not petStore then
+                petStore = {}
+                store.pets[petKey] = petStore
+            end
+            ReconcileBook(petStore, petHighest, petLows, pendingPet, forceAll)
+            petDirty = false
+        end
+    else
+        for k in pairs(pendingPet) do pendingPet[k] = nil end
+    end
+end
+
+local function PickupPlayerSpell(spellID)
+    if C_Spell and C_Spell.PickupSpell then
+        C_Spell.PickupSpell(spellID)
+        return
+    end
+    if _G.PickupSpell then
+        _G.PickupSpell(spellID)
+    end
+end
+
+local function PickupPetSpell(spellID)
+    local slot = petSlots[spellID]
+    if not slot then return false end
+    if C_SpellBook and C_SpellBook.PickupSpellBookItem then
+        C_SpellBook.PickupSpellBookItem(slot, BANK_PET)
+        return true
+    end
+    if _G.PickupSpellBookItem then
+        _G.PickupSpellBookItem(slot, _G.BOOKTYPE_PET or "pet")
+        return true
+    end
+    return false
+end
+
+local function ReportUpgrade(spellName, slot)
+    if sfui.common and sfui.common.print then
+        local cc = GetAccentPrefix()
+        local label = spellName and string_lower(spellName) or "spell"
+        sfui.common.print(string_format("upgraded %s%s|r on action slot %d.", cc, label, slot))
+    end
+end
+
+local function UpgradeBars()
+    if not (next(pendingPlayer) or next(pendingPet)) then
+        events:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        events:UnregisterEvent("CURSOR_CHANGED")
         return
     end
 
-    -- Never interfere if the player is currently dragging an item/spell on cursor
+    if InCombatLockdown and InCombatLockdown() then
+        events:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+
     if GetCursorInfo and GetCursorInfo() then
-        if not retryTimer then
-            retryTimer = C_Timer.NewTimer(0.5, function()
-                retryTimer = nil
-                sfui.rankup.ScanAndUpgrade()
-            end)
-        end
+        events:RegisterEvent("CURSOR_CHANGED")
         return
     end
 
-    local knownHighest = GetHighestKnownSpells()
-    if not next(knownHighest) then return end
+    events:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    events:UnregisterEvent("CURSOR_CHANGED")
 
-    local barSpells = GetBarSpells()
+    local hasPet = (C_SpellBook and C_SpellBook.HasPetSpells and C_SpellBook.HasPetSpells())
+        or (_G.HasPetSpells and _G.HasPetSpells())
 
-    local upgrades = {}
-    for nameKey, barData in pairs(barSpells) do
-        local highest = knownHighest[nameKey]
-        if highest and highest.rank > barData.maxRank then
-            -- Replace any slot holding the previous maximum rank on the bars
-            for _, entry in ipairs(barData.slots) do
-                if entry.rank == barData.maxRank and entry.spellID ~= highest.spellID then
-                    table_insert(upgrades, {
-                        slot       = entry.slot,
-                        oldSpellID = entry.spellID,
-                        newSpellID = highest.spellID,
-                        name       = highest.name,
-                        oldRank    = entry.rank,
-                        newRank    = highest.rank,
-                        slotIndex  = highest.slotIndex,
-                        spellBank  = highest.spellBank,
-                    })
+    for action = 1, MAX_ACTION_SLOT do
+        local actionType, id = GetActionInfo(action)
+        if actionType == "spell" and id and id > 0 then
+            local newID = pendingPlayer[id]
+            if newID and newID ~= id and IsPlayerSpellKnown(newID) then
+                ClearCursor()
+                PickupPlayerSpell(newID)
+                if GetCursorInfo and GetCursorInfo() == "spell" then
+                    PlaceAction(action)
+                    ClearCursor()
+                    ReportUpgrade(GetSpellNameSafe(newID), action)
+                else
+                    ClearCursor()
+                end
+            else
+                local petNew = pendingPet[id]
+                if petNew and petNew ~= id and not IsPlayerSpellKnown(id) and petSlots[petNew] then
+                    ClearCursor()
+                    if PickupPetSpell(petNew) then
+                        PlaceAction(action)
+                        ClearCursor()
+                        ReportUpgrade(GetSpellNameSafe(petNew), action)
+                    else
+                        ClearCursor()
+                    end
                 end
             end
         end
     end
 
-    if #upgrades == 0 then return end
-
-    for _, up in ipairs(upgrades) do
-        if not (InCombatLockdown and InCombatLockdown()) then
-            ClearCursor()
-            pickupSpell(up.newSpellID, up.slotIndex, up.spellBank)
-            local cursorType = GetCursorInfo()
-            if cursorType == "spell" then
-                PlaceAction(up.slot)
-                ClearCursor()
-
-                local cyan = (sfui.config and sfui.config.colors and sfui.config.colors.cyan) or { 0.2, 0.9, 1.0 }
-                local cc = string_format("|cff%02x%02x%02x", cyan[1] * 255, cyan[2] * 255, cyan[3] * 255)
-                sfui.common.print(string_format("auto rank-up: %s%s|r (rank %d -> rank %d) on action slot %d",
-                    cc, up.name, up.oldRank, up.newRank, up.slot))
-            else
-                ClearCursor()
-            end
-        else
-            break
-        end
+    for k in pairs(pendingPlayer) do pendingPlayer[k] = nil end
+    if not hasPet or not petDirty then
+        for k in pairs(pendingPet) do pendingPet[k] = nil end
     end
 end
 
-local function RequestScan()
-    if SfuiDB and SfuiDB.autoRankUp == false then return end
-    if InCombatLockdown and InCombatLockdown() then
-        return
-    end
+function sfui.rankup.ScanAndUpgrade(forceAll)
+    if _G.SfuiDB and _G.SfuiDB.autoRankUp == false then return end
+    if not _G.SfuiDB then return end
+    ScanBooks(forceAll == true)
+    UpgradeBars()
+end
+
+local function RequestScan(forceAll)
+    if _G.SfuiDB and _G.SfuiDB.autoRankUp == false then return end
     if scanTimer then
         scanTimer:Cancel()
         scanTimer = nil
     end
-    scanTimer = C_Timer.NewTimer(0.25, function()
+    scanTimer = C_Timer.NewTimer(SCAN_DEBOUNCE, function()
         scanTimer = nil
-        sfui.rankup.ScanAndUpgrade()
+        sfui.rankup.ScanAndUpgrade(forceAll)
     end)
 end
 
-sfui.events.RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE", function()
-    RequestScan()
-end)
-
-sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", function()
-    RequestScan()
-end)
-
-sfui.events.RegisterEvent("TRAINER_UPDATE", function()
-    RequestScan()
-end)
-
-sfui.events.RegisterEvent("TRAINER_CLOSED", function()
-    RequestScan()
-end)
-
-sfui.events.RegisterEvent("SPELLS_CHANGED", function()
-    RequestScan()
-end)
-
-sfui.events.RegisterEvent("PLAYER_LEVEL_UP", function()
-    RequestScan()
-end)
-
-sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-    C_Timer.After(1.2, RequestScan)
-end)
-
-sfui.rankup.OnInit = function()
-    if SfuiDB and SfuiDB.autoRankUp == nil then
-        SfuiDB.autoRankUp = true
+local function SetActive(enable)
+    if enable == active then return end
+    active = enable
+    if enable then
+        events:RegisterEvent("SPELLS_CHANGED")
+        events:RegisterEvent("UNIT_PET")
+        events:RegisterEvent("PET_BAR_UPDATE")
+        RequestScan(false)
+    else
+        events:UnregisterAllEvents()
+        if scanTimer then
+            scanTimer:Cancel()
+            scanTimer = nil
+        end
+        for k in pairs(pendingPlayer) do pendingPlayer[k] = nil end
+        for k in pairs(pendingPet) do pendingPet[k] = nil end
+        petDirty = false
     end
 end
 
-sfui.rankup.OnEnable = sfui.rankup.OnInit
+events:SetScript("OnEvent", function(_, event, arg1)
+    if event == "PLAYER_ENTERING_WORLD" then
+        SetActive(not (_G.SfuiDB and _G.SfuiDB.autoRankUp == false))
+        if active then RequestScan(false) end
+        return
+    elseif event == "PLAYER_REGEN_ENABLED" or event == "CURSOR_CHANGED" then
+        UpgradeBars()
+        return
+    elseif event == "UNIT_PET" then
+        if arg1 == "player" then
+            petDirty = true
+            RequestScan(false)
+        end
+        return
+    elseif event == "PET_BAR_UPDATE" then
+        if petDirty then RequestScan(false) end
+        return
+    elseif event == "SPELLS_CHANGED" then
+        RequestScan(false)
+    end
+end)
+events:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+sfui.rankup.OnInit = function()
+    if _G.SfuiDB and _G.SfuiDB.autoRankUp == nil then
+        _G.SfuiDB.autoRankUp = true
+    end
+end
+
+sfui.rankup.OnEnable = function()
+    sfui.rankup.OnInit()
+    SetActive(not (_G.SfuiDB and _G.SfuiDB.autoRankUp == false))
+end
+
+sfui.rankup.OnSettingsChanged = function()
+    SetActive(not (_G.SfuiDB and _G.SfuiDB.autoRankUp == false))
+end
 
 local _rankDebug = {}
 function sfui.rankup_debug_info()
-    _rankDebug.enabled = (SfuiDB and SfuiDB.autoRankUp ~= false) or false
-    _rankDebug.isScanning = (scanTimer ~= nil or retryTimer ~= nil)
+    _rankDebug.enabled = (_G.SfuiDB and _G.SfuiDB.autoRankUp ~= false) or false
+    _rankDebug.isScanning = (scanTimer ~= nil)
+    _rankDebug.modernAPI = hasModernLowRank
     return _rankDebug
 end
 sfui.rankup.GetDebugInfo = sfui.rankup_debug_info

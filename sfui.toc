@@ -171,6 +171,7 @@ frames/gear/gear_standard.lua [AllowLoadGameType standard]
 frames/gear/gear_camelot.lua [AllowLoadGameType camelot, classic]
 frames/character/infopanel.lua [AllowLoadGameType camelot, classic]
 frames/character/infopanel_classic.lua [AllowLoadGameType classic]
+frames/character/trainer.lua [AllowLoadGameType camelot, classic]
 frames/gear/highest/tooltips.lua
 frames/gear/highest/validator.lua
 frames/gear/highest/scorer.lua

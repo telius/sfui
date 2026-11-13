@@ -741,6 +741,9 @@ local function ApplyTheme(frame, palette)
     if sfui.theme and sfui.theme.ElevateWindowContents then
         sfui.theme.ElevateWindowContents(frame)
     end
+    if panelModule.UpdateToggleVisual then
+        panelModule.UpdateToggleVisual()
+    end
     if frame:IsShown() then
         panelModule.UpdateValues()
     end
@@ -890,7 +893,15 @@ function panelModule.CreatePanel()
         if sfui.theme and sfui.theme.ElevateWindowContents then
             sfui.theme.ElevateWindowContents(self)
         end
+        if panelModule.UpdateToggleVisual then
+            panelModule.UpdateToggleVisual()
+        end
         panelModule.UpdateValues()
+    end)
+    panelFrame:HookScript("OnHide", function()
+        if panelModule.UpdateToggleVisual then
+            panelModule.UpdateToggleVisual()
+        end
     end)
 
     RestorePosition(panelFrame)
@@ -905,6 +916,19 @@ end
 local function is_panel_live()
     return panelFrame and panelFrame:IsShown() and (not CharacterFrame or CharacterFrame:IsShown())
 end
+
+local function update_toggle_visual()
+    if not toggleButton or not toggleButton.SetBackdropBorderColor then return end
+    local active = panelFrame and panelFrame:IsShown()
+    if active then
+        local curPal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()) or EMPTY_PALETTE
+        local accent = curPal.accentColor or (sfui.config and sfui.config.spec_color) or COLOR_ACCENT_FALLBACK
+        toggleButton:SetBackdropBorderColor(accent[1] or 0.4, accent[2] or 0.8, accent[3] or 1.0, 1)
+    else
+        toggleButton:SetBackdropBorderColor(0, 0, 0, 1)
+    end
+end
+panelModule.UpdateToggleVisual = update_toggle_visual
 
 local function do_refresh()
     if not IsInCombat() and is_panel_live() then
@@ -923,11 +947,14 @@ local function hide_panel()
     if panelFrame and panelFrame:IsShown() then
         panelFrame:Hide()
     end
+    update_toggle_visual()
 end
+panelModule.HidePanel = hide_panel
 
 --- Show the panel when the character frame is open and the player left it toggled on.
 local function show_if_wanted()
     if IsInCombat() or not (CharacterFrame and CharacterFrame:IsShown()) then return end
+    if SfuiDB and SfuiDB.showTrainerInfoPanel then return end
     if not (SfuiDB and SfuiDB.showCombatInfoPanel) then return end
     if not panelFrame then panelModule.CreatePanel() end
     if panelFrame:IsShown() then
@@ -1000,9 +1027,17 @@ function panelModule.CreateToggleButton()
         if panelFrame:IsShown() then
             panelFrame:Hide()
             if SfuiDB then SfuiDB.showCombatInfoPanel = false end
+            update_toggle_visual()
         else
-            if SfuiDB then SfuiDB.showCombatInfoPanel = true end
+            if SfuiDB then
+                SfuiDB.showCombatInfoPanel = true
+                SfuiDB.showTrainerInfoPanel = false
+            end
+            if sfui.character and sfui.character.trainer and sfui.character.trainer.OnCombatPanelShown then
+                sfui.character.trainer.OnCombatPanelShown()
+            end
             panelFrame:Show()
+            update_toggle_visual()
         end
     end)
 
@@ -1014,6 +1049,7 @@ function panelModule.CreateToggleButton()
         sfui.character.AlignHeaderButtons()
     end
 
+    update_toggle_visual()
     return toggleButton
 end
 

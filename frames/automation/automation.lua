@@ -131,6 +131,8 @@ local function on_lfg_double_click(self)
     end
 end
 
+local _hookedLfgButtons = setmetatable({}, { __mode = "k" })
+
 local function initialize_lfg_buttons()
     setup_lfg_dialog()
     local lf = _G.LFGListFrame
@@ -143,29 +145,166 @@ local function initialize_lfg_buttons()
 
     local buttons = { scroll_target:GetChildren() }
     for _, child in ipairs(buttons) do
-        if child and child:GetObjectType() == "Button" and not child.sfui_automation_init then
+        if child and child:GetObjectType() == "Button" and not _hookedLfgButtons[child] then
+            _hookedLfgButtons[child] = true
             child:SetScript("OnDoubleClick", on_lfg_double_click)
             child:RegisterForClicks("AnyUp")
-            child.sfui_automation_init = true
         end
     end
 end
 
-local function auto_sell_greys()
-    if not SfuiDB.autoSellGreys then return end
+-- ============================================================================
+-- Auto Sell Junk (Exponential-Backoff Sweep) & Auto Repair (Split Ledger)
+-- ============================================================================
+local merchantOpen = false
+local SellJunk, StopJunkSweep
 
-    local totalPrice = 0
-    sfui.common.for_each_bag_item(function(bag, slot, itemID, link, info)
-        if info and (link or info.hyperlink) and info.quality == 0 then
-            local price = info.noValue and 0 or (select(11, sfui.common.get_item_info(link or info.hyperlink)) or 0)
-            if price > 0 then
-                totalPrice = totalPrice + (price * (info.stackCount or 1))
-                C_Container.UseContainerItem(bag, slot)
+do
+    local BASE_DELAY = 0.4
+    local MAX_DELAY  = 1.6
+    local MAX_PASSES = 12
+    local MAX_STALLS = 3
+
+    local pending, passes, lastCount, stalls, warned, delay
+    local plannedCopper, soldAny = 0, false
+
+    local function CountJunk()
+        local junk, unknown, copper = 0, 0, 0
+        local poorQuality = (Enum and Enum.ItemQuality and Enum.ItemQuality.Poor) or 0
+        local maxBag = _G.NUM_BAG_SLOTS or 4
+        local startBag = _G.BACKPACK_CONTAINER or 0
+
+        for bag = startBag, maxBag do
+            local numSlots = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
+            for slot = 1, numSlots do
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info and info.itemID then
+                    if info.quality == nil then
+                        unknown = unknown + 1
+                    elseif info.quality == poorQuality and not info.hasNoValue and not info.noValue then
+                        junk = junk + 1
+                        local link = info.hyperlink or info.itemID
+                        local price = (link and sfui.common and sfui.common.get_item_info and select(11, sfui.common.get_item_info(link))) or 0
+                        if price > 0 then
+                            copper = copper + (price * (info.stackCount or 1))
+                        end
+                    end
+                end
             end
         end
-    end)
-    if totalPrice > 0 then
-        sfui.common.print("|cff00ff00auto-sold greys for " .. sfui.common.SafeGetCoinTextureString(totalPrice) .. ".|r")
+        return junk, unknown, copper
+    end
+
+    local function LegacySellAllGreys()
+        local totalPrice = 0
+        sfui.common.for_each_bag_item(function(bag, slot, _, link, info)
+            if info and (link or info.hyperlink) and info.quality == 0 then
+                local price = info.noValue and 0 or (select(11, sfui.common.get_item_info(link or info.hyperlink)) or 0)
+                if price > 0 then
+                    totalPrice = totalPrice + (price * (info.stackCount or 1))
+                    C_Container.UseContainerItem(bag, slot)
+                end
+            end
+        end)
+        if totalPrice > 0 then
+            sfui.common.print("|cff00ff00auto-sold greys for " .. sfui.common.SafeGetCoinTextureString(totalPrice) .. ".|r")
+        end
+    end
+
+    StopJunkSweep = function()
+        if pending then
+            pending:Cancel()
+            pending = nil
+        end
+    end
+
+    local function ReportSummary()
+        if soldAny and plannedCopper > 0 then
+            sfui.common.print("|cff00ff00auto-sold greys for " .. sfui.common.SafeGetCoinTextureString(plannedCopper) .. ".|r")
+        elseif soldAny then
+            sfui.common.print("|cff00ff00auto-sold greys.|r")
+        end
+        soldAny = false
+        plannedCopper = 0
+    end
+
+    local function ReportStranded()
+        pending = nil
+        if not merchantOpen then return end
+        local left = CountJunk()
+        if left == 0 then
+            ReportSummary()
+        elseif not warned then
+            warned = true
+            ReportSummary()
+            sfui.common.print(string.format("|cffff9900%d junk item(s) could not be sold.|r", left))
+        end
+    end
+
+    local Pass
+    Pass = function()
+        pending = nil
+        if not merchantOpen then return end
+        if not (_G.SfuiDB and _G.SfuiDB.autoSellGreys) then return end
+
+        local junk, unknown, copper = CountJunk()
+        if copper > plannedCopper then
+            plannedCopper = copper
+        end
+
+        if junk == 0 and unknown == 0 then
+            ReportSummary()
+            return
+        end
+
+        passes = passes + 1
+        if junk > lastCount then
+            stalls = 0
+            delay = BASE_DELAY
+        elseif junk == lastCount then
+            stalls = stalls + 1
+            delay = math.min(delay * 2, MAX_DELAY)
+            if stalls >= MAX_STALLS then
+                if soldAny then
+                    ReportSummary()
+                end
+                if junk > 0 and not warned then
+                    warned = true
+                    sfui.common.print(string.format("|cffff9900%d junk item(s) could not be sold.|r", junk))
+                end
+                return
+            end
+        else
+            if lastCount < math.huge then
+                soldAny = true
+            end
+            stalls = 0
+            delay = BASE_DELAY
+        end
+
+        lastCount = junk
+        if junk > 0 and C_MerchantFrame and C_MerchantFrame.SellAllJunkItems then
+            soldAny = true
+            C_MerchantFrame.SellAllJunkItems()
+        end
+
+        if passes >= MAX_PASSES then
+            pending = C_Timer.NewTimer(delay, ReportStranded)
+            return
+        end
+        pending = C_Timer.NewTimer(delay, Pass)
+    end
+
+    SellJunk = function()
+        if not (_G.SfuiDB and _G.SfuiDB.autoSellGreys) then return end
+        if not (C_MerchantFrame and C_MerchantFrame.SellAllJunkItems) then
+            return LegacySellAllGreys()
+        end
+        StopJunkSweep()
+        passes, lastCount, stalls, warned = 0, math.huge, 0, false
+        plannedCopper, soldAny = 0, false
+        delay = BASE_DELAY
+        Pass()
     end
 end
 
@@ -180,22 +319,171 @@ if _G.StaticPopupDialogs then
     }
 end
 
-local function auto_repair()
-    if not SfuiDB.autoRepair then return end
-    if not CanMerchantRepair() then return end
+local repairWatcher, repairWatchLast, repairWatchOut
+local repairWatchGen = 0
+local repairWatchSweep
+
+local function GuildRepairFunds()
+    if not (_G.GetGuildBankWithdrawMoney and _G.GetGuildBankMoney) then return 0 end
+    local allowance = _G.GetGuildBankWithdrawMoney() or 0
+    local balance = _G.GetGuildBankMoney() or 0
+    if allowance < 0 or allowance > balance then return balance end
+    return allowance
+end
+
+local function ReportRepairOutcome(guildPart, ownPart)
+    local total = guildPart + ownPart
+    if total <= 0 then return end
+    local totalStr = sfui.common.SafeGetCoinTextureString(total)
+    if guildPart > 0 and ownPart > 0 then
+        local guildStr = sfui.common.SafeGetCoinTextureString(guildPart)
+        local ownStr = sfui.common.SafeGetCoinTextureString(ownPart)
+        sfui.common.print(string.format("|cff00ff00auto-repaired for %s (guild: %s, personal: %s).|r", totalStr, guildStr, ownStr))
+    elseif guildPart > 0 then
+        sfui.common.print(string.format("|cff00ff00auto-repaired using guild funds for %s.|r", totalStr))
+    else
+        sfui.common.print(string.format("|cff00ff00auto-repaired for %s.|r", totalStr))
+    end
+end
+
+local function ReportRepairBroke()
+    sfui.common.print("|cffff3333not enough gold to repair.|r")
+end
+
+local function ReleaseJunkSweep()
+    local sweep = repairWatchSweep
+    repairWatchSweep = nil
+    if sweep then sweep() end
+end
+
+local TOPUP_WINDOW = 8
+local repairTopUp, repairTopUpGen = nil, 0
+
+local function CancelRepairTopUp()
+    repairTopUpGen = repairTopUpGen + 1
+    if repairTopUp then
+        repairTopUp:UnregisterAllEvents()
+        repairTopUp:SetScript("OnEvent", nil)
+    end
+end
+
+local function StartRepairTopUp(remainCost)
+    CancelRepairTopUp()
+    if not repairTopUp then
+        repairTopUp = CreateFrame("Frame")
+    end
+    local gen = repairTopUpGen
+    local settled = false
+
+    local function Finish(afford)
+        settled = true
+        CancelRepairTopUp()
+        if not afford then
+            if _G.GetMoney() < remainCost then
+                ReportRepairBroke()
+            end
+            return
+        end
+        local nowCost, stillNeed = _G.GetRepairAllCost()
+        if not (stillNeed and nowCost > 0) then return end
+        _G.RepairAllItems(false)
+        ReportRepairOutcome(0, nowCost)
+    end
+
+    local function Poll(_, event)
+        if settled or gen ~= repairTopUpGen then return end
+        if event == "MERCHANT_CLOSED" or not _G.CanMerchantRepair() then
+            return Finish(false)
+        end
+        if _G.GetMoney() >= remainCost then
+            return Finish(true)
+        end
+    end
+
+    Poll()
+    if settled then return end
+    repairTopUp:SetScript("OnEvent", Poll)
+    repairTopUp:RegisterEvent("PLAYER_MONEY")
+    repairTopUp:RegisterEvent("MERCHANT_CLOSED")
+    C_Timer.After(TOPUP_WINDOW, function()
+        if settled or gen ~= repairTopUpGen then return end
+        Finish(false)
+    end)
+end
+
+local function OnRepairWatchEvent()
+    local now = _G.GetMoney()
+    local spent = repairWatchLast - now
+    if spent > 0 then
+        repairWatchOut = repairWatchOut + spent
+        ReleaseJunkSweep()
+    end
+    repairWatchLast = now
+end
+
+local function StartRepairWatch(cost, moneyBefore, guildFunds, sweep)
+    if not repairWatcher then
+        repairWatcher = CreateFrame("Frame")
+    end
+    repairWatcher:SetScript("OnEvent", OnRepairWatchEvent)
+
+    repairWatchGen = repairWatchGen + 1
+    repairWatchLast = moneyBefore
+    repairWatchOut = 0
+    repairWatchSweep = sweep
+    CancelRepairTopUp()
+    repairWatcher:RegisterEvent("PLAYER_MONEY")
+
+    local gen = repairWatchGen
+    C_Timer.After(0.5, function()
+        if gen ~= repairWatchGen then return end
+        repairWatcher:UnregisterAllEvents()
+        local remainCost, stillNeed = _G.GetRepairAllCost()
+        if not (stillNeed and remainCost > 0) then remainCost = 0 end
+
+        local own = repairWatchOut
+        local paid = cost - remainCost
+        if own > paid then own = paid end
+        local guildPart = paid - own
+
+        if guildFunds > 0 and guildPart > guildFunds then
+            guildPart = guildFunds
+            own = paid - guildPart
+        end
+
+        if paid > 0 then
+            ReportRepairOutcome(guildPart, own)
+        end
+
+        ReleaseJunkSweep()
+        if remainCost > 0 then
+            StartRepairTopUp(remainCost)
+        end
+    end)
+end
+
+local function handle_merchant_visit(sweep)
+    if not SfuiDB.autoRepair or not CanMerchantRepair() then
+        if sweep then sweep() end
+        return
+    end
 
     if sfui.isRetail and sfui.hammer and SfuiDB.enableMasterHammer ~= false then
         local hasHammer, hammerName, _, hammerItemID = sfui.hammer.has_repair_hammer()
         if hasHammer and sfui.hammer.can_repair_any_damaged() then
             local displayName = hammerName or (hammerItemID and C_Item.GetItemNameByID(hammerItemID)) or "master's hammer"
-            sfui.common.print(string.format("|cffff9900auto-repair skipped: %s detected.|r", displayName))
+            sfui.common.print(string.format("|cffff9900auto-repair skipped: %s detected.|r", displayName:lower()))
             sfui.hammer.update_hammer_popup()
+            if sweep then sweep() end
             return
         end
     end
 
     local repairAllCost, canRepair = GetRepairAllCost()
-    if not canRepair or repairAllCost == 0 then return end
+    if not canRepair or repairAllCost == 0 then
+        if sweep then sweep() end
+        return
+    end
 
     local maxCost = (SfuiDB.maxAutoRepairCost or 5000) * 10000
     if repairAllCost > maxCost then
@@ -204,24 +492,31 @@ local function auto_repair()
         if _G.StaticPopup_Show then
             _G.StaticPopup_Show("SFUI_EXCESSIVE_REPAIR_COST", costFormatted)
         end
+        if sweep then sweep() end
         return
     end
 
-    local guildRepaired = false
-    if CanGuildBankRepair() then
-        local withdrawLimit = GetGuildBankWithdrawMoney()
-        if withdrawLimit == -1 or withdrawLimit >= repairAllCost then
-            RepairAllItems(true)
-            guildRepaired = true
-            sfui.common.print("|cff00ff00auto-repaired using guild funds for " ..
-                sfui.common.SafeGetCoinTextureString(repairAllCost) .. ".|r")
-        end
+    local useGuild = (_G.IsInGuild and _G.IsInGuild()) and CanGuildBankRepair()
+    if useGuild then
+        local moneyBefore, guildFunds = _G.GetMoney(), GuildRepairFunds()
+        RepairAllItems(true)
+        StartRepairWatch(repairAllCost, moneyBefore, guildFunds, sweep)
+        return
     end
 
-    if not guildRepaired then
-        RepairAllItems(false)
-        sfui.common.print("|cff00ff00auto-repaired for " .. sfui.common.SafeGetCoinTextureString(repairAllCost) .. ".|r")
+    if _G.GetMoney() < repairAllCost then
+        if sweep then
+            sweep()
+            StartRepairTopUp(repairAllCost)
+        else
+            ReportRepairBroke()
+        end
+        return
     end
+
+    RepairAllItems(false)
+    ReportRepairOutcome(0, repairAllCost)
+    if sweep then sweep() end
 end
 
 function sfui.automation.match_mount()

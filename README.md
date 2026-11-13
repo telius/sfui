@@ -1,239 +1,247 @@
 # sfui
 
-Modular, high-performance UI suite and quality-of-life additions for World of Warcraft (Retail & Classic / Camelot / Forever).
+Modular, high-performance UI suite, multi-account sync engine, and Classic/Camelot compendium for World of Warcraft (**Retail / Midnight 12.x** & **Classic / Camelot / Forever 1.15–1.60+**).
 
-SFUI replaces bulky addon suites, complex WeakAuras, and heavy frameworks with clean, lightweight native components. Everything is driven by a single **central event dispatcher** — instead of dozens of standalone addons running separate timers and eating CPU in the background, sfui coordinates all events and updates through one engine that sleeps when frames are idle and guarantees zero combat taint.
+SFUI replaces bulky addon suites, complex WeakAuras, and fragmented utility addons with cohesive, lightweight native modules. Everything runs through a **unified event dispatcher** and shared core services — sleeping at zero CPU when idle, pooling high-frequency widgets to avoid garbage collection spikes, and maintaining strict combat taint and secret-value isolation.
 
 ---
 
-## Architecture & Design Principles
+## Architecture & Core Subsystems
 
-- **Zero Combat Taint**: Secure action buttons, stance paging, radial rings, and override bindings are configured out of combat and strictly isolated from protected Blizzard state during encounters.
-- **Unified Event Dispatcher**: All module events are coalesced through a single throttled event hub (`dispatcher.lua`), eliminating redundant event registrations across frames.
-- **Frame & Texture Pooling**: High-frequency elements (tracking bars, radial slices, objective items, loot rows) use pooled widgets with recycled textures to prevent memory churn and Lua garbage collection spikes.
-- **Cross-Era Compatibility**: Decoupled multi-client support with native interfaces for Retail (The War Within / Midnight 12.x) and Classic (Camelot / Classic Era / Forever 1.15+).
+- **Zero Combat Taint & Secret-Value Safety (`core/safety.lua`, `core/map.lua`)**: Secure action buttons, stance paging, radial rings, and override bindings are configured strictly out of combat. Blizzard secret values (`issecretvalue` on Midnight 12.x) are forwarded directly to native widgets without inspection, comparison, or `pcall` probing.
+- **Unified Event Dispatcher & Reactive State (`dispatcher.lua`, `core/state.lua`, `core/module.lua`)**: Coalesces addon events, custom messages, lifecycle hooks (`sfui.RegisterModule`), and reactive pub/sub state updates with isolated module error boundaries.
+- **Incremental Inventory & Equipment Index (`core/inventory.lua`)**: Single-pass dirty-bag tracker (`BAG_UPDATE` -> `BAG_UPDATE_DELAYED`) maintaining `O(1)` item counts, slot maps, equipped gear, and active quest items (`SFUI_INVENTORY_DELTA`, `SFUI_EQUIPMENT_DELTA`).
+- **Quest Chain & Prerequisite Engine (`core/queststate.lua`)**: Evaluates live quest log state, completion flags, faction/race/class restrictions, and multi-step prerequisite chains across maps, trackers, and journals.
+- **Protected Navigation & Deep-Linking (`core/navigation.lua`)**: Combat-safe World Map transitions (`C_Map.OpenWorldMap`), waypoint pins, and cross-module deep links connecting the Omnibox, Dungeon Journal, Recipe Browser, Fishing Atlas, and Alts Dashboard.
+- **Centralized Tooltip & Modifier Hooks (`core/tooltips.lua`, `core/items.lua`)**: Unified tooltip post-processing for `Alt`-hover item/spell ID inspection, cross-alt bag/bank counts, recipe knowledge status, wishlist badges, and `Ctrl-Click` quick-open links for recipes and fish.
+- **Frame & Texture Pooling (`core/pool.lua`, `core/widgets.lua`)**: Recycled widget and texture pools across tracked bars, cooldown icons, radial slices, objective blocks, and loot rows.
+- **Cross-Era Spec & Talent Bridge (`core/bridge.lua`, `core/talents.lua`, `compat.lua`)**: Bidirectional specialization, role, and secondary stat weight resolution across Retail (`standard`) and Classic / Forever (`camelot`, `classic`).
 
 ---
 
 ## Features & Modules
 
-### 1. Radial Menu Engine (Rings)
-Quick-access radial menu system for instant, muscle-memory slice selection. Hold a keybind to summon the radial ring at your cursor, flick in the direction of the desired action, and release to cast.
+### 1. Universal Omnibox & Command Palette (`/sffind`)
+Instant, keyboard-driven search bar and launcher (`frames/find.lua`) connecting every subsystem in SFUI.
+
+- **Unified Search Index (`/sffind [query]` or `/sf find [query]`)**: Searches SFUI option tabs, slash commands, saved layout profiles, dungeons & raids, bosses, encounter loot drops, dungeon quests, profession recipes, fishing species & waters, and synced/account alts in real time.
+- **Direct Deep-Linking**: Press `Enter` or click any result to jump straight to an options tab, open a boss loot table or interactive dungeon map, inspect a recipe or fishing zone, switch layout profiles, or open an alt's inventory.
+
+---
+
+### 2. Radial Menu Engine (Quickdraw Rings)
+Muscle-memory radial menus (`frames/ring/`). Hold a keybind to summon a ring at the cursor, flick toward a slice, and release to execute.
 
 ![Radial Ring Menu](.previews/rings.png)
 
-- **7 Dedicated Ring Providers**:
-  - **Specializations (`ALT-X`)**: Instant class specialization switching with active spec indicators.
-  - **Class Utility & Custom (`ALT-C`)**: Spec-specific utility spells, class abilities, inventory items, collection toys, and macros with interactive drag-and-drop customization in `/sfui ring`.
-  - **Smart Quest & Inventory Collectibles (`ALT-Q`)**: Opie-style auto-inventory ring scanning bags for active quest items (strictly verified against the quest log), weekly inscription treatises, usable profession knowledge items, openable reward chests/caches, threshold key fragments, and uncollected toys, mounts, and battle pets.
-  - **Tracking Options (`ALT-F`)**: Toggle tracking types (herbs, minerals, fish, repair, mail, warband bank) without digging through the minimap dropdown.
-  - **Professions (`ALT-T`)**: Primary and secondary crafting and gathering trade skill windows.
-  - **Target Markers (`ALT-R`)**: Rapid skull, cross, circle, star, square, moon, triangle, and diamond target markers with clear target option.
-  - **World Markers (`ALT-Y`)**: Raid flare placement and clearing.
-- **Deadzone Cancellation**: Release inside the center deadzone circle or hit Escape to abort without executing.
-- **Secure Toy & Macro Execution**: Full support for collection toys via secure action attributes and `/use item:id` fallbacks, complete with cooldown spirals and desaturation.
+- **8 Dedicated Ring Providers (`/sfring` or `/sf ring`)**:
+  - **Specializations (`ALT-X`)**: Instant specialization switching with active spec highlights.
+  - **Class Utility & Custom (`ALT-C`)**: Class/spec utility spells, inventory items, collection toys, and custom macros with drag-and-drop slice editing.
+  - **Smart Quest & Inventory Collectibles (`ALT-Q`)**: Auto-populated ring scanning bags for verified active quest items, weekly profession treatises, knowledge items, openable caches, key fragments, and uncollected toys, mounts, and pets.
+  - **Minimap Tracking (`ALT-F`)**: Toggle gathering nodes, fish, repair, mailbox, and warband bank tracking without opening minimap menus.
+  - **Professions (`ALT-T`)**: Quick-launch primary and secondary crafting skills and compendiums.
+  - **Target Markers (`ALT-R`)**: Skull through star raid target assignment plus rapid clear.
+  - **World Markers (`ALT-Y`)**: Ground flare placement and clearing.
+  - **Hunter Pet Ring (`ring_pet.lua`)**: Dedicated pet call, mend, revive, dismiss, and utility ring on Camelot.
+- **Deadzone Cancellation & Secure Execution**: Release inside the center deadzone or press `Escape` to cancel; executes spells, items, toys, and macros cleanly via secure attributes.
 
 ---
 
-### 2. HUD & Unit Resource Bars
-Clean, modern unit frames and resource displays tailored for immediate combat clarity.
+### 3. HUD, Unit Frames & Class Resource Bars
+Clean, high-visibility unit frames and class bars (`frames/bars/`, `frames/experience/`) engineered for immediate combat readability.
 
 ![Player Health, Resources & Monk Stagger](.previews/playerhp_stagger.png)
 
-- **Unit Frames**: Player, target, focus, pet, and target-of-target frames with class colors, health percentage tags, and reaction borders.
-- **Resource Bars**: Secondary power tracking for combo points, runes, soul shards, arcane charges, holy power, stagger, essence, and chi.
-- **Monk Stagger HUD**: Continuous stagger meter with dynamic green/yellow/red threshold coloring and precise damage percentage readouts.
-- **Castbars**: Player and target castbars featuring spell channel tick marks, empowered spell casting stages, interrupt shield indicators, and spell target names.
-- **Progression Bar**: Experience bar with rested XP markers, quest turn-in prediction highlights, floating combat XP gains, and auto-switching to faction reputation, renown, or paragon progress at maximum level.
+- **Unit Frames**: Player, target, focus, pet, and target-of-target frames with class colors, reaction borders, aura tracking, and secret-value safe updates.
+- **Secondary Resource HUDs**: Combo points, runes, soul shards, arcane charges, holy power, essence, chi, **Monk Stagger** threshold meter, and Demon Hunter **Soul Fragments** bar (`soulfragments.lua`).
+- **Classic & Camelot Combat Bars**: Precision **Weapon Swing Timer** (`swing.lua`), **Threat Meter** (`threat.lua`), movable **Shaman Totem Bar** (`/totembar`), and **Hunter/Warlock Pet Bar** (`pet.lua`).
+- **Castbars**: Player and target castbars with channel ticks, empowered spell stages, interruptibility shields, latency indicators, and spell target names.
+- **Progression Bar**: Experience bar with rested XP markers, quest turn-in XP prediction, Hunter pet XP, Camelot **Challenge Mode** status (`challenges.lua`), floating XP gains, and automatic reputation/renown/paragon switching at max level.
 
 ---
 
-### 3. Action Bars & Combat HUD
-High-performance action bar layouts built with sub-millisecond mouseover responsiveness and zero memory allocations during combat.
+### 4. Action Bars, Quick-Keybind & Universal Movers
+Low-overhead action bars (`frames/actionbars/`) with instant mouseover transitions, hover keybinding, and profile-backed layout management.
 
-- **Action Bar Management**: Main bar, bottom-left, bottom-right, right bar 1, right bar 2, and pet bar with configurable button sizes, padding, and layout columns.
-- **Stance & Form Paging**: Accurate class stance paging (Druid forms, Rogue stealth, Shadow dance, Skyriding flight page).
-- **Pet Action Bar**: Throttled update pipeline decoupling cooldowns, usability, hotkeys, and auto-cast indicators to eliminate micro-stutter.
-- **Mouseover Fading**: Instant, grid-cached alpha transitions on mouseover without per-slot database polling.
-- **Button Skinning**: Seamless native integration with [Masque](https://www.curseforge.com/wow/addons/masque) (e.g. *Masque: Caith*).
+- **Action Bar Engine (Bars 1–6 & Pet Bar)**: Configurable button sizes, padding, columns, and throttled pet bar updates with native [Masque](https://www.curseforge.com/wow/addons/masque) skinning support.
+- **Stance, Form & Skyriding Paging**: Seamless bar paging across Druid forms, Rogue stealth/shadow dance, Warrior stances, and Skyriding.
+- **Hover Quick-Keybind Mode (`/kb` or `/keybind`)**: Bind keys and mouse buttons directly by hovering over any action button.
+- **Universal Movers & Layout Profiles (`/sfmove`, `/sflock`, `/sf profile`)**: Unlock and reposition action bars, unit frames, tracked icon/bar panels, buffs, and HUD widgets with grid snapping, pixel-nudge arrows, form-sibling synchronization, named profile save/load (`/sf profile save <name>`, `/sf profile load <name>`), and multibox layout broadcasting (`/sf profile sync`).
 
 ---
 
-### 4. Vehicle & Mount Interfaces
-Combat-safe vehicle controls engineered to prevent UI lockups and seat desynchronization.
+### 5. Vehicle & Skyriding Interfaces
+Combat-safe vehicle and flight HUDs (`frames/bars/vehicle.lua`).
 
 ![Vehicle Interface & Leave Button](.previews/vehicleui.png)
 
-- **Liberated Vehicle Leave Button**: Default Blizzard vehicle exit button (`MainMenuBarVehicleLeaveButton`) cleanly unhooked from the main action bar and reparented to `UIParent`, positioned independently via `/sfui unlock`.
-- **Seat Indicators**: Built-in integration with `VehicleSeatIndicator` and passenger seat tracking.
-- **Skyriding / Dragonriding HUD**: Minimal vigor circle bar with recharge timers, speed indicators, and thrill-of-the-skies feedback.
+- **Liberated Vehicle Leave Button**: Unhooks `MainMenuBarVehicleLeaveButton` onto `UIParent` for independent positioning in `/sfmove` without main-bar lockups.
+- **Seat & Skyriding Vigor HUD**: Passenger seat indicators plus a minimal vigor recharge and speed HUD for Skyriding / Dragonriding.
 
 ![Skyriding & Dragonriding Vigor HUD](.previews/dragonflying.png)
 
 ---
 
-### 5. Cooldown & Aura Tracking
-Comprehensive aura and cooldown visualization keeping vital buffs and rotational spells front and center.
+### 6. Cooldown Manager, Tracked Panels & Buff Reminders
+Modular aura, cooldown, and missing-buff tracking (`frames/tracking/`, `frames/reminders/`) across Retail and Camelot.
 
 ![Cooldown Manager (CDM)](.previews/cdm.png)
 
-- **Cooldown Manager (CDM)**: Dynamic spell cooldown viewer tracking active cooldowns, charges, and rotational availability.
-- **Tracked Buff & Debuff Bars**: Horizontal timer bars for personal buffs, procs, and target debuffs with individual color customization.
-- **Pandemic Glow & Spark**: Precise visual indicators for DoT/HoT refresh windows (Blizzard 30% pandemic threshold) with dynamic bar color transitions and border pixel glows.
+- **Tracked Icon Panels (`trackedicons.lua`, `panels.lua`)**: Dedicated `CENTER`, `UTILITY`, `Left`, `Right`, class stance/form, and custom icon groups with multi-charge partial recovery edges, custom pixel/autocast glows (`glows.lua`), and Camelot multi-rank spell/seal resolution (`tracking_camelot.lua`).
+- **Tracked Buffs Socket (`tracking/buffs.lua`, `trackedoptions.lua`)**: `SfuiTrackedBuffsSocket` and `buffs` configuration tab integrating seamlessly with Blizzard's `CooldownViewerSettings` and `BuffIconCooldownViewer` on both Retail and Forever without tainting viewer display data or secret M+ swipes.
+- **Tracked Timer Bars (`trackedbars.lua`)**: Tabular-font (`NumberFontNormalSmall`) horizontal timer and stack bars with 30% **Pandemic** refresh sparks, dynamic threshold recoloring, and border glows.
 
 ![Tracked Bars with Pandemic Spark & Glow](.previews/trackedbars.png)
 
----
-
-### 6. Minimap & Waypoint Navigation
-Minimalist, high-performance square minimap designed for unhindered visibility and full addon compatibility.
-
-- **Taint-Free Square Mask**: Engine-level square texture mask (`130937`) utilizing Blizzard's native shape APIs with global `GetMinimapShape` hooks for external addon pin placement.
-- **Dimension & Position Customization**: Dedicated sliders for width, height, scale, anchor points, and screen offsets (`/sfui minimap`).
-- **Icon Layering & Pin Styling**: Protected strata and level stacking ensuring addon icons (LibDBIcon), tracking pins, and quest indicators remain crisp and clickable above the map texture without occlusion.
-- **Status Indicators**: Cleanly anchored queue status (dungeon finder) eye at the bottom-left and mail notification at the top-left.
-- **Indoor Cave Map Support**: Seamless auto-handling for cave maps, delves, and indoor environments.
+- **Raid, Party & Consumable Reminders (`frames/reminders/`)**: Event-driven (zero-`OnUpdate`) missing buff alerts for self buffs, weapon imbues/oils, food/flask consumables (`buffs_consumables.lua`), and smart role-aware **Paladin Party Blessing** reminders (`buffs_party.lua`).
 
 ---
 
-### 7. Delve & Labyrinth Boons Tracker
-Dedicated power tracking panel for The War Within delves and labyrinth encounters.
+### 7. Minimap & World Map Pin System
+Crisp square minimap and extensible World Map pin providers (`frames/map/`).
 
-- **Boon Monitoring**: Dynamic tracking for active delve powers, accumulated buff stacks, and stat augmentations (`1280098`).
-- **Responsive Layout**: Automatically anchors below the delve scenario header and quest tracker with full tooltip inspection.
+- **Taint-Free Square Minimap (`/sf minimap`)**: Native square mask (`130937`) with `GetMinimapShape` compatibility, protected LibDBIcon/pin strata layering, indoor cave/delve handling, and clean queue/mail/location indicators.
+- **Camelot World Map Pin Providers (`frames/map/providers/`)**:
+  - **Dungeon Entrances & Prerequisite-Aware Quest Pins (`pins_dungeonjournal.lua`)**: Marks dungeon entrances and outside quest pickups, automatically resolving multi-step quest chains to their active starting prerequisite step.
+  - **Recipe Vendors & Trainers (`pins_recipes.lua`)**: Pinpoints unlearned profession pattern sources with cross-alt filters.
+  - **Library Books & Librarians (`pins_library.lua`)**: Tracks Camelot world library books and faction librarian turn-ins.
+  - **Iconic Camelot Discoveries (`pins_camelot_quests.lua`)**: Step-by-step map guidance for the Cozy Sleeping Bag chain and Duskwood Night Watchman's Torch.
 
 ---
 
-### 8. Objective Tracker & Shopping Lists
-Streamlined quest and scenario tracking with integrated trade skill reagent management.
+### 8. Objective Tracker, Mythic+, Delves & Shopping Lists
+Streamlined quest, endgame, and crafting objective tracker (`frames/quests/`).
 
 ![Objective Tracker & Shopping Lists](.previews/objectivetracker.png)
 
-- **Clickable Quest Items**: Embedded action buttons alongside quest objectives for instant item usage without opening bags.
-- **Recipe Shopping Lists**: Live reagent tracking pinned to the objective tracker, detailing required crafting materials and real-time in-bag counts.
-- **Header & Section Collapse**: One-click toggles to minimize campaign quests, world quests, achievements, or scenario objectives.
+- **Modular Content Trackers**: Supports Campaign & World Quests, Scenarios, Achievements, Traveler's Log Activities, Collectables, Abundance & World Events, and Camelot Class/Skill/Challenge modules.
+- **Mythic+ & Delve Boon Modules (`q_mythic.lua`, `q_boons.lua`)**: Compact Mythic+ keystone timer/affix display and The War Within Delve/Labyrinth boon stack monitor.
+- **Secure Quest Item Buttons & Recipe Shopping Lists**: Embedded clickable quest items plus live reagent shopping lists (`Ctrl-Click` any tracked recipe to open it directly in the Recipe Browser).
 
 ---
 
-### 9. Loot Feed, Encounters & Wishlists
-Real-time loot alerts, roll management, and cross-character encounter drop tracking.
+### 9. Dungeon Journal, Interactive Maps, Recipes & Fishing Atlas (Classic / Camelot)
+Full in-game compendiums bringing interactive maps, boss guides, crafting databases, and fishing logs to Classic and Forever clients.
+
+![Classic Encounter Journal](.previews/camelotdj.png)
+
+- **Camelot Dungeon Journal (`frames/dungeonjournal/`)**:
+  - **Bosses, Loot & Wishlists**: Encounter mechanics, spec/armor-filtered loot tables, drop rates, and cross-character wishlist tagging.
+  - **Interactive Multi-Floor Dungeon Maps (`dj_map.lua`)**: Zoomable, pannable dungeon maps featuring floor selectors, ladder transitions, hover traversal hints, clickable boss & quest-target portraits, quest objective pins, **Catmull-Rom Travel Route Guides** rendered directly onto the World Map, and an automatic **World Map (`M`) In-Dungeon Overlay** (with Scarlet Monastery wing tabs).
+  - **Quest Chains & Share Helpers (`dj_quests.lua`)**: Faction-filtered dungeon quests displaying full prerequisite chains, active pickup locations, rewards, and party quest-sharing controls.
+
+![Encounter Tactics & Loot Tables](.previews/camelotdjloot.png)
+
+- **Recipe Catalogue (`/recipes` or `/sfrecipes`, `frames/professions/`)**: Searchable crafting compendium detailing materials, skill thresholds, trainers, vendors, drop sources, guild/friend **Crafter Contacts** (`contacts.lua`), and pinned reagent lists (`Ctrl-Click` recipe links to inspect).
+
+![Recipe Catalogue & Crafting Compendium](.previews/camelotrecipes.png)
+
+- **Fishing Atlas & Live Session HUD (`/fishing` or `/sffish`, `frames/fishing/`)**:
+  - **3-Tab Fishing Atlas (`fishing_atlas.lua`)**: Searchable **Fish & Containers** catalog, **Waters** zone/skill breakdown across Kalimdor & Eastern Kingdoms, and personal **Logbook** catch records & trainer milestones (`Ctrl-Click` fish links to jump to species details).
+  - **Live Fishing HUD (`/fishing hud`, `fishing_hud.lua`)**: Compact draggable session tracker showing catches per hour, zone species percentages, lure status, and skillups.
+
+---
+
+### 10. Multi-Account Sync & Multibox Coordinator
+Built-in peer-to-peer synchronization and multibox party automation (`frames/sync/`).
+
+- **Cross-Account Content Sync (`/sf sync`)**: Synchronizes alts, inventories, known recipes, crafter contacts, fishing records, wishlists, waypoints, and mail routing rules across accounts over `PARTY`/`RAID`, `WHISPER`, `GUILD`, and Battle.net GameData channels.
+- **Multibox Party & Quest Automation (`multibox.lua`, `quests.lua`, `trade.lua`, `hud.lua`)**:
+  - Rapid party formation (`/sf party`), leader handoff (`/sf lead`), synchronized `/reload` across clients (`/sf reloadall`), and pause/away mode (`/sf away`).
+  - Auto-follow, flight-master taxi matching, automated trade routing, corpse alerts, and a compact peer status HUD.
+  - Synchronized quest pickup and turn-in with **strictly advisory-only reward badges** — SFUI highlights upgrades on quest choices but never auto-selects or completes a quest when multiple item rewards are offered.
+
+---
+
+### 11. Loot Feed, Gear Upgrade Solver & Advisory Badges
+Smart equipment evaluation, loot alerts, and quest reward scoring (`frames/gear/`, `frames/character/`).
 
 ![Loot Toast Feed](.previews/lootfeed.png)
-
-- **Loot Toast Feed**: Lightweight, non-intrusive loot toast feed tracking items, gold, currencies, and quest rewards.
-- **Encounter Loot Browser**: In-game dungeon and raid encounter drop browser with spec-filtered loot views.
-- **Cross-Character Wishlist**: Tag desired items across characters with automatic toast alerts whenever a wishlisted piece drops in your group or raid.
-- **Auto-Comparison**: Automatic gear comparison integration for equippable drops in the loot feed.
-
 ![Group Loot Rolls](.previews/lootrolls.png)
 
----
-
-### 10. Gear Manager & Bag Upgrades
-Smart inventory evaluation recommending optimal gear configurations.
+- **Loot Toast Feed & Encounter Browser (`lootfeed.lua`, `lootviewer.lua`)**: Clean toast notifications for items, currencies, rolls, and wishlisted group drops, plus Retail encounter loot browsing, bonus roll prompts (`bonusroll.lua`), and loot-spec reminders (`lootspec.lua`).
+- **Role-Weighted Upgrade Solver (`frames/gear/highest/`)**: Evaluates bag equipment against preset or custom tank/healer/DPS stat weights with 1-click equip sets and Camelot Character Info stats (`infopanel.lua`).
+- **Advisory Quest Upgrade Badges (Blizzard & DialogueUI)**: Displays upgrade percentage badges on quest reward choices in both native Blizzard Quest Frames and **DialogueUI** (Retail & Forever) without force-picking rewards.
 
 ![Gear Manager & Stat Weights](.previews/gearmanager.png)
 ![Gear Manager (Camelot Theme)](.previews/camelotgearmanager.png)
 
-- **Bag Upgrade Analysis**: Automatic detection of higher item-level or better-itemized equipment sitting in your bags.
-- **Role-Based Stat Weights**: Preset and custom secondary stat prioritization for tanks, healers, and DPS specializations.
-- **Equipment Set Quick-Swap**: Rapid gear set swapping with keybind support.
-
 ---
 
-### 11. Dungeon Journal & Recipe Catalogue (Classic / Camelot)
-Full in-game reference databases bringing modern compendium tools to Classic and Camelot clients.
-
-![Classic Encounter Journal](.previews/camelotdj.png)
-
-- **Classic Encounter Journal (`/dj`)**: In-depth boss tactics, ability descriptions, complete dungeon loot tables, and drop rates.
-
-![Encounter Tactics & Loot Tables](.previews/camelotdjloot.png)
-
-- **Recipe Catalogue (`/recipe`)**: Exhaustive crafting compendium detailing every profession recipe, required materials, trainer locations, vendor costs, and drop sources.
-
-![Recipe Catalogue & Crafting Compendium](.previews/camelotrecipes.png)
-
-- **WorldMap Recipe & Entrance Pins**: Interactive map pins for dungeon entrances, quest pickups, and recipe vendors with cross-alt shopping lists.
-
----
-
-### 12. Merchant & Economy Automation
-Frictionless vendor interactions that save time on every town visit.
+### 12. Merchant, Bag Triage & Economy Automation
+Streamlined vendor, repair, and bag cleanup workflows (`frames/merchant/`, `frames/automation/`).
 
 ![Merchant Utility & Auto-Sell](.previews/merchant.png)
 
-- **Junk Selling**: 1-click or automated sale of poor-quality (grey) items with detailed chat profit summaries.
-- **Automated Repairs**: Instant gear repairs using personal funds or guild bank allowances.
-- **Bulk Purchasing**: Shift-click shortcuts to buy exact stack quantities or maximum affordable amounts.
-- **Recipe Knowledge Inspection**: Automatic highlighting of unlearned recipes on vendor lists.
+- **Auto-Sell, Auto-Repair & Merchant Filters (`merchant.lua`, `merchant_utility.lua`)**: Automated grey-junk sales with profit summaries, personal/guild repairs, stack-buy shortcuts, reagent restocking, and unlearned recipe highlights.
+- **Bag Triage & Soul Shard Purge (`triage.lua`)**: Keybound item triage cleanup and Warlock excess Soul Shard culling (`/sfshards` or `/sf shards`).
 
 ---
 
 ### 13. Portals Hub
-Consolidated teleport and hearthstone menu accessible anywhere in the world.
+Unified teleportation and hearthstone popup (`frames/portals/`).
 
 ![Portals Hub Menu](.previews/portals.png)
 
-- **All-in-One Teleport Hub**: Instant popup listing standard Hearthstones, Dalaran/Garrison Hearthstones, Mythic+ dungeon teleports, raid portal toys, and engineer wormholes.
-- **Dynamic Filtering**: Automatically hides destinations your character has not unlocked or cannot use.
+- **All-in-One Teleport Menu (`/portals` or `/sfportals`)**: Aggregates Hearthstones, Dalaran/Garrison Hearthstones, Mage teleports/portals, Mythic+ dungeon teleports, raid portal toys, and Engineering wormholes, dynamically filtered to unlocked destinations.
 
 ---
 
-### 14. Alts, Warband & Mail Dispatcher
-Cross-character overview keeping track of your entire roster and automated shipping across your alts.
+### 14. Alts, Warband & Automated Mail Dispatcher
+Cross-character roster overview and rule-based mail routing (`frames/alts/`).
 
 ![Alts & Warband Dashboard](.previews/alts.png)
 ![Alts & Warband Overview (Camelot Theme)](.previews/altscamelot.png)
 
-- **Account Overview**: Track item levels, weekly dungeon lockouts, Great Vault progress, and rested XP across all characters.
-- **Currency & Wealth Tracking**: Consolidated tally of gold, crests, valorstones, and holiday currencies across your Warband.
-- **Profession Tracking**: Inspect known recipes, skill levels, and weekly knowledge points across alts without logging off.
-- **Mail Dispatcher (`/sfmail` or `/sfui mail`)**: Automated shipping utility routing profession reagents, BoEs, consumables, and quest turn-ins directly to designated alt recipients with 1-click batch sending.
+- **Account & Synced Roster Dashboard**: Inspect item levels, bags, banks, professions, lockouts, Great Vault progress, rested XP, gold, and currencies across every character and paired account.
+- **Mail Dispatcher (`/sfmail` or `/altsmail`)**: Rule-based shipping engine (`mail_engine.lua`, `mail_mailbox.lua`) batch-sending reagents, BoEs, consumables, and materials to designated alts in one click, plus Retail currency transfer helpers (`transfer.lua`).
 
 ![Mail Dispatcher & Alts Shipping](.previews/maildispatcher.png)
 
 ---
 
-### 15. Quality of Life & Automations
-Thoughtful micro-features that eliminate repetitive manual tasks.
+### 15. Quality of Life & Micro-Automations
+Everyday conveniences (`frames/automation/`, `frames/research.lua`) that stay out of the way.
 
 ![Master's Hammer Repair Automation](.previews/mastersrepair.png)
 
-- **Master's Hammer Automation**: Instant Blacksmith Master's Hammer repair prompt when gear durability falls below safety thresholds.
-- **One-Key Fishing**: Single keybind to cast and reel in, complete with soft-targeting and amplified splash audio.
-- **Auto Companion Pet & Pet Manager**: Automatically re-summons your companion pet after dismounting, with optional timed favorites rotation and dedicated Camelot pet manager interface.
+- **Master's Hammer Repair**: Instant Blacksmith repair popup when durability drops below threshold.
+- **One-Key Fishing**: Single keybind to cast, apply lures, soft-target bobbers, and reel in.
+- **Companion Pet Automation (`/sfpet`)**: Auto-resummons pets after dismounting with optional favorite rotation and Camelot pet management.
 
 ![Auto Companion Pet & Camelot Pet Manager](.previews/camelotthemepetmanager.png)
 
-- **Spell Rank-Up**: Automatically replaces lower-rank abilities on your action bars when higher ranks are learned at trainers.
-- **Cinematic & Movie Skipping**: Automatic skipping for watched cutscenes and talking-head dialogues.
-- **Target Mount Matcher**: One-click keybind to summon the identical mount currently ridden by your target.
-- **Tracking Manager**: Collapsible utility micro-bar for quick consumable, hearthstone, and tracker access.
+- **Trainer Spell Rank-Up (`rankup.lua`)**: Automatically upgrades action bar spells when higher ranks are learned on Classic/Camelot.
+- **Order Hall & Research Monitor (`research.lua`)**: Tracks Retail research timers and talent completions.
+- **Target Mount Matcher, Cinematic Skip & Tracking Micro-Bar**: Match your target's mount with one keybind, auto-skip watched cutscenes, and access consumables/trackers from the collapsible Tracking Manager.
 
 ![Collapsible Tracking Manager](.previews/trackingmanager.png)
 
 ---
 
-### 16. In-Game Configuration & Telemetry
-
-![Options Panel](.previews/options.png)
-
-- **Options Panel (`/sfui`)**: Tabbed configuration suite covering all 18 subsystems. Jump directly to any section with `/sfui <tab>` (e.g. `/sfui ring`, `/sfui minimap`, `/sfui bars`, `/sfui trackedbars`).
-- **Mover Mode (`/sfui unlock`)**: Intuitive drag-and-drop frame positioning with pixel-perfect nudge buttons and coordinate readouts.
-- **Memory & Diagnostics Profiler (`/sfmem` or `/sfui mem`)**: Live telemetry dashboard tracking addon memory usage, CPU allocation rates, garbage collection cycles, and active subsystem states.
-
-![Memory & Diagnostics Profiler](.previews/memtool.png)
-
----
-
-### 17. Multi-Era Visual Themes (Modern & Camelot)
-Tailored visual styling seamlessly adapting to the active game client.
+### 16. Driver-Based Theme Engine (6 Built-In Themes)
+Live-switching visual theme system (`frames/themes/`) backed by weak-keyed widget registries for zero memory leaks.
 
 ![Camelot Parchment & Bronze Theme](.previews/camelottheme.png)
 
-- **Modern Clean (Retail)**: Minimalist flat frames, dark slate glassmorphism, crisp borders, and subdued accents.
-- **Camelot Vintage (Classic / Camelot)**: Rich medieval fantasy aesthetic with authentic parchment textures, ornate bronze filigree borders, thematic parchment scrollbars, and period typography.
+- **6 Selectable Themes (`/sftheme [mode]` or `/sf theme [mode]`)**:
+  - **`modern`**: Minimalist flat dark-slate panels with crisp borders.
+  - **`camelot`** (`bronze`): Authentic medieval parchment, bronze filigree borders, and period scrollbars (Classic / Camelot).
+  - **`oldgod`**: Void-infused deep purple and eldritch gold accents.
+  - **`fallensanctum`**: Shadowlands Torghast/Sanctum iron and soulfire styling.
+  - **`maw`**: Charred stygian steel and ashen borders.
+  - **`necrolord`**: Maldraxxus bone-plate and necrotic emerald accents.
+
+---
+
+### 17. Configuration, Memory & CPU Diagnostics
+
+![Options Panel](.previews/options.png)
+
+- **Tabbed Options Suite (`/sfui` or `/sf`)**: Unified settings window covering 25+ modules; jump straight to any tab via `/sf <tab>` (e.g. `/sf ring`, `/sf minimap`, `/sf sync`, `/sf buffs`, `/sf theme`).
+- **Memory, Pool & CPU Profiler (`/sfmem`, `/sfcpu`)**: Real-time diagnostics (`frames/mem.lua`) reporting per-module memory usage, widget pool counts, garbage collection (`/sfmem gc`), timed CPU spike profiling (`/sfcpu [seconds]`), and `sfuibug` error log inspection (`/sf bug`).
+
+![Memory & Diagnostics Profiler](.previews/memtool.png)
 
 ---
 
@@ -241,27 +249,42 @@ Tailored visual styling seamlessly adapting to the active game client.
 
 | Command | Action |
 | :--- | :--- |
-| `/sfui` | Open the main configuration panel |
-| `/sfui <tab>` | Jump directly to a tab (e.g. `/sfui ring`, `/sfui minimap`, `/sfui bars`, `/sfui dj`) |
-| `/sfui unlock` | Toggle frame movers to reposition UI elements |
-| `/dj` or `/sfui dj` | Open the Classic / Camelot Dungeon Journal |
-| `/recipe` or `/sfui recipes` | Open the Recipe Catalogue & Crafting Compendium |
-| `/sfmail` or `/sfui mail` | Open the Mail Dispatcher automated shipping manager |
-| `/triage` or `/sfui triage` | Open the automated Bag Triage inventory manager |
-| `/sfmem` | Open the real-time Memory & Diagnostics Profiler (`/sfmem gc` forces collection) |
+| `/sfui` or `/sf` | Open the main SFUI configuration panel |
+| `/sf <tab>` | Open options directly to a tab (e.g. `/sf ring`, `/sf minimap`, `/sf bars`, `/sf sync`, `/sf buffs`, `/sf theme`) |
+| `/sffind [query]` or `/sf find [query]` | Open the Universal Omnibox to search options, commands, dungeons, bosses, loot, quests, recipes, fish, and alts |
+| `/sfmove`, `/sfedit`, or `/sf unlock` | Unlock UI movers for drag-and-drop positioning and pixel nudging (`/sflock` or `/sf lock` to lock) |
+| `/sf profile <save\|load\|sync> [name]` | Save, switch, or broadcast named mover layout profiles |
+| `/kb`, `/keybind`, or `/sfkeybind` | Toggle hover quick-keybind mode for action bars |
+| `/sftheme [mode]` or `/sf theme [mode]` | Open theme settings or switch live between `modern`, `camelot`, `oldgod`, `fallensanctum`, `maw`, and `necrolord` |
+| `/sfring [ring]` or `/sf ring [ring]` | Configure radial rings or open a specific ring (`target`, `world`, `prof`, `quest`, `track`) |
+| `/portals` or `/sfportals` | Toggle the Portals & Hearthstones Hub |
+| `/recipes [query]` or `/sfrecipes` | Open the Classic / Camelot Recipe Catalogue & Crafting Compendium |
+| `/fishing` or `/sffish` | Open the Classic / Camelot Fishing Atlas (`/fishing hud`, `/fishing lock`, `/fishing reset`, `/fishing opt`) |
+| `/sfmail` or `/altsmail` | Open the Alts Mail Dispatcher & routing rules configuration |
+| `/sf sync [now\|party\|target\|name]` | Open Multibox Sync settings, pair characters, or broadcast state immediately |
+| `/sf party` · `/sf lead` · `/sf away` · `/sf reloadall` | Form synced multibox party, request party lead, toggle away/pause, or reload all paired clients |
+| `/totembar` or `/sftotems` | Toggle Shaman Totem Bar mover (Classic / Camelot) |
+| `/sfshards` or `/sf shards` | Check and purge excess Warlock Soul Shards (Classic / Camelot) |
+| `/sfpet` | Companion pet summon / rotation controls and options |
+| `/sfmem` (`gc`) · `/sfcpu [seconds]` | Run memory/pool telemetry, force garbage collection, or profile CPU usage over a window |
+| `/sf bug` | Inspect recorded addon errors when the `sfuibug` companion addon is loaded |
 | `/rl` | Fast UI reload |
 
 ---
 
-## Keybindings
+## Interactive Shortcuts & Keybindings
 
-Configure keybindings under **Game Menu -> Options -> Keybindings -> SFUI**:
+### Tooltip & Click Modifiers
+- **`Alt` (Hover)**: Display Item IDs, Spell IDs, and extended cross-alt metadata in tooltips.
+- **`Ctrl-Click` (Item / Recipe / Fish Link)**: Jump directly to the matching entry in the **Recipe Catalogue** or **Fishing Atlas** without conflicting with `Alt` ID inspection.
 
-- **Radial Menus**: Specializations (`ALT-X`), Utility (`ALT-C`), Tracking (`ALT-F`), Professions (`ALT-T`), Quest Items (`ALT-Q`), Target Markers (`ALT-R`), World Markers (`ALT-Y`)
-- **Cast & Catch Fishing**: One-key fishing cast and reel-in
-- **Portals Hub**: Open the teleportation and hearthstone menu
-- **Alts & Warband**: Open the cross-character roster dashboard
-- **Loot Browser**: Open the encounter loot browser
-- **Master's Hammer Repair**: Instant Blacksmith repair popup
-- **Match Target Mount**: Summon the mount currently used by your target
-- **Summon / Rotate Companion Pet**: Call or cycle active vanity pets
+### Keybindings (`Game Menu -> Options -> Keybindings -> SFUI`)
+- **Radial Rings**: Specializations (`ALT-X`), Class Utility & Custom (`ALT-C`), Minimap Tracking (`ALT-F`), Professions (`ALT-T`), Quest & Collectible Items (`ALT-Q`), Target Markers (`ALT-R`), World Markers (`ALT-Y`)
+- **Dungeon Journal / Loot Browser**: Toggle the Camelot Dungeon Journal or Retail Encounter Loot Browser
+- **Alts / Warband**: Toggle the cross-character roster & inventory dashboard
+- **Portals**: Toggle the Portals & Hearthstones Hub
+- **Cast & Catch Fishing**: One-key fishing cast, lure, and reel-in
+- **Master's Hammer Repair**: Trigger instant Blacksmith repair popup
+- **Match Target Mount**: Summon the exact mount ridden by your current target
+- **Summon / Rotate Companion Pet**: Summon or cycle favorite vanity pets
+- **Class Utility / Triage Delete (Classic / Camelot)**: Trigger class totem/shard utility or purge active triage item

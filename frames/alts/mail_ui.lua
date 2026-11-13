@@ -264,7 +264,7 @@ function mail.CreateConfigFrame()
     deLabel:SetTextColor(0.8, 0.8, 0.8, 1)
 
     -- Disenchanter Dropdown
-    local currentDE = mail.GetSettings().disenchanterGUID or "none"
+    local currentDE = (mail.GetAssignedDisenchanterGUID and mail.GetAssignedDisenchanterGUID()) or mail.GetSettings().disenchanterGUID or "none"
     local deDropdown = widgets.create_dropdown(topBar, 145, GetDEOptions, function(val)
         mail.SetAssignedDisenchanter(val ~= "none" and val or nil)
         RefreshUI()
@@ -526,7 +526,7 @@ RefreshUI = function()
 
     -- 1. Populate Disenchanter Dropdown options
     local deOptions = GetDEOptions()
-    local currentDE = mail.GetSettings().disenchanterGUID or "none"
+    local currentDE = (mail.GetAssignedDisenchanterGUID and mail.GetAssignedDisenchanterGUID()) or mail.GetSettings().disenchanterGUID or "none"
     if configFrame.deDropdown and configFrame.deDropdown.SetOptions then
         configFrame.deDropdown:SetOptions(deOptions, currentDE)
     elseif configFrame.deDropdown and configFrame.deDropdown.SetSelectedValue then

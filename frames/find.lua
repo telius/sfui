@@ -535,23 +535,28 @@ local function rebuild_dynamic_entries()
     -- 4. Account Alts
     local altsDB = _G.SfuiDB and _G.SfuiDB.alts
     if type(altsDB) == "table" then
-        for _, alt in pairs(altsDB) do
+        for guid, alt in pairs(altsDB) do
             if type(alt) == "table" and alt.name then
+                local dispName = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name
                 local lvl = alt.level and ("lvl " .. tostring(alt.level)) or ""
                 local cls = safe_lower(alt.class or "")
-                local rlm = safe_lower(alt.realm or "")
+                local altRs = sfui.alts and sfui.alts.GetAltRuleset and sfui.alts.GetAltRuleset(alt, guid)
+                local rlm = altRs or safe_lower(alt.realm or "")
                 dynamicEntries[#dynamicEntries + 1] = make_entry(
                     "alt",
-                    safe_lower(alt.name),
+                    safe_lower(dispName),
                     lvl .. (cls ~= "" and (" · " .. cls) or "") .. (rlm ~= "" and (" · " .. rlm) or ""),
                     "Interface\\Icons\\Achievement_Character_Human_Male",
                     function()
+                        if altRs and sfui.alts and sfui.alts.SetRulesetFilter then
+                            sfui.alts.SetRulesetFilter(altRs, false)
+                        end
                         if sfui.nav and sfui.nav.OpenAlts then
                             sfui.nav.OpenAlts()
                         end
                     end,
                     nil,
-                    "character bank bags",
+                    "character bank bags " .. (altRs or ""),
                     8
                 )
             end

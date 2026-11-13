@@ -398,7 +398,8 @@ function mail.GetAlts(includeCurrent)
     if altsDB then
         for guid, altData in pairs(altsDB) do
             local isCurrent = (guid == myGUID)
-            if includeCurrent or not isCurrent then
+            local sameRuleset = not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(altData, guid)
+            if sameRuleset and (includeCurrent or not isCurrent) then
                 local hasEnchanting = false
                 local profList = mail.GetAltProfessions(guid)
                 for _, p in ipairs(profList) do
@@ -471,18 +472,51 @@ function mail.GetRoute(guid)
     return settings.routes[guid]
 end
 
---- Set or clear the assigned disenchanter alt
+--- Set or clear the assigned disenchanter alt (scoped per ruleset on Camelot/Forever)
 --- @param guid string|nil
 function mail.SetAssignedDisenchanter(guid)
     local settings = mail.GetSettings()
-    settings.disenchanterGUID = guid
+    local curRs = sfui.alts and sfui.alts.GetCurrentRuleset and sfui.alts.GetCurrentRuleset()
+    if curRs then
+        settings.disenchanterByRuleset = settings.disenchanterByRuleset or {}
+        settings.disenchanterByRuleset[curRs] = guid or false
+        if not guid and settings.disenchanterGUID then
+            local legacyAlt = SfuiDB and SfuiDB.alts and SfuiDB.alts[settings.disenchanterGUID]
+            if not legacyAlt or (sfui.alts.IsSameRuleset and sfui.alts.IsSameRuleset(legacyAlt, settings.disenchanterGUID, curRs)) then
+                settings.disenchanterGUID = nil
+            end
+        end
+    else
+        settings.disenchanterGUID = guid
+    end
+end
+
+--- Get assigned disenchanter GUID for the active realm/ruleset
+--- @return string|nil guid
+function mail.GetAssignedDisenchanterGUID()
+    local settings = mail.GetSettings()
+    local curRs = sfui.alts and sfui.alts.GetCurrentRuleset and sfui.alts.GetCurrentRuleset()
+    if curRs then
+        if type(settings.disenchanterByRuleset) == "table" and settings.disenchanterByRuleset[curRs] ~= nil then
+            local v = settings.disenchanterByRuleset[curRs]
+            return (type(v) == "string" and v ~= "") and v or nil
+        end
+        local legacyGuid = settings.disenchanterGUID
+        if legacyGuid and SfuiDB and SfuiDB.alts then
+            local alt = SfuiDB.alts[legacyGuid]
+            if alt and (not sfui.alts.IsSameRuleset or sfui.alts.IsSameRuleset(alt, legacyGuid, curRs)) then
+                return legacyGuid
+            end
+        end
+        return nil
+    end
+    return settings.disenchanterGUID
 end
 
 --- Get assigned disenchanter alt data
 --- @return table|nil altData
 function mail.GetAssignedDisenchanter()
-    local settings = mail.GetSettings()
-    local guid = settings.disenchanterGUID
+    local guid = mail.GetAssignedDisenchanterGUID()
     if not guid or not SfuiDB or not SfuiDB.alts then return nil end
     local alt = SfuiDB.alts[guid]
     if alt then
@@ -619,7 +653,7 @@ end
 function mail.IsDisenchantableBoE(itemID, itemLink, classID, subclassID, quality, bindType)
     if not itemID or not itemLink then return false end
     local settings = mail.GetSettings()
-    if not settings.disenchanterGUID then return false end
+    if not mail.GetAssignedDisenchanterGUID() then return false end
 
     -- Extract info if not pre-fetched
     if not classID or not quality or not bindType then
@@ -924,11 +958,12 @@ function mail.FindDestinationForBagItem(bag, slot, candidateAlts, preloadedInfo,
     end
 
     -- 3. Disenchant BoE rule
-    if settings.disenchanterGUID and settings.disenchanterGUID ~= myGUID then
+    local deGUID = mail.GetAssignedDisenchanterGUID()
+    if deGUID and deGUID ~= myGUID then
         if mail.IsDisenchantableBoE(itemID, itemLink, classID, subclassID, quality, bindType) then
-            local alt = SfuiDB.alts and SfuiDB.alts[settings.disenchanterGUID]
-            if alt and alt.name then
-                return settings.disenchanterGUID, alt.name, alt.realm, "disenchant_boe", info
+            local alt = SfuiDB.alts and SfuiDB.alts[deGUID]
+            if alt and alt.name and (not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(alt, deGUID)) then
+                return deGUID, alt.name, alt.realm, "disenchant_boe", info
             end
         end
     end

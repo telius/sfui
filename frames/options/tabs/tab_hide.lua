@@ -111,12 +111,30 @@ sfui.options.RegisterTab({
             "hide_cooldown_errors",
             function(checked)
                 notify_change("hide_cooldown_errors", checked)
-                sfui.hide.ApplyErrorFilters()
+                local needsReload = sfui.hide.ApplyErrorFilters()
+                if not checked and needsReload and sfui.common and sfui.common.print then
+                    sfui.common.print("reload ui (/rl) to restore previously suppressed error types.")
+                end
             end,
-            "filters out 'spell is not ready yet', 'not enough energy', and ability cooldown errors."
+            "filters out 'spell is not ready yet', resource shortages, and ability cooldown errors."
         )
         err_cb:SetPoint("TOPLEFT", err_desc, "BOTTOMLEFT", 0, -10)
 
-        panel.customContentHeight = 350
+        local err_all_cb = create_checkbox(
+            panel,
+            "hide all red error spam",
+            "hide_all_errors",
+            function(checked)
+                notify_change("hide_all_errors", checked)
+                local needsReload = sfui.hide.ApplyErrorFilters()
+                if not checked and needsReload and sfui.common and sfui.common.print then
+                    sfui.common.print("reload ui (/rl) to restore previously suppressed error types.")
+                end
+            end,
+            "suppresses non-critical red combat errors while keeping bag full, player dead, and yellow quest/info messages."
+        )
+        err_all_cb:SetPoint("TOPLEFT", err_cb, "BOTTOMLEFT", 0, -10)
+
+        panel.customContentHeight = 380
     end,
 })

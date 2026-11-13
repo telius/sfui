@@ -153,7 +153,8 @@ local function ensure_peer_cache()
 
     if SfuiDB and type(SfuiDB.alts) == "table" then
         for guid, alt in pairs(SfuiDB.alts) do
-            if type(alt) == "table" then
+            local sameRuleset = not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(alt, guid)
+            if type(alt) == "table" and sameRuleset then
                 local disp = (sfui.alts and sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(alt, guid)) or alt.name or ""
                 local c = clean_key(disp)
                 local cFirst = clean_key(alt.name or "")

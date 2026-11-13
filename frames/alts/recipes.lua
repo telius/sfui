@@ -130,12 +130,33 @@ local function SanitizeRecipeDB()
     end
 end
 
+local function GetCanonicalRealmForChar(altData, guid)
+    if sfui.isCamelot or (_G.RegionalUniqueNamesEnabled and _G.RegionalUniqueNamesEnabled()) then
+        local rs = (sfui.alts and sfui.alts.GetAltRuleset and sfui.alts.GetAltRuleset(altData, guid))
+            or (sfui.common and sfui.common.get_camelot_ruleset and sfui.common.get_camelot_ruleset())
+        if rs and rs ~= "" then
+            return "forever-" .. rs
+        end
+    end
+    if type(altData) == "table" and altData.realm and altData.realm ~= "" then
+        return altData.realm
+    end
+    return GetRealmName()
+end
+
 local function EnsurePlayerContext()
     SanitizeRecipeDB()
     if not myGUID then
         myGUID = UnitGUID("player")
     end
-    if not myRealm then
+    if sfui.isCamelot or (_G.RegionalUniqueNamesEnabled and _G.RegionalUniqueNamesEnabled()) then
+        local curRs = sfui.common and sfui.common.get_camelot_ruleset and sfui.common.get_camelot_ruleset()
+        if curRs and curRs ~= "" then
+            myRealm = "forever-" .. curRs
+        elseif not myRealm then
+            myRealm = GetRealmName()
+        end
+    elseif not myRealm then
         myRealm = GetRealmName()
     end
     if not myName or (sfui.isCamelot and not myName:find(" ", 1, true)) then
@@ -152,6 +173,18 @@ local function EnsurePlayerContext()
         local ec = sfui.common.get_player_class()
         myClass = ec
     end
+end
+
+local function IsAltInCurrentScope(guid, altData, realmKey)
+    if guid and myGUID and guid == myGUID then return true end
+    local alt = altData or (SfuiDB and SfuiDB.alts and guid and SfuiDB.alts[guid])
+    if alt and sfui.alts and sfui.alts.IsSameRuleset then
+        return sfui.alts.IsSameRuleset(alt, guid)
+    end
+    if type(realmKey) == "string" and type(myRealm) == "string" and realmKey:find("^forever%-") and myRealm:find("^forever%-") then
+        return realmKey == myRealm
+    end
+    return true
 end
 
 -- ── Fast Caching Tables & Scratch Buffers ─────────────────────────────────────
@@ -211,10 +244,10 @@ local function IsRecipeKnownByAnyAltInDB(id, excludeGUID)
     if type(realmMap) ~= "table" then
         return false
     end
-    for _, guidMap in pairs(realmMap) do
+    for rKey, guidMap in pairs(realmMap) do
         if type(guidMap) == "table" then
             for guid, known in pairs(guidMap) do
-                if known and guid ~= excludeGUID then
+                if known and guid ~= excludeGUID and IsAltInCurrentScope(guid, nil, rKey) then
                     return true
                 end
             end
@@ -745,7 +778,7 @@ local function GetRecipeStatus(itemID)
                     or false
     if not isKnownAlt and outputItemID and SfuiDB.crafts and type(SfuiDB.crafts[outputItemID]) == "table" then
         for guid, known in pairs(SfuiDB.crafts[outputItemID]) do
-            if known and guid ~= myGUID then
+            if known and guid ~= myGUID and IsAltInCurrentScope(guid) then
                 isKnownAlt = true
                 break
             end
@@ -785,7 +818,7 @@ local function GetRecipeStatus(itemID)
     local altCanLearn = false
     if SfuiDB.alts then
         for guid, altData in pairs(SfuiDB.alts) do
-            if guid ~= myGUID then
+            if guid ~= myGUID and IsAltInCurrentScope(guid, altData) then
                 local hasProf, meetsRank = CheckAltEligibility(altData, reqProf, reqRank, subclassID, skillID)
                 if hasProf and meetsRank then
                     altCanLearn = true
@@ -840,7 +873,8 @@ local function ScanKnownRecipesFromCatalog(force)
                 if type(guidMap) == "table" then
                     for guid, known in pairs(guidMap) do
                         if known then
-                            local targetRealm = (SfuiDB.alts and SfuiDB.alts[guid] and SfuiDB.alts[guid].realm) or rName or myRealm
+                            local altObj = SfuiDB.alts and SfuiDB.alts[guid]
+                            local targetRealm = (altObj and GetCanonicalRealmForChar(altObj, guid)) or rName or myRealm
                             if RecordKnownRecipeForChar(recID, guid, targetRealm) then
                                 anyChanged = true
                                 if guid == myGUID then changedForMe = true end
@@ -859,7 +893,8 @@ local function ScanKnownRecipesFromCatalog(force)
             if sID and type(crafters) == "table" then
                 for guid, canCraft in pairs(crafters) do
                     if canCraft then
-                        local targetRealm = (SfuiDB.alts and SfuiDB.alts[guid] and SfuiDB.alts[guid].realm) or myRealm
+                        local altObj = SfuiDB.alts and SfuiDB.alts[guid]
+                        local targetRealm = (altObj and GetCanonicalRealmForChar(altObj, guid)) or myRealm
                         if RecordKnownRecipeForChar(sID, guid, targetRealm) then
                             anyChanged = true
                             if guid == myGUID then changedForMe = true end
@@ -1238,11 +1273,13 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
         for guid, canCraft in pairs(SfuiDB.crafts[craftTarget]) do
             if canCraft then
                 local alt = SfuiDB.alts and SfuiDB.alts[guid]
-                local name = (alt and alt.name) or (guid == myGUID and myName)
-                local className = (alt and alt.class) or (guid == myGUID and myClass)
-                local realm = (alt and alt.realm) or (guid == myGUID and myRealm)
-                if name then
-                    table.insert(scratchCrafterList, GetColoredCharacterName(name, className, realm, alt, guid))
+                if IsAltInCurrentScope(guid, alt) then
+                    local name = (alt and alt.name) or (guid == myGUID and myName)
+                    local className = (alt and alt.class) or (guid == myGUID and myClass)
+                    local realm = (alt and alt.realm) or (guid == myGUID and myRealm)
+                    if name then
+                        table.insert(scratchCrafterList, GetColoredCharacterName(name, className, realm, alt, guid))
+                    end
                 end
             end
         end
@@ -1291,7 +1328,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
     -- A. From SfuiDB.crafts (crafters of output item)
     if craftTarget and SfuiDB.crafts and SfuiDB.crafts[craftTarget] then
         for guid, canCraft in pairs(SfuiDB.crafts[craftTarget]) do
-            if canCraft then
+            if canCraft and IsAltInCurrentScope(guid) then
                 scratchKnownGUIDs[guid] = true
             end
         end
@@ -1302,10 +1339,10 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
     if SfuiDB.recipes then
         for _, id in ipairs(checkIDs) do
             if id and SfuiDB.recipes[id] then
-                for _, realmList in pairs(SfuiDB.recipes[id]) do
+                for rKey, realmList in pairs(SfuiDB.recipes[id]) do
                     if type(realmList) == "table" then
                         for guid, isKnown in pairs(realmList) do
-                            if isKnown then
+                            if isKnown and IsAltInCurrentScope(guid, nil, rKey) then
                                 scratchKnownGUIDs[guid] = true
                             end
                         end
@@ -1318,7 +1355,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
     -- C. Base recipes (minSkill <= 0): any character with this profession knows it automatically
     if minSkill and minSkill <= 0 and (skillID or profName) and SfuiDB.alts then
         for guid, altData in pairs(SfuiDB.alts) do
-            if not scratchKnownGUIDs[guid] then
+            if not scratchKnownGUIDs[guid] and IsAltInCurrentScope(guid, altData) then
                 local hasProf = CheckAltEligibility(altData, profName, 0, subclassID, skillID)
                 if hasProf then
                     scratchKnownGUIDs[guid] = true
@@ -1362,7 +1399,7 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
             end
         end
         for guid, altData in pairs(SfuiDB.alts) do
-            if guid ~= myGUID and not scratchKnownGUIDs[guid] then
+            if guid ~= myGUID and not scratchKnownGUIDs[guid] and IsAltInCurrentScope(guid, altData) then
                 local hasProf, meetsRank, currentRank = CheckAltEligibility(altData, profName, minSkill, subclassID, skillID)
                 if hasProf then
                     local formatted = GetColoredCharacterName(altData.name, altData.class, altData.realm, altData, guid)
@@ -1668,7 +1705,7 @@ function sfui.recipes.FindBestAltForRecipe(itemID)
 
     local bestGUID, bestAlt, bestScore = nil, nil, -1
     for guid, altData in pairs(SfuiDB.alts) do
-        if guid ~= myGUID and type(altData) == "table" and altData.name then
+        if guid ~= myGUID and type(altData) == "table" and altData.name and IsAltInCurrentScope(guid, altData) then
             local alreadyKnown = IsRecipeKnownInDB(itemID, guid)
                 or (spellID and IsRecipeKnownInDB(spellID, guid))
                 or (outputItemID and SfuiDB.crafts and SfuiDB.crafts[outputItemID] and SfuiDB.crafts[outputItemID][guid])

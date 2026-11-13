@@ -1074,6 +1074,44 @@ sfui.config = {
         hide_bagsbar         = false,
         hide_totem_bar       = false,
         hide_cooldown_errors = true,
+        hide_all_errors      = false,
+    },
+
+    -- ─── Smart Auto Combat Logging ────────────────────────
+    -- Settings for instance/difficulty-filtered logging (frames/automation/logs.lua).
+    logs = {
+        delayStop  = true,
+        -- camelot / classic
+        logRaid    = true,
+        logDungeon = false,
+        -- retail
+        logMythic  = true,
+        logHeroic  = true,
+        logNormal  = false,
+        logLFR     = false,
+        log5pp     = true,
+        logArena   = false,
+        logRBG     = false,
+    },
+
+    -- ─── World Map & Gathering Tooltips (Camelot / Classic) ─
+    map_info = {
+        showZoneLevels  = true,
+        showZoneFishing = true,
+        gatherTooltip   = true,
+        gatherMinimap   = true,
+    },
+
+    -- ─── Flight Timer Bar (Camelot / Classic) ─────────────
+    flighttimer = {
+        enabled      = true,
+        width        = 280,
+        height       = 12,
+        showStops    = true,
+        showTotal    = false,
+        showEarlyBtn = true,
+        defaultSpeed = 30.4,
+        pos          = { point = "TOP", relPoint = "TOP", x = 0, y = -140 },
     },
 
     -- ─── Totem Bar (Vanilla / Camelot only) ─────────────────────────

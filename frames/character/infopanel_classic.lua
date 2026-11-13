@@ -46,6 +46,10 @@ local function hook_engraving_frame()
         if frame and frame:IsShown() and panelModule.RestorePosition then
             panelModule.RestorePosition(frame)
         end
+        local trainerMod = sfui.character and sfui.character.trainer
+        if trainerMod and trainerMod.OnEngravingToggle then
+            trainerMod.OnEngravingToggle()
+        end
     end
 
     engraving:HookScript("OnShow", on_engraving_toggle)

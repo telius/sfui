@@ -187,7 +187,8 @@ function sfui.dungeonjournal.GetWishlistCharacters(itemID)
         for guid, charMap in pairs(db.charWishlist) do
             if type(charMap) == "table" and charMap[id] == true then
                 local alt = SfuiDB and SfuiDB.alts and SfuiDB.alts[guid]
-                local rawName = (alt and alt.name) or (guid == myGUID and (_G.UnitName and _G.UnitName("player"))) or nil
+                local sameRuleset = (guid == myGUID) or not alt or not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(alt, guid)
+                local rawName = sameRuleset and ((alt and alt.name) or (guid == myGUID and (_G.UnitName and _G.UnitName("player")))) or nil
                 if rawName and rawName ~= "" then
                     local clean = (rawName:match("^([^%-]+)") or rawName):lower()
                     if not seen[clean] then

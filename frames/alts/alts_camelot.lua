@@ -250,12 +250,19 @@ local function GetPVPRankName(rankNum, isHorde, gender)
 end
 
 local function IsCurrentCharacter(altData, altGuid)
-    if altGuid and UnitGUID and altGuid == UnitGUID("player") then
-        return true
+    local myGuid = UnitGUID and UnitGUID("player")
+    if altGuid and myGuid then
+        return altGuid == myGuid
     end
     if altData and altData.name and UnitName then
-        local myName, myRealm = UnitName("player")
+        local myName, mySurname = UnitName("player")
         if altData.name == myName then
+            if mySurname and mySurname ~= "" and altData.surname and altData.surname ~= "" and altData.surname ~= mySurname then
+                return false
+            end
+            if sfui.alts and sfui.alts.IsSameRuleset and not sfui.alts.IsSameRuleset(altData, altGuid) then
+                return false
+            end
             local r = altData.realm
             if not r or r == "" or r == (GetRealmName and GetRealmName()) then
                 return true
@@ -1291,5 +1298,6 @@ sfui.alts.RegisterProvider({
         sfui.events.RegisterThrottledEvent("BAG_UPDATE_DELAYED", 1.0, on_sync)
         sfui.events.RegisterEvent("QUEST_TURNED_IN",               on_sync)
         sfui.events.RegisterEvent("QUEST_ACCEPTED",                on_sync)
+        sfui.events.RegisterEvent("GAME_RULES_CHANGED",            on_sync)
     end,
 })

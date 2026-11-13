@@ -75,6 +75,7 @@ local defaults              = {
     hide_bagsbar         = false,
     hide_totem_bar       = false,
     hide_cooldown_errors = true,
+    hide_all_errors      = false,
 }
 
 local function InitDB()
@@ -557,88 +558,232 @@ function sfui.hide.ApplyAllUnitFrames()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  UI Errors Frame Filtering (Spell/Ability Cooldown Spam)
+--  UI Errors Frame Filtering (Taint-Free SetMessageTypeEnabled Approach)
 -- ─────────────────────────────────────────────────────────────────────────────
-function sfui.hide.ApplyErrorFilters()
-    local enabled = SfuiDB and (SfuiDB.hide_cooldown_errors ~= false)
-    local bl = _G.BLACK_LISTED_MESSAGE_TYPES
+do
+    local issecretvalue = (sfui.common and sfui.common.issecretvalue)
+        or (sfui.safety and sfui.safety.issecretvalue)
+        or _G.issecretvalue
+        or function() return false end
 
-    local types = {
-        _G.LE_GAME_ERR_SPELL_COOLDOWN,
-        _G.LE_GAME_ERR_ABILITY_COOLDOWN,
-        _G.LE_GAME_ERR_ITEM_COOLDOWN,
-        _G.LE_GAME_ERR_OUT_OF_ENERGY,
+    local PROBE = "\0"
+    local switched = {}   -- [messageType] = true: disabled via SetMessageTypeEnabled
+    local roleOf          -- [messageType] = "keep" | "info" | "voice"
+    local throttled       -- [messageType] = true
+    local keepText        -- [messageText] = true
+    local typeCount
+    local errFrame = CreateFrame("Frame")
+
+    local COOLDOWN_ERR_NAMES = {
+        "LE_GAME_ERR_SPELL_COOLDOWN",
+        "LE_GAME_ERR_ABILITY_COOLDOWN",
+        "LE_GAME_ERR_ITEM_COOLDOWN",
+        "LE_GAME_ERR_SPELL_FAILED_ANOTHER_IN_PROGRESS",
+        "LE_GAME_ERR_OUT_OF_ENERGY",
+        "LE_GAME_ERR_OUT_OF_RAGE",
+        "LE_GAME_ERR_OUT_OF_FOCUS",
+        "LE_GAME_ERR_OUT_OF_COMBO_POINTS",
+        "LE_GAME_ERR_OUT_OF_RUNES",
+        "LE_GAME_ERR_OUT_OF_RUNIC_POWER",
+        "LE_GAME_ERR_OUT_OF_HOLY_POWER",
+        "LE_GAME_ERR_OUT_OF_SOUL_SHARDS",
+        "LE_GAME_ERR_OUT_OF_CHI",
+        "LE_GAME_ERR_OUT_OF_INSANITY",
+        "LE_GAME_ERR_OUT_OF_ARCANE_CHARGES",
+        "LE_GAME_ERR_OUT_OF_FURY",
+        "LE_GAME_ERR_OUT_OF_PAIN",
+        "LE_GAME_ERR_OUT_OF_MAELSTROM",
+        "LE_GAME_ERR_OUT_OF_LUNAR_POWER",
+        "LE_GAME_ERR_OUT_OF_ESSENCE",
     }
 
-    local uie = _G.UIErrorsFrame
-    for _, msgType in ipairs(types) do
-        if msgType then
-            if bl then
-                bl[msgType] = enabled or nil
+    local KEEP_NAMES = {
+        "ERR_INV_FULL", "ERR_QUEST_LOG_FULL", "ERR_RAID_GROUP_ONLY",
+        "ERR_PARTY_LFG_BOOT_LIMIT", "ERR_PARTY_LFG_BOOT_NOT_ELIGIBLE_S",
+        "ERR_PARTY_LFG_BOOT_DUNGEON_COMPLETE", "ERR_PARTY_LFG_BOOT_IN_PROGRESS",
+        "ERR_PARTY_LFG_BOOT_LOOT_ROLLS", "ERR_PARTY_LFG_TELEPORT_IN_COMBAT",
+        "ERR_PET_SPELL_DEAD", "ERR_PLAYER_DEAD", "ERR_ALREADY_PICKPOCKETED",
+    }
+
+    local INFO_NAMES = {
+        "ERR_TAXINOSUCHPATH", "ERR_TAXINOTENOUGHMONEY", "ERR_TAXITOOFARAWAY",
+        "ERR_TAXINOVENDORNEARBY", "ERR_TAXINOTVISITED", "ERR_TAXIPLAYERMOVING",
+        "ERR_TAXINOTSTANDING", "ERR_NEWTAXIPATH", "ERR_TRADE_CANCELLED",
+        "ERR_TRADE_COMPLETE", "ERR_USE_SPELL_FOCUS",
+        "ERR_QUEST_OBJECTIVE_COMPLETE_S", "ERR_QUEST_UNKNOWN_COMPLETE",
+        "ERR_QUEST_ADD_KILL_SII", "ERR_QUEST_ADD_FOUND_SII",
+        "ERR_QUEST_ADD_ITEM_SII", "ERR_QUEST_ADD_PLAYER_KILL_SII",
+        "ERR_QUEST_PET_BATTLE_VICTORIES_PVP_II", "ERR_ZONE_EXPLORED",
+        "ERR_DUEL_CANCELLED", "ERR_FISH_NOT_HOOKED", "ERR_FISH_ESCAPED",
+        "ERR_SPELL_FAILED_NOTUNSHEATHED", "ERR_SPELL_FAILED_LEVEL_REQUIREMENT",
+        "ERR_MAIL_SENT", "ERR_PVP_KILL_HONORABLE", "ERR_PVP_KILL_DISHONORABLE",
+        "ERR_PVP_TOGGLE_ON", "ERR_PVP_TOGGLE_OFF", "ERR_PVP_WARMODE_TOGGLE_ON",
+        "ERR_PVP_WARMODE_TOGGLE_OFF", "ERR_GROUP_JOIN_BATTLEGROUND_DESERTERS",
+        "ERR_GROUP_JOIN_BATTLEGROUND_DEAD", "ERR_SOLO_JOIN_TRAINING_GROUND",
+        "ERR_LFG_JOINED_TRAINING_GROUNDS_QUEUE", "ERR_BN_FRIEND_REQUEST_SENT",
+        "ERR_BN_BROADCAST_THROTTLE", "ERR_BATTLETAG_FRIEND_SUCCESS",
+        "ERR_REPORT_SUBMITTED_SUCCESSFULLY",
+        "ERR_SUGGESTION_SUBMITTED_SUCCESSFULLY", "ERR_BUG_SUBMITTED_SUCCESSFULLY",
+    }
+
+    local THROTTLED_NAMES = {
+        "ERR_SPELL_FAILED_TOTEMS", "ERR_SPELL_FAILED_EQUIPPED_ITEM",
+        "ERR_SPELL_ALREADY_KNOWN_S", "ERR_SPELL_FAILED_SHAPESHIFT_FORM_S",
+        "ERR_SPELL_FAILED_ALREADY_AT_FULL_MANA", "ERR_OUT_OF_MANA",
+        "ERR_SPELL_OUT_OF_RANGE", "ERR_SPELL_FAILED_S", "ERR_SPELL_FAILED_REAGENTS",
+        "ERR_SPELL_FAILED_REAGENTS_GENERIC", "ERR_SPELL_FAILED_NOTUNSHEATHED",
+        "ERR_SPELL_UNLEARNED_S", "ERR_SPELL_FAILED_EQUIPPED_SPECIFIC_ITEM",
+        "ERR_SPELL_FAILED_ALREADY_AT_FULL_POWER_S",
+        "ERR_SPELL_FAILED_EQUIPPED_ITEM_CLASS_S",
+        "ERR_SPELL_FAILED_ALREADY_AT_FULL_HEALTH", "ERR_SPELL_FAILED_CANT_FLY_HERE",
+        "ERR_GENERIC_NO_VALID_TARGETS", "ERR_ITEM_COOLDOWN", "ERR_CANT_USE_ITEM",
+        "ERR_SPELL_FAILED_ANOTHER_IN_PROGRESS",
+    }
+
+    local function ScanTypes()
+        local role, repeats = {}, {}
+        keepText = {}
+        for _, name in ipairs(KEEP_NAMES) do
+            role[name] = "keep"
+            local text = _G[name]
+            if type(text) == "string" then
+                keepText[text] = true
             end
-            if uie and uie.SetMessageTypeEnabled then
-                uie:SetMessageTypeEnabled(msgType, not enabled)
+        end
+        if type(_G.SPELL_FAILED_TARGET_NO_POCKETS) == "string" then
+            keepText[_G.SPELL_FAILED_TARGET_NO_POCKETS] = true
+        end
+        for _, name in ipairs(INFO_NAMES) do
+            role[name] = "info"
+        end
+        for _, name in ipairs(THROTTLED_NAMES) do
+            repeats[name] = true
+        end
+
+        roleOf, throttled = {}, {}
+        local count = 0
+        local getGameMsgInfo = _G.GetGameMessageInfo
+        if getGameMsgInfo then
+            for i = 1, 8191 do
+                local name = getGameMsgInfo(i)
+                if not name then break end
+                roleOf[i] = role[name]
+                throttled[i] = repeats[name]
+                count = i
+            end
+        end
+        typeCount = count
+
+        local voiceFromCode = _G.Voice_GetGameErrorFromStatusCode
+        local voiceEnum = _G.Enum and _G.Enum.VoiceChatStatusCode
+        if voiceFromCode and voiceEnum then
+            for _, code in pairs(voiceEnum) do
+                local messageType = voiceFromCode(code)
+                if type(messageType) == "number" then
+                    roleOf[messageType] = "voice"
+                end
             end
         end
     end
 
-    if uie and not uie._sfuiFiltered then
-        uie._sfuiFiltered = true
-        if uie.TryDisplayMessage then
-            local origTryDisplay = uie.TryDisplayMessage
-            uie.TryDisplayMessage = function(self, messageType, message, r, g, b)
-                if SfuiDB and SfuiDB.hide_cooldown_errors then
-                    if messageType and (
-                            (_G.LE_GAME_ERR_SPELL_COOLDOWN and messageType == _G.LE_GAME_ERR_SPELL_COOLDOWN) or
-                            (_G.LE_GAME_ERR_ABILITY_COOLDOWN and messageType == _G.LE_GAME_ERR_ABILITY_COOLDOWN) or
-                            (_G.LE_GAME_ERR_ITEM_COOLDOWN and messageType == _G.LE_GAME_ERR_ITEM_COOLDOWN) or
-                            (_G.LE_GAME_ERR_OUT_OF_ENERGY and messageType == _G.LE_GAME_ERR_OUT_OF_ENERGY)
-                        ) then
-                        return
+    local function SafeShouldDisplay(uie, msgType)
+        if not (uie and uie.ShouldDisplayMessageType) then return false end
+        if uie.GetFontStringByID then
+            local fs = uie:GetFontStringByID(msgType)
+            if fs and fs.GetText and issecretvalue(fs:GetText()) then
+                return false
+            end
+        end
+        return uie:ShouldDisplayMessageType(msgType, PROBE) == true
+    end
+
+    local function SwitchOff(uie, msgType)
+        if not msgType or switched[msgType] then return end
+        if not (uie and uie.SetMessageTypeEnabled) then return end
+        if SafeShouldDisplay(uie, msgType) then
+            uie:SetMessageTypeEnabled(msgType, false)
+            switched[msgType] = true
+        end
+    end
+
+    local function ShowLine(messageType, message, r, g, b)
+        local uie = _G.UIErrorsFrame
+        if not uie then return end
+        if SafeShouldDisplay(uie, messageType) then
+            switched[messageType] = nil
+            return
+        end
+        if uie.GetMessagesSuppressed and uie:GetMessagesSuppressed() then return end
+        if throttled and throttled[messageType] and uie.GetFontStringByID then
+            local fs = uie:GetFontStringByID(messageType)
+            if fs and fs.GetText then
+                local text = fs:GetText()
+                if not issecretvalue(text) and text == message then
+                    if uie.ResetMessageFadeByID then
+                        uie:ResetMessageFadeByID(messageType)
                     end
-                    if message and type(message) == "string" then
-                        local lower = message:lower()
-                        if message == _G.ERR_SPELL_COOLDOWN or
-                            message == _G.ERR_ABILITY_COOLDOWN or
-                            message == _G.ERR_ITEM_COOLDOWN or
-                            message == _G.ERR_OUT_OF_ENERGY or
-                            lower:find("not ready yet", 1, true) or
-                            lower:find("not enough energy", 1, true) then
-                            return
-                        end
-                    end
+                    return
                 end
-                return origTryDisplay(self, messageType, message, r, g, b)
+            end
+        end
+        if uie.AddMessage then
+            uie:AddMessage(message, r, g, b, 1.0, messageType)
+        end
+        if _G.GetGameMessageInfo then
+            local _, soundKitID, voiceID = _G.GetGameMessageInfo(messageType)
+            if voiceID and _G.C_Sound and _G.C_Sound.PlayVocalErrorSound then
+                _G.C_Sound.PlayVocalErrorSound(voiceID)
+            elseif soundKitID and _G.PlaySound then
+                _G.PlaySound(soundKitID)
+            end
+        end
+    end
+
+    errFrame:SetScript("OnEvent", function(_, event, messageType, message)
+        if issecretvalue(messageType) or issecretvalue(message) then return end
+        if not roleOf or not keepText then return end
+        if switched[messageType] then
+            if event == "UI_INFO_MESSAGE" and _G.YELLOW_FONT_COLOR then
+                ShowLine(messageType, message, _G.YELLOW_FONT_COLOR:GetRGB())
+            elseif keepText[message] and _G.RED_FONT_COLOR then
+                ShowLine(messageType, message, _G.RED_FONT_COLOR:GetRGB())
+            end
+        elseif event == "UI_ERROR_MESSAGE" and roleOf[messageType] == "info"
+            and SfuiDB and SfuiDB.hide_all_errors == true then
+            SwitchOff(_G.UIErrorsFrame, messageType)
+        end
+    end)
+
+    function sfui.hide.ApplyErrorFilters()
+        local uie = _G.UIErrorsFrame
+        if not (uie and uie.SetMessageTypeEnabled) then return false end
+
+        local cooldownOn = (SfuiDB == nil or SfuiDB.hide_cooldown_errors ~= false)
+        local allOn = (SfuiDB and SfuiDB.hide_all_errors == true) or false
+
+        if allOn then
+            if not typeCount then ScanTypes() end
+            for msgType = 1, typeCount do
+                if not roleOf[msgType] then
+                    SwitchOff(uie, msgType)
+                end
+            end
+            errFrame:RegisterEvent("UI_ERROR_MESSAGE")
+            errFrame:RegisterEvent("UI_INFO_MESSAGE")
+        else
+            errFrame:UnregisterAllEvents()
+        end
+
+        if cooldownOn then
+            for _, globalName in ipairs(COOLDOWN_ERR_NAMES) do
+                local msgType = _G[globalName]
+                if msgType then
+                    SwitchOff(uie, msgType)
+                end
             end
         end
 
-        if uie.AddMessage then
-            local origAddMessage = uie.AddMessage
-            uie.AddMessage = function(self, msg, r, g, b, a, messageType)
-                if SfuiDB and SfuiDB.hide_cooldown_errors then
-                    if messageType and (
-                            (_G.LE_GAME_ERR_SPELL_COOLDOWN and messageType == _G.LE_GAME_ERR_SPELL_COOLDOWN) or
-                            (_G.LE_GAME_ERR_ABILITY_COOLDOWN and messageType == _G.LE_GAME_ERR_ABILITY_COOLDOWN) or
-                            (_G.LE_GAME_ERR_ITEM_COOLDOWN and messageType == _G.LE_GAME_ERR_ITEM_COOLDOWN) or
-                            (_G.LE_GAME_ERR_OUT_OF_ENERGY and messageType == _G.LE_GAME_ERR_OUT_OF_ENERGY)
-                        ) then
-                        return
-                    end
-                    if msg and type(msg) == "string" then
-                        local lower = msg:lower()
-                        if msg == _G.ERR_SPELL_COOLDOWN or
-                            msg == _G.ERR_ABILITY_COOLDOWN or
-                            msg == _G.ERR_ITEM_COOLDOWN or
-                            msg == _G.ERR_OUT_OF_ENERGY or
-                            lower:find("not ready yet", 1, true) or
-                            lower:find("not enough energy", 1, true) then
-                            return
-                        end
-                    end
-                end
-                return origAddMessage(self, msg, r, g, b, a, messageType)
-            end
-        end
+        return (not cooldownOn and not allOn and next(switched) ~= nil) or false
     end
 end
 

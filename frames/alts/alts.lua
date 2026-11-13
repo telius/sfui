@@ -342,32 +342,6 @@ local function ResolveNameAndSurname(rawName, rawSecond, guid, isPlayer)
 end
 sfui.alts.ResolveNameAndSurname = ResolveNameAndSurname
 
-local function RepairAltEntry(altData, guid, isPlayer)
-    if type(altData) ~= "table" then return end
-    if not IsCamelotNameSystem() then return end
-
-    if altData.surname and IsServerRealmName(altData.surname) then
-        altData.surname = nil
-    end
-    if (not altData.surname or altData.surname == "") and altData.realm and altData.realm ~= "" and not IsServerRealmName(altData.realm) then
-        altData.surname = altData.realm
-    end
-
-    local fName, sName = ResolveNameAndSurname(altData.name, altData.surname, guid, isPlayer)
-    if fName and fName ~= "" then
-        altData.name = fName
-    end
-    if sName and sName ~= "" and not IsServerRealmName(sName) then
-        altData.surname = sName
-    end
-
-    local currentRealm = (_G.GetRealmName and _G.GetRealmName()) or ""
-    if currentRealm ~= "" then
-        altData.realm = currentRealm
-    end
-end
-sfui.alts.RepairAltEntry = RepairAltEntry
-
 local function GetCurrentCharacterGUID()
     local guid = UnitGUID("player")
     if guid then return guid end
@@ -381,6 +355,238 @@ end
 
 -- Expose canonical GUID resolver so providers don't duplicate the logic
 sfui.alts.GetCurrentCharacterGUID = GetCurrentCharacterGUID
+
+local RULESET_ORDER = { "normal", "pvp", "rp", "rppvp" }
+local RULESET_COLORS = {
+    normal = "|cff88ccff",
+    pvp    = "|cffff5555",
+    rp     = "|cff66dd88",
+    rppvp  = "|cffff9944",
+}
+local RULESET_RGB = {
+    normal = { 0.53, 0.80, 1.00 },
+    pvp    = { 1.00, 0.33, 0.33 },
+    rp     = { 0.40, 0.87, 0.53 },
+    rppvp  = { 1.00, 0.60, 0.27 },
+}
+sfui.alts.RULESETS = RULESET_ORDER
+sfui.alts.RULESET_COLORS = RULESET_COLORS
+sfui.alts.RULESET_RGB = RULESET_RGB
+
+local function ParseCamelotRuleset(raw)
+    if sfui.common and sfui.common.parse_camelot_ruleset then
+        return sfui.common.parse_camelot_ruleset(raw)
+    end
+    if type(raw) ~= "string" or raw == "" then return nil end
+    local low = raw:lower():gsub("[%s%-_]", "")
+    if low == "normal" or low == "pve" then return "normal" end
+    if low == "pvp" or low == "rp" or low == "rppvp" then return low end
+    return nil
+end
+
+local function GetCurrentRuleset()
+    if not IsCamelotNameSystem() then return nil end
+    if sfui.common and sfui.common.get_camelot_ruleset then
+        return sfui.common.get_camelot_ruleset()
+    end
+    local C_GR = _G.C_GameRules
+    local GR = _G.Enum and _G.Enum.GameRule
+    if C_GR and C_GR.IsGameRuleActive and GR then
+        local isPvP = (GR.PvPRuleset ~= nil) and (C_GR.IsGameRuleActive(GR.PvPRuleset) == true) or false
+        local isRP  = (GR.RPRuleset ~= nil) and (C_GR.IsGameRuleActive(GR.RPRuleset) == true) or false
+        if isPvP and isRP then return "rppvp" end
+        if isPvP then return "pvp" end
+        if isRP then return "rp" end
+        return "normal"
+    end
+    return ParseCamelotRuleset((_G.GetRealmName and _G.GetRealmName()) or "") or "normal"
+end
+sfui.alts.GetCurrentRuleset = GetCurrentRuleset
+
+local SYNDICATOR_SUFFIXES = {
+    { suffix = "-PvE",   ruleset = "normal" },
+    { suffix = "-PvP",   ruleset = "pvp" },
+    { suffix = "-RP",    ruleset = "rp" },
+    { suffix = "-RPPvP", ruleset = "rppvp" },
+}
+
+local function InferRulesetFromSyndicator(altData, guid)
+    if type(altData) ~= "table" or not altData.name or altData.name == "" then return nil end
+    local syn = _G.SYNDICATOR_DATA
+    local chars = type(syn) == "table" and syn.Characters
+    if type(chars) ~= "table" then return nil end
+
+    if type(guid) == "string" and guid ~= "" then
+        for charKey, rec in pairs(chars) do
+            if type(rec) == "table" and type(rec.details) == "table" and rec.details.guid == guid then
+                local fromDetails = ParseCamelotRuleset(rec.details.realm)
+                    or ParseCamelotRuleset(rec.details.realmNormalized)
+                    or ParseCamelotRuleset(type(charKey) == "string" and charKey:match("%-(.+)$") or nil)
+                if fromDetails then
+                    return fromDetails
+                end
+            end
+        end
+    end
+
+    local fullName = altData.name
+    if altData.surname and altData.surname ~= "" and not IsServerRealmName(altData.surname) then
+        local sep = GetSurnameSeparator()
+        if not fullName:find(sep, 1, true) then
+            fullName = fullName .. sep .. altData.surname
+        end
+    end
+
+    local candidates = (fullName ~= altData.name) and { fullName, altData.name } or { fullName }
+    for _, baseName in ipairs(candidates) do
+        local matched = nil
+        local count = 0
+        for _, entry in ipairs(SYNDICATOR_SUFFIXES) do
+            local rec = chars[baseName .. entry.suffix]
+            if type(rec) == "table" then
+                local detClass = type(rec.details) == "table" and rec.details.className
+                if not altData.class or not detClass or detClass == altData.class then
+                    matched = entry.ruleset
+                    count = count + 1
+                end
+            end
+        end
+        if count == 1 then
+            return matched
+        end
+    end
+    return nil
+end
+
+local function InferRulesetFromSync(guid)
+    if type(guid) ~= "string" or guid == "" then return nil end
+    local peers = SfuiDB and type(SfuiDB.sync) == "table" and SfuiDB.sync.peers
+    local p = type(peers) == "table" and peers[guid]
+    if type(p) ~= "table" then return nil end
+    return ParseCamelotRuleset(p.ruleset) or ParseCamelotRuleset(p.realm)
+end
+
+local function GetAltRuleset(altData, guid)
+    if not IsCamelotNameSystem() then return nil end
+    local myGuid = GetCurrentCharacterGUID()
+    if guid and myGuid and guid == myGuid then
+        local cur = GetCurrentRuleset() or "normal"
+        if type(altData) == "table" then
+            altData.ruleset = cur
+        end
+        return cur
+    end
+    if type(altData) ~= "table" then
+        return GetCurrentRuleset() or "normal"
+    end
+    local saved = ParseCamelotRuleset(altData.ruleset)
+    if saved then
+        if altData.ruleset ~= saved then
+            altData.ruleset = saved
+        end
+        return saved
+    end
+    local fromSyn = InferRulesetFromSyndicator(altData, guid)
+    if fromSyn then
+        altData.ruleset = fromSyn
+        return fromSyn
+    end
+    local fromSync = InferRulesetFromSync(guid)
+    if fromSync then
+        altData.ruleset = fromSync
+        return fromSync
+    end
+    local fromRealm = ParseCamelotRuleset(altData.realm)
+    if fromRealm then
+        altData.ruleset = fromRealm
+        return fromRealm
+    end
+    return "normal"
+end
+sfui.alts.GetAltRuleset = GetAltRuleset
+
+local function IsSameRuleset(altData, guid, targetRuleset)
+    if not IsCamelotNameSystem() then return true end
+    local want = (targetRuleset and ParseCamelotRuleset(targetRuleset)) or GetCurrentRuleset() or "normal"
+    return GetAltRuleset(altData, guid) == want
+end
+sfui.alts.IsSameRuleset = IsSameRuleset
+
+local activeRulesetFilter = nil
+local userChangedRulesetFilter = false
+
+function sfui.alts.GetRulesetFilter()
+    if not IsCamelotNameSystem() then return nil end
+    if activeRulesetFilter == "all" then return "all" end
+    local parsed = activeRulesetFilter and ParseCamelotRuleset(activeRulesetFilter)
+    if parsed then return parsed end
+    activeRulesetFilter = GetCurrentRuleset() or "normal"
+    return activeRulesetFilter
+end
+
+function sfui.alts.SetRulesetFilter(filterKey, isAuto)
+    if not IsCamelotNameSystem() then return end
+    if filterKey == "all" then
+        activeRulesetFilter = "all"
+    else
+        activeRulesetFilter = ParseCamelotRuleset(filterKey) or GetCurrentRuleset() or "normal"
+    end
+    if not isAuto then
+        userChangedRulesetFilter = true
+    end
+    if sfui.alts.UpdateUI then
+        sfui.alts.UpdateUI(true)
+    end
+    if sfui.alts.RefreshSettingsPanel then
+        sfui.alts.RefreshSettingsPanel()
+    end
+end
+
+local function RepairAltEntry(altData, guid, isPlayer)
+    if type(altData) ~= "table" then return end
+    if not IsCamelotNameSystem() then return end
+
+    if altData.surname then
+        if IsServerRealmName(altData.surname) or ParseCamelotRuleset(altData.surname) then
+            altData.surname = nil
+        end
+    end
+    if (not altData.surname or altData.surname == "") and altData.realm and altData.realm ~= "" and not IsServerRealmName(altData.realm) then
+        local realmAsRuleset = ParseCamelotRuleset(altData.realm)
+        if realmAsRuleset then
+            altData.ruleset = altData.ruleset or realmAsRuleset
+        else
+            altData.surname = altData.realm
+        end
+    end
+
+    local fName, sName = ResolveNameAndSurname(altData.name, altData.surname, guid, isPlayer)
+    if fName and fName ~= "" then
+        altData.name = fName
+    end
+    if sName and sName ~= "" and not IsServerRealmName(sName) and not ParseCamelotRuleset(sName) then
+        altData.surname = sName
+    end
+
+    if isPlayer then
+        local currentRealm = (_G.GetRealmName and _G.GetRealmName()) or ""
+        if currentRealm ~= "" then
+            altData.realm = currentRealm
+        end
+        local currentRuleset = GetCurrentRuleset()
+        if currentRuleset then
+            altData.ruleset = currentRuleset
+        end
+    elseif not altData.ruleset then
+        local inferred = InferRulesetFromSyndicator(altData, guid)
+            or InferRulesetFromSync(guid)
+            or ParseCamelotRuleset(altData.realm)
+        if inferred then
+            altData.ruleset = inferred
+        end
+    end
+end
+sfui.alts.RepairAltEntry = RepairAltEntry
 
 --- Get display name for an alt, incorporating surname on Camelot/Forever
 --- @param altData table
@@ -505,12 +711,19 @@ function sfui.alts.PerformSync(isLogout)
     if IsCamelotNameSystem() then
         local fName, sName = ResolveNameAndSurname(name, arg2, guid, true)
         d.name = fName or name
-        if sName and sName ~= "" and not IsServerRealmName(sName) then
+        if sName and sName ~= "" and not IsServerRealmName(sName) and not ParseCamelotRuleset(sName) then
             d.surname = sName
-        elseif d.surname and IsServerRealmName(d.surname) then
+        elseif d.surname and (IsServerRealmName(d.surname) or ParseCamelotRuleset(d.surname)) then
             d.surname = nil
         end
         d.realm = (_G.GetRealmName and _G.GetRealmName()) or ""
+        local curRuleset = GetCurrentRuleset()
+        if curRuleset then
+            d.ruleset = curRuleset
+            if not userChangedRulesetFilter then
+                activeRulesetFilter = curRuleset
+            end
+        end
 
         -- Repair all existing alt entries (scrub server names from surname & recover surnames by GUID)
         for altGuid, alt in pairs(SfuiDB.alts) do
@@ -690,13 +903,19 @@ local function RefreshSettingsPanel()
     settingsPanel.charHeader:ClearAllPoints()
     settingsPanel.charHeader:SetPoint("TOPLEFT", settingsPanel.sectionsContainer, "BOTTOMLEFT", 0, -14)
 
+    local isCamelot = IsCamelotNameSystem()
+    settingsPanel.charHeader:SetText(isCamelot and "characters (all rulesets)" or "characters")
+
     settingsPanel.charScroll:ClearAllPoints()
     settingsPanel.charScroll:SetPoint("TOPLEFT", settingsPanel.charHeader, "BOTTOMLEFT", 0, -6)
     settingsPanel.charScroll:SetPoint("BOTTOMRIGHT", -10, 10)
 
+    local myGuid = GetCurrentCharacterGUID()
     local chars = {}
     for guid, data in pairs(SfuiDB.alts or {}) do
-        chars[#chars + 1] = { guid = guid, data = data }
+        if type(data) == "table" then
+            chars[#chars + 1] = { guid = guid, data = data }
+        end
     end
     table.sort(chars, function(a, b)
         local nA = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(a.data, a.guid)) or a.data.name or ""
@@ -711,12 +930,16 @@ local function RefreshSettingsPanel()
             row = CreateFrame("Frame", nil, settingsPanel.charContent)
             row:SetHeight(22)
 
-            local del = sfui.common.create_flat_button(row, "X", 18, 16)
+            local del = sfui.common.create_flat_button(row, "x", 18, 16)
             del:SetPoint("RIGHT", row, "RIGHT", -2, 0)
             local delFs = del:GetFontString()
             if delFs then delFs:SetTextColor(1, 0.3, 0.3, 1) end
-            del.tooltip = "Remove Character"
+            del.tooltip = "remove character"
             row.del = del
+
+            local rsBtn = sfui.common.create_flat_button(row, "normal", 46, 16)
+            rsBtn:SetPoint("RIGHT", del, "LEFT", -3, 0)
+            row.rsBtn = rsBtn
 
             local cb = sfui.common.create_checkbox(row, "", nil, nil)
             cb:SetPoint("LEFT", 0, 0)
@@ -738,6 +961,45 @@ local function RefreshSettingsPanel()
         local classColor = RAID_CLASS_COLORS[d.class] or NORMAL_FONT_COLOR
         local colorStr = classColor and classColor.colorStr or "ffffffff"
         local name = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(d, cInfo.guid)) or d.name or "Unknown"
+
+        if isCamelot and row.rsBtn then
+            local altRs = GetAltRuleset(d, cInfo.guid) or "normal"
+            local rgb = RULESET_RGB[altRs] or RULESET_RGB.normal
+            row.rsBtn:SetText(altRs)
+            local rsFs = row.rsBtn:GetFontString()
+            if rsFs then
+                rsFs:SetTextColor(rgb[1], rgb[2], rgb[3], 1)
+            end
+            local isLivePlayer = (myGuid and cInfo.guid == myGuid)
+            if isLivePlayer then
+                row.rsBtn.tooltip = "active character ruleset (detected from server)"
+                row.rsBtn:SetScript("OnClick", nil)
+            else
+                row.rsBtn.tooltip = "click to cycle character ruleset (normal / pvp / rp / rppvp)"
+                row.rsBtn:SetScript("OnClick", function()
+                    local cur = GetAltRuleset(d, cInfo.guid) or "normal"
+                    local nextRs = "normal"
+                    for idx, key in ipairs(RULESET_ORDER) do
+                        if key == cur then
+                            nextRs = RULESET_ORDER[(idx % #RULESET_ORDER) + 1]
+                            break
+                        end
+                    end
+                    d.ruleset = nextRs
+                    sfui.alts.UpdateUI(true)
+                    RefreshSettingsPanel()
+                end)
+            end
+            row.rsBtn:Show()
+            if row.cb.text then
+                row.cb.text:SetPoint("RIGHT", row.rsBtn, "LEFT", -4, 0)
+            end
+        else
+            if row.rsBtn then row.rsBtn:Hide() end
+            if row.cb.text then
+                row.cb.text:SetPoint("RIGHT", row.del, "LEFT", -4, 0)
+            end
+        end
 
         if row.cb.text then
             row.cb.text:SetText(string.format("|c%s%s|r", colorStr, name))
@@ -814,9 +1076,9 @@ local function CreateSettingsPanel()
     sortHeader:SetTextColor(1, 0.82, 0)
 
     local sortDefs = {
-        { label = "Name", key = "name", width = 74 },
-        { label = "iLvl", key = "ilvl", width = 74 },
-        { label = "Time", key = "timeplayed", width = 80 },
+        { label = "name", key = "name", width = 74 },
+        { label = "ilvl", key = "ilvl", width = 74 },
+        { label = "time", key = "timeplayed", width = 80 },
     }
     local prevSortBtn = nil
     for _, sDef in ipairs(sortDefs) do
@@ -973,6 +1235,13 @@ function sfui.alts.PurgeCharacter(guid)
         if SfuiDB.altMailRouting.disenchanterGUID == guid then
             SfuiDB.altMailRouting.disenchanterGUID = nil
         end
+        if type(SfuiDB.altMailRouting.disenchanterByRuleset) == "table" then
+            for rsKey, dGuid in pairs(SfuiDB.altMailRouting.disenchanterByRuleset) do
+                if dGuid == guid then
+                    SfuiDB.altMailRouting.disenchanterByRuleset[rsKey] = nil
+                end
+            end
+        end
         if sfui.alts and sfui.alts.mail and sfui.alts.mail.ui and sfui.alts.mail.ui.Refresh then
             sfui.alts.mail.ui.Refresh()
         end
@@ -1021,9 +1290,9 @@ sfui.alts.RemoveCharacter = sfui.alts.PurgeCharacter
 -- Confirmation Dialog for Removing Characters
 if StaticPopupDialogs then
     StaticPopupDialogs["SFUI_ALTS_REMOVE_CHARACTER"] = {
-        text = "Are you sure you want to remove |cff9966ff%s|r from the Alts list? This will delete all saved data for this character.",
-        button1 = "Remove",
-        button2 = "Cancel",
+        text = "are you sure you want to remove |cff9966ff%s|r from the alts list? this will delete all saved data for this character.",
+        button1 = "remove",
+        button2 = "cancel",
         OnAccept = function(self, data)
             if data and data.guid then
                 sfui.alts.PurgeCharacter(data.guid)
@@ -1038,6 +1307,70 @@ if StaticPopupDialogs then
         hideOnEscape = true,
         preferredIndex = 3,
     }
+end
+
+local RULESET_FILTER_DEFS = {
+    { key = "normal", label = "normal" },
+    { key = "pvp",    label = "pvp" },
+    { key = "rp",     label = "rp" },
+    { key = "rppvp",  label = "rppvp" },
+    { key = "all",    label = "all" },
+}
+
+local function RefreshRulesetBar()
+    if not frame or not frame.rulesetBar or not frame.rulesetButtons then return end
+    local curFilter = sfui.alts.GetRulesetFilter() or "normal"
+    local counts = { normal = 0, pvp = 0, rp = 0, rppvp = 0, all = 0 }
+    for guid, data in pairs(SfuiDB.alts or {}) do
+        if type(data) == "table" and not data.isHidden then
+            local rs = GetAltRuleset(data, guid) or "normal"
+            counts[rs] = (counts[rs] or 0) + 1
+            counts.all = counts.all + 1
+        end
+    end
+
+    local hl = (sfui.config and sfui.config.appearance and sfui.config.appearance.highlightColor) or { 0.4, 0, 1, 1 }
+    local prevBtn = nil
+    for _, btn in ipairs(frame.rulesetButtons) do
+        local k = btn.rulesetKey
+        local cnt = counts[k] or 0
+        local textLabel = (cnt > 0) and string.format("%s (%d)", btn.baseLabel, cnt) or btn.baseLabel
+        btn:SetText(textLabel)
+        local fs = btn:GetFontString()
+        local textW = (fs and fs.GetStringWidth and fs:GetStringWidth()) or (#textLabel * 6)
+        btn:SetWidth(math.max(44, math.ceil(textW) + 14))
+        btn:ClearAllPoints()
+        if not prevBtn then
+            btn:SetPoint("LEFT", frame.rulesetBar, "LEFT", 0, 0)
+        else
+            btn:SetPoint("LEFT", prevBtn, "RIGHT", 4, 0)
+        end
+
+        local isActive = (curFilter == k)
+        if isActive then
+            btn:SetBackdropColor(hl[1], hl[2], hl[3], 0.85)
+            if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1) end
+            if fs then fs:SetTextColor(1, 1, 1, 1) end
+        else
+            btn:SetBackdropColor(0.10, 0.10, 0.12, 0.85)
+            if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.24, 0.24, 0.28, 1) end
+            if fs then
+                local rgb = RULESET_RGB[k]
+                if cnt > 0 and rgb then
+                    fs:SetTextColor(rgb[1], rgb[2], rgb[3], 0.95)
+                elseif cnt > 0 then
+                    fs:SetTextColor(0.85, 0.85, 0.85, 0.95)
+                else
+                    fs:SetTextColor(0.50, 0.50, 0.54, 0.75)
+                end
+            end
+        end
+        prevBtn = btn
+    end
+
+    if frame.title then
+        frame.title:SetText(string.format("alts manager · %s", curFilter))
+    end
 end
 
 function sfui.alts.CreateFrame()
@@ -1078,6 +1411,14 @@ function sfui.alts.CreateFrame()
         end
         if frame.mailBtn then
             frame.mailBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+        end
+        if frame.rulesetBar then
+            frame.rulesetBar:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+            if frame.rulesetButtons then
+                for _, b in ipairs(frame.rulesetButtons) do
+                    b:SetFrameLevel((frame:GetFrameLevel() or 1) + 21)
+                end
+            end
         end
         if sfui.alts.provider and sfui.alts.provider.OnFrameShow then
             sfui.alts.provider.OnFrameShow()
@@ -1144,9 +1485,37 @@ function sfui.alts.CreateFrame()
     sfui.common.set_button_mail_icon(mailBtn, 16)
     frame.mailBtn = mailBtn
 
+    local isCamelot = IsCamelotNameSystem()
+    local topOffset = isCamelot and -62 or -35
+
+    if isCamelot then
+        local rulesetBar = CreateFrame("Frame", nil, frame)
+        rulesetBar:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -37)
+        rulesetBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -37)
+        rulesetBar:SetHeight(20)
+        rulesetBar:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+        frame.rulesetBar = rulesetBar
+        frame.rulesetButtons = {}
+
+        for _, def in ipairs(RULESET_FILTER_DEFS) do
+            local rBtn = sfui.common.create_flat_button(rulesetBar, def.label, 54, 18)
+            rBtn.rulesetKey = def.key
+            rBtn.baseLabel = def.label
+            rBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 21)
+            rBtn.tooltip = (def.key == "all")
+                and "show characters across all forever rulesets"
+                or string.format("show %s ruleset characters", def.label)
+            local capturedKey = def.key
+            rBtn:SetScript("OnClick", function()
+                sfui.alts.SetRulesetFilter(capturedKey, false)
+            end)
+            frame.rulesetButtons[#frame.rulesetButtons + 1] = rBtn
+        end
+    end
+
     -- Sidebar (Category labels)
     local sidebar = CreateFrame("Frame", nil, frame)
-    sidebar:SetPoint("TOPLEFT", 10, -35)
+    sidebar:SetPoint("TOPLEFT", 10, topOffset)
     sidebar:SetPoint("BOTTOMLEFT", 10, 10)
     sidebar:SetWidth(140)
     frame.sidebar = sidebar
@@ -1168,6 +1537,11 @@ function sfui.alts.CreateFrame()
     content:SetSize(1, 1)
     scrollFrame:SetScrollChild(content)
     frame.content = content
+
+    local emptyText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    emptyText:SetPoint("CENTER", scrollFrame, "CENTER", 0, 0)
+    emptyText:Hide()
+    frame.emptyText = emptyText
 
     frame:Hide()
     return frame
@@ -1265,7 +1639,12 @@ function sfui.alts.UpdateUI(force)
                 if cat.name == "GENERAL" then
                     row:SetScript("OnEnter", function(self)
                         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                        GameTooltip:AddLine("all characters", 1, 0.82, 0)
+                        local curRsFilter = IsCamelotNameSystem() and sfui.alts.GetRulesetFilter() or nil
+                        if curRsFilter then
+                            GameTooltip:AddLine(string.format("all characters (%s)", curRsFilter), 1, 0.82, 0)
+                        else
+                            GameTooltip:AddLine("all characters", 1, 0.82, 0)
+                        end
                         GameTooltip:AddLine(" ")
 
                         local totalGold = 0
@@ -1324,13 +1703,21 @@ function sfui.alts.UpdateUI(force)
         local entry = table.remove(altsList, i)
         ReleaseTable(entry)
     end
+    local isCamelot = IsCamelotNameSystem()
+    local curFilter = isCamelot and sfui.alts.GetRulesetFilter() or nil
     for guid, data in pairs(SfuiDB.alts or {}) do
-        if not data.isHidden then
-            local entry = AcquireTable()
-            entry.guid = guid
-            entry.data = data
-            altsList[#altsList + 1] = entry
+        if type(data) == "table" and not data.isHidden then
+            if not isCamelot or curFilter == "all" or GetAltRuleset(data, guid) == curFilter then
+                local entry = AcquireTable()
+                entry.guid = guid
+                entry.data = data
+                altsList[#altsList + 1] = entry
+            end
         end
+    end
+
+    if isCamelot then
+        RefreshRulesetBar()
     end
 
     table.sort(altsList, SortAlts)
@@ -1383,17 +1770,50 @@ function sfui.alts.UpdateUI(force)
                             mailTag = string.format(" %s[%d]|r", color, alt.data.inboxCount)
                         end
 
-                        text:SetText(string.format("%s%s", sfui.alts.GetDisplayName(alt.data, alt.guid), mailTag))
+                        local rsTag = ""
+                        if isCamelot and curFilter == "all" then
+                            local altRs = GetAltRuleset(alt.data, alt.guid) or "normal"
+                            local rsCol = RULESET_COLORS[altRs] or "|cff88ccff"
+                            rsTag = string.format(" %s[%s]|r", rsCol, altRs)
+                        end
+
+                        text:SetText(string.format("%s%s%s", sfui.alts.GetDisplayName(alt.data, alt.guid), rsTag, mailTag))
                         text:SetTextColor(classColor.r, classColor.g, classColor.b)
 
                         local altSnap = alt
+                        local myGuid = GetCurrentCharacterGUID()
+                        local isLivePlayer = (myGuid and altSnap.guid == myGuid)
                         cell:EnableMouse(true)
+                        if isCamelot and not isLivePlayer then
+                            cell:SetScript("OnMouseUp", function(_, button)
+                                if button ~= "RightButton" then return end
+                                local cur = GetAltRuleset(altSnap.data, altSnap.guid) or "normal"
+                                local nextRs = "normal"
+                                for idx, key in ipairs(RULESET_ORDER) do
+                                    if key == cur then
+                                        nextRs = RULESET_ORDER[(idx % #RULESET_ORDER) + 1]
+                                        break
+                                    end
+                                end
+                                altSnap.data.ruleset = nextRs
+                                sfui.alts.UpdateUI(true)
+                                if sfui.alts.RefreshSettingsPanel then
+                                    sfui.alts.RefreshSettingsPanel()
+                                end
+                            end)
+                        else
+                            cell:SetScript("OnMouseUp", nil)
+                        end
                         cell:SetScript("OnEnter", function(self)
                             local d = altSnap.data
                             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                             local cc = RAID_CLASS_COLORS[d.class] or NORMAL_FONT_COLOR
                             GameTooltip:AddLine(string.format("|c%s%s|r", cc.colorStr or "ffffffff", sfui.alts.GetDisplayName(d, altSnap.guid)), 1, 1, 1)
-                            if d.realm and d.realm ~= "" and not IsCamelotNameSystem() then
+                            if IsCamelotNameSystem() then
+                                local altRs = GetAltRuleset(d, altSnap.guid) or "normal"
+                                local rgb = RULESET_RGB[altRs] or RULESET_RGB.normal
+                                GameTooltip:AddDoubleLine("ruleset:", altRs, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, rgb[1], rgb[2], rgb[3])
+                            elseif d.realm and d.realm ~= "" then
                                 GameTooltip:AddLine(d.realm, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
                             end
                             if d.guild then
@@ -1424,6 +1844,9 @@ function sfui.alts.UpdateUI(force)
                             if sfui.alts.provider and sfui.alts.provider.showTimePlayedTooltip ~= false and d.timeplayed and d.timeplayed > 0 then
                                 local hours = math.floor(d.timeplayed / 3600)
                                 GameTooltip:AddLine(string.format("time played: %d hours", hours), 0.7, 0.7, 0.7)
+                            end
+                            if isCamelot and not isLivePlayer then
+                                GameTooltip:AddLine("right-click to cycle ruleset", 0.65, 0.65, 0.68)
                             end
 
                             GameTooltip:Show()
@@ -1458,8 +1881,23 @@ function sfui.alts.UpdateUI(force)
         xOffset = xOffset + colW
     end
 
-    local totalWidth = 140 + 20 + xOffset + 10
-    local totalHeight = 35 + (#visibleCats * rowH) + 10
+    if frame.emptyText then
+        if #altsList == 0 then
+            if isCamelot and curFilter and curFilter ~= "all" then
+                frame.emptyText:SetText(string.format("no characters tracked on %s ruleset", curFilter))
+            else
+                frame.emptyText:SetText("no characters tracked")
+            end
+            frame.emptyText:Show()
+        else
+            frame.emptyText:Hide()
+        end
+    end
+
+    local minWidth = isCamelot and 420 or 310
+    local topPad = isCamelot and 62 or 35
+    local totalWidth = math.max(minWidth, 140 + 20 + xOffset + 10)
+    local totalHeight = topPad + (#visibleCats * rowH) + 10
     frame:SetSize(totalWidth, totalHeight)
 end
 
@@ -1534,6 +1972,9 @@ function sfui.alts.initialize()
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         leavingWorld = false
         sfui.alts.leavingWorld = false
+        if IsCamelotNameSystem() and not userChangedRulesetFilter then
+            activeRulesetFilter = GetCurrentRuleset() or "normal"
+        end
         sfui.alts.SyncCurrentCharacter()
     end)
 
@@ -1693,7 +2134,7 @@ function sfui.alts.GetAccountItemSummary(itemID, excludeCurrent)
     local list = {}
 
     for guid, alt in pairs(SfuiDB.alts) do
-        if type(alt) == "table" then
+        if type(alt) == "table" and IsSameRuleset(alt, guid) then
             local isMe = (myGUID and guid == myGUID)
             local bCnt = 0
             if isMe and sfui.inventory and sfui.inventory.GetCount then

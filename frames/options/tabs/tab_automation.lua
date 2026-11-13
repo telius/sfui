@@ -53,10 +53,13 @@ sfui.options.RegisterTab({
         if sfui.isCamelot or sfui.isClassic or isClassic then
             if SfuiDB.autoRankUp == nil then SfuiDB.autoRankUp = true end
             local auto_rankup_cb = create_checkbox(automation_panel, "auto spell rank-up", "autoRankUp", function(checked)
-                if checked and sfui.rankup and sfui.rankup.ScanAndUpgrade then
-                    sfui.rankup.ScanAndUpgrade()
+                if sfui.rankup and sfui.rankup.OnSettingsChanged then
+                    sfui.rankup.OnSettingsChanged()
                 end
-            end, "automatically replaces lower-rank spells on action bars when learning new ranks from class trainers.")
+                if checked and sfui.rankup and sfui.rankup.ScanAndUpgrade then
+                    sfui.rankup.ScanAndUpgrade(true)
+                end
+            end, "automatically replaces lower-rank player and pet spells on action bars when learning new ranks.")
             auto_rankup_cb:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -10)
             auto_alt_ids_cb:SetPoint("LEFT", auto_rankup_cb, "LEFT", COL_OFFSET_X, 0)
             last_general_anchor = auto_rankup_cb
@@ -136,10 +139,70 @@ sfui.options.RegisterTab({
 
         local auto_log_cb = create_checkbox(automation_panel, "auto combat log", "autoCombatLog", function(checked)
             sfui.logs.set_enabled(checked)
-        end, isClassic and "automatically start/stop combat logging when entering raids." or "automatically start/stop combat logging when entering mythic+ and raids.")
+        end, isClassic and "automatically start/stop advanced combat logging in selected instances." or "automatically start/stop advanced combat logging in mythic+, current raids, and rated pvp.")
         auto_log_cb:SetPoint("TOPLEFT", dungeon_header, "BOTTOMLEFT", 0, -10)
 
-        local last_dungeon_anchor = auto_log_cb
+        local last_log_anchor = auto_log_cb
+        if isClassic or sfui.isCamelot then
+            local log_raid_cb = create_checkbox(automation_panel, "log raids", function()
+                return sfui.logs and sfui.logs.get_setting and sfui.logs.get_setting("logRaid")
+            end, function(checked)
+                if sfui.logs and sfui.logs.set_setting then sfui.logs.set_setting("logRaid", checked) end
+            end, "enable auto combat logging inside raid instances.")
+            log_raid_cb:SetPoint("TOPLEFT", auto_log_cb, "BOTTOMLEFT", 0, -8)
+
+            local log_dungeon_cb = create_checkbox(automation_panel, "log 5-man dungeons", function()
+                return sfui.logs and sfui.logs.get_setting and sfui.logs.get_setting("logDungeon")
+            end, function(checked)
+                if sfui.logs and sfui.logs.set_setting then sfui.logs.set_setting("logDungeon", checked) end
+            end, "enable auto combat logging inside 5-player party dungeons.")
+            log_dungeon_cb:SetPoint("LEFT", log_raid_cb, "LEFT", COL_OFFSET_X, 0)
+
+            local log_delay_cb = create_checkbox(automation_panel, "30s zone-out grace delay", function()
+                return sfui.logs and sfui.logs.get_setting and sfui.logs.get_setting("delayStop")
+            end, function(checked)
+                if sfui.logs and sfui.logs.set_setting then sfui.logs.set_setting("delayStop", checked) end
+            end, "waits 30 seconds after leaving an instance before stopping the log so corpse runs do not split logs.")
+            log_delay_cb:SetPoint("TOPLEFT", log_raid_cb, "BOTTOMLEFT", 0, -8)
+            last_log_anchor = log_delay_cb
+        else
+            local log_mplus_cb = create_checkbox(automation_panel, "log mythic+ & m0", function()
+                return sfui.logs and sfui.logs.get_setting and sfui.logs.get_setting("log5pp")
+            end, function(checked)
+                if sfui.logs and sfui.logs.set_setting then sfui.logs.set_setting("log5pp", checked) end
+            end, "enable auto combat logging in mythic+ keystones and seasonal mythic0 dungeons.")
+            log_mplus_cb:SetPoint("TOPLEFT", auto_log_cb, "BOTTOMLEFT", 0, -8)
+
+            local log_mythic_heroic_cb = create_checkbox(automation_panel, "log heroic & mythic raids", function()
+                return sfui.logs and sfui.logs.get_setting and (sfui.logs.get_setting("logMythic") or sfui.logs.get_setting("logHeroic"))
+            end, function(checked)
+                if sfui.logs and sfui.logs.set_setting then
+                    sfui.logs.set_setting("logMythic", checked)
+                    sfui.logs.set_setting("logHeroic", checked)
+                end
+            end, "enable auto combat logging in current-tier heroic and mythic raids (legacy transmog raids are skipped).")
+            log_mythic_heroic_cb:SetPoint("LEFT", log_mplus_cb, "LEFT", COL_OFFSET_X, 0)
+
+            local log_normal_lfr_cb = create_checkbox(automation_panel, "log normal & lfr raids", function()
+                return sfui.logs and sfui.logs.get_setting and (sfui.logs.get_setting("logNormal") or sfui.logs.get_setting("logLFR"))
+            end, function(checked)
+                if sfui.logs and sfui.logs.set_setting then
+                    sfui.logs.set_setting("logNormal", checked)
+                    sfui.logs.set_setting("logLFR", checked)
+                end
+            end, "enable auto combat logging in current-tier normal and lfr raids.")
+            log_normal_lfr_cb:SetPoint("TOPLEFT", log_mplus_cb, "BOTTOMLEFT", 0, -8)
+
+            local log_delay_cb = create_checkbox(automation_panel, "30s zone-out grace delay", function()
+                return sfui.logs and sfui.logs.get_setting and sfui.logs.get_setting("delayStop")
+            end, function(checked)
+                if sfui.logs and sfui.logs.set_setting then sfui.logs.set_setting("delayStop", checked) end
+            end, "waits 30 seconds after leaving an instance before stopping the log so corpse runs do not split logs.")
+            log_delay_cb:SetPoint("LEFT", log_normal_lfr_cb, "LEFT", COL_OFFSET_X, 0)
+            last_log_anchor = log_normal_lfr_cb
+        end
+
+        local last_dungeon_anchor = last_log_anchor
 
         if not isClassic then
             if SfuiDB.keystoneReminder == nil then SfuiDB.keystoneReminder = true end
@@ -148,12 +211,12 @@ sfui.options.RegisterTab({
             keystone_cb:SetPoint("LEFT", auto_log_cb, "LEFT", COL_OFFSET_X, 0)
 
             if SfuiDB.autoLfgDungeonDefaults == nil then SfuiDB.autoLfgDungeonDefaults = true end
-            local lfg_dungeon_cb = create_checkbox(automation_panel, "LFG: auto M+ & Competitive", "autoLfgDungeonDefaults", nil,
-                "automatically selects Mythic+ Keystone difficulty and Competitive playstyle when creating a dungeon group in Group Finder.")
-            lfg_dungeon_cb:SetPoint("TOPLEFT", auto_log_cb, "BOTTOMLEFT", 0, -10)
+            local lfg_dungeon_cb = create_checkbox(automation_panel, "lfg: auto m+ & competitive", "autoLfgDungeonDefaults", nil,
+                "automatically selects mythic+ keystone difficulty and competitive playstyle when creating a dungeon group in group finder.")
+            lfg_dungeon_cb:SetPoint("TOPLEFT", last_log_anchor, "BOTTOMLEFT", 0, -10)
 
             if SfuiDB.ahCurrentExpansionFilter == nil then SfuiDB.ahCurrentExpansionFilter = true end
-            local ah_expansion_cb = create_checkbox(automation_panel, "AH: current expansion only", "ahCurrentExpansionFilter", nil,
+            local ah_expansion_cb = create_checkbox(automation_panel, "ah: current expansion only", "ahCurrentExpansionFilter", nil,
                 "automatically enables the \"current expansion only\" filter every time you open the auction house.")
             ah_expansion_cb:SetPoint("LEFT", lfg_dungeon_cb, "LEFT", COL_OFFSET_X, 0)
 
@@ -235,9 +298,9 @@ sfui.options.RegisterTab({
 
             local function GetHammerModeOptions()
                 return {
-                    { text = "Popup Button Only", value = "popup" },
-                    { text = "Automatic Use", value = "auto" },
-                    { text = "Popup + Auto Fallback", value = "both" },
+                    { text = "popup button only", value = "popup" },
+                    { text = "automatic use", value = "auto" },
+                    { text = "popup + auto fallback", value = "both" },
                 }
             end
 
@@ -346,5 +409,7 @@ sfui.options.RegisterTab({
                 self:ClearFocus()
             end)
         end
+
+        automation_panel.customContentHeight = 820
     end,
 })

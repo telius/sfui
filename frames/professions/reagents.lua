@@ -147,7 +147,8 @@ local function BuildRoster()
     local myGUID = UnitGUID and UnitGUID("player")
     local includeAlts = not (SfuiDB and SfuiDB.recipesReagentShowAlts == false)
     for guid, alt in pairs(alts) do
-        if type(alt) == "table" and alt.professions and (guid == myGUID or (includeAlts and not alt.isHidden)) then
+        local sameRuleset = (guid == myGUID) or not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(alt, guid)
+        if type(alt) == "table" and alt.professions and sameRuleset and (guid == myGUID or (includeAlts and not alt.isHidden)) then
             for skillID in pairs(bySkill) do
                 local hasProf, _, rank = checkAlt(alt, nil, nil, nil, skillID)
                 if hasProf then

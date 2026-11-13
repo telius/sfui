@@ -165,6 +165,9 @@ function merge.MergeAlt(guid, incomingData, peerAccountLabel, peerAccountID)
         elseif existing and existing.accountID then
             merged.accountID = existing.accountID
         end
+        if (not merged.ruleset or merged.ruleset == "") and existing and existing.ruleset then
+            merged.ruleset = existing.ruleset
+        end
         if sfui.alts and sfui.alts.RepairAltEntry then
             sfui.alts.RepairAltEntry(merged, guid, false)
         end
@@ -1165,7 +1168,8 @@ local function sync_completed_for_peer_quests(myAlt, myGUID, activeQuests, compl
     myAlt.completedQuests = myAlt.completedQuests or {}
     local anyAdded = false
     for peerGUID, peerAlt in pairs(SfuiDB.alts) do
-        if peerGUID ~= myGUID and type(peerAlt) == "table" and type(peerAlt.activeQuests) == "table" then
+        local sameRuleset = not (sfui.alts and sfui.alts.IsSameRuleset) or sfui.alts.IsSameRuleset(peerAlt, peerGUID)
+        if peerGUID ~= myGUID and sameRuleset and type(peerAlt) == "table" and type(peerAlt.activeQuests) == "table" then
             for rawQID in pairs(peerAlt.activeQuests) do
                 local qID = tonumber(rawQID)
                 if qID and qID > 0 and not (activeQuests and activeQuests[qID]) and myAlt.completedQuests[qID] ~= 1 then
@@ -1997,6 +2001,7 @@ function merge.BuildManifest(syncCfg)
                         name         = rosterName,
                         surname      = d.surname,
                         realm        = d.realm or defaultRealm,
+                        ruleset      = d.ruleset,
                         class        = d.class,
                         level        = d.level,
                         accountID    = myAccountID,
