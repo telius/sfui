@@ -18,7 +18,7 @@ if not LCG then
 end
 
 
-sfui.glows = {}
+sfui.glows = sfui.glows or {}
 
 -- Helper: Get value from entry → panel → global → hardcoded default
 local function GetValue(entrySettings, panelConfig, key, default)

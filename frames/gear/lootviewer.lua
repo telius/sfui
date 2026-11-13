@@ -1,7 +1,7 @@
 local addonName, addon = ...
 ---@diagnostic disable: undefined-global, undefined-field
 sfui            = sfui or {}
-sfui.lootviewer = {}
+sfui.lootviewer = sfui.lootviewer or {}
 
 -- Guard: Retail-only dungeon & raid loot viewer
 if not (sfui.compat and sfui.compat.has and sfui.compat.has.gear_spec) then

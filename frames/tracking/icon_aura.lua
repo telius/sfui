@@ -104,12 +104,14 @@ end
 
 -- resolves aura application display (>1 stacks only; never forwards raw secret 0/1)
 local function ExtractSafeAuraStacks(desc, iid, aura)
-    local rawApps = aura and aura.applications
-    if rawApps ~= nil and not issecretvalue(rawApps) then
-        if type(rawApps) == "number" and rawApps > 1 then
-            return rawApps
+    if aura and not issecretvalue(aura) and aura.appsAuthoritative ~= false then
+        local rawApps = aura.applications
+        if rawApps ~= nil and not issecretvalue(rawApps) then
+            if type(rawApps) == "number" and rawApps > 1 then
+                return rawApps
+            end
+            return nil
         end
-        return nil
     end
 
     -- In restricted combat, use Blizzard's untainted CDM Applications FontString (returns "" when <= 1)
@@ -119,7 +121,9 @@ local function ExtractSafeAuraStacks(desc, iid, aura)
             local fs = blizz:GetApplicationsFontString()
             local txt = fs and fs:GetText()
             if txt ~= nil then
-                return txt
+                if issecretvalue(txt) or txt ~= "" then
+                    return txt
+                end
             end
         end
     end
@@ -162,7 +166,8 @@ local function ResolveOptInAuraStacks(desc)
         end
     end
 
-    return ExtractSafeAuraStacks(desc, aura and aura.auraInstanceID, aura)
+    local safeAura = (aura and not issecretvalue(aura)) and aura or nil
+    return ExtractSafeAuraStacks(desc, safeAura and safeAura.auraInstanceID or nil, safeAura)
 end
 
 -- returns auraActive, auraStacks, missingAlert
@@ -218,7 +223,8 @@ function IA.Evaluate(icon, desc)
                     icon._auraTextureShown = true
                 end
             elseif present and not rebuilt and icon._auraState then
-                -- aura up in restricted combat: keep existing duration object ticking
+                -- aura up in restricted combat: keep existing duration object ticking and refresh stacks
+                icon._auraStacks = ExtractSafeAuraStacks(desc, iid, aura)
                 icon._auraState = true
             else
                 IA.Clear(icon)

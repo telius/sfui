@@ -292,7 +292,7 @@ local function HasCandidate(candidates, targetID)
 end
 A.HasCandidate = HasCandidate
 
-local function RecordCastAura(spellID, name, icon, startTime, duration, auraInstanceID, applications)
+local function RecordCastAura(spellID, name, icon, startTime, duration, auraInstanceID, applications, appsAuthoritative)
     if not duration or duration <= 0 then return nil, false end
     local entry = (spellID and _castAurasBySpellID[spellID]) or (name and _castAurasByName[name])
     if not entry then
@@ -304,9 +304,11 @@ local function RecordCastAura(spellID, name, icon, startTime, duration, auraInst
 
     local exp = startTime + duration
     local apps = applications or 1
+    local auth = appsAuthoritative ~= false
     local changed = (not entry.active)
         or (entry.spellID ~= (spellID or entry.spellID))
         or (entry.applications ~= apps)
+        or (entry.appsAuthoritative ~= auth)
         or (entry.auraInstanceID ~= auraInstanceID)
         or (math.abs((entry.expirationTime or 0) - exp) > 0.5)
 
@@ -315,6 +317,7 @@ local function RecordCastAura(spellID, name, icon, startTime, duration, auraInst
     entry.name = name or entry.name
     entry.icon = icon or entry.icon
     entry.applications = apps
+    entry.appsAuthoritative = auth
     entry.startTime = startTime
     entry.duration = duration
     entry.expirationTime = exp
@@ -341,7 +344,7 @@ local function UpdateFromReadableAura(aura, now)
     if dur and dur > 0 then
         A.LearnDuration(sid, name, dur)
         if exp and exp > now then
-            return RecordCastAura(sid, name, icon, exp - dur, dur, iid, apps)
+            return RecordCastAura(sid, name, icon, exp - dur, dur, iid, apps, true)
         end
     end
     return nil, false
@@ -384,12 +387,37 @@ local function CheckCombatExpirations(now)
     return changed
 end
 
+local function SyncCombatReadablePlayerSpells(now)
+    if not C_UnitAuras or not C_UnitAuras.GetPlayerAuraBySpellID then
+        return false
+    end
+    local getBySpellID = C_UnitAuras.GetPlayerAuraBySpellID
+    local checkSpellSecret = C_Secrets and C_Secrets.ShouldSpellAuraBeSecret
+    local changed = false
+    for sid in pairs(_watchedSpellIDs) do
+        if not (checkSpellSecret and checkSpellSecret(sid)) then
+            local aura = getBySpellID(sid)
+            if aura and not issecretvalue(aura) then
+                local _, entryChanged = UpdateFromReadableAura(aura, now)
+                if entryChanged then
+                    changed = true
+                end
+            end
+        end
+    end
+    return changed
+end
+
 -- full watched-only resync (entering world, leaving combat, watchlist changes, or isFullUpdate)
 local _seenEntries = {}
 local function SyncFullPlayerBuffs()
     local now = GetTime()
     if not CanAccessUnitAuras() then
-        return CheckCombatExpirations(now)
+        local changed = CheckCombatExpirations(now)
+        if SyncCombatReadablePlayerSpells(now) then
+            changed = true
+        end
+        return changed
     end
     if not C_UnitAuras then return false end
 
@@ -475,7 +503,11 @@ local function OnUnitAura(_event, _unit, updateInfo)
     local now = GetTime()
 
     if not CanAccessUnitAuras() then
-        if CheckCombatExpirations(now) then
+        local changed = CheckCombatExpirations(now)
+        if SyncCombatReadablePlayerSpells(now) then
+            changed = true
+        end
+        if changed or _watchedCooldownCount > 0 then
             NotifyTrackingDirty()
         end
         return
@@ -599,7 +631,7 @@ local function OnUnitSpellCastSucceeded(_event, _unit, _castGUID, spellID)
         or (sfui.common and sfui.common.GetAuraDefaultDuration and sfui.common.GetAuraDefaultDuration(spellID))
     if dur and dur > 0 then
         local icon = GetCachedSpellTexture(spellID)
-        RecordCastAura(spellID, name, icon, now, dur, nil, 1)
+        RecordCastAura(spellID, name, icon, now, dur, nil, 1, false)
         NotifyTrackingDirty()
     end
 end
@@ -842,11 +874,45 @@ function A.Resolve(cooldownID, candidates)
 
     -- 1. hidden blizzard viewer item (O(1) weak-cached lookup)
     local blizz = FindBlizzItem(cooldownID)
+    local blizzPresent = false
     if blizz and blizz.auraDataUnit == "player" and sfui.common.HasAuraInstanceID(blizz.auraInstanceID) then
         local iid = blizz.auraInstanceID
         if canAccess and not issecretvalue(iid) then
             return iid, blizz.auraDataCached, true
         end
+        blizzPresent = true
+    end
+
+    -- 2. by spell id across linked / override / base ids
+    -- GetPlayerAuraBySpellID uses RequiresNonSecretAura (returns nil instead of erroring in combat)
+    if C_UnitAuras and candidates then
+        local getBySpellID = C_UnitAuras.GetPlayerAuraBySpellID
+        local checkSpellSecret = C_Secrets and C_Secrets.ShouldSpellAuraBeSecret
+        if getBySpellID then
+            for i = 1, #candidates do
+                local cid = candidates[i]
+                if not (checkSpellSecret and checkSpellSecret(cid)) then
+                    local aura = getBySpellID(cid)
+                    if aura and not issecretvalue(aura) then
+                        local iid = A.PlainField(aura, "auraInstanceID")
+                        if iid then
+                            return iid, aura, true
+                        end
+                        if A.PlainField(aura, "applications") ~= nil then
+                            return nil, aura, true
+                        end
+                        local fbIID, fbAura, fbPresent = ResolveCombatFallback(cooldownID, candidates)
+                        if fbPresent then
+                            return fbIID, fbAura, true
+                        end
+                        return nil, aura, true
+                    end
+                end
+            end
+        end
+    end
+
+    if blizzPresent then
         local fbIID, fbAura, fbPresent = ResolveCombatFallback(cooldownID, candidates)
         if fbPresent then
             return fbIID, fbAura, true
@@ -856,29 +922,6 @@ function A.Resolve(cooldownID, candidates)
 
     if not canAccess or not C_UnitAuras or not candidates then
         return ResolveCombatFallback(cooldownID, candidates)
-    end
-
-    -- 2. by spell id across linked / override / base ids
-    local getBySpellID = C_UnitAuras.GetPlayerAuraBySpellID
-    local checkSpellSecret = C_Secrets and C_Secrets.ShouldSpellAuraBeSecret
-    if getBySpellID then
-        for i = 1, #candidates do
-            local cid = candidates[i]
-            if not (checkSpellSecret and checkSpellSecret(cid)) then
-                local aura = getBySpellID(cid)
-                if aura then
-                    local iid = aura.auraInstanceID
-                    if iid and not issecretvalue(iid) then
-                        return iid, aura, true
-                    end
-                    local fbIID, fbAura, fbPresent = ResolveCombatFallback(cooldownID, candidates)
-                    if fbPresent then
-                        return fbIID, fbAura, true
-                    end
-                    return nil, aura, true
-                end
-            end
-        end
     end
 
     -- 3. by name: classic ranks share a name but not a spell id (rank 1..n)

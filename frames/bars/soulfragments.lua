@@ -27,7 +27,7 @@ if playerClass ~= "DEMONHUNTER" then
     return
 end
 
-sfui.soulfragments = {}
+sfui.soulfragments = sfui.soulfragments or {}
 
 -- ------------------------------------------------------------
 -- Constants & Spec Configurations

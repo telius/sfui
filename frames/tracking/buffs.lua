@@ -1,5 +1,5 @@
 sfui = sfui or {}
-sfui.trackedbuffs = {}
+sfui.trackedbuffs = sfui.trackedbuffs or {}
 
 -- retail & camelot (forever) blizzard cdm buff socket module
 local isSupportedClient = (sfui.isRetail or sfui.isCamelot) == true
@@ -247,13 +247,19 @@ end
 
 local function StyleStackFontString(fs)
     if not fs then return end
-    if _G.NumberFontNormal then
-        fs:SetFontObject(_G.NumberFontNormal)
-    elseif common and common.style_text then
-        common.style_text(fs, "NumberFontNormal", 12, "OUTLINE")
+    if common and common.style_text then
+        common.style_text(fs, "NumberFontNormal", 13, "OUTLINE")
+    elseif _G.NumberFontNormal then
+        local font = _G.NumberFontNormal:GetFont()
+        if font then
+            fs:SetFont(font, 13, "OUTLINE")
+        else
+            fs:SetFontObject(_G.NumberFontNormal)
+        end
     else
-        fs:SetFont("Fonts\\ARIALN.TTF", 12, "OUTLINE")
+        fs:SetFont("Fonts\\ARIALN.TTF", 13, "OUTLINE")
     end
+    fs:SetTextColor(1, 1, 1, 1)
     fs:SetJustifyH("RIGHT")
 end
 
@@ -346,19 +352,23 @@ local function GetOrCreatePreviewSlot(index)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     slot.icon = icon
 
-    -- applications / stack count
-    local appText = slot:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-    appText:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -2, 2)
-    StyleStackFontString(appText)
-    slot.appText = appText
-
-    -- preview cooldown frame
+    -- preview cooldown frame (created before appFrame so stack count renders above swipe/countdown)
     local cd = CreateFrame("Cooldown", nil, slot, "CooldownFrameTemplate")
     cd:ClearAllPoints()
     cd:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
     cd:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
     cd:SetDrawEdge(true)
     slot.cooldown = cd
+
+    -- applications / stack count in an elevated child frame above cooldown
+    local appFrame = CreateFrame("Frame", nil, slot)
+    appFrame:SetAllPoints(slot)
+    appFrame:SetFrameLevel(cd:GetFrameLevel() + 5)
+    local appText = appFrame:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+    appText:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -2, 2)
+    StyleStackFontString(appText)
+    slot.appFrame = appFrame
+    slot.appText = appText
 
     previewSlots[index] = slot
     return slot
@@ -970,6 +980,29 @@ SyncWithBlizzard = function()
         end
         if not blizzFrame:IsShown() then
             blizzFrame:Show()
+        end
+        if blizzFrame.Applications then
+            local baseLevel = blizzFrame:GetFrameLevel() or 0
+            local cdLevel = blizzFrame.Cooldown and blizzFrame.Cooldown.GetFrameLevel and blizzFrame.Cooldown:GetFrameLevel() or baseLevel
+            local targetLevel = (cdLevel > baseLevel and cdLevel or baseLevel) + 5
+            if blizzFrame.Applications:GetFrameLevel() < targetLevel then
+                blizzFrame.Applications:SetFrameLevel(targetLevel)
+            end
+            if not blizzFrame.Applications:IsShown() then
+                blizzFrame.Applications:Show()
+            end
+            if blizzFrame.Applications:GetAlpha() ~= 1 then
+                blizzFrame.Applications:SetAlpha(1)
+            end
+            local appFs = blizzFrame.Applications.Applications
+            if appFs then
+                if not appFs:IsShown() then
+                    appFs:Show()
+                end
+                if appFs:GetAlpha() ~= 1 then
+                    appFs:SetAlpha(1)
+                end
+            end
         end
 
         if slot.fallbackIcon then

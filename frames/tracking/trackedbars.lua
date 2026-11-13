@@ -1,5 +1,5 @@
 local addonName, addon = ...
-sfui.trackedbars = {}
+sfui.trackedbars = sfui.trackedbars or {}
 
 local cfg = sfui.config
 local common = sfui.common
@@ -1054,7 +1054,9 @@ local function ShouldBarBeVisible(config, blizzFrame, isStackModeWithStacks, hid
         -- Fallback: Blizzard's isActive may have been flipped to false by the
         -- IsExpired() secret crash in M+. Confirm via GetPlayerAuraBySpellID
         -- (works for player's own spells even in restricted combat).
-        if spellID and not (issecretvalue and issecretvalue(spellID)) and type(spellID) == "number" and spellID > 0 and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+        if spellID and not (issecretvalue and issecretvalue(spellID)) and type(spellID) == "number" and spellID > 0
+            and not (C_Secrets and C_Secrets.ShouldSpellAuraBeSecret and C_Secrets.ShouldSpellAuraBeSecret(spellID))
+            and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
             local fbAura = C_UnitAuras.GetPlayerAuraBySpellID(spellID)
             if fbAura then return true end
         end
@@ -1165,9 +1167,11 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
 
     if needStacks then
         -- Primary: Direct Unrestricted Player Aura query (clean number when accessible)
-        if myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID)) and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+        if myBar.spellID and not (issecretvalue and issecretvalue(myBar.spellID))
+            and not (C_Secrets and C_Secrets.ShouldSpellAuraBeSecret and C_Secrets.ShouldSpellAuraBeSecret(myBar.spellID))
+            and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
             local auraData = C_UnitAuras.GetPlayerAuraBySpellID(myBar.spellID)
-            if auraData then
+            if auraData and not (issecretvalue and issecretvalue(auraData)) then
                 if auraData.applications ~= nil then
                     currentStacks = auraData.applications
                 end
@@ -1180,12 +1184,25 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
         -- Secondary: Read cached aura data directly off the Blizzard frame
         if currentStacks == nil then
             local ad = blizzFrame.auraDataCached
-            if ad then
+            if ad and not (issecretvalue and issecretvalue(ad)) then
                 if ad.applications ~= nil then
                     currentStacks = ad.applications
                 end
                 if not resolvedAuraName and ad.name and not (issecretvalue and issecretvalue(ad.name)) then
                     resolvedAuraName = ad.name
+                end
+            end
+        end
+
+        -- Secondary-B: Read Blizzard's untainted Applications FontString (safe in restricted combat)
+        if currentStacks == nil and not isStackMode and blizzFrame.GetApplicationsFontString then
+            local appFs = blizzFrame:GetApplicationsFontString()
+            local txt = appFs and appFs:GetText()
+            if txt ~= nil then
+                if issecretvalue and issecretvalue(txt) then
+                    currentStacks = txt
+                elseif txt ~= "" then
+                    currentStacks = txt
                 end
             end
         end
@@ -1263,7 +1280,7 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
         end
     elseif not isTimerAndStacks and showNameEnabled and not (config and config.name) then
         local ad = blizzFrame.auraDataCached
-        if ad and ad.name and not (issecretvalue and issecretvalue(ad.name)) then
+        if ad and not (issecretvalue and issecretvalue(ad)) and ad.name and not (issecretvalue and issecretvalue(ad.name)) then
             resolvedAuraName = ad.name
         end
     end
