@@ -2,10 +2,9 @@ local addonName, addon = ...
 if not sfui.isRetail then return end
 
 local _G = _G
-local select, unpack, ipairs, pairs, type, tostring, table, print = _G.select, _G.unpack, _G.ipairs, _G.pairs, _G.type,
-    _G.tostring, _G.table, _G.print
+local unpack, ipairs, pairs, type, tostring, table = _G.unpack, _G.ipairs, _G.pairs, _G.type, _G.tostring, _G.table
 local CreateFrame = _G.CreateFrame
-local C_Garrison, C_Traits, C_AddOns, C_Covenants = _G.C_Garrison, _G.C_Traits, _G.C_AddOns, _G.C_Covenants
+local C_Garrison, C_Traits, C_Covenants = _G.C_Garrison, _G.C_Traits, _G.C_Covenants
 local GameTooltip = sfui.common.get_tooltip()
 local ShowUIPanel, HideUIPanel = _G.ShowUIPanel, _G.HideUIPanel
 local GenericTraitUI_LoadUI, OrderHall_LoadUI = _G.GenericTraitUI_LoadUI, _G.OrderHall_LoadUI

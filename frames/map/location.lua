@@ -18,7 +18,6 @@ local UnitIsPVP = _G.UnitIsPVP
 local UnitIsPVPFreeForAll = _G.UnitIsPVPFreeForAll
 local IsPVPTimerRunning = _G.IsPVPTimerRunning
 local GetPVPTimer = _G.GetPVPTimer
-local Minimap = _G.Minimap
 local MinimapCluster = _G.MinimapCluster
 
 local locationFrame = nil

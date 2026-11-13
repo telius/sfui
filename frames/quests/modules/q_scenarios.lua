@@ -21,9 +21,7 @@ local C_Scenario = _G.C_Scenario
 local C_ScenarioInfo = _G.C_ScenarioInfo
 local C_DelvesUI = _G.C_DelvesUI
 local C_Spell = _G.C_Spell
-local Enum = _G.Enum
-local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
-local math_floor, math_max = _G.math.floor, _G.math.max
+local ipairs, type = _G.ipairs, _G.type
 local table_insert = _G.table.insert
 local table_concat = _G.table.concat
 local string_format = string.format
@@ -41,7 +39,7 @@ local function GetScenarioCriteria(criteriaIndex, stepID)
         end
     end
     if C_Scenario and C_Scenario.GetCriteriaInfo then
-        local desc, cType, comp, quant, totQuant, flags, assetID, quantStr = C_Scenario.GetCriteriaInfo(criteriaIndex)
+        local desc, cType, comp, quant, totQuant, _, _, quantStr = C_Scenario.GetCriteriaInfo(criteriaIndex)
         if desc and desc ~= "" then
             return {
                 description    = desc,

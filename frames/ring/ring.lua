@@ -6,8 +6,6 @@ local ring = sfui.ring
 
 local GetBindingKey           = _G.GetBindingKey
 local SetBinding              = _G.SetBinding
-local SaveBindings            = _G.SaveBindings
-local GetCurrentBindingSet    = _G.GetCurrentBindingSet
 local InCombatLockdown        = _G.InCombatLockdown
 local C_Timer                 = _G.C_Timer
 local pairs                   = _G.pairs
@@ -276,11 +274,7 @@ function ring.set_binding(ringID, key)
     end
 
     sfui.db.Set("ring", "bindings", dbBindings)
-
-    local effectiveKey = ring.get_binding(ringID)
-    if ring.secure and ring.secure.apply_binding then
-        ring.secure.apply_binding(ringID, effectiveKey)
-    end
+    ring.apply_all_bindings()
 end
 
 --- clear the keybinding for a ring.
@@ -309,10 +303,19 @@ function ring.unbind(ringID)
     end
 
     sfui.db.Set("ring", "bindings", dbBindings)
+    ring.apply_all_bindings()
+end
 
-    if ring.secure and ring.secure.clear_binding then
-        ring.secure.clear_binding(ringID)
+local _lastBindingSig = nil
+local _bindingSyncTimer = nil
+
+local function collect_ring_key_map()
+    local ringKeyMap = {}
+    for id in pairs(providers) do
+        local k = ring.get_binding(id)
+        ringKeyMap[id] = (k and k ~= "") and k or false
     end
+    return ringKeyMap
 end
 
 --- apply all configured keybindings to their respective secure buttons.
@@ -332,10 +335,15 @@ function ring.apply_all_bindings()
         if sk2 == "SHIFT-ALT-X" then SetBinding(sk2, nil) end
     end
 
-    for id in pairs(providers) do
-        local key = ring.get_binding(id)
-        if ring.secure and ring.secure.apply_binding then
-            ring.secure.apply_binding(id, key)
+    local ringKeyMap = collect_ring_key_map()
+    if ring.secure and ring.secure.apply_all_bindings then
+        ring.secure.apply_all_bindings(ringKeyMap)
+        if ring.secure.get_modifier_sig then
+            _lastBindingSig = ring.secure.get_modifier_sig(ringKeyMap)
+        end
+    elseif ring.secure and ring.secure.apply_binding then
+        for id, key in pairs(ringKeyMap) do
+            ring.secure.apply_binding(id, key ~= false and key or nil)
         end
     end
 end
@@ -356,7 +364,21 @@ sfui.RegisterModule("ring", {
 })
 
 sfui.events.RegisterEvent("UPDATE_BINDINGS", function()
-    ring.apply_all_bindings()
+    if ring.secure and ring.secure.is_applying_bindings and ring.secure.is_applying_bindings() then
+        return
+    end
+    if _bindingSyncTimer then
+        _bindingSyncTimer:Cancel()
+        _bindingSyncTimer = nil
+    end
+    _bindingSyncTimer = _G.C_Timer.NewTimer(0.1, function()
+        _bindingSyncTimer = nil
+        if ring.secure and ring.secure.get_modifier_sig then
+            local sig = ring.secure.get_modifier_sig(collect_ring_key_map())
+            if sig == _lastBindingSig then return end
+        end
+        ring.apply_all_bindings()
+    end)
 end)
 
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()

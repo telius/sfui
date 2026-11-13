@@ -5,7 +5,6 @@ local cfg = sfui.config
 local common = sfui.common
 
 local CreateFrame = CreateFrame
-local GameTooltip = sfui.common.get_tooltip()
 local InCombatLockdown = InCombatLockdown
 local GetCursorPosition = GetCursorPosition
 local GetCursorInfo = GetCursorInfo
@@ -13,7 +12,6 @@ local ClearCursor = ClearCursor
 local UIParent = UIParent
 local C_Spell = C_Spell
 local C_Item = C_Item
-local C_Timer = C_Timer
 
 local ReloadUI = _G.ReloadUI or (C_UI and C_UI.Reload)
 
@@ -29,18 +27,6 @@ StaticPopupDialogs["SFUI_RELOAD_UI"] = {
     hideOnEscape = true,
     preferredIndex = 3,
 }
-
-local function ShowReloadPrompt()
-    if not StaticPopup_Visible("SFUI_RELOAD_UI") then
-        StaticPopup_Show("SFUI_RELOAD_UI")
-    end
-end
-
--- Local references to common utilities
-local CreateFlatButton = common.create_flat_button
-local issecretvalue = common.issecretvalue
-local g = cfg
-local c = g.options_panel
 
 local PANEL_NAME_PLACEHOLDER = "new panel name"
 
@@ -90,12 +76,9 @@ end
 
 -- Layout Constants
 local ICON_SIZE          = 30
-local ICON_SPACING       = 2
 
 -- Main Container
 local cdmFrame           = nil
-local poolFrame          = nil
-local zonesFrame         = nil
 
 -- Data Storage for Dragging
 local draggedInfo        = nil
@@ -697,7 +680,7 @@ local function RenderTrackedBarsRightSide(parent, width)
     local cols = math.max(1, math.floor(width / (ICON_SIZE + spacing)))
 
     local entries = common.get_tracked_bars()
-    local x, y = 0, yPos
+    local y = yPos
 
     for i, cdID in ipairs(list) do
         local icon = AcquireZoneIcon(parent)
@@ -1065,7 +1048,6 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
             local list = SafeGetCategorySet(gId, true)
             if not list then return end
 
-            local isList = (type(list) == "table")
             local entries = zone.isTrackedBars and common.get_tracked_bars() or
                 (zone.panelData and zone.panelData.entries)
             if entries then
@@ -1294,7 +1276,6 @@ local function AcquireZoneFrame(parent, name, yPos, xPos, width, panelData, isTr
     -- Populate Existing Icons
     local entries = isTrackedBars and common.get_tracked_bars() or (panelData and panelData.entries)
     local x, y = 0, 0
-    local icons = {}
 
     -- Helper to get texture
     local function GetIconTexture(cdID)
@@ -1477,7 +1458,7 @@ local function RenderAssignmentsIconPool(parent, width, entries)
     local spacing = 2
     local cols = math.max(1, math.floor(width / (ICON_SIZE + spacing)))
 
-    local x, y = 0, yPos
+    local y = yPos
 
     for i, cdID in ipairs(list) do
         local icon = AcquireZoneIcon(parent)
@@ -1778,37 +1759,6 @@ end
 -- ----------------------------------------------------------------------------
 -- Logic Helpers
 -- ----------------------------------------------------------------------------
-
-local function PurgeIconFromEverywhere(targetId)
-    if not targetId then return end
-
-    -- 1. Purge from Tracked Bars
-    if SfuiDB.trackedBars then
-        SfuiDB.trackedBars[targetId] = nil
-
-        -- Update Blizzard backend and save
-        SafeSetBlizzardCooldownCategory(targetId, -1) -- HiddenSpell
-        SafeSaveBlizzardLayout()
-    end
-
-    -- 2. Purge from Custom Panels
-    local panels = common.get_cooldown_panels()
-    if panels then
-        for _, panel in ipairs(panels) do
-            if panel.entries then
-                for i = #panel.entries, 1, -1 do
-                    local val = panel.entries[i]
-                    local entryId = (type(val) == "table" and (val.cooldownID or val.id)) or val
-                    if entryId == targetId then
-                        table.remove(panel.entries, i)
-                        common.invalidate_panels_cache()
-                        sfui.trackedicons.MarkDirty(true)
-                    end
-                end
-            end
-        end
-    end
-end
 
 -- ----------------------------------------------------------------------------
 -- Drag Handlers

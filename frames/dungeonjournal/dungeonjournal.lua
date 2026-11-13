@@ -34,11 +34,8 @@ end
 local FRAME_W                       = 860
 local FRAME_H                       = 600
 local SIDEBAR_W                     = 200
-local CONTENT_X                     = SIDEBAR_W + 10
-local CONTENT_W                     = FRAME_W - SIDEBAR_W - 24 -- ~636
 local HEADER_H                      = 46
 local TAB_H                         = 28
-local INNER_PAD                     = 10
 
 -- ─── Locals ───────────────────────────────────────────────────────────────────
 local CreateFrame                   = _G.CreateFrame
@@ -49,7 +46,6 @@ local pairs, ipairs, next           = _G.pairs, _G.ipairs, _G.next
 local pcall, type, tostring, tonumber = _G.pcall, _G.type, _G.tostring, _G.tonumber
 local math_floor, math_max          = math.floor, math.max
 local string_format                 = string.format
-local table_insert                  = table.insert
 
 local common                        = sfui.common
 local theme                         = sfui.theme

@@ -13,23 +13,16 @@ local NUM_ROWS = cfg.grid.rows
 local NUM_COLS = cfg.grid.cols
 
 -- Memory optimization: Table pooling and scratch tables
-sfui.merchant.tablePool = sfui.merchant.tablePool or {}
-local tablePool = sfui.merchant.tablePool
+local tPool = sfui.pool.create_table_pool(200)
 
 local function getTable()
-    local t = next(tablePool)
-    if t then
-        tablePool[t] = nil
-        return t
-    end
-    return {}
+    return tPool:Acquire()
 end
 sfui.merchant.getTable = getTable
 
 local function releaseTable(t)
     if not t then return end
-    wipe(t)
-    tablePool[t] = true
+    tPool:Release(t)
 end
 sfui.merchant.releaseTable = releaseTable
 
@@ -41,6 +34,10 @@ local function releaseCache(cache)
     end
 end
 sfui.merchant.releaseCache = releaseCache
+
+sfui.merchant.getTablePoolCount = function()
+    return tPool:Count()
+end
 
 -- State tracking
 sfui.merchant.lootFilterState = 0 -- 0=All, 1=Class, 2=Spec
@@ -462,7 +459,7 @@ function sfui.merchant.build_item_list()
 
                 if itemInfo.hasExtendedCost then
                     for j = 1, GetMerchantItemCostInfo(i) do
-                        local texture, amount, costLink, currencyName = GetMerchantItemCostItem(i, j)
+                        local texture, _, costLink, currencyName = GetMerchantItemCostItem(i, j)
                         if costLink then
                             local cID = tonumber(string.match(costLink, "currency:(%d+)"))
                             if not currencyName then

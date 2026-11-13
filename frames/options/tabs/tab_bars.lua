@@ -278,6 +278,38 @@ sfui.options.RegisterTab({
                 pet_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
                 last_toggle_cb = pet_bar_cb
             end
+            if sfui.flighttimer then
+                local flight_bar_cb = create_checkbox(bars_panel, "enable flight timer", function()
+                    return (SfuiDB == nil or SfuiDB.enableFlightTimer ~= false)
+                end, function(checked)
+                    SfuiDB = SfuiDB or {}
+                    SfuiDB.enableFlightTimer = checked
+                    if sfui.flighttimer and sfui.flighttimer.Apply then
+                        sfui.flighttimer.Apply()
+                    end
+                end, "self-calibrating taxi timer bar with intermediate stops and early landing button.")
+                flight_bar_cb:SetPoint("TOPLEFT", last_toggle_cb, "BOTTOMLEFT", 0, -10)
+
+                local flight_test_btn = CreateFlatButton(bars_panel, "test flight timer", 130, 22)
+                flight_test_btn:SetPoint("TOPLEFT", flight_bar_cb, "BOTTOMLEFT", 0, -6)
+                flight_test_btn.tooltip = "toggles a live preview of the flight timer bar."
+                flight_test_btn:SetScript("OnClick", function()
+                    if sfui.flighttimer and sfui.flighttimer.TogglePreview then
+                        sfui.flighttimer.TogglePreview()
+                    end
+                end)
+
+                local flight_reset_btn = CreateFlatButton(bars_panel, "reset flight timer", 130, 22)
+                flight_reset_btn:SetPoint("LEFT", flight_test_btn, "RIGHT", 8, 0)
+                flight_reset_btn.tooltip = "resets flight timer position back to default."
+                flight_reset_btn:SetScript("OnClick", function()
+                    if sfui.flighttimer and sfui.flighttimer.ResetPosition then
+                        sfui.flighttimer.ResetPosition()
+                    end
+                end)
+
+                last_toggle_cb = flight_test_btn
+            end
         end
 
         -- Out of Combat Visibility
@@ -398,6 +430,6 @@ sfui.options.RegisterTab({
             end)
         bg_color_swatch:SetPoint("LEFT", bg_color_label, "RIGHT", 5, 0)
 
-        bars_panel.customContentHeight = 780
+        bars_panel.customContentHeight = 825
     end,
 })

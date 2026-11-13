@@ -18,16 +18,12 @@ sfui.buffs.party = sfui.buffs.party or {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local _G = _G
-local ipairs = _G.ipairs
-local pairs = _G.pairs
 local type = _G.type
 local tonumber = _G.tonumber
-local tostring = _G.tostring
 local string_lower = string.lower
 local wipe = _G.wipe
 
 local UnitExists = _G.UnitExists
-local UnitIsUnit = _G.UnitIsUnit
 local UnitIsConnected = _G.UnitIsConnected
 local UnitIsDeadOrGhost = _G.UnitIsDeadOrGhost
 local UnitIsVisible = _G.UnitIsVisible
@@ -42,7 +38,7 @@ local IsInRaid = _G.IsInRaid
 local C_UnitAuras = _G.C_UnitAuras
 local C_Secrets = _G.C_Secrets
 local C_SpecializationInfo = _G.C_SpecializationInfo
-local issecretvalue = _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 local PARTY_UNITS = { "party1", "party2", "party3", "party4" }
 

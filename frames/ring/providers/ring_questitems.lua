@@ -224,7 +224,7 @@ local function is_usable_knowledge(bag, slot, itemID)
     end
 
     if C_Item and C_Item.GetItemSpell then
-        local spellName, spellID = C_Item.GetItemSpell(itemID)
+        local _, spellID = C_Item.GetItemSpell(itemID)
         if spellID and KNOWLEDGE_SPELLS[spellID] then
             knowledgeCache[itemID] = true
             return true

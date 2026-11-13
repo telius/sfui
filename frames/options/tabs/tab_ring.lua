@@ -103,7 +103,7 @@ sfui.options.RegisterTab({
         local refresh_all_slots
 
         local function handle_slot_drop(slotIdx)
-            local cursorType, val1, val2, val3 = GetCursorInfo()
+            local cursorType, val1, _, val3 = GetCursorInfo()
             if not cursorType then return end
 
             local util = sfui.ring.utility

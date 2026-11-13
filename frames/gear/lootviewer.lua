@@ -27,11 +27,7 @@ local BOSS_ICO   = 36
 local SCROLL_W       = FRAME_W - 4
 
 -- ─── Class / spec helpers ─────────────────────────────────────────────────────
-local ENGLISH_CLASS, PLAYER_CLASS_ID = sfui.common.get_player_class()
-
-local function GetPlayerClassID()
-    return sfui.common.get_player_class_id()
-end
+local ENGLISH_CLASS = sfui.common.get_player_class()
 
 local playerSpecs, playerSpecIDs
 
@@ -44,10 +40,6 @@ local function InitPlayerSpecs()
 end
 
 InitPlayerSpecs()
-
-local function GetCurrentSpecID()
-    return sfui.common.get_current_spec_id()
-end
 
 local function DB()
     if sfui.lootspec and sfui.lootspec.DB then
@@ -1186,16 +1178,8 @@ local function AcquireCard(parent)
     cardPoolCount = cardPoolCount + 1
     local c = cardPool[cardPoolCount]
     if not c then
-        local mult = sfui.pixelScale or 1
-        local gray = (sfui.config and sfui.config.colors and sfui.config.colors.gray) or { 0.2, 0.2, 0.2 }
-        local cyan = (sfui.config and sfui.config.colors and sfui.config.colors.cyan) or { 0.0, 1.0, 1.0 }
-
         c = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-        c:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        c:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         c:SetBackdropColor(0.05, 0.05, 0.06, 0.95)
         c:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -1293,11 +1277,7 @@ local function AcquireCard(parent)
         local targetBtn = CreateFrame("Button", nil, c, "BackdropTemplate")
         targetBtn:SetSize(18, 18)
         targetBtn:SetPoint("LEFT", specBtn, "RIGHT", 4, 0)
-        targetBtn:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        targetBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         targetBtn:SetBackdropColor(0.07, 0.07, 0.07, 1)
         targetBtn:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -2096,10 +2076,8 @@ function sfui.lootviewer.CreateFrame()
     frame:SetScript("OnDragStop",  frame.StopMovingOrSizing)
     frame:SetClampedToScreen(true)
 
-    local mult   = sfui.pixelScale or 1
     local app    = sfui.config and sfui.config.appearance
     local bgCol  = (app and app.backdropColor)  or { 0.04, 0.04, 0.05, 0.97 }
-    local gray   = (sfui.config and sfui.config.colors and sfui.config.colors.gray) or { 0.2, 0.2, 0.2 }
     local purple = (app and app.highlightColor) or { 0.4, 0.0, 1.0 }
 
     frame:SetBackdrop({

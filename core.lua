@@ -21,12 +21,10 @@ end
 
 -- Localize Globals
 local _G = _G
-local print = print
 local type = type
 local tonumber = tonumber
 local string_lower = string.lower
 local string_match = string.match
-local string_gmatch = string.gmatch
 
 local CreateFrame = CreateFrame
 local UIParent = UIParent
@@ -627,9 +625,9 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
     if sfui.compare and sfui.compare.init then
         sfui.compare.init()
     end
-    if sfui.trackedoptions and sfui.trackedoptions.initialize then
-        sfui.trackedoptions.initialize()
-    end
+    SfuiDB = SfuiDB or {}
+    SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+    SfuiDB.trackedBuffs = SfuiDB.trackedBuffs or {}
 
     sfui.theme.ApplyCurrentTheme()
 

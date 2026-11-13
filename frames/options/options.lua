@@ -6,8 +6,6 @@ local c = sfui.config.options_panel
 local g = sfui.config
 local common = sfui.common
 
-local wipe = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
-local LibStub = _G.LibStub
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local C_Timer = _G.C_Timer
@@ -249,7 +247,6 @@ end
 function sfui.create_options_panel()
     if frame then return end
 
-    local white = sfui.config.colors.white
 
     frame = CreateFrame("Frame", "sfui_options_frame", UIParent, "BackdropTemplate")
     frame:SetSize(c.width, c.height)

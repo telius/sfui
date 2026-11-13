@@ -7,7 +7,7 @@ sfui = sfui or {}
 sfui.merchant = sfui.merchant or {}
 
 local common = sfui.common
-local issecretvalue = common.issecretvalue or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local cfg = sfui.config.merchant
 local app = sfui.config.appearance
 

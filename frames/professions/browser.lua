@@ -1182,11 +1182,7 @@ local function HookBlizzardFrames()
         btn:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
         btn:SetFrameLevel(closeBtn:GetFrameLevel() + 1)
 
-        btn:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 1,
-        })
+        btn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         btn:SetBackdropColor(0.10, 0.10, 0.12, 0.85)
         btn:SetBackdropBorderColor(0.25, 0.25, 0.30, 0.85)
 

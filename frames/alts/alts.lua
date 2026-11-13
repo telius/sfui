@@ -10,7 +10,6 @@ local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local UnitGUID = _G.UnitGUID
 local UnitName = _G.UnitName
-local UnitClass = _G.UnitClass
 local UnitRace = _G.UnitRace
 local UnitLevel = _G.UnitLevel
 local GetAverageItemLevel = _G.GetAverageItemLevel

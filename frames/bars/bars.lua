@@ -3,7 +3,7 @@ sfui = sfui or {}
 sfui.bars = {}
 local cfg = sfui.config
 local common = sfui.common
-local issecretvalue = common.issecretvalue or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 do
     local bar_minus_1
@@ -19,7 +19,6 @@ do
     local get_mount_speed_bar
     local get_rune_bar
     local get_stance_badge
-    local get_warrior_stance_badge
     local update_mount_speed_bar_internal
     local update_bar_minus_1
     local update_bar0
@@ -27,7 +26,6 @@ do
     local update_rune_bar
     local update_vigor_bar
     local update_stance_badge
-    local update_warrior_stance_badge
     local update_hunter_ammo_text
     local stance_badge
 
@@ -839,10 +837,6 @@ do
         return badge
     end
 
-    get_warrior_stance_badge = function()
-        return get_stance_badge()
-    end
-
     update_stance_badge = function()
         local isCamelot = sfui.isCamelot or (sfui.compat and sfui.compat.is_camelot)
         local playerClass = common.get_player_class()
@@ -938,10 +932,6 @@ do
         end
     end
 
-    update_warrior_stance_badge = function()
-        return update_stance_badge()
-    end
-
     function get_rune_bar()
         if rune_bar then return rune_bar end
         local container = CreateFrame("Frame", "sfui_runeBar", UIParent)
@@ -968,12 +958,7 @@ do
             rune:SetStatusBarColor(1, 1, 1) -- Set later
 
             -- Default backdrop; overridden by theme block below if theme engine is loaded
-            rune:SetBackdrop({
-                bgFile = "Interface/Buttons/WHITE8X8",
-                edgeFile = "Interface/Buttons/WHITE8X8",
-                edgeSize = 1,
-                insets = { left = 0, right = 0, top = 0, bottom = 0 }
-            })
+            rune:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             rune:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
             rune:SetBackdropBorderColor(0, 0, 0, 1)
 

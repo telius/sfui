@@ -261,7 +261,6 @@ local function get_classic_talent_spec_info(vSpecID, classFilename)
         vSpecID = (classFilename and CLASS_VANILLA_SPEC_MAP[classFilename])
     end
 
-    local playerLevel = (UnitLevel and UnitLevel("player")) or 1
     local classIcon = (classFilename and CLASS_ICON_FILEIDS[classFilename])
         or (classFilename ~= "" and ("Interface\\Icons\\ClassIcon_" .. classFilename:sub(1,1):upper() .. classFilename:sub(2):lower()))
         or 134400
@@ -475,7 +474,6 @@ local function get_classic_talent_spec_info(vSpecID, classFilename)
         end
     end
 
-    local assignedRole = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
     local predictedRole = treeRole
     if assignedRole and assignedRole ~= "NONE" then
         if assignedRole == "TANK" then

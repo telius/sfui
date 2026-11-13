@@ -10,7 +10,6 @@ local CreateFrame  = _G.CreateFrame
 local UIParent     = _G.UIParent
 local type         = _G.type
 local pairs        = _G.pairs
-local ipairs       = _G.ipairs
 local unpack       = _G.unpack
 local math_max     = math.max
 local math_min     = math.min
@@ -28,7 +27,7 @@ local C_Container  = _G.C_Container
 local C_Minimap    = _G.C_Minimap
 local C_QuestLog   = _G.C_QuestLog
 local InCombatLockdown = _G.InCombatLockdown
-local issecretvalue   = _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local GetQuestLogSpecialItemCooldown = _G.GetQuestLogSpecialItemCooldown
 
 local rootFrame
@@ -155,7 +154,7 @@ end
 local function get_slot_cooldown(data)
     if not data then return 0, 0, 0, false, false end
     local start, duration, enable = 0, 0, 0
-    local isActive, isSecret = false, false
+    local isActive = false
     local attrs = data.attrs or {}
     local inCombat = InCombatLockdown and InCombatLockdown()
 
@@ -287,7 +286,7 @@ local function format_active_label(data)
     if InCombatLockdown and InCombatLockdown() then
         return label
     end
-    local start, duration, enable, isActive, isSecret = get_slot_cooldown(data)
+    local start, duration, enable, _, isSecret = get_slot_cooldown(data)
     if isSecret then
         return label
     end
@@ -352,7 +351,7 @@ local function create_slot_frame(parent)
     cdText:SetPoint("CENTER", textOverlay, "CENTER", 0, 0)
     cdText:SetTextColor(1, 0.85, 0.2, 1)
     if cdText.GetFont then
-        local fontPath, fontSize = cdText:GetFont()
+        local fontPath = cdText:GetFont()
         if fontPath then
             cdText:SetFont(fontPath, 13, "OUTLINE")
         end
@@ -560,7 +559,6 @@ function view.update_slot_state(frame, data, showCooldowns)
 
     local inRange = check_slot_range(data)
     local isUsable = check_slot_usable(data)
-    local inBlob = check_quest_blob(data)
 
     -- 1. Cooldown swipe & countdown timer
     if frame.cooldown then

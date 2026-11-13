@@ -528,7 +528,7 @@ local function on_journal_update()
     _poolDirty = true
 end
 
-local PetsModule = sfui.RegisterModule("pets", {
+sfui.RegisterModule("pets", {
     OnInit = function(self)
         _lastRotationTime = GetTime()
         _poolDirty = true

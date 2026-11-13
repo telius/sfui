@@ -43,9 +43,8 @@ local IsShiftKeyDown                          = _G.IsShiftKeyDown
 local hooksecurefunc                          = _G.hooksecurefunc
 local pcall                                   = _G.pcall
 
-local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
+local ipairs, type, tonumber, tostring = _G.ipairs, _G.type, _G.tonumber, _G.tostring
 local bit_band                                = _G.bit and _G.bit.band or function(a, b) return 0 end
-local math_floor                              = math.floor
 local table_insert                            = _G.table.insert
 local string_format                           = string.format
 
@@ -206,13 +205,13 @@ end
 
 function CamelotChallengesModule:OnEvent(event, ...)
     if event == "CONTENT_TRACKING_UPDATE" then
-        local trackableType, id, added = ...
+        local trackableType = ...
         if not trackableType or trackableType == GetAchievementTrackingType() then
             self:MarkDirty()
             sfui.tracker.RequestRefresh(0.01)
         end
     elseif event == "TRACKED_ACHIEVEMENT_UPDATE" then
-        local achievementID, criteriaID, elapsed, duration = ...
+        local achievementID, _, elapsed, duration = ...
         if achievementID and elapsed and duration and GetAchievementNumCriteria then
             local numCriteria = GetAchievementNumCriteria(achievementID) or 0
             if numCriteria == 0 then
@@ -311,7 +310,7 @@ function CamelotChallengesModule:BuildBlocks(container)
     local traitCurrencyID = (Constants and Constants.LegacyConsts and Constants.LegacyConsts.LEGACY_POINTS_TRAIT_CURRENCY_ID) or LEGACY_POINTS_TRAIT_CURRENCY_ID
 
     for _, achID in ipairs(trackedIDs) do
-        local id, name, points, completed, month, day, year, description, flags, icon, rewardText, isGuild, wasEarnedByMe = GetAchievementInfo(achID)
+        local id, name, points, completed, _, _, _, description, _, _, _, _, wasEarnedByMe = GetAchievementInfo(achID)
 
         if id and name and name ~= "" and not issecretvalue(name) then
             local lines = {}
@@ -350,7 +349,7 @@ function CamelotChallengesModule:BuildBlocks(container)
 
             if numCriteria > 0 and GetAchievementCriteriaInfo then
                 for criteriaIndex = 1, numCriteria do
-                    local criteriaString, criteriaType, criteriaCompleted, quantity, totalQuantity, cName, cFlags, assetID, quantityString, criteriaID, eligible, duration, elapsed = GetAchievementCriteriaInfo(achID, criteriaIndex)
+                    local criteriaString, criteriaType, criteriaCompleted, quantity, totalQuantity, cName, cFlags, assetID, quantityString, _, _, duration, elapsed = GetAchievementCriteriaInfo(achID, criteriaIndex)
                     local finished = (criteriaCompleted == true or criteriaCompleted == 1)
 
                     -- Resolve sub-challenge name for meta criteria

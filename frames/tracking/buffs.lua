@@ -30,7 +30,7 @@ local C_Timer = C_Timer
 local C_CVar = C_CVar
 local Enum = Enum
 local EventRegistry = EventRegistry
-local issecretvalue = issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 -- static reuse & state (zero-polling memory & cpu design; weak-keyed side tables keep blizzFrame untainted)
 local activeFrames = {}

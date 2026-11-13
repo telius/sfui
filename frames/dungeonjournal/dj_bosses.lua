@@ -37,7 +37,6 @@ local bossButtons          = {}
 local lootButtons          = {}
 
 local selectedBossIndex    = 1
-local debounceTimer        = nil
 local currentBossItemSet   = {}
 local currentLootFilter    = "all"
 local usableFilterSpecMode = "spec" -- "spec" = active spec, "all" = all class specs
@@ -694,12 +693,6 @@ local function ResolveItemLink(btn, fallbackItemID)
     end
 end
 
-local function InsertItemLinkIntoChat(link)
-    if sfui.dungeonjournal and sfui.dungeonjournal.InsertItemLinkIntoChat then
-        return sfui.dungeonjournal.InsertItemLinkIntoChat(link)
-    end
-end
-
 local function GetItemNumericDropRate(itemEntry, itemID, boss)
     local dropRate = (type(itemEntry) == "table" and (itemEntry.dropRate or itemEntry.rate or itemEntry[2]))
         or (boss and boss.dropRates and boss.dropRates[itemID])
@@ -885,8 +878,6 @@ local function RenderLoot(boss, dungeon)
     local shownCount = 0
 
     for _, sortedItem in ipairs(sortedItems) do
-        local itemEntry                                                                                          = sortedItem
-            .entry
         local itemID                                                                                             = sortedItem
             .id
         local rateStr                                                                                            = sortedItem

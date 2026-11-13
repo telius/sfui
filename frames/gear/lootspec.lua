@@ -11,7 +11,6 @@ sfui.lootspec                   = {}
 
 local GetLootSpecialization     = GetLootSpecialization
 local SetLootSpecialization     = SetLootSpecialization
-local UnitClass                 = UnitClass
 local ENGLISH_CLASS          = sfui.common.get_player_class()
 local C_ChallengeMode           = C_ChallengeMode
 local string                    = string
@@ -175,7 +174,7 @@ local function GetActiveDungeonSpec()
 end
 
 local function GetActiveDelveSpec()
-    local isInst, t = IsInInstance()
+    local _, t = IsInInstance()
     local isDelve = (t == "scenario")
     if not isDelve and C_Scenario and C_Scenario.GetInfo then
         local scenType = select(10, C_Scenario.GetInfo()) or select(11, C_Scenario.GetInfo())
@@ -249,7 +248,6 @@ sfui.events.RegisterEvent("ENCOUNTER_START", function(_, encounterID, encounterN
         specApplied = true
         ApplyLootSpec(specID, encounterName or "encounter")
     else
-        local _, instanceType = IsInInstance()
         if instanceType == "raid" and (specApplied or GetLootSpecialization() ~= db.defaultSpec) then
             specApplied = false
             RestoreDefault("unconfigured encounter")

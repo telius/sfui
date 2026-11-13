@@ -12,8 +12,6 @@ local hooksecurefunc = _G.hooksecurefunc
 local C_Timer = _G.C_Timer
 local UIParent = _G.UIParent
 local Minimap = _G.Minimap
-local MinimapCluster = _G.MinimapCluster
-local math_floor = _G.math.floor
 
 -- ========================
 -- Local Variables & State

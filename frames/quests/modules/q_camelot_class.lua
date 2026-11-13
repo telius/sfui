@@ -34,7 +34,6 @@ local _G                                      = _G
 local C_QuestLog                              = _G.C_QuestLog
 local C_TaskQuest                             = _G.C_TaskQuest
 local C_SuperTrack                            = _G.C_SuperTrack
-local Constants                               = _G.Constants
 local GetQuestLogTitle                        = _G.GetQuestLogTitle
 local GetNumQuestLogEntries                   = _G.GetNumQuestLogEntries
 local GetQuestProgressBarPercent              = _G.GetQuestProgressBarPercent
@@ -42,7 +41,6 @@ local InCombatLockdown                        = _G.InCombatLockdown
 local IsShiftKeyDown                          = _G.IsShiftKeyDown
 local IsControlKeyDown                        = _G.IsControlKeyDown
 local IsAltKeyDown                            = _G.IsAltKeyDown
-local QuestMapFrame_OpenToQuestDetails        = _G.QuestMapFrame_OpenToQuestDetails
 local UnitClass                               = _G.UnitClass
 
 local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring

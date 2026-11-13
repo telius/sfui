@@ -22,7 +22,6 @@ local string_format = string.format
 local table_sort = table.sort
 local math_min = math.min
 local math_max = math.max
-local math_floor = math.floor
 local wipe = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
     return t

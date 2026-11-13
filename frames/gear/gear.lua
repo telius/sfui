@@ -6,7 +6,6 @@ local cfg = sfui.config
 local common = sfui.common
 local _G = _G
 local CreateFrame = _G.CreateFrame
-local InCombatLockdown = _G.InCombatLockdown
 local C_EquipmentSet = _G.C_EquipmentSet
 local GetInstanceInfo = _G.GetInstanceInfo
 local UIParent = _G.UIParent
@@ -19,13 +18,11 @@ local setmetatable = _G.setmetatable
 local tonumber = _G.tonumber
 local tostring = _G.tostring
 local select = _G.select
-local math = _G.math
 local next = _G.next
 local wipe = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
     return t
 end
-local unpack = _G.unpack or _G.table.unpack
 local GetInventoryItemLink = sfui.common.get_inventory_item_link
 local GetItemInfoInstant = sfui.common.get_item_instant_info
 local GetItemInfo = sfui.common.get_item_info
@@ -297,7 +294,6 @@ sfui.gear.TANK_SPECS = sfui.gear.TANK_SPECS or {}
 
 local claimedItemIDs   = {}
 local columnOccupied   = {}
-local pawnOrderScratch = {}
 local curOrderScratch  = {}
 
 local function updateIconRow(icons, lockTbl, forPvP, specID)
@@ -599,7 +595,7 @@ gearFrame:SetScript("OnDragStop", function(self)
         self:ClearAllPoints()
         self:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
     end
-    local point, relativeTo, relativePoint, xOfs, yOfs = self:GetPoint()
+    local point, _, relativePoint, xOfs, yOfs = self:GetPoint()
     SfuiDB = SfuiDB or {}
     SfuiDB.gear_pos = {
         point = point,

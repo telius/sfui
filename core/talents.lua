@@ -11,9 +11,8 @@ sfui.common = sfui.common or {}
 
 local _G = _G
 local UnitClass = _G.UnitClass
-local type, tonumber, tostring = _G.type, _G.tonumber, _G.tostring
-local pairs, ipairs = _G.pairs, _G.ipairs
-local select = _G.select
+local type = _G.type
+local pairs = _G.pairs
 
 local CLASS_NAMES_TO_ID = {
     WARRIOR      = 1,

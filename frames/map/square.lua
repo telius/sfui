@@ -28,7 +28,6 @@ local CreateFrame = _G.CreateFrame
 local InCombatLockdown = _G.InCombatLockdown
 local hooksecurefunc = _G.hooksecurefunc
 local pcall = _G.pcall
-local type = _G.type
 local ipairs = _G.ipairs
 local math_max = _G.math.max
 

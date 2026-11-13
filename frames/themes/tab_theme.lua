@@ -5,9 +5,7 @@ sfui.options = sfui.options or {}
 local g = sfui.config
 local common = sfui.common
 local CreateFrame = _G.CreateFrame
-local UIParent = _G.UIParent
 local ipairs = _G.ipairs
-local pairs = _G.pairs
 local table_insert = _G.table.insert
 
 sfui.options.RegisterTab({

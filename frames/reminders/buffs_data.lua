@@ -4,11 +4,7 @@ sfui.buffs = sfui.buffs or {}
 sfui.buffs.data = {}
 
 local _G = _G
-local ipairs, pairs = _G.ipairs, _G.pairs
-local UnitClass = _G.UnitClass
-local IsPlayerSpell = _G.IsPlayerSpell
-local IsSpellKnown = _G.IsSpellKnown
-local C_Spell = _G.C_Spell
+local pairs = _G.pairs
 
 local playerClass = sfui.common.get_player_class()
 sfui.buffs.playerClass = playerClass

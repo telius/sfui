@@ -50,7 +50,7 @@ local C_FriendList = _G.C_FriendList
 local BNGetNumFriends = _G.BNGetNumFriends
 local C_BattleNet = _G.C_BattleNet
 local ChatFrame_AddMessageEventFilter = _G.ChatFrame_AddMessageEventFilter
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 sync.stats = sync.stats or {
     packetsSent     = 0,

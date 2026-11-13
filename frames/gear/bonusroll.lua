@@ -103,7 +103,7 @@ local activePrompts = {}
 local recentPrompts = {}
 local pendingRoll = nil
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 local function IsPublicValue(val)
     return not issecretvalue(val)

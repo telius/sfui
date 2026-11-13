@@ -12,7 +12,6 @@ local common = sfui.common
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local C_Container = _G.C_Container
-local C_Item = _G.C_Item
 local GetItemInfoInstant = (common and common.get_item_instant_info) or _G.GetItemInfoInstant
 local GetItemInfo = (common and common.get_item_info) or _G.GetItemInfo
 local UnitGUID = _G.UnitGUID

@@ -27,7 +27,6 @@ local select = select
 local GameTooltip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or _G.GameTooltip
 local NORMAL_FONT_COLOR = _G.NORMAL_FONT_COLOR
 local GREEN_FONT_COLOR = _G.GREEN_FONT_COLOR
-local RED_FONT_COLOR = _G.RED_FONT_COLOR
 local C_ChallengeMode = _G.C_ChallengeMode
 local C_MythicPlus = _G.C_MythicPlus
 local C_WeeklyRewards = _G.C_WeeklyRewards
@@ -46,7 +45,6 @@ local EJ_GetCurrentTier = _G.EJ_GetCurrentTier
 local EJ_SelectTier = _G.EJ_SelectTier
 local EJ_GetNumTiers = _G.EJ_GetNumTiers
 local EJ_GetInstanceByIndex = _G.EJ_GetInstanceByIndex
-local EJ_GetEncounterInfoByIndex = _G.EJ_GetEncounterInfoByIndex
 local GetSavedInstanceInfo = _G.GetSavedInstanceInfo
 local GetSavedInstanceEncounterInfo = _G.GetSavedInstanceEncounterInfo
 local GetNumSavedInstances = _G.GetNumSavedInstances
@@ -1497,7 +1495,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                     if bLvl then
                         repairedLevel = tonumber(bLvl)
                     else
-                        local p1, p2, p3 = string.match(ks.link, "keystone:(%d+):(%d+):?(%d*)")
+                        local p1, _, p3 = string.match(ks.link, "keystone:(%d+):(%d+):?(%d*)")
                         if p1 and tonumber(p1) > 10000 and p3 and tonumber(p3) then
                             repairedLevel = tonumber(p3)
                         end
@@ -2451,7 +2449,7 @@ sfui.alts.RegisterProvider({
                     local bLvl = string.match(ks.link, "%((%d+)%)")
                     local repaired = tonumber(bLvl)
                     if not repaired then
-                        local p1, p2, p3 = string.match(ks.link, "keystone:(%d+):(%d+):?(%d*)")
+                        local p1, _, p3 = string.match(ks.link, "keystone:(%d+):(%d+):?(%d*)")
                         if p1 and tonumber(p1) > 10000 and p3 and tonumber(p3) then
                             repaired = tonumber(p3)
                         end

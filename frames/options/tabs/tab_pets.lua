@@ -16,7 +16,6 @@ local pairs                           = _G.pairs
 local table_insert                    = table.insert
 local table_sort                      = table.sort
 local math_max                        = math.max
-local math_floor                      = math.floor
 local tostring                        = _G.tostring
 local string_format                   = string.format
 local select                          = _G.select
@@ -34,7 +33,6 @@ sfui.options.RegisterTab({
         local create_slider_input = common.create_slider_input
         local white = sfui.config.colors.white
         local COL_OFFSET_X = 265
-        local SECTION_GAP = 22
 
         -- Header Icon & Title
         local header_icon = p:CreateTexture(nil, "ARTWORK")
@@ -142,11 +140,7 @@ sfui.options.RegisterTab({
         local drop_box = CreateFrame("Frame", nil, p, "BackdropTemplate")
         drop_box:SetPoint("LEFT", clear_all_btn, "RIGHT", 10, 0)
         drop_box:SetSize(140, 22)
-        drop_box:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        drop_box:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         drop_box:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
         drop_box:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -199,11 +193,7 @@ sfui.options.RegisterTab({
         list_container:SetPoint("TOPLEFT", add_current_btn, "BOTTOMLEFT", 0, -10)
         list_container:SetPoint("RIGHT", p, "RIGHT", -15, 0)
         list_container:SetHeight(80)
-        list_container:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        list_container:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         list_container:SetBackdropColor(0.03, 0.03, 0.03, 0.8)
         list_container:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -220,11 +210,7 @@ sfui.options.RegisterTab({
         local function create_pet_row(index)
             local row = CreateFrame("Frame", nil, list_container, "BackdropTemplate")
             row:SetHeight(26)
-            row:SetBackdrop({
-                bgFile = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
+            row:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             row:SetBackdropColor(0.08, 0.08, 0.08, 0.6)
             row:SetBackdropBorderColor(0, 0, 0, 1)
 

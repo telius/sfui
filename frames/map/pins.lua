@@ -896,18 +896,6 @@ local function AcquireMinimapPin(parent, defaultSize)
     return pin
 end
 
-local function SetupMinimapPin(pin, container, pixelX, pixelY, p)
-    pin.pinData  = p
-    pin.customID = p.id
-    pin:ClearAllPoints()
-    pin:SetPoint("CENTER", container, "CENTER", pixelX, pixelY)
-
-    SetupPinVisuals(pin, p)
-
-    pin:Show()
-    activeMinimapPins[#activeMinimapPins + 1] = pin
-end
-
 local mapWorldSizeCache = {}
 
 local function GetMapWorldSizeFast(mapID)

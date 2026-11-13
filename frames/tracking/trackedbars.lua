@@ -6,7 +6,7 @@ local common = sfui.common
 local bars = {} -- Active sfui bars
 sfui.trackedbars._bars = bars
 local container
-local issecretvalue = common.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local CreateFrame = CreateFrame
 local UIParent = UIParent
 local GameTooltip = sfui.common.get_tooltip()
@@ -1509,8 +1509,8 @@ local function ProcessBlizzardSync()
                     SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
 
                     -- Sync Visibility
-                    local db = SfuiDB and SfuiDB.trackedBars or {}
-                    local hideInactive = db.hideInactive ~= false -- Default to True if nil
+                    local barDb = SfuiDB and SfuiDB.trackedBars or _emptyTable
+                    local hideInactive = barDb.hideInactive ~= false -- Default to True if nil
 
                     -- Check if this is a stack mode bar with active stacks
                     -- (count state is now populated by SyncBarData above)

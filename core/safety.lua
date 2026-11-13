@@ -143,6 +143,10 @@ sfui.common.format_timer_clock = sfui.safety.format_timer_clock
 
 -- Helper: Check if Mounted OR in Druid Travel Form (Spell 783)
 function sfui.safety.is_mounted_or_travel_form()
+    local cur = sfui.state and sfui.state.current
+    if cur and cur.revision > 0 then
+        return cur.isMountedOrTravel
+    end
     if IsMounted() then return true end
     if sfui.common.get_player_class() == "DRUID" and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
         return C_UnitAuras.GetPlayerAuraBySpellID(783) ~= nil
@@ -153,6 +157,10 @@ sfui.common.is_mounted_or_travel_form = sfui.safety.is_mounted_or_travel_form
 
 -- Helper: Check for Dragonriding state (Vigor)
 function sfui.safety.IsDragonriding()
+    local cur = sfui.state and sfui.state.current
+    if cur and cur.revision > 0 then
+        return cur.isDragonriding
+    end
     if not sfui.safety.is_mounted_or_travel_form() then return false end
 
     -- Check for Vigor (Enum.PowerType.AlternateMount = 29)

@@ -11,7 +11,7 @@ sfui.swing = sfui.swing or {}
 
 local cfg = sfui.config
 local common = sfui.common
-local issecretvalue = common.issecretvalue or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local IsAttackSpeedValid = common.IsAttackSpeedValid or function(speed)
     if speed == nil then return false end
     if issecretvalue and issecretvalue(speed) then
@@ -23,12 +23,9 @@ local CreateFrame = CreateFrame
 local UIParent = UIParent
 local GetTime = GetTime
 local GetInventoryItemID = GetInventoryItemID
-local UnitAffectingCombat = UnitAffectingCombat
-local UnitCanAttack = UnitCanAttack
 local UnitClass = UnitClass
 local C_SwingTimer = C_SwingTimer
 local Enum = Enum
-local C_Item = C_Item
 
 local GetItemInfoInstant = sfui.common.get_item_instant_info
 local INVSLOT_OFFHAND = _G.INVSLOT_OFFHAND or 17
@@ -54,10 +51,6 @@ local function GetPlayerClass()
         end
     end
     return playerClass
-end
-
-local function IsHunter()
-    return GetPlayerClass() == "HUNTER"
 end
 
 local function IsWandCaster()

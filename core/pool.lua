@@ -8,7 +8,6 @@ local _G = _G
 local CreateFrame = _G.CreateFrame
 local type = _G.type
 local pairs = _G.pairs
-local ipairs = _G.ipairs
 local wipe = _G.wipe or table.wipe
 local table_insert = table.insert
 local math_max = math.max
@@ -94,6 +93,10 @@ function pool.create_table_pool(maxDepth)
 
     function p:Wipe()
         wipe(localPool)
+    end
+
+    function p:Count()
+        return #localPool
     end
 
     return p

@@ -28,11 +28,9 @@ local math_min = math.min
 local wipe = _G.wipe or table.wipe
 local unpack = _G.unpack or table.unpack
 local tostring = tostring
-local tonumber = tonumber
 local string = string
 local ipairs = ipairs
 local pairs = pairs
-local next = next
 local type = type
 local time = _G.time
 local GameTooltip = sfui.common.get_tooltip()
@@ -44,7 +42,6 @@ local UnitXP = _G.UnitXP
 local UnitXPMax = _G.UnitXPMax
 local GetXPExhaustion = _G.GetXPExhaustion
 local IsResting = _G.IsResting
-local GetAverageItemLevel = _G.GetAverageItemLevel
 local GetServerTime = _G.GetServerTime
 local RequestRaidInfo = _G.RequestRaidInfo
 local GetNumSavedInstances = _G.GetNumSavedInstances
@@ -58,14 +55,11 @@ local GetPVPLifetimeStats = _G.GetPVPLifetimeStats
 local GetPVPThisWeekStats = _G.GetPVPThisWeekStats
 local C_QuestLog = _G.C_QuestLog
 local C_CurrencyInfo = _G.C_CurrencyInfo
-local GetCurrencyInfo = _G.GetCurrencyInfo
 local C_MajorFactions = _G.C_MajorFactions
 local C_SeasonInfo = _G.C_SeasonInfo
 local BreakUpLargeNumbers = _G.BreakUpLargeNumbers or tostring
 local IsModifiedClick = _G.IsModifiedClick
 
-local AcquireTable = sfui.alts.AcquireTable
-local ReleaseTable = sfui.alts.ReleaseTable
 
 -- Classic / Vanilla XP required per level (Levels 1 to 59)
 local CLASSIC_XP_PER_LEVEL = {
@@ -496,7 +490,7 @@ local function PerformSync(data, isLogout)
     if numSaved > 0 then
         local newLockouts = {}
         for i = 1, numSaved do
-            local name, id, reset, difficulty, locked, extended, isRaid, maxPlayers, difficultyName, numEncounters, encounterProgress = GetSavedInstanceInfo(i)
+            local name, _, reset, _, locked, _, _, _, _, numEncounters, encounterProgress = GetSavedInstanceInfo(i)
             if locked and reset and reset > 0 then
                 for _, rDef in ipairs(CLASSIC_RAIDS) do
                     if name and string.find(name, rDef.match) then
@@ -769,7 +763,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             local xp = (isCurrent and UnitXP and UnitXP("player")) or altData.xp or 0
             local validXpMax = (xpMax > 0) and xpMax or 1
             local pct = math_floor((xp / validXpMax) * 100)
-            local currentRested, restedPct, bars, isMaxed, timeToMax, isResting, offlineGained = GetRestedXPInfo(altData, altGuid)
+            local _, restedPct, _, isMaxed = GetRestedXPInfo(altData, altGuid)
 
             if isMaxed then
                 text:SetText(string.format("%d (%d%%) |cff00ff00+150%% (max)|r", lvl, pct))

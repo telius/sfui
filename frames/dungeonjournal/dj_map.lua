@@ -63,11 +63,7 @@ local function ApplyBackdrop(f, bgR, bgG, bgB, bgA, brR, brG, brB, brA)
     if not f.SetBackdrop then
         Mixin(f, BackdropTemplateMixin)
     end
-    f:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
+    f:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
     f:SetBackdropColor(bgR or 0.05, bgG or 0.05, bgB or 0.07, bgA or 0.95)
     f:SetBackdropBorderColor(brR or 0.15, brG or 0.15, brB or 0.18, brA or 1.0)
 end

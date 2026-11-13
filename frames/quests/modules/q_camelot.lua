@@ -36,9 +36,7 @@ end
 
 local _G                                      = _G
 local C_QuestLog                              = _G.C_QuestLog
-local C_TaskQuest                             = _G.C_TaskQuest
 local C_SuperTrack                            = _G.C_SuperTrack
-local C_ClassColor                            = _G.C_ClassColor
 local C_TradeSkillUI                          = _G.C_TradeSkillUI
 local Enum                                    = _G.Enum
 local Constants                               = _G.Constants
@@ -52,15 +50,12 @@ local InCombatLockdown                        = _G.InCombatLockdown
 local IsShiftKeyDown                          = _G.IsShiftKeyDown
 local IsControlKeyDown                        = _G.IsControlKeyDown
 local IsAltKeyDown                            = _G.IsAltKeyDown
-local QuestMapFrame_OpenToQuestDetails        = _G.QuestMapFrame_OpenToQuestDetails
-local UnitClass                               = _G.UnitClass
 
-local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
+local ipairs, pairs, type, tonumber = _G.ipairs, _G.pairs, _G.type, _G.tonumber
 local math_floor                              = math.floor
 local table_insert, table_sort                = _G.table.insert, _G.table.sort
 local string_format                           = string.format
 
-local issecretvalue                           = sfui.common.issecretvalue
 
 -- ─────────────────────────────────────────────────────────
 --  HELPERS & CACHE
@@ -540,7 +535,7 @@ function CamelotQuestsModule:BuildBlocks(container)
             end
         end
     end
-    local state = GetQLState()
+    GetQLState()
 
     local superTrackedQuestID = nil
     if C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID then
@@ -870,7 +865,7 @@ function CamelotQuestsModule:BuildBlocks(container)
     end
 
     -- Camelot sorting: Dungeons -> Professions -> Current Zone -> Other Zones (alphabetical)
-    local numQ, maxQ, capBadge = GetQuestCapacityInfo()
+    local _, _, capBadge = GetQuestCapacityInfo()
     local sectionRanks = {
         dungeons    = 1,
         professions = 2,

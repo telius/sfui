@@ -8,12 +8,10 @@ local Tooltip = {}
 sfui.tracker.helpers.tooltip = Tooltip
 
 local _G = _G
-local GameTooltip = sfui.common.get_tooltip()
 local UIParent = _G.UIParent
 local type = type
 local tostring = tostring
 local ipairs = ipairs
-local math_floor = math.floor
 local string_format = string.format
 
 local table_insert = table.insert

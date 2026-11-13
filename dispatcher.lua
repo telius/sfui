@@ -58,7 +58,7 @@ sfui.events = {}
 -- ─── Locals ─────────────────────────────────────────────────────────────────
 
 local type, tostring, tonumber, pairs, select = _G.type, _G.tostring, _G.tonumber, _G.pairs, _G.select
-local pcall, xpcall, rawget, getmetatable = _G.pcall, _G.xpcall, _G.rawget, _G.getmetatable
+local pcall, xpcall = _G.pcall, _G.xpcall
 local string_match, string_gsub, string_format = string.match, string.gsub, string.format
 local string_sub, string_gmatch, string_find = string.sub, string.gmatch, string.find
 local table_concat, table_remove = table.concat, table.remove

@@ -5,11 +5,8 @@ sfui.options = sfui.options or {}
 local g = sfui.config
 local common = sfui.common
 local _G = _G
-local ipairs = _G.ipairs
-local pairs = _G.pairs
 local type = _G.type
 local tostring = _G.tostring
-local tonumber = _G.tonumber
 local string_format = string.format
 
 local refreshTabUI = nil

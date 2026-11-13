@@ -25,7 +25,7 @@ local UnitRangedDamage = _G.UnitRangedDamage
 local C_CombatLog = _G.C_CombatLog
 local C_Spell = _G.C_Spell
 local Enum = _G.Enum
-local issecretvalue = _G.issecretvalue or (common and common.issecretvalue)
+local issecretvalue = sfui.common.issecretvalue
 local select, pairs, ipairs, tonumber = select, pairs, ipairs, tonumber
 
 local SWING_MAIN_HAND = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand) or 0

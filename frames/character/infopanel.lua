@@ -54,7 +54,7 @@ local common = sfui.common
 local stats = sfui.stats
 local gear = sfui.gear
 local num = stats.num
-local issecretvalue = common.issecretvalue or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 local CharacterFrame = _G.CharacterFrame
 

@@ -27,14 +27,10 @@ local UIParent            = _G.UIParent
 local InCombatLockdown    = _G.InCombatLockdown
 local RegisterStateDriver = _G.RegisterStateDriver
 local GetTime             = _G.GetTime
-local tonumber            = _G.tonumber
-local type                = _G.type
-local tostring            = _G.tostring
 local math_min            = _G.math.min
 local math_max            = _G.math.max
-local math_floor          = _G.math.floor
 local string_format       = _G.string.format
-local issecretvalue       = common.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local PowerBarColor       = _G.PowerBarColor
 
 local DEFAULT_HEALTH_COLOR   = { 0, 0.8, 0.067, 1 }
@@ -53,14 +49,10 @@ local UnitChannelInfo     = _G.UnitChannelInfo
 local UnitExists          = _G.UnitExists
 local UnitInVehicle       = _G.UnitInVehicle
 local UnitHasVehicleUI    = _G.UnitHasVehicleUI
-local UnitIsUnit          = _G.UnitIsUnit
 local CanExitVehicle          = _G.CanExitVehicle
 local UnitControllingVehicle = _G.UnitControllingVehicle
-local UnitOnTaxi              = _G.UnitOnTaxi
-local TaxiRequestEarlyLanding = _G.TaxiRequestEarlyLanding
 
 local GetActionCooldown   = _G.GetActionCooldown
-local GetActionInfo       = _G.GetActionInfo
 local GetBindingKey       = _G.GetBindingKey
 local HasAction           = _G.HasAction
 
@@ -74,12 +66,9 @@ local HasOverrideActionBar = C_ActionBar and C_ActionBar.HasOverrideActionBar
 local GetOverrideBarIndex = C_ActionBar and C_ActionBar.GetOverrideBarIndex
 local HasTempShapeshiftActionBar = C_ActionBar and C_ActionBar.HasTempShapeshiftActionBar
 local GetTempShapeshiftBarIndex = C_ActionBar and C_ActionBar.GetTempShapeshiftBarIndex
-local HasBonusActionBar   = C_ActionBar and C_ActionBar.HasBonusActionBar
-local GetBonusBarIndex    = C_ActionBar and C_ActionBar.GetBonusBarIndex
 local GetActionCooldownDuration = C_ActionBar and C_ActionBar.GetActionCooldownDuration
 local GetActionChargeDuration   = C_ActionBar and C_ActionBar.GetActionChargeDuration
 
-local C_Spell             = _G.C_Spell
 
 -- Pre-allocated binding string lookup (prevents string allocation per refresh)
 local BINDING_NAMES = {
@@ -449,7 +438,7 @@ local function StartCast(unit)
     end
     unit = vUnit
 
-    local issecretvalue = common.issecretvalue or _G.issecretvalue
+    local issecretvalue = sfui.common.issecretvalue
     local name, _, texture, startTimeMS, endTimeMS = UnitCastingInfo(unit)
     if name and startTimeMS and endTimeMS and not (issecretvalue and (issecretvalue(startTimeMS) or issecretvalue(endTimeMS))) then
         _casting = true

@@ -7,7 +7,6 @@ local style = sfui.actionbars.style
 local _G = _G
 local CreateFrame = _G.CreateFrame
 local C_Timer = _G.C_Timer
-local math_max = math.max
 local wipe = _G.wipe or table.wipe
 
 -- ─────────────────────────────────────────────────────────────────────────────

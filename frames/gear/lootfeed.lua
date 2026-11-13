@@ -37,7 +37,6 @@ local ipairs, pairs, tonumber, tostring, type = ipairs, pairs, tonumber, tostrin
 
 local C_Item                                  = _G.C_Item
 local GetItemInfo                             = sfui.common.get_item_info
-local GetItemQualityColor                     = (C_Item and C_Item.GetItemQualityColor) or _G.GetItemQualityColor
 local RequestLoadItemDataByID                 = C_Item and C_Item.RequestLoadItemDataByID
 local C_CurrencyInfo                          = _G.C_CurrencyInfo
 
@@ -633,7 +632,6 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 local function MasterOnUpdate(self, elapsed)
     local cfg = GetConfig()
-    local displayDuration = cfg.displayDuration or 5.0
     local fadeDuration = cfg.fadeDuration or 0.35
 
     local hasExpired = false

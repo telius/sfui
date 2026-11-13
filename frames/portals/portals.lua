@@ -13,7 +13,6 @@ local cfg               = sfui.config
 -- ========================
 -- Localization (upvalue globals for faster access)
 -- ========================
-local math_floor        = math.floor
 local str_format        = string.format
 local CreateFrame       = _G.CreateFrame
 local UIParent          = _G.UIParent
@@ -27,7 +26,6 @@ local GetProfessionInfo = _G.GetProfessionInfo
 local PlayerHasToy      = _G.PlayerHasToy
 local GameTooltip       = sfui.common.get_tooltip()
 local GetTime           = _G.GetTime
-local tinsert           = _G.tinsert
 local select            = _G.select
 local unpack            = _G.unpack
 local GetInstanceInfo   = _G.GetInstanceInfo
@@ -35,8 +33,7 @@ local C_ChallengeMode   = _G.C_ChallengeMode
 local C_Secrets         = _G.C_Secrets
 local C_MythicPlus      = _G.C_MythicPlus
 local InCombatLockdown  = _G.InCombatLockdown
-local issecretvalue     = _G.issecretvalue
-local table_wipe        = _G.table.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local issecretvalue = sfui.common.issecretvalue
 
 local C_SpellBook_IsSpellKnownOrInSpellBook = C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook
 local C_SpellBook_IsSpellInSpellBook        = C_SpellBook and C_SpellBook.IsSpellInSpellBook
@@ -965,18 +962,13 @@ local function create_base_frame(name)
         f:SetScript("OnDragStart", f.StartMoving)
         f:SetScript("OnDragStop", function(self)
             self:StopMovingOrSizing()
-            local point, relativeTo, relativePoint, x, y = self:GetPoint()
+            local point, _, relativePoint, x, y = self:GetPoint()
             SfuiDB.portals_point = point
             SfuiDB.portals_relativePoint = relativePoint
             SfuiDB.portals_x = x
             SfuiDB.portals_y = y
         end)
-        f:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-        })
+        f:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         f:SetBackdropColor(unpack(cfg.appearance.backdropColor))
         f:SetBackdropBorderColor(unpack(cfg.colors.black))
 

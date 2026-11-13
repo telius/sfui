@@ -7,8 +7,6 @@ local u = sfui.ring.utility
 
 local _G = _G
 local UnitClass = _G.UnitClass
-local C_SpellBook = _G.C_SpellBook
-local C_Spell = _G.C_Spell
 local C_Item = _G.C_Item
 local C_ToyBox = _G.C_ToyBox
 local GetItemCount = function(itemID)
@@ -24,9 +22,6 @@ end
 local pcall = _G.pcall
 local tostring = _G.tostring
 local tonumber = _G.tonumber
-local pairs = _G.pairs
-local ipairs = _G.ipairs
-local Enum = _G.Enum
 
 -- ── 1. Spell & Item Resolution Helpers ───────────────────────────────────────
 
@@ -327,7 +322,7 @@ end
 function u.set_spec_slot(playerClass, specID, slotIdx, slotData)
     local allCustom = sfui.db.Get("ring", "custom_slots", {}) or {}
     allCustom[playerClass] = allCustom[playerClass] or {}
-    local currentSlots, isCustom = u.get_spec_slots(playerClass, specID)
+    local currentSlots = u.get_spec_slots(playerClass, specID)
 
     local newSlots = {}
     for i = 1, 12 do
@@ -393,7 +388,7 @@ sfui.ring.register_provider("utility", {
     },
     build  = function(out)
         local playerClass, specID = get_class_and_spec()
-        local slots, isCustom = u.get_spec_slots(playerClass, specID)
+        local slots = u.get_spec_slots(playerClass, specID)
 
         local seen = {}
         for i = 1, 12 do

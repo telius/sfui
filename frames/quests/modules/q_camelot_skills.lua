@@ -28,7 +28,6 @@ end
 
 local _G = _G
 local C_SkillInfo = _G.C_SkillInfo
-local UnitGUID = _G.UnitGUID
 local UnitName = _G.UnitName
 local GetRealmName = _G.GetRealmName
 local IsShiftKeyDown = _G.IsShiftKeyDown
@@ -48,7 +47,6 @@ local string_format, string_lower, string_match = string.format, string.lower, s
 local GetTime = _G.GetTime
 local UnitClass = _G.UnitClass
 local C_Timer = _G.C_Timer
-local wipe = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
 -- ─────────────────────────────────────────────────────────
 --  SKILL DEFINITIONS & CATEGORIES

@@ -20,7 +20,6 @@ if not panelModule then return end
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local _G = _G
-local hooksecurefunc = _G.hooksecurefunc
 
 -- Classic Era CharacterFrame (384x512) has a 32px right texture inset, 13px top inset,
 -- and 73px bottom inset (above CharacterFrameTab1..5).

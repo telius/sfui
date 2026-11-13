@@ -29,7 +29,6 @@ local UnitLevel                    = _G.UnitLevel
 local UnitIsPlayer                 = _G.UnitIsPlayer
 local UnitClass                    = _G.UnitClass
 local UnitReaction                 = _G.UnitReaction
-local UnitCanAttack                = _G.UnitCanAttack
 local UnitIsTapDenied              = _G.UnitIsTapDenied
 local UnitPlayerControlled         = _G.UnitPlayerControlled
 local UnitGetIncomingHeals         = _G.UnitGetIncomingHeals
@@ -39,8 +38,6 @@ local PowerBarColor                = _G.PowerBarColor
 local RAID_CLASS_COLORS            = _G.RAID_CLASS_COLORS
 local IsShiftKeyDown               = _G.IsShiftKeyDown
 local type                         = _G.type
-local tonumber                     = _G.tonumber
-local tostring                     = _G.tostring
 local math_floor                   = math.floor
 local UnitIsFriend                 = _G.UnitIsFriend
 local UnitIsUnit                   = _G.UnitIsUnit
@@ -48,7 +45,7 @@ local UnitClassification           = _G.UnitClassification
 local GetRaidTargetIndex           = _G.GetRaidTargetIndex
 local SetRaidTargetIconTexture     = _G.SetRaidTargetIconTexture
 local GameTooltip                  = sfui.common.get_tooltip()
-local issecretvalue                = common.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local GetUnitName                  = _G.GetUnitName
 local NameUtil                     = _G.NameUtil
 
@@ -588,12 +585,7 @@ ApplyTargetStyle = function(hBar, lFrame)
 
         -- Apply crisp 1px solid black border & dark slate backdrop (identical to bars.lua)
         if bd.SetBackdrop then
-            bd:SetBackdrop({
-                bgFile   = "Interface\\Buttons\\WHITE8X8",
-                edgeFile = "Interface\\Buttons\\WHITE8X8",
-                edgeSize = 1,
-                insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-            })
+            bd:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             bd:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], bgCol[4] or 0.85)
             bd:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
         end
@@ -607,12 +599,7 @@ ApplyTargetStyle = function(hBar, lFrame)
             lFrame:SetSize(24, barH + pad * 2)
 
             if lFrame.SetBackdrop then
-                lFrame:SetBackdrop({
-                    bgFile   = "Interface\\Buttons\\WHITE8X8",
-                    edgeFile = "Interface\\Buttons\\WHITE8X8",
-                    edgeSize = 1,
-                    insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-                })
+                lFrame:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
                 lFrame:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], bgCol[4] or 0.85)
                 lFrame:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
             end
@@ -631,12 +618,7 @@ ApplyTargetStyle = function(hBar, lFrame)
 
     -- Style the power bar backdrop to match
     if powerBar and powerBar.backdrop and powerBar.backdrop.SetBackdrop then
-        powerBar.backdrop:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 1,
-            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-        })
+        powerBar.backdrop:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         powerBar.backdrop:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], bgCol[4] or 0.85)
         powerBar.backdrop:SetBackdropBorderColor(bdCol[1], bdCol[2], bdCol[3], bdCol[4] or 1)
     end
@@ -661,20 +643,6 @@ ApplyTargetStyle = function(hBar, lFrame)
     if UpdateTargetLevel then
         UpdateTargetLevel()
     end
-end
-
--- ─── Player Health Bar Anchor Helper ─────────────────────────────────────────
-local cachedPlayerHealthBar
-local function GetPlayerHealthBar()
-    if cachedPlayerHealthBar then return cachedPlayerHealthBar end
-    local bar = sfui.bars.get_bar0()
-    if bar and bar.backdrop then
-        cachedPlayerHealthBar = bar.backdrop
-        return bar.backdrop
-    end
-    local bar0 = _G.sfui_bar0_Backdrop or _G.sfui_bar0
-    cachedPlayerHealthBar = bar0
-    return bar0
 end
 
 ApplyTargetPosition = function()
@@ -783,21 +751,7 @@ local function RequestTargetAuraIconRefresh()
     end
 end
 
-local diffColorHexCache = {}
 local diffColorRGBCache = {}
-
-local function GetDifficultyColorHex(lvl)
-    if not lvl or type(lvl) ~= "number" then return "" end
-    local hex = diffColorHexCache[lvl]
-    if hex then return hex end
-    local diff = GetCreatureDifficultyColor and GetCreatureDifficultyColor(lvl)
-    if diff then
-        hex = string.format("|cff%02x%02x%02x", diff.r * 255, diff.g * 255, diff.b * 255)
-        diffColorHexCache[lvl] = hex
-        return hex
-    end
-    return ""
-end
 
 local function GetDifficultyColorRGB(lvl)
     if not lvl or type(lvl) ~= "number" then return 1, 1, 1 end
@@ -817,34 +771,6 @@ local lastBarR, lastBarG, lastBarB
 
 local function InvalidateTargetLevelCache()
     cachedLvlPrefix = nil
-end
-
-local function GetTargetLvlPrefix()
-    if cachedLvlPrefix then return cachedLvlPrefix end
-
-    local classTag = ""
-    if UnitClassification then
-        local c = UnitClassification("target")
-        if c == "worldboss" then
-            classTag = " |cffff2222[Boss]|r"
-        elseif c == "rareelite" then
-            classTag = " |cffffcc00[Rare+]|r"
-        elseif c == "elite" then
-            classTag = " |cffffcc00+|r"
-        elseif c == "rare" then
-            classTag = " |cffcccccc[Rare]|r"
-        end
-    end
-
-    local lvl = UnitLevel("target")
-    local isLvlSecret = issecretvalue(lvl)
-    if not lvl or isLvlSecret or (type(lvl) == "number" and lvl <= 0) then
-        cachedLvlPrefix = "|cffff3333??|r" .. classTag
-    else
-        local diffColor = GetDifficultyColorHex(lvl)
-        cachedLvlPrefix = diffColor .. tostring(lvl) .. "|r" .. classTag
-    end
-    return cachedLvlPrefix
 end
 
 -- ─── Unit Data Refresh (Matching bars.lua HealthBar Logic) ────────────────────

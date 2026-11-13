@@ -104,11 +104,7 @@ local function SetupUI()
         local cols = 6
         local btnW, btnH, padding = 50, 24, 4
         sfui.transferContainer:SetSize((btnW + padding) * cols + padding, (btnH + padding) * rows + padding)
-        sfui.transferContainer:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        sfui.transferContainer:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         sfui.transferContainer:SetBackdropColor(0, 0, 0, 0.8)
         sfui.transferContainer:SetBackdropBorderColor(0, 0, 0, 1)
 

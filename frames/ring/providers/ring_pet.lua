@@ -3,10 +3,8 @@ sfui = sfui or {}
 sfui.ring = sfui.ring or {}
 
 local _G = _G
-local UnitClass = _G.UnitClass
 local tonumber = _G.tonumber
 local tostring = _G.tostring
-local pcall = _G.pcall
 
 local function is_hunter_in_camelot()
     return sfui.isCamelot and sfui.common.get_player_class() == "HUNTER"

@@ -14,15 +14,12 @@ local cfg               = sfui.config
 
 -- Localization / API aliases
 local math_floor        = math.floor
-local str_format        = string.format
 local CreateFrame       = _G.CreateFrame
 local UIParent          = _G.UIParent
 local C_Item            = _G.C_Item
 local C_ChallengeMode   = _G.C_ChallengeMode
-local InCombatLockdown  = _G.InCombatLockdown
 local tinsert           = _G.tinsert
 local unpack            = _G.unpack
-local select            = _G.select
 local table_wipe        = _G.table.wipe or function(t) for k in pairs(t) do t[k] = nil end end
 
 local ICON_SIZE         = p.ICON_SIZE
@@ -36,7 +33,6 @@ local TOY_ICONS_PER_ROW = p.TOY_ICONS_PER_ROW
 local TOY_X_OFFSET      = p.TOY_X_OFFSET
 
 local BACKDROP_ICON     = p.BACKDROP_ICON
-local BACKDROP_ROW      = p.BACKDROP_ROW
 local BACKDROP_MENU     = p.BACKDROP_MENU
 
 local playerClass       = sfui.common.get_player_class()

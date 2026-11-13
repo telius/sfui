@@ -22,16 +22,13 @@ local data = sfui.fishing_data
 local _G = _G
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
-local GetTime = _G.GetTime
 local IsAltKeyDown = _G.IsAltKeyDown
 local InCombatLockdown = _G.InCombatLockdown
 local math_floor = _G.math.floor
 local string_format = _G.string.format
-local tostring = _G.tostring
 
 local hudFrame = nil
 local isHudLocked = true
-local lastUpdate = 0
 local UpdateHud
 local OnHudTick
 
@@ -104,7 +101,7 @@ local function OnHudEnter(self)
     end
 
     -- Local Zone Species Breakdown
-    local lootEntries, isClassic = data.GetZoneLoot(mapID)
+    local lootEntries = data.GetZoneLoot(mapID)
     if lootEntries and #lootEntries > 0 then
         tip:AddLine(" ")
         tip:AddLine("zone species (drop rates):", 0, 1, 1)

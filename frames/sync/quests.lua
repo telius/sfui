@@ -39,7 +39,7 @@ local UnitClass = _G.UnitClass
 local UnitLevel = _G.UnitLevel
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local C_Timer = _G.C_Timer
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 local PENDING_SECONDS      = 8.0
 local pendingDialogChoices = {}

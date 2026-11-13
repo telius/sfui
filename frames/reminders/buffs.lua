@@ -15,7 +15,7 @@ local InCombatLockdown = _G.InCombatLockdown
 
 local providers = sfui.buffs.providers
 local FormatTime = providers and providers.FormatTime
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 local function IsValidTexture(tex)
     if issecretvalue and issecretvalue(tex) then return true end

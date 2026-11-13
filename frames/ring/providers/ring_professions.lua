@@ -5,7 +5,6 @@ sfui.ring = sfui.ring or {}
 local GetProfessions        = _G.GetProfessions
 local GetProfessionInfo     = _G.GetProfessionInfo
 local C_SpellBook           = _G.C_SpellBook
-local C_Spell               = _G.C_Spell
 local C_TradeSkillUI        = _G.C_TradeSkillUI
 local GetSpellBookItemName  = _G.GetSpellBookItemName
 local GetSpellBookItemTexture = _G.GetSpellBookItemTexture
@@ -68,7 +67,7 @@ local function get_ability_spell(slot)
     end
 
     if C_SpellBook and C_SpellBook.GetSpellBookItemType then
-        local tOk, itemType, actionID, spellID = pcall(C_SpellBook.GetSpellBookItemType, slot, bank)
+        local tOk, _, actionID, spellID = pcall(C_SpellBook.GetSpellBookItemType, slot, bank)
         local nOk, name = pcall(C_SpellBook.GetSpellBookItemName, slot, bank)
         local icon
         if C_SpellBook.GetSpellBookItemTexture then

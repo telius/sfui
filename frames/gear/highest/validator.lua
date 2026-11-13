@@ -317,7 +317,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     local primaryStatName = common.get_stat_key(rule.stat)
     local optimalArmor = rule.armor
 
-    local itemID, itemType, itemSubType, itemEquipLoc, _, itemClassID, subclassID = common.get_item_instant_info(itemLink)
+    local itemID, _, _, itemEquipLoc, _, itemClassID, subclassID = common.get_item_instant_info(itemLink)
     if not itemEquipLoc or itemEquipLoc == "" then return false end
 
     -- Check if player can actually use/equip the item (unlearned weapon skills, unmet class, unmet level, etc.)
@@ -325,7 +325,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         return false
     end
 
-    local itemName, _, itemQuality, baseLevel, itemMinLevel = GetItemInfo(itemLink)
+    local _, _, itemQuality, baseLevel, itemMinLevel = GetItemInfo(itemLink)
     local itemLevel = common.get_item_level(itemLink)
     if itemLevel == 0 then itemLevel = baseLevel or 1 end
 

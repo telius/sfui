@@ -44,7 +44,7 @@ sfui.options.RegisterTab({
             "automatically repairs gear (guild first, skips if blacksmith hammer available). aborted if cost exceeds 5,000g to protect against item scaling bugs.")
         auto_repair_cb:SetPoint("LEFT", auto_sign_cb, "LEFT", COL_OFFSET_X, 0)
 
-        local last_general_anchor = auto_sign_cb
+        local last_general_anchor
 
         if SfuiDB.tooltipAltIDs == nil then SfuiDB.tooltipAltIDs = true end
         local auto_alt_ids_cb = create_checkbox(automation_panel, "hold alt for item / spell / quest id", "tooltipAltIDs", nil,
@@ -142,7 +142,7 @@ sfui.options.RegisterTab({
         end, isClassic and "automatically start/stop advanced combat logging in selected instances." or "automatically start/stop advanced combat logging in mythic+, current raids, and rated pvp.")
         auto_log_cb:SetPoint("TOPLEFT", dungeon_header, "BOTTOMLEFT", 0, -10)
 
-        local last_log_anchor = auto_log_cb
+        local last_log_anchor
         if isClassic or sfui.isCamelot then
             local log_raid_cb = create_checkbox(automation_panel, "log raids", function()
                 return sfui.logs and sfui.logs.get_setting and sfui.logs.get_setting("logRaid")

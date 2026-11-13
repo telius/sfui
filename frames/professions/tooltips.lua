@@ -3,10 +3,6 @@ local addonName, addon = ...
 sfui                   = sfui or {}
 sfui.recipes           = sfui.recipes or {}
 
-local g                = sfui.config
-local common           = sfui.common
-local cfg              = g.recipes or g.professions or {}
-
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/professions/tooltips.lua
 --  Recipe Source Tooltip & Waypoint Integration (Camelot / Classic Forever)
@@ -25,8 +21,8 @@ local TooltipDataProcessor = _G.TooltipDataProcessor
 local Enum                 = _G.Enum or {}
 local hooksecurefunc       = _G.hooksecurefunc
 local IsControlKeyDown     = _G.IsControlKeyDown
-local tonumber, tostring   = _G.tonumber, _G.tostring
-local pairs, ipairs        = _G.pairs, _G.ipairs
+local tonumber = _G.tonumber
+local ipairs = _G.ipairs
 local min                  = math.min
 
 local MAX_SOURCE_LINES     = 3

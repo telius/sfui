@@ -19,9 +19,8 @@ local InCombatLockdown = _G.InCombatLockdown
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local MonthlyActivitiesFrame_OpenFrameToActivity = _G.MonthlyActivitiesFrame_OpenFrameToActivity
 
-local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
+local ipairs, type, tostring = _G.ipairs, _G.type, _G.tostring
 local table_insert = _G.table.insert
-local string_format = string.format
 
 local issecretvalue = sfui.common.issecretvalue
 

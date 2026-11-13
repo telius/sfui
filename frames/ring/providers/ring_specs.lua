@@ -16,7 +16,6 @@ local InCombatLockdown      = _G.InCombatLockdown
 local PlaySound             = _G.PlaySound
 local SOUNDKIT              = _G.SOUNDKIT
 local UnitLevel             = _G.UnitLevel
-local ipairs                = _G.ipairs
 local tostring              = _G.tostring
 local wipe                  = _G.wipe
 local string_lower          = string.lower

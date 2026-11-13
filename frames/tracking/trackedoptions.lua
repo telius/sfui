@@ -13,9 +13,7 @@ local c = g.options_panel
 
 -- Forward declarations
 local select_tab
-local UpdateCooldownsList
 local wipe = wipe
-local tinsert = tinsert
 local _emptyTable = {}
 local glowTypes = {
     { text = "Pixel",    value = "pixel" },
@@ -23,7 +21,6 @@ local glowTypes = {
     { text = "Action",   value = "proc" },
     { text = "Thick",    value = "proc" }
 }
-local ReloadUI = ReloadUI or C_UI.Reload
 
 -- ─── Theme helpers ────────────────────────────────────────────────────────────
 -- palette-driven colours so the tracking manager follows sfui.theme (modern / camelot)
@@ -66,69 +63,7 @@ local function restyle_themed_widgets()
     for section in pairs(themedSections) do style_section(section) end
     for btn in pairs(themedChoiceBtns) do style_choice_btn(btn, btn._sfuiActive) end
 end
-local C_AddOns = C_AddOns
-
--- Main Options Frame
-local frame = CreateFrame("Frame", "SfuiCooldownsViewer", UIParent, "BackdropTemplate")
-frame:SetSize(800, 500)
-frame:SetPoint("CENTER")
-frame:SetFrameStrata("HIGH")
-frame:SetToplevel(true)
-frame:EnableMouse(true)
-frame:SetMovable(true)
-frame:SetClampedToScreen(true)
-frame:RegisterForDrag("LeftButton")
-frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
-frame:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    -- Save Size
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
-    SfuiDB.trackedOptionsWindow.width = self:GetWidth()
-    SfuiDB.trackedOptionsWindow.height = self:GetHeight()
-end)
-
--- Make resizable
-frame:SetResizable(true)
-frame:SetResizeBounds(600, 400, 1200, 800)
-local resizeBtn = CreateFrame("Button", nil, frame)
-resizeBtn:SetSize(16, 16)
-resizeBtn:SetPoint("BOTTOMRIGHT")
-resizeBtn:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-resizeBtn:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-resizeBtn:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-resizeBtn:SetScript("OnMouseDown", function() frame:StartSizing("BOTTOMRIGHT") end)
-resizeBtn:SetScript("OnMouseUp", function()
-    frame:StopMovingOrSizing()
-    if not SfuiDB then SfuiDB = {} end
-    if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
-    SfuiDB.trackedOptionsWindow.width = frame:GetWidth()
-    SfuiDB.trackedOptionsWindow.height = frame:GetHeight()
-end)
-
-frame:SetBackdrop({
-    bgFile = "Interface/Buttons/WHITE8X8",
-    edgeFile = "Interface/Buttons/WHITE8X8",
-    edgeSize = 1,
-})
-frame:SetBackdropColor(c.backdrop_color[1], c.backdrop_color[2], c.backdrop_color[3], c.backdrop_color[4])
-frame:SetBackdropBorderColor(unpack(cfg.colors.black))
-frame:Hide()
-sfui.trackedoptions.frame = frame
-frame:HookScript("OnHide", function()
-    if sfui.trackedbuffs and sfui.trackedbuffs.SetPreviewMode then
-        if not (sfui.trackedbuffs.IsMoverShown and sfui.trackedbuffs.IsMoverShown()) then
-            sfui.trackedbuffs.SetPreviewMode(false)
-        end
-    end
-end)
-if sfui.common and sfui.common.register_special_frame then
-    sfui.common.register_special_frame(frame)
-end
-
--- (Title removed for better space efficiency)
-
-local closeBtn = common.create_close_button(frame)
+local frame
 
 -- === UX Section Container ===
 -- Creates a visually distinct section with dark bg, purple left accent, title, and content area.
@@ -199,11 +134,7 @@ function sfui.trackedoptions.CreateAnchorGrid(parent, panel, key, onUpdate)
             local btn = CreateFrame("Button", nil, container, "BackdropTemplate")
             btn:SetSize(22, 22)
             btn:SetPoint("TOPLEFT", (c - 1) * 25, -(r - 1) * 25)
-            btn:SetBackdrop({
-                bgFile = "Interface/Buttons/WHITE8X8",
-                edgeFile = "Interface/Buttons/WHITE8X8",
-                edgeSize = 1,
-            })
+            btn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             btn.point = point
             btn:SetScript("OnClick", function()
                 panel[key] = point
@@ -244,11 +175,7 @@ function sfui.trackedoptions.CreateGrowthCross(parent, panel, onUpdate)
         local btn = CreateFrame("Button", nil, container, "BackdropTemplate")
         btn:SetSize(22, 22)
         btn:SetPoint("TOPLEFT", info.x, info.y)
-        btn:SetBackdrop({
-            bgFile = "Interface/Buttons/WHITE8X8",
-            edgeFile = "Interface/Buttons/WHITE8X8",
-            edgeSize = 1,
-        })
+        btn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         text:SetPoint("CENTER")
         text:SetText(info.label)
@@ -286,23 +213,6 @@ function sfui.trackedoptions.CreateGrowthCross(parent, panel, onUpdate)
     return container
 end
 
--- Top Left Buttons (Options & Blizzard)
-local headerBtnX = 140
-local optBtn = CreateFlatButton(frame, "main options", 100, 20)
-optBtn:SetPoint("TOPLEFT", 10, -5)
-optBtn:SetScript("OnClick", function()
-    sfui.toggle_options_panel()
-
-    -- Attach logic
-    if _G.sfui_options_frame and _G.sfui_options_frame:IsShown() then
-        frame:ClearAllPoints()
-        frame:SetPoint("CENTER") -- Back to center default before re-anchoring if needed
-
-        _G.sfui_options_frame:ClearAllPoints()
-        _G.sfui_options_frame:SetPoint("TOPRIGHT", frame, "TOPLEFT", -5, 0)
-    end
-end)
-
 local function toggle_blizzard_cdm_settings()
     if _G.InCombatLockdown and _G.InCombatLockdown() then
         common.print("cannot open blizzard cooldown manager in combat.")
@@ -317,19 +227,11 @@ local function toggle_blizzard_cdm_settings()
     end
 end
 
-local blizzBtn = CreateFlatButton(frame, "blizzard manager", 120, 20)
-blizzBtn:SetPoint("LEFT", optBtn, "RIGHT", 5, 0)
-blizzBtn:SetScript("OnClick", toggle_blizzard_cdm_settings)
-if not (sfui.isRetail or sfui.isCamelot) then
-    blizzBtn:Hide()
-end
-
-
 -- Tab logic
-select_tab = function(frame, id)
-    if not frame.tabs then return end
-    if not frame.tabs[id] then id = 1 end
-    for i, tab in ipairs(frame.tabs) do
+select_tab = function(viewerFrame, id)
+    if not viewerFrame or not viewerFrame.tabs then return end
+    if not viewerFrame.tabs[id] then id = 1 end
+    for i, tab in ipairs(viewerFrame.tabs) do
         local btn = tab.button
         if i == id then
             -- Selected state
@@ -374,7 +276,7 @@ select_tab = function(frame, id)
             sfui.theme.ApplyTabStyle(btn, false)
         end
     end
-    frame.selectedTabId = id
+    viewerFrame.selectedTabId = id
     SfuiDB.lastSelectedTabId = id -- Persist tab selection
 
     if id == 4 then
@@ -394,6 +296,13 @@ function sfui.trackedoptions.toggle_viewer()
     if SfuiDB.enableTrackingManager == false then
         common.print("tracking manager is disabled in options.")
         return
+    end
+    if not sfui.trackedoptions.initialized then
+        if InCombatLockdown() then
+            common.print("cannot configure tracked bars in combat.")
+            return
+        end
+        sfui.trackedoptions.initialize()
     end
     local isShown = frame:IsShown()
     if not isShown then
@@ -425,6 +334,77 @@ function sfui.trackedoptions.initialize()
     if not SfuiDB.trackedBars then SfuiDB.trackedBars = {} end
     if not SfuiDB.trackedBuffs then SfuiDB.trackedBuffs = {} end
 
+    frame = CreateFrame("Frame", "SfuiCooldownsViewer", UIParent, "BackdropTemplate")
+    frame:SetSize(800, 500)
+    frame:SetPoint("CENTER")
+    frame:SetFrameStrata("HIGH")
+    frame:SetToplevel(true)
+    frame:EnableMouse(true)
+    frame:SetMovable(true)
+    frame:SetClampedToScreen(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        if not SfuiDB then SfuiDB = {} end
+        if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
+        SfuiDB.trackedOptionsWindow.width = self:GetWidth()
+        SfuiDB.trackedOptionsWindow.height = self:GetHeight()
+    end)
+
+    frame:SetResizable(true)
+    frame:SetResizeBounds(600, 400, 1200, 800)
+    local resizeBtn = CreateFrame("Button", nil, frame)
+    resizeBtn:SetSize(16, 16)
+    resizeBtn:SetPoint("BOTTOMRIGHT")
+    resizeBtn:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    resizeBtn:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    resizeBtn:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    resizeBtn:SetScript("OnMouseDown", function() frame:StartSizing("BOTTOMRIGHT") end)
+    resizeBtn:SetScript("OnMouseUp", function()
+        frame:StopMovingOrSizing()
+        if not SfuiDB then SfuiDB = {} end
+        if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
+        SfuiDB.trackedOptionsWindow.width = frame:GetWidth()
+        SfuiDB.trackedOptionsWindow.height = frame:GetHeight()
+    end)
+
+    frame:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
+    frame:SetBackdropColor(c.backdrop_color[1], c.backdrop_color[2], c.backdrop_color[3], c.backdrop_color[4])
+    frame:SetBackdropBorderColor(unpack(cfg.colors.black))
+    frame:Hide()
+    sfui.trackedoptions.frame = frame
+    frame:HookScript("OnHide", function()
+        if sfui.trackedbuffs and sfui.trackedbuffs.SetPreviewMode then
+            if not (sfui.trackedbuffs.IsMoverShown and sfui.trackedbuffs.IsMoverShown()) then
+                sfui.trackedbuffs.SetPreviewMode(false)
+            end
+        end
+    end)
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(frame)
+    end
+    common.create_close_button(frame)
+
+    local optBtn = CreateFlatButton(frame, "main options", 100, 20)
+    optBtn:SetPoint("TOPLEFT", 10, -5)
+    optBtn:SetScript("OnClick", function()
+        sfui.toggle_options_panel()
+        if _G.sfui_options_frame and _G.sfui_options_frame:IsShown() then
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER")
+            _G.sfui_options_frame:ClearAllPoints()
+            _G.sfui_options_frame:SetPoint("TOPRIGHT", frame, "TOPLEFT", -5, 0)
+        end
+    end)
+
+    local blizzBtn = CreateFlatButton(frame, "blizzard manager", 120, 20)
+    blizzBtn:SetPoint("LEFT", optBtn, "RIGHT", 5, 0)
+    blizzBtn:SetScript("OnClick", toggle_blizzard_cdm_settings)
+    if not (sfui.isRetail or sfui.isCamelot) then
+        blizzBtn:Hide()
+    end
+
     -- Load Saved Size
     if SfuiDB.trackedOptionsWindow and SfuiDB.trackedOptionsWindow.width and SfuiDB.trackedOptionsWindow.height then
         frame:SetSize(SfuiDB.trackedOptionsWindow.width, SfuiDB.trackedOptionsWindow.height)
@@ -435,7 +415,6 @@ function sfui.trackedoptions.initialize()
     local TAB_HEIGHT = 30
     local TAB_WIDTH = 120
 
-    local g = cfg
 
     local lastBtn
     local function CreateTabButton(text, id)
@@ -651,8 +630,6 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     -- Build sorted list of trackable spells across supported categories
     local specBars = common.get_tracked_bars()
 
-    local known = {}
-    local cats = { 1, 2, 3 } -- Essential, Utility, TrackedBuff, TrackedBars
     local WIDTH = parent:GetWidth() - 40
     local yPos = -10
 
@@ -1062,7 +1039,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             local swatch = CreateFrame("Button", nil, row, "BackdropTemplate")
             swatch:SetSize(20, 20)
             swatch:SetPoint("LEFT", 665, 0)
-            swatch:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+            swatch:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             swatch:SetBackdropBorderColor(unpack(cfg.colors.black))
 
             local function UpdateSwatch()
@@ -1131,7 +1108,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             local pSwatch = CreateFrame("Button", nil, row, "BackdropTemplate")
             pSwatch:SetSize(20, 20)
             pSwatch:SetPoint("LEFT", 815, 0)
-            pSwatch:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+            pSwatch:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             pSwatch:SetBackdropBorderColor(unpack(cfg.colors.black))
 
             local function UpdatePSwatch()
@@ -1972,7 +1949,6 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     -- SECTION 4: INDIVIDUAL ICON OVERRIDES
     -- ═══════════════════════════════════
     if (sfui.isRetail or sfui.isEra or sfui.isCamelot) and panel.entries and #(panel.entries) > 0 then
-        local classID = sfui.common.get_player_class_id()
         -- Per Blizzard source, calling without args defaults to player config/spec
         local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}
         local secTitle = (#heroSpecs > 0) and "hero talent overrides" or "assigned spell overrides"

@@ -3,10 +3,6 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.recipes = sfui.recipes or {}
 
-local g      = sfui.config
-local common = sfui.common
-local cfg    = g.recipes or {}
-
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/alts/recipes.lua
 --  Cross-Expansion Recipe Knowledge & Eligibility Tracker
@@ -19,10 +15,8 @@ local cfg    = g.recipes or {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- Localized APIs
-local CreateFrame                   = _G.CreateFrame
 local UnitGUID                      = _G.UnitGUID
 local UnitName                      = _G.UnitName
-local UnitClass                     = _G.UnitClass
 local GetRealmName                  = _G.GetNormalizedRealmName or _G.GetRealmName
 local C_Item                        = _G.C_Item or {}
 local C_Item_GetItemInfo            = (sfui.common and sfui.common.get_item_info) or C_Item.GetItemInfo or _G.GetItemInfo
@@ -48,7 +42,6 @@ local tonumber                      = _G.tonumber
 local type                          = _G.type
 local wipe                          = _G.wipe
 local InCombatLockdown               = _G.InCombatLockdown
-local GameTooltip                   = sfui.common.get_tooltip()
 local ItemRefTooltip                = _G.ItemRefTooltip
 
 -- Recipe item class constant (9 = Recipe)
@@ -1025,7 +1018,7 @@ local function ScanCurrentTradeSkills(force)
     if _G.GetNumTradeSkills and _G.GetTradeSkillItemLink then
         local num = _G.GetNumTradeSkills() or 0
         for i = 1, num do
-            local skillName, skillType = _G.GetTradeSkillInfo(i)
+            local _, skillType = _G.GetTradeSkillInfo(i)
             if skillType ~= "header" and skillType ~= "subheader" then
                 if _G.GetTradeSkillRecipeLink then
                     local rLink = _G.GetTradeSkillRecipeLink(i)
@@ -1505,7 +1498,7 @@ local function SetItemTooltip(tooltip, ctxOrData)
         end
     end
 
-    local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+    local issecretvalue = sfui.common.issecretvalue
     if not itemID or (issecretvalue and issecretvalue(itemID)) or type(itemID) ~= "number" or itemID <= 0 then return end
 
     -- Update active player status for recipe items

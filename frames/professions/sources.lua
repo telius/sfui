@@ -3,9 +3,7 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.recipes = sfui.recipes or {}
 
-local g      = sfui.config
 local common = sfui.common
-local cfg    = g.recipe_catalog or g.recipes or g.professions or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/professions/sources.lua

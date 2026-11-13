@@ -21,12 +21,9 @@ local CursorHasItem = _G.CursorHasItem
 local IsInventoryItemLocked = _G.IsInventoryItemLocked
 local ipairs = _G.ipairs
 local pairs = _G.pairs
-local type = _G.type
 local table = _G.table
-local string = _G.string
 local math = _G.math
 local tonumber = _G.tonumber
-local tostring = _G.tostring
 local wipe = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
     return t
@@ -831,11 +828,7 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
             t:SetTexture(rIcon)
             t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             rBtn.tex = t
-            rBtn:SetBackdrop({
-                bgFile = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
+            rBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
             rBtn:SetBackdropColor(0, 0, 0, 0.7)
             rBtn:SetBackdropBorderColor(isCamelotTheme and 0.28 or 0, isCamelotTheme and 0.22 or 0,
@@ -880,11 +873,7 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
     t:SetTexture("Interface\\Icons\\inv_chest_cloth_17")
     t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     btnNaked.tex = t
-    btnNaked:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
+    btnNaked:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
     local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
     btnNaked:SetBackdropColor(0, 0, 0, 0.7)
     btnNaked:SetBackdropBorderColor(isCamelotTheme and 0.28 or 0, isCamelotTheme and 0.22 or 0,
@@ -952,11 +941,7 @@ function sfui.gear.UpdateCollapsedRoleBar(gearFrame)
             t:SetTexture(sfui.gear.GetClassicRoleIcon(classID, rKey))
             t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             rBtn.tex = t
-            rBtn:SetBackdrop({
-                bgFile = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
+            rBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             rBtn.roleKey = rKey
             rBtn.roleColor = ROLE_COLORS[rKey] or { 0.6, 0.6, 0.6 }
             local capturedRole = rKey
@@ -1006,11 +991,7 @@ function sfui.gear.UpdateCollapsedRoleBar(gearFrame)
         t:SetTexture("Interface\\Icons\\inv_chest_cloth_17")
         t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         btnNaked.tex = t
-        btnNaked:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        btnNaked:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         btnNaked:SetScript("OnClick", function()
             sfui.gear.ToggleNaked()
         end)

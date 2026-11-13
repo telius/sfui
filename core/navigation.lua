@@ -11,7 +11,6 @@ local _G = _G
 local issecretvalue = _G.issecretvalue or function() return false end
 local type = _G.type
 local tonumber = _G.tonumber
-local tostring = _G.tostring
 local pairs = _G.pairs
 local ipairs = _G.ipairs
 

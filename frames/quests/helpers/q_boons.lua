@@ -17,10 +17,9 @@ local InCombatLockdown = _G.InCombatLockdown
 local C_UnitAuras = _G.C_UnitAuras
 local C_TooltipInfo = _G.C_TooltipInfo
 local C_Timer = _G.C_Timer
-local ipairs, pairs, type = _G.ipairs, _G.pairs, _G.type
+local ipairs = _G.ipairs
 local table_insert, table_wipe = _G.table.insert, _G.wipe
-local math_max, math_min = _G.math.max, _G.math.min
-local tostring = _G.tostring
+local math_max = _G.math.max
 
 local BOONS_SPELL_IDS = {
     1280098, -- Delves & Labyrinths Boons
@@ -265,12 +264,7 @@ local function GetOrCreateBoonsFrame()
     f:EnableMouse(true)
 
     -- Backdrop matching delve / mythic tracker
-    f:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 },
-    })
+    f:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
     f:SetBackdropColor(0.06, 0.06, 0.08, 0.88)
     f:SetBackdropBorderColor(0, 0, 0, 0.9)
 
@@ -421,7 +415,6 @@ function Boons.UpdateAnchor()
         end
     else
         local posX = (SfuiDB and (SfuiDB.mythicHudX or SfuiDB.questlogX)) or -4
-        local posY = (SfuiDB and (SfuiDB.mythicHudY or SfuiDB.questlogY)) or -4
         boonsFrame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, -300)
         boonsFrame:SetWidth(cfgWidth)
     end

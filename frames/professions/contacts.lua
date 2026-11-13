@@ -3,10 +3,6 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.recipes = sfui.recipes or {}
 
-local g      = sfui.config
-local common = sfui.common
-local cfg    = g.recipe_catalog or g.recipes or g.professions or {}
-
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/professions/contacts.lua
 --  Dynamic Recipe Contacts & Finds Observer (Camelot / Classic Forever)
@@ -26,7 +22,6 @@ local UnitExists                    = _G.UnitExists
 local UnitIsDead                    = _G.UnitIsDead
 local UnitIsPlayer                  = _G.UnitIsPlayer
 local C_Map                         = _G.C_Map
-local C_Item                        = _G.C_Item or {}
 local C_Item_GetItemInfoInstant     = sfui.common.get_item_instant_info
 local GetMerchantNumItems           = _G.GetMerchantNumItems
 local GetMerchantItemInfo           = sfui.api.GetMerchantItemInfo
@@ -44,13 +39,13 @@ local GetTitleText                  = _G.GetTitleText
 local GetRealZoneText               = _G.GetRealZoneText
 local GetSubZoneText                = _G.GetSubZoneText
 local strsplit                      = _G.strsplit
-local tonumber, tostring            = _G.tonumber, _G.tostring
+local tonumber = _G.tonumber
 local pcall, type                   = _G.pcall, _G.type
-local pairs, ipairs                 = _G.pairs, _G.ipairs
+local ipairs = _G.ipairs
 local math_floor                    = math.floor
 local time                          = _G.time
 local table_insert                  = table.insert
-local issecretvalue                 = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 -- Recipe item class constant (9 = Recipe)
 local ITEM_CLASS_RECIPE = 9
@@ -248,7 +243,7 @@ local function ScanTrainer()
     }
 
     for i = 1, numServices do
-        local serviceName, subText, category = GetTrainerServiceInfo(i)
+        local serviceName, _, category = GetTrainerServiceInfo(i)
         if not issecretvalue(category) and category ~= "header" and serviceName and not issecretvalue(serviceName) and serviceName ~= "" then
             local cost = (GetTrainerServiceCost and GetTrainerServiceCost(i)) or 0
             if issecretvalue(cost) then cost = 0 end

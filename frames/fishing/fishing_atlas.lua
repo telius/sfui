@@ -22,7 +22,6 @@ local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local ipairs, pairs = _G.ipairs, _G.pairs
 local table_sort = _G.table.sort
-local table_insert = _G.table.insert
 local string_format = _G.string.format
 local math_floor = _G.math.floor
 local tostring = _G.tostring

@@ -12,9 +12,6 @@ local _G = _G
 local CreateFrame = _G.CreateFrame
 local ipairs = _G.ipairs
 local pairs = _G.pairs
-local type = _G.type
-local table = _G.table
-local tostring = _G.tostring
 
 local show_tooltip = sfui.gear.show_tooltip -- defined in engine.lua
 
@@ -44,11 +41,7 @@ function sfui.gear.SetupHeaderTabs(gearFrame, specIDs)
             t:SetTexture(icon)
             t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             btn.tex = t
-            btn:SetBackdrop({
-                bgFile = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
+            btn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             btn:SetBackdropColor(0, 0, 0, 0.7)
             btn:SetBackdropBorderColor(0, 0, 0, 0.8)
             btn:SetScript("OnClick", function() gearFrame:SelectSpecTab(id) end)

@@ -1,4 +1,3 @@
-local _, ns = ...
 -- NOTE (audit findings - do not modify code without explicit review):
 -- 1. retail 12.1 secret-value edge cases:
 --    - line 390 assigns `lastKnownStacks = apps` even when `issecretvalue(apps)` is true.
@@ -16,7 +15,7 @@ if not isRetail then return end
 
 -- Use the richer issecretvalue from common (includes C_Secrets.HasSecretRestrictions short-circuit)
 local common = sfui.common
-local issecretvalue = common.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 -- Class Gate: Demon Hunter only
 local playerClass = sfui.common.get_player_class()
@@ -33,7 +32,6 @@ sfui.soulfragments = {}
 -- ------------------------------------------------------------
 -- Constants & Spec Configurations
 -- ------------------------------------------------------------
-local SPEC_HAVOC     = 577
 local SPEC_VENGEANCE = 581
 local SPEC_DEVOURER  = 1480
 
@@ -668,12 +666,8 @@ local function UpdateVoidMetaDisplay(shouldShow)
         end
     end
 
-    local tbCfg = sfui.config.trackedBars
-    local pad   = (tbCfg and tbCfg.backdrop and tbCfg.backdrop.padding) or 1
     local width = metaContainer:GetWidth()
     if width <= 0 then width = 220 end
-    local innerW = width - 2 * pad
-    local innerH = (metaContainer:GetHeight() > 0 and metaContainer:GetHeight() or 12) - 2 * pad
 
     if inVoidMeta then
         -- In Void Metamorphosis: Collapsing Star build (0 to 30) - ReapMeter Form Violet (#735abf)

@@ -13,7 +13,6 @@ if sfui.isRetail then return end
 
 local B = sfui.recipes.browser
 local common = sfui.common
-local theme  = sfui.theme
 local GameTooltip = sfui.common.get_tooltip()
 local C_Item_GetItemInfoInstant = sfui.common.get_item_instant_info
 

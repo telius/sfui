@@ -10,8 +10,6 @@ local pairs = _G.pairs
 local ipairs = _G.ipairs
 local string = _G.string
 local table = _G.table
-local tonumber = _G.tonumber
-local tostring = _G.tostring
 local type = _G.type
 
 local BOE_RETRY_DELAY = 30 -- seconds before re-offering the bind dialog

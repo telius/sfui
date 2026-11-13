@@ -146,6 +146,37 @@ sfui.options.RegisterTab({
         location_cb:SetPoint("TOPLEFT", last_anchor, "BOTTOMLEFT", 0, -10)
         last_anchor = location_cb
 
+        if not sfui.isRetail then
+            local zone_levels_cb = create_checkbox(minimap_panel, "world map zone levels", function()
+                return SfuiDB == nil or SfuiDB.mapShowZoneLevels ~= false
+            end, function(checked)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.mapShowZoneLevels = checked
+                if sfui.zonelevels and sfui.zonelevels.Refresh then sfui.zonelevels.Refresh() end
+            end, "shows zone level ranges under hovered zone names on the continent world map.")
+            zone_levels_cb:SetPoint("TOPLEFT", last_anchor, "BOTTOMLEFT", 0, -10)
+
+            local zone_fishing_cb = create_checkbox(minimap_panel, "world map fishing skill", function()
+                return SfuiDB == nil or SfuiDB.mapShowZoneFishing ~= false
+            end, function(checked)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.mapShowZoneFishing = checked
+                if sfui.zonelevels and sfui.zonelevels.Refresh then sfui.zonelevels.Refresh() end
+            end, "shows required and 0%-getaway fishing skill on world map zone labels.")
+            zone_fishing_cb:SetPoint("TOPLEFT", zone_levels_cb, "BOTTOMLEFT", 0, -10)
+
+            local gather_skill_cb = create_checkbox(minimap_panel, "node tooltip gather skill", function()
+                return SfuiDB == nil or SfuiDB.tooltipGatherSkill ~= false
+            end, function(checked)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.tooltipGatherSkill = checked
+                if sfui.gatherskill and sfui.gatherskill.Refresh then sfui.gatherskill.Refresh() end
+            end, "shows required herbalism/mining skill colored by skill-up odds on world nodes and minimap blips.")
+            gather_skill_cb:SetPoint("TOPLEFT", zone_fishing_cb, "BOTTOMLEFT", 0, -10)
+
+            last_anchor = gather_skill_cb
+        end
+
         local autozoom_cb = create_checkbox(minimap_panel, "enable autozoom", "minimap_auto_zoom", function(checked)
             sfui.minimap.reset_zoom_timer()
         end, "automatically resets minimap zoom after a delay.")

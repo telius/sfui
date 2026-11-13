@@ -8,9 +8,6 @@ sfui.minimap = sfui.minimap or {}
 local _G = _G
 local string_format = _G.string.format
 local math_floor = _G.math.floor
-local math_max = _G.math.max
-local Minimap = _G.Minimap
-local MinimapCluster = _G.MinimapCluster
 local CreateFrame = _G.CreateFrame
 
 local weather_frame = nil

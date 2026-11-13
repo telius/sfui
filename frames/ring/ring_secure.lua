@@ -13,7 +13,6 @@ local SetOverrideBindingClick = _G.SetOverrideBindingClick
 local SecureHandlerSetFrameRef = _G.SecureHandlerSetFrameRef
 local SecureHandlerWrapScript  = _G.SecureHandlerWrapScript
 local tonumber                = _G.tonumber
-local tostring                = _G.tostring
 local pairs                   = _G.pairs
 local type                    = _G.type
 local pcall                   = _G.pcall
@@ -23,7 +22,44 @@ local cancelButton
 local secureButtons = {}
 local pendingPushes = {}
 local pendingBindings = {}
+local pendingKeyMap = nil
+local isApplyingBindings = false
 local buttonIndex = 0
+
+local MOD_COMBOS = {
+    "", "ALT-", "CTRL-", "ALT-CTRL-",
+    "SHIFT-", "ALT-SHIFT-", "CTRL-SHIFT-", "ALT-CTRL-SHIFT-",
+}
+
+local function normalize_key(key)
+    if type(key) ~= "string" or key == "" then return nil end
+    if key == "MiddleButton" then key = "BUTTON3" end
+    if key == "BUTTON1" or key == "BUTTON2" then return nil end
+    return key
+end
+
+local function split_chord(normKey)
+    local hasAlt = normKey:find("ALT%-") ~= nil
+    local hasCtrl = normKey:find("CTRL%-") ~= nil
+    local hasShift = normKey:find("SHIFT%-") ~= nil
+    local hasMeta = normKey:find("META%-") ~= nil
+    local baseKey = normKey:gsub("ALT%-", ""):gsub("CTRL%-", ""):gsub("SHIFT%-", ""):gsub("META%-", "")
+    return baseKey, hasAlt, hasCtrl, hasShift, hasMeta
+end
+
+local function combo_is_superset(combo, hasAlt, hasCtrl, hasShift)
+    if hasAlt and not combo:find("ALT%-") then return false end
+    if hasCtrl and not combo:find("CTRL%-") then return false end
+    if hasShift and not combo:find("SHIFT%-") then return false end
+    return true
+end
+
+local function key_is_free(comboKey)
+    local getAction = _G.GetBindingAction
+    if not getAction then return true end
+    local act = getAction(comboKey)
+    return act == nil or act == "" or act:match("^CLICK SfuiRing_") ~= nil
+end
 
 local function ensure_secure_header()
     if not secureHeader then
@@ -330,11 +366,101 @@ function secure.push_ring_slots(ringID, slots)
     apply_slots_to_button(btn, slots)
 end
 
+local function bind_modifier_variants(btn, normKey, claimed)
+    local baseKey, hasAlt, hasCtrl, hasShift, hasMeta = split_chord(normKey)
+    if not baseKey or baseKey == "" then return end
+    local metaPrefix = hasMeta and "META-" or ""
+    for i = 1, #MOD_COMBOS do
+        local combo = MOD_COMBOS[i]
+        if combo_is_superset(combo, hasAlt, hasCtrl, hasShift) then
+            local comboKey = combo .. metaPrefix .. baseKey
+            if comboKey ~= normKey and not claimed[comboKey] and key_is_free(comboKey) then
+                SetOverrideBindingClick(btn, true, comboKey, btn:GetName(), "LeftButton")
+                claimed[comboKey] = true
+            end
+        end
+    end
+end
+
 local function apply_button_binding(btn, key)
     ClearOverrideBindings(btn)
-    if key and key ~= "" then
-        SetOverrideBindingClick(btn, true, key, btn:GetName(), "LeftButton")
+    local normKey = normalize_key(key)
+    if normKey then
+        local claimed = { [normKey] = true }
+        SetOverrideBindingClick(btn, true, normKey, btn:GetName(), "LeftButton")
+        bind_modifier_variants(btn, normKey, claimed)
     end
+end
+
+function secure.is_applying_bindings()
+    return isApplyingBindings
+end
+
+function secure.get_modifier_sig(ringKeyMap)
+    if type(ringKeyMap) ~= "table" then return "" end
+    local getAction = _G.GetBindingAction
+    if not getAction then return "" end
+    local ids = {}
+    for ringID in pairs(ringKeyMap) do
+        ids[#ids + 1] = ringID
+    end
+    table.sort(ids)
+    local parts = {}
+    for _, ringID in ipairs(ids) do
+        local normKey = normalize_key(ringKeyMap[ringID])
+        if normKey then
+            local baseKey, hasAlt, hasCtrl, hasShift, hasMeta = split_chord(normKey)
+            if baseKey and baseKey ~= "" then
+                local metaPrefix = hasMeta and "META-" or ""
+                for i = 1, #MOD_COMBOS do
+                    local combo = MOD_COMBOS[i]
+                    if combo_is_superset(combo, hasAlt, hasCtrl, hasShift) then
+                        local comboKey = combo .. metaPrefix .. baseKey
+                        parts[#parts + 1] = ringID .. ":" .. comboKey .. "=" .. (getAction(comboKey) or "")
+                    end
+                end
+            end
+        else
+            parts[#parts + 1] = ringID .. "="
+        end
+    end
+    return table.concat(parts, ";")
+end
+
+--- apply coordinated override bindings + free modifier variants across all rings.
+--- defers to out-of-combat if player is currently in combat lockdown.
+--- @param ringKeyMap table
+function secure.apply_all_bindings(ringKeyMap)
+    if InCombatLockdown and InCombatLockdown() then
+        pendingKeyMap = ringKeyMap
+        return
+    end
+    pendingKeyMap = nil
+    for k in pairs(pendingBindings) do
+        pendingBindings[k] = nil
+    end
+
+    isApplyingBindings = true
+    for _, btn in pairs(secureButtons) do
+        ClearOverrideBindings(btn)
+    end
+
+    local claimed = {}
+    local normalized = {}
+    for ringID, rawKey in pairs(ringKeyMap or {}) do
+        local normKey = normalize_key(rawKey)
+        if normKey then
+            local btn = secure.get_or_create_button(ringID)
+            SetOverrideBindingClick(btn, true, normKey, btn:GetName(), "LeftButton")
+            claimed[normKey] = true
+            normalized[ringID] = { btn = btn, key = normKey }
+        end
+    end
+
+    for _, entry in pairs(normalized) do
+        bind_modifier_variants(entry.btn, entry.key, claimed)
+    end
+    isApplyingBindings = false
 end
 
 --- apply an override binding to the ring's secure button.
@@ -342,17 +468,27 @@ end
 --- @param ringID string
 --- @param key string|nil
 function secure.apply_binding(ringID, key)
+    if sfui.ring and sfui.ring.apply_all_bindings and not isApplyingBindings then
+        sfui.ring.apply_all_bindings()
+        return
+    end
     local btn = secure.get_or_create_button(ringID)
     if InCombatLockdown and InCombatLockdown() then
         pendingBindings[ringID] = key or false
         return
     end
+    isApplyingBindings = true
     apply_button_binding(btn, key)
+    isApplyingBindings = false
 end
 
 --- clear any active override binding for a ring.
 --- @param ringID string
 function secure.clear_binding(ringID)
+    if sfui.ring and sfui.ring.apply_all_bindings and not isApplyingBindings then
+        sfui.ring.apply_all_bindings()
+        return
+    end
     secure.apply_binding(ringID, nil)
 end
 
@@ -366,11 +502,22 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         pendingPushes[ringID] = nil
     end
 
-    for ringID, key in pairs(pendingBindings) do
-        local btn = secureButtons[ringID]
-        if btn then
-            apply_button_binding(btn, key ~= false and key or nil)
+    if pendingKeyMap then
+        local map = pendingKeyMap
+        pendingKeyMap = nil
+        secure.apply_all_bindings(map)
+        return
+    end
+
+    if next(pendingBindings) then
+        isApplyingBindings = true
+        for ringID, key in pairs(pendingBindings) do
+            local btn = secureButtons[ringID]
+            if btn then
+                apply_button_binding(btn, key ~= false and key or nil)
+            end
+            pendingBindings[ringID] = nil
         end
-        pendingBindings[ringID] = nil
+        isApplyingBindings = false
     end
 end)

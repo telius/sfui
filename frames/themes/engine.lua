@@ -202,7 +202,9 @@ function sfui.theme.ApplyThemeBarTexture(textureName)
     sfui.vehicle.set_bar_texture(texturePath)
     sfui.trackedbars.SetBarTexture(texturePath)
     sfui.tracker.blocks.SetBarTexture(texturePath)
-    sfui.tracker.helpers.timerbars.SetBarTexture(texturePath)
+    if sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.timerbars then
+        sfui.tracker.helpers.timerbars.SetBarTexture(texturePath)
+    end
     sfui.tracker.RequestRefresh()
 
     if sfui.experience and sfui.experience.SetBarTexture then
@@ -765,6 +767,41 @@ sfui.common.create_window = sfui.theme.create_window
 -- themes with window.style = "nineslice" and window.layout = "<NineSliceLayouts key>"
 -- get a native blizzard frame border on a child container above the flat fill.
 -- one container per layout is cached so switching themes never leaves stale pieces.
+local CORNER_SPECS = {
+    { key = "cornerTL", short = "TL", fallback = "heavybronze-horz-cornerbracket-TL", point = "TOPLEFT",     sx = -1, sy =  1 },
+    { key = "cornerTR", short = "TR", fallback = "heavybronze-horz-cornerbracket-TR", point = "TOPRIGHT",    sx =  1, sy =  1 },
+    { key = "cornerBL", short = "BL", fallback = "heavybronze-horz-cornerbracket-BL", point = "BOTTOMLEFT",  sx = -1, sy = -1 },
+    { key = "cornerBR", short = "BR", fallback = "heavybronze-horz-cornerbracket-BR", point = "BOTTOMRIGHT", sx =  1, sy = -1 },
+}
+local _cornerAtlasBuf = {}
+
+local function ensure_corners(holder, parent, subLevel)
+    if not holder.cornerTL then
+        for i = 1, 4 do
+            holder[CORNER_SPECS[i].key] = parent:CreateTexture(nil, "OVERLAY", nil, subLevel or 6)
+        end
+    end
+end
+
+local function hide_corners(holder)
+    if holder and holder.cornerTL then
+        for i = 1, 4 do
+            local t = holder[CORNER_SPECS[i].key]
+            if t then t:Hide() end
+        end
+    end
+end
+
+local function anchor_corners(holder, relTo, offset)
+    local off = offset or 0
+    for i = 1, 4 do
+        local c = CORNER_SPECS[i]
+        local t = holder[c.key]
+        t:ClearAllPoints()
+        t:SetPoint(c.point, relTo, c.point, c.sx * off, c.sy * off)
+    end
+end
+
 local function hide_sculpted_layers(frame)
     local layers = frame.sfuiThemeLayers
     if not layers then return end
@@ -779,12 +816,7 @@ local function hide_sculpted_layers(frame)
             p:Hide()
         end
     end
-    if layers.cornerTL then
-        layers.cornerTL:Hide()
-        layers.cornerTR:Hide()
-        layers.cornerBL:Hide()
-        layers.cornerBR:Hide()
-    end
+    hide_corners(layers)
 end
 
 local function hide_nineslice_layers(frame, keepLayout)
@@ -1400,17 +1432,7 @@ function sfui.theme.ApplyWindowStyle(frame, options)
             }
 
             -- Four sculpted corner brackets
-            local cornerTL = borderFrame:CreateTexture(nil, "OVERLAY", nil, 6)
-            frame.sfuiThemeLayers.cornerTL = cornerTL
-
-            local cornerTR = borderFrame:CreateTexture(nil, "OVERLAY", nil, 6)
-            frame.sfuiThemeLayers.cornerTR = cornerTR
-
-            local cornerBL = borderFrame:CreateTexture(nil, "OVERLAY", nil, 6)
-            frame.sfuiThemeLayers.cornerBL = cornerBL
-
-            local cornerBR = borderFrame:CreateTexture(nil, "OVERLAY", nil, 6)
-            frame.sfuiThemeLayers.cornerBR = cornerBR
+            ensure_corners(frame.sfuiThemeLayers, borderFrame, 6)
         end
 
         local layers = frame.sfuiThemeLayers
@@ -1451,14 +1473,7 @@ function sfui.theme.ApplyWindowStyle(frame, options)
             hasBorder = true
 
             -- Corner brackets anchored to the 4 corners of nativeBorder (Blizzard CharacterCreate pattern)
-            layers.cornerTL:ClearAllPoints()
-            layers.cornerTL:SetPoint("TOPLEFT", layers.nativeBorder, "TOPLEFT", 0, 0)
-            layers.cornerTR:ClearAllPoints()
-            layers.cornerTR:SetPoint("TOPRIGHT", layers.nativeBorder, "TOPRIGHT", 0, 0)
-            layers.cornerBL:ClearAllPoints()
-            layers.cornerBL:SetPoint("BOTTOMLEFT", layers.nativeBorder, "BOTTOMLEFT", 0, 0)
-            layers.cornerBR:ClearAllPoints()
-            layers.cornerBR:SetPoint("BOTTOMRIGHT", layers.nativeBorder, "BOTTOMRIGHT", 0, 0)
+            anchor_corners(layers, layers.nativeBorder, 0)
 
             local useTexturedBackdrop = (options.texturedBackdrop ~= false)
             if SfuiDB and (SfuiDB.themeTexturedBackdrop == false or (SfuiDB.theme and SfuiDB.theme.texturedBackdrop == false)) then
@@ -1498,14 +1513,7 @@ function sfui.theme.ApplyWindowStyle(frame, options)
                 mp.br:ClearAllPoints()
                 mp.br:SetPoint("BOTTOMRIGHT", layers.borderFrame, "BOTTOMRIGHT", 2, -8)
 
-                layers.cornerTL:ClearAllPoints()
-                layers.cornerTL:SetPoint("TOPLEFT", layers.borderFrame, "TOPLEFT", -2, 2)
-                layers.cornerTR:ClearAllPoints()
-                layers.cornerTR:SetPoint("TOPRIGHT", layers.borderFrame, "TOPRIGHT", 2, 2)
-                layers.cornerBL:ClearAllPoints()
-                layers.cornerBL:SetPoint("BOTTOMLEFT", layers.borderFrame, "BOTTOMLEFT", -2, -2)
-                layers.cornerBR:ClearAllPoints()
-                layers.cornerBR:SetPoint("BOTTOMRIGHT", layers.borderFrame, "BOTTOMRIGHT", 2, -2)
+                anchor_corners(layers, layers.borderFrame, 2)
 
                 mp.tl:SetAtlas(atlases.metalCornerTL, true)
                 mp.tr:SetAtlas(atlases.metalCornerTR, true)
@@ -1583,37 +1591,31 @@ function sfui.theme.ApplyWindowStyle(frame, options)
                     end
                 end
                 if useBronze then
-                    layers.cornerTL:ClearAllPoints()
-                    layers.cornerTL:SetPoint("TOPLEFT", layers.borderFrame, "TOPLEFT", -3, 3)
-                    layers.cornerTR:ClearAllPoints()
-                    layers.cornerTR:SetPoint("TOPRIGHT", layers.borderFrame, "TOPRIGHT", 3, 3)
-                    layers.cornerBL:ClearAllPoints()
-                    layers.cornerBL:SetPoint("BOTTOMLEFT", layers.borderFrame, "BOTTOMLEFT", -3, -3)
-                    layers.cornerBR:ClearAllPoints()
-                    layers.cornerBR:SetPoint("BOTTOMRIGHT", layers.borderFrame, "BOTTOMRIGHT", 3, -3)
+                    anchor_corners(layers, layers.borderFrame, 3)
                     hasBorder = true
                 end
             end
         end
 
-        local atlasTL = sfui.theme.GetCornerBracketAtlas("TL", theme)
-        local atlasTR = sfui.theme.GetCornerBracketAtlas("TR", theme)
-        local atlasBL = sfui.theme.GetCornerBracketAtlas("BL", theme)
-        local atlasBR = sfui.theme.GetCornerBracketAtlas("BR", theme)
-        if showBrackets and atlasTL and atlasTR and atlasBL and atlasBR then
-            layers.cornerTL:SetAtlas(atlasTL, true)
-            layers.cornerTR:SetAtlas(atlasTR, true)
-            layers.cornerBL:SetAtlas(atlasBL, true)
-            layers.cornerBR:SetAtlas(atlasBR, true)
-            layers.cornerTL:Show()
-            layers.cornerTR:Show()
-            layers.cornerBL:Show()
-            layers.cornerBR:Show()
+        local allCornersFound = showBrackets and true or false
+        if allCornersFound then
+            for i = 1, 4 do
+                local atlas = sfui.theme.GetCornerBracketAtlas(CORNER_SPECS[i].short, theme)
+                if not atlas then
+                    allCornersFound = false
+                    break
+                end
+                _cornerAtlasBuf[i] = atlas
+            end
+        end
+        if allCornersFound then
+            for i = 1, 4 do
+                local t = layers[CORNER_SPECS[i].key]
+                t:SetAtlas(_cornerAtlasBuf[i], true)
+                t:Show()
+            end
         else
-            layers.cornerTL:Hide()
-            layers.cornerTR:Hide()
-            layers.cornerBL:Hide()
-            layers.cornerBR:Hide()
+            hide_corners(layers)
         end
 
         if hasBorder then
@@ -2141,7 +2143,6 @@ end
 function sfui.theme.ApplyDropdownStyle(btn)
     if not btn then return end
     local activeID = sfui.theme.GetActiveThemeID()
-    local theme = registeredThemes[activeID] or registeredThemes.modern or {}
     local pal = sfui.theme.GetPalette()
     local mult = sfui.pixelScale or 1
     local isCamelot = (activeID == "camelot")
@@ -2385,7 +2386,6 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
     btn.isSelectedTab = (isSelected == true)
     registered_tabs[btn] = btn.isSelectedTab
     local activeID = sfui.theme.GetActiveThemeID()
-    local theme = registeredThemes[activeID] or registeredThemes.modern or {}
     local pal = sfui.theme.GetPalette()
     local isCamelot = (activeID == "camelot")
     local useAH = sfui.theme.IsAuctionHouseButtonActive()
@@ -2580,15 +2580,9 @@ end
 function sfui.theme.ApplyInputStyle(editBox)
     if not editBox or not editBox.SetBackdrop then return end
     registered_inputs[editBox] = true
-    local pal = sfui.theme.GetPalette()
     local isCamelot = sfui.theme.IsCamelotActive()
 
-    editBox:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-        insets   = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
+    editBox:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
 
     if isCamelot then
         editBox:SetBackdropColor(0.06, 0.05, 0.04, 0.95)
@@ -2605,7 +2599,6 @@ function sfui.theme.ApplyInputStyle(editBox)
             self:SetBackdropBorderColor(p.accentColor[1], p.accentColor[2], p.accentColor[3], 1)
         end)
         editBox:HookScript("OnEditFocusLost", function(self)
-            local p = sfui.theme.GetPalette()
             if sfui.theme.IsCamelotActive() then
                 self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.8)
             else
@@ -2889,7 +2882,7 @@ function sfui.theme.ApplyScrollBarStyle(scrollBar)
             if not downBtn:GetScript("OnClick") then
                 downBtn:SetScript("OnClick", function()
                     local cur = scrollBar:GetValue()
-                    local minV, maxV = scrollBar:GetMinMaxValues()
+                    local _, maxV = scrollBar:GetMinMaxValues()
                     local step = scrollBar:GetHeight() / 3
                     scrollBar:SetValue(math.min(maxV or (cur + step), cur + step))
                 end)
@@ -3121,12 +3114,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
             end
 
             -- Hide corner brackets, flat accent strip, and gear slot in card mode
-            if row.cornerTL then
-                row.cornerTL:Hide()
-                row.cornerTR:Hide()
-                row.cornerBL:Hide()
-                row.cornerBR:Hide()
-            end
+            hide_corners(row)
             if row.accent then row.accent:Hide() end
             if row.iconSlot then row.iconSlot:Hide() end
 
@@ -3211,64 +3199,30 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
             -- Sculpted Corner Brackets (Blizzard heavybronze corner brackets)
             local showBrackets = (SfuiDB and (SfuiDB.themeCornerBrackets ~= false and (not SfuiDB.theme or SfuiDB.theme.cornerBrackets ~= false)))
             if showBrackets then
-                if not row.cornerTL then
-                    row.cornerTL = row:CreateTexture(nil, "OVERLAY", nil, 6)
-                    row.cornerTR = row:CreateTexture(nil, "OVERLAY", nil, 6)
-                    row.cornerBL = row:CreateTexture(nil, "OVERLAY", nil, 6)
-                    row.cornerBR = row:CreateTexture(nil, "OVERLAY", nil, 6)
-                end
-
-                local tlAtlas = sfui.theme.GetCornerBracketAtlas("TL") or "heavybronze-horz-cornerbracket-TL"
-                local trAtlas = sfui.theme.GetCornerBracketAtlas("TR") or "heavybronze-horz-cornerbracket-TR"
-                local blAtlas = sfui.theme.GetCornerBracketAtlas("BL") or "heavybronze-horz-cornerbracket-BL"
-                local brAtlas = sfui.theme.GetCornerBracketAtlas("BR") or "heavybronze-horz-cornerbracket-BR"
+                ensure_corners(row, row, 6)
                 local bSize = 10
-
                 local bracketR, bracketG, bracketB = 1, 1, 1
                 if otherLoot then
                     bracketR, bracketG, bracketB = 0.80, 0.80, 0.85
                 end
 
-                if sfui.theme.HasAtlas(tlAtlas) then
-                    row.cornerTL:SetAtlas(tlAtlas, false)
-                    row.cornerTL:SetVertexColor(bracketR, bracketG, bracketB, 1)
-                    row.cornerTL:ClearAllPoints()
-                    row.cornerTL:SetPoint("TOPLEFT", row, "TOPLEFT", -1, 1)
-                    row.cornerTL:SetSize(bSize, bSize)
-                    row.cornerTL:Show()
-                else row.cornerTL:Hide() end
-
-                if sfui.theme.HasAtlas(trAtlas) then
-                    row.cornerTR:SetAtlas(trAtlas, false)
-                    row.cornerTR:SetVertexColor(bracketR, bracketG, bracketB, 1)
-                    row.cornerTR:ClearAllPoints()
-                    row.cornerTR:SetPoint("TOPRIGHT", row, "TOPRIGHT", 1, 1)
-                    row.cornerTR:SetSize(bSize, bSize)
-                    row.cornerTR:Show()
-                else row.cornerTR:Hide() end
-
-                if sfui.theme.HasAtlas(blAtlas) then
-                    row.cornerBL:SetAtlas(blAtlas, false)
-                    row.cornerBL:SetVertexColor(bracketR, bracketG, bracketB, 1)
-                    row.cornerBL:ClearAllPoints()
-                    row.cornerBL:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", -1, -1)
-                    row.cornerBL:SetSize(bSize, bSize)
-                    row.cornerBL:Show()
-                else row.cornerBL:Hide() end
-
-                if sfui.theme.HasAtlas(brAtlas) then
-                    row.cornerBR:SetAtlas(brAtlas, false)
-                    row.cornerBR:SetVertexColor(bracketR, bracketG, bracketB, 1)
-                    row.cornerBR:ClearAllPoints()
-                    row.cornerBR:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 1, -1)
-                    row.cornerBR:SetSize(bSize, bSize)
-                    row.cornerBR:Show()
-                else row.cornerBR:Hide() end
-            elseif row.cornerTL then
-                row.cornerTL:Hide()
-                row.cornerTR:Hide()
-                row.cornerBL:Hide()
-                row.cornerBR:Hide()
+                for i = 1, 4 do
+                    local c = CORNER_SPECS[i]
+                    local atlas = sfui.theme.GetCornerBracketAtlas(c.short) or c.fallback
+                    local t = row[c.key]
+                    if sfui.theme.HasAtlas(atlas) then
+                        t:SetAtlas(atlas, false)
+                        t:SetVertexColor(bracketR, bracketG, bracketB, 1)
+                        t:ClearAllPoints()
+                        t:SetPoint(c.point, row, c.point, c.sx, c.sy)
+                        t:SetSize(bSize, bSize)
+                        t:Show()
+                    else
+                        t:Hide()
+                    end
+                end
+            else
+                hide_corners(row)
             end
 
             -- Inlaid Enamel Quality Strip (Unique to Architectural Slate)
@@ -3341,12 +3295,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
         if row.iconSlot then row.iconSlot:Hide() end
         if row.iconBorder then row.iconBorder:Hide() end
         if row.badgeBox then row.badgeBox:Hide() end
-        if row.cornerTL then
-            row.cornerTL:Hide()
-            row.cornerTR:Hide()
-            row.cornerBL:Hide()
-            row.cornerBR:Hide()
-        end
+        hide_corners(row)
 
         if row.SetBackdrop then
             row:SetBackdrop({
@@ -3486,10 +3435,7 @@ local function _HideDecorElements(decorFrame)
     if decorFrame.topInset then decorFrame.topInset:Hide() end
     if decorFrame.leftInset then decorFrame.leftInset:Hide() end
     if decorFrame.botRim then decorFrame.botRim:Hide() end
-    if decorFrame.cornerTL then decorFrame.cornerTL:Hide() end
-    if decorFrame.cornerTR then decorFrame.cornerTR:Hide() end
-    if decorFrame.cornerBL then decorFrame.cornerBL:Hide() end
-    if decorFrame.cornerBR then decorFrame.cornerBR:Hide() end
+    hide_corners(decorFrame)
     if decorFrame.nameplateBG then decorFrame.nameplateBG:Hide() end
     if decorFrame.cornerCutTL then decorFrame.cornerCutTL:Hide() end
     if decorFrame.cornerCutTR then decorFrame.cornerCutTR:Hide() end
@@ -3872,24 +3818,18 @@ function sfui.theme.ApplyStatusBarStyle(bar, barType)
             cs = math.max(3, math.floor(barHeight))
         end
 
-        local corners = {
-            { key = "cornerTL", atlas = "heavybronze-horz-cornerbracket-TL", point = "TOPLEFT",     x = 0, y = 0 },
-            { key = "cornerTR", atlas = "heavybronze-horz-cornerbracket-TR", point = "TOPRIGHT",    x = 0, y = 0 },
-            { key = "cornerBL", atlas = "heavybronze-horz-cornerbracket-BL", point = "BOTTOMLEFT",  x = 0, y = 0 },
-            { key = "cornerBR", atlas = "heavybronze-horz-cornerbracket-BR", point = "BOTTOMRIGHT", x = 0, y = 0 },
-        }
-
         local hasBrackets = sfui.theme.HasAtlas and sfui.theme.HasAtlas("heavybronze-horz-cornerbracket-TL")
-        for _, c in ipairs(corners) do
+        for i = 1, 4 do
+            local c = CORNER_SPECS[i]
             if not decorFrame[c.key] then
                 decorFrame[c.key] = decorFrame:CreateTexture(nil, "OVERLAY", nil, 3)
             end
             local t = decorFrame[c.key]
             if hasBrackets and cs >= 4 then
                 t:ClearAllPoints()
-                t:SetPoint(c.point, backdrop, c.point, c.x, c.y)
+                t:SetPoint(c.point, backdrop, c.point, 0, 0)
                 t:SetSize(cs, cs)
-                t:SetAtlas(c.atlas, false)
+                t:SetAtlas(c.fallback, false)
                 t:Show()
             else
                 t:Hide()
@@ -3905,7 +3845,6 @@ function sfui.theme.ApplyCastBarDecoration(bar)
     if not bar then return end
     local activeID = sfui.theme.GetActiveThemeID()
     local theme    = registeredThemes[activeID] or registeredThemes.modern or {}
-    local pal      = sfui.theme.GetPalette()
     local bars_def = theme.bars or {}
     local isCamelot = (activeID == "camelot")
 

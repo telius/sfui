@@ -19,7 +19,6 @@ local PlaySound              = _G.PlaySound
 -- Using it directly from addon code taints the Lua execution environment and
 -- propagates into Blizzard's LFG stack (SetEntryTitle ADDON_ACTION_BLOCKED).
 -- All tooltip calls go through sfui.tooltip (private frame, common.lua §3.7).
-local C_Spell                = _G.C_Spell
 local C_Timer                = _G.C_Timer
 local C_LFGList              = _G.C_LFGList
 local UnitGroupRolesAssigned = _G.UnitGroupRolesAssigned

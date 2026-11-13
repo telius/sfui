@@ -11,15 +11,13 @@ local UnitIsDead = _G.UnitIsDead
 local UnitIsDeadOrGhost = _G.UnitIsDeadOrGhost
 local IsMounted = _G.IsMounted
 local UnitOnTaxi = _G.UnitOnTaxi
-local GetWeaponEnchantInfo = _G.GetWeaponEnchantInfo
-local GetInventoryItemLink = _G.GetInventoryItemLink
 local GetShapeshiftForm = _G.GetShapeshiftForm
 local GetTime = _G.GetTime
 local GetSpellInfo = _G.GetSpellInfo
 local C_Timer = _G.C_Timer
 local C_UnitAuras = _G.C_UnitAuras
 local C_Secrets = _G.C_Secrets
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 local function IsValidTexture(tex)
     if issecretvalue and issecretvalue(tex) then return true end

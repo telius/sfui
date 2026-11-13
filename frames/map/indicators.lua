@@ -10,7 +10,6 @@ local math_max = _G.math.max
 local InCombatLockdown = _G.InCombatLockdown
 local hooksecurefunc = _G.hooksecurefunc
 local UIParent = _G.UIParent
-local Minimap = _G.Minimap
 local MinimapCluster = _G.MinimapCluster
 
 -- ------------------------------------------------------------------------------

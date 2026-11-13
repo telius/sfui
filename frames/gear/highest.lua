@@ -12,7 +12,7 @@ local ipairs = _G.ipairs
 local string = _G.string
 local table = _G.table
 local wipe = _G.wipe
-local issecretvalue = _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 local FROSTBANE_TALENT_ID = 455993
 local BREATH_OF_SINDRAGOSA_ID_1 = 1249658

@@ -8,7 +8,6 @@
 
 local addonName, addon = ...
 sfui = sfui or {}
-local GameTooltip = sfui.common.get_tooltip()  -- private addon tooltip (methods.md §3.7.2)
 sfui.tracker = sfui.tracker or {}
 sfui.tracker.helpers = sfui.tracker.helpers or {}
 
@@ -18,7 +17,6 @@ sfui.tracker.helpers.findgroup = FindGroup
 local _G = _G
 local CreateFrame = _G.CreateFrame
 local InCombatLockdown = _G.InCombatLockdown
-local pcall = _G.pcall
 local table_insert, table_remove = _G.table.insert, _G.table.remove
 
 local buttonPool = {}

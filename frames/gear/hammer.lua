@@ -10,14 +10,13 @@ local CreateFrame                = _G.CreateFrame
 local UIParent                   = _G.UIParent
 local InCombatLockdown           = _G.InCombatLockdown
 local C_Timer                    = _G.C_Timer
-local C_Container                = _G.C_Container
 local C_Item                     = _G.C_Item
 local C_Traits                   = _G.C_Traits
 local C_TradeSkillUI             = _G.C_TradeSkillUI
 local C_ProfSpecs                = _G.C_ProfSpecs
 local GetInventoryItemLink = sfui.common.get_inventory_item_link
 local GetInventoryItemDurability = _G.GetInventoryItemDurability
-local issecretvalue              = _G.issecretvalue or (sfui.common and sfui.common.issecretvalue)
+local issecretvalue = sfui.common.issecretvalue
 local ipairs, tonumber, tostring = ipairs, tonumber, tostring
 local math_floor                 = math.floor
 local wipe                       = _G.wipe or table.wipe
@@ -702,7 +701,7 @@ function sfui.hammer.toggle_test_popup(enable)
 
     local popup = create_hammer_popup()
     if testModeActive then
-        local _, hammerName, hammerIcon = sfui.hammer.has_repair_hammer()
+        local _, _, hammerIcon = sfui.hammer.has_repair_hammer()
         local fallbackIcon = (C_Item and C_Item.GetItemIconByID and (C_Item.GetItemIconByID(238020) or C_Item.GetItemIconByID(225660) or C_Item.GetItemIconByID(198254))) or 134376
         popup.icon:SetTexture(hammerIcon or fallbackIcon)
         popup:SetAttribute("type", nil)
@@ -733,7 +732,7 @@ function sfui.hammer.update_hammer_popup()
         return
     end
 
-    local hasHammer, hammerName, hammerIcon, hammerItemID = sfui.hammer.has_repair_hammer()
+    local hasHammer, _, hammerIcon, hammerItemID = sfui.hammer.has_repair_hammer()
     if not hasHammer or not hammerItemID then
         if hammerPopup then hammerPopup:Hide() end
         currentTargetSlot = nil
@@ -832,7 +831,7 @@ function sfui.hammer.print_hammer_status(debugMode)
     p(string.format("  enabled: %s", (SfuiDB.enableMasterHammer ~= false) and "|cff00ff00yes|r" or "|cffff0000no|r"))
 
     sfui.hammer.reset_caches()
-    local carried, byExpac, prim = sfui.hammer.get_carried_hammers(true)
+    local carried, _, prim = sfui.hammer.get_carried_hammers(true)
     if #carried > 0 then
         p(string.format("  hammers in bags (%d found):", #carried))
         for _, h in ipairs(carried) do

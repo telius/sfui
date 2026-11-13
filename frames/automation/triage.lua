@@ -4,7 +4,6 @@ sfui.triage = sfui.triage or {}
 local triage = sfui.triage
 
 local common = sfui.common
-local issecretvalue = common.issecretvalue or _G.issecretvalue
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/automation/triage.lua
@@ -40,7 +39,6 @@ local ClearCursor              = _G.ClearCursor
 local CursorHasItem            = _G.CursorHasItem
 
 local math_max                 = math.max
-local math_min                 = math.min
 local table_sort               = table.sort
 local table_insert             = table.insert
 local ipairs                   = ipairs
@@ -1358,7 +1356,6 @@ execute_purge_candidate = function(cand, isDown)
     end
 
     if not cand then
-        local now = GetTime and GetTime() or 0
         if (now - lastNoExcessNoticeTime) > 1.5 then
             lastNoExcessNoticeTime = now
             if get_soul_shard_data then
@@ -1623,7 +1620,7 @@ function triage.EvaluateTriage()
     end
 
     -- Free slots <= threshold: full inventory triage scan
-    local candidates, cType = find_candidates(false)
+    local candidates = find_candidates(false)
     if not candidates or #candidates == 0 then
         if promptFrame and promptFrame:IsShown() then
             promptFrame:Hide()

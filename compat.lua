@@ -25,7 +25,7 @@ local WOW_PROJECT_CAMELOT = _G.WOW_PROJECT_CAMELOT or 18
 local PROJECT_ID = _G.WOW_PROJECT_ID or 1
 
 -- Inspect client version from GetBuildInfo() to accurately distinguish Classic Forever from Retail
-local versionStr, buildStr, dateStr, tocVersionNum = _G.GetBuildInfo()
+local versionStr, buildStr, _, tocVersionNum = _G.GetBuildInfo()
 tocVersionNum = tonumber(tocVersionNum) or 0
 
 -- Classic Forever / Camelot uses WOW_PROJECT_CAMELOT (18) or WOW_PROJECT_MAINLINE (1) with tocVersion 16001 (build 1.60.x)

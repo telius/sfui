@@ -18,9 +18,8 @@ local GetNumQuestLogEntries = _G.GetNumQuestLogEntries
 local GetQuestProgressBarPercent = _G.GetQuestProgressBarPercent
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local InCombatLockdown = _G.InCombatLockdown
-local QuestMapFrame_OpenToQuestDetails = _G.QuestMapFrame_OpenToQuestDetails
 
-local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
+local ipairs, pairs, tostring = _G.ipairs, _G.pairs, _G.tostring
 local math_floor = math.floor
 local table_insert = _G.table.insert
 local string_format = string.format

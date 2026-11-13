@@ -16,10 +16,9 @@ local C_HousingDecor = _G.C_HousingDecor
 local C_TransmogCollection = _G.C_TransmogCollection
 local C_MountJournal = _G.C_MountJournal
 local C_SuperTrack = _G.C_SuperTrack
-local C_Item = _G.C_Item
 local Enum = _G.Enum
 
-local select, ipairs, type, tostring = _G.select, _G.ipairs, _G.type, _G.tostring
+local select, ipairs, tostring = _G.select, _G.ipairs, _G.tostring
 local IsModifiedClick = _G.IsModifiedClick
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local DressUpVisual = _G.DressUpVisual
@@ -28,14 +27,10 @@ local table_insert = _G.table.insert
 
 local TYPE_APPEARANCE = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Appearance) or 0
 local TYPE_MOUNT      = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Mount) or 1
-local TYPE_ACHIEVE    = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Achievement) or 2
 local TYPE_DECOR      = (Enum and Enum.ContentTrackingType and Enum.ContentTrackingType.Decor) or 3
 
-local TARGET_ENCOUNTER  = (Enum and Enum.ContentTrackingTargetType and Enum.ContentTrackingTargetType.JournalEncounter) or 0
-local TARGET_VENDOR     = (Enum and Enum.ContentTrackingTargetType and Enum.ContentTrackingTargetType.Vendor) or 1
 local TARGET_ACHIEVE    = (Enum and Enum.ContentTrackingTargetType and Enum.ContentTrackingTargetType.Achievement) or 2
 local TARGET_PROFESSION = (Enum and Enum.ContentTrackingTargetType and Enum.ContentTrackingTargetType.Profession) or 3
-local TARGET_QUEST      = (Enum and Enum.ContentTrackingTargetType and Enum.ContentTrackingTargetType.Quest) or 4
 
 local STOP_MANUAL = (Enum and Enum.ContentTrackingStopType and Enum.ContentTrackingStopType.Manual) or 2
 

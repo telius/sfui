@@ -2,7 +2,6 @@ local sfui                   = _G.sfui or {}
 sfui.worldevents             = sfui.worldevents or {}
 
 local g                      = sfui.config
-local common                 = sfui.common
 local cfg                    = g.worldevents or {}
 
 -- ─── Localize Globals for Zero-Taint & High Performance ─────────────────────
@@ -496,7 +495,7 @@ function sfui.worldevents.OnTimerTick(elapsed)
 
     for _, ev in ipairs(cachedEvents) do
         local oldText = ev.timeLeftText
-        local newText, remSec = FormatEventTime(ev, now)
+        local newText = FormatEventTime(ev, now)
         if oldText ~= newText then
             ev.timeLeftText = newText
             anyTextChanged = true
@@ -744,7 +743,7 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                             pObj.finished = false
                                             pObj.barText = ""
                                         else
-                                            local pct, lCur, lMax, customText = ExtractProgressValues(dInfo.leftBarValue,
+                                            local pct, _, _, customText = ExtractProgressValues(dInfo.leftBarValue,
                                                 dInfo.leftBarMin, dInfo.leftBarMax, nil, rawText, rawTooltip)
 
                                             pObj.text = string_format("%s (%d%%)", lbl, pct)
@@ -778,7 +777,7 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                             pObj.barText = ""
                                             pObj.finished = false
                                         else
-                                            local pct, curV, maxV, customText = ExtractProgressValues(cbInfo.barValue,
+                                            local pct = ExtractProgressValues(cbInfo.barValue,
                                                 cbInfo.barMinValue, cbInfo.barMaxValue, nil, nil, rawTooltip)
                                             pObj.numFulfilled = pct
                                             pObj.numRequired = 100
@@ -821,7 +820,7 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                             local pct                         = 0
 
                                             -- Check tooltip first for explicit percent or fraction
-                                            local textPct, tC, tM, customText = CheckStringProgress(rawTooltip)
+                                            local textPct, tC, tM = CheckStringProgress(rawTooltip)
                                             if textPct then
                                                 pct = textPct
                                                 if tC and tM then
@@ -922,7 +921,7 @@ function sfui.worldevents.ScanEvents(targetList, acquireFunc)
                                             pObj.finished = false
                                             pObj.barText = ""
                                         else
-                                            local pct, curV, maxV, customText = ExtractProgressValues(
+                                            local pct = ExtractProgressValues(
                                             towInfo.currentValue, towInfo.minValue, towInfo.maxValue, nil, nil,
                                                 rawTooltip)
                                             pObj.text = string_format("%s (%d%%)", lbl, pct)

@@ -25,36 +25,28 @@ end
 
 local _G                                      = _G
 local C_QuestLog                              = _G.C_QuestLog
-local C_TaskQuest                             = _G.C_TaskQuest
 local C_SuperTrack                            = _G.C_SuperTrack
-local C_PlayerInfo                            = _G.C_PlayerInfo
 local Enum                                    = _G.Enum
-local Constants                               = _G.Constants
 local GetNumAutoQuestPopUps                   = _G.GetNumAutoQuestPopUps
 local GetAutoQuestPopUp                       = _G.GetAutoQuestPopUp
 local GetQuestLogTitle                        = _G.GetQuestLogTitle
 local GetNumQuestLogEntries                   = _G.GetNumQuestLogEntries
 local GetQuestProgressBarPercent              = _G.GetQuestProgressBarPercent
-local GetRealZoneText                         = _G.GetRealZoneText
-local GetZoneText                             = _G.GetZoneText
 local IsInGroup                               = _G.IsInGroup
 local InCombatLockdown                        = _G.InCombatLockdown
 local IsShiftKeyDown                          = _G.IsShiftKeyDown
 local IsControlKeyDown                        = _G.IsControlKeyDown
 local IsAltKeyDown                            = _G.IsAltKeyDown
-local QuestMapFrame_OpenToQuestDetails        = _G.QuestMapFrame_OpenToQuestDetails
 
-local ipairs, pairs, type, tonumber, tostring = _G.ipairs, _G.pairs, _G.type, _G.tonumber, _G.tostring
+local ipairs, pairs, type, tonumber = _G.ipairs, _G.pairs, _G.type, _G.tonumber
 local math_floor                              = math.floor
 local table_insert, table_sort                = _G.table.insert, _G.table.sort
 local string_format                           = string.format
 
-local issecretvalue                           = sfui.common.issecretvalue
 
 -- ─────────────────────────────────────────────────────────
 --  HELPERS & CACHE
 -- ─────────────────────────────────────────────────────────
-local Difficulty                              = sfui.tracker.helpers.difficulty
 local Waypoints                               = sfui.tracker.helpers.waypoints
 local TimerBars                               = sfui.tracker.helpers.timerbars
 local Items                                   = sfui.tracker.helpers.items
@@ -416,7 +408,7 @@ function QuestsModule:IsEnabled()
 end
 
 function QuestsModule:BuildBlocks(container)
-    local state = GetQLState()
+    GetQLState()
 
     local superTrackedQuestID = nil
     if C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID then

@@ -3,7 +3,6 @@ sfui = sfui or {}
 sfui.threat = sfui.threat or {}
 
 local g      = sfui.config
-local common = sfui.common
 local cfg    = (g and g.threatBar) or {}
 
 -- ─── Client Gate ─────────────────────────────────────────────────────────────
@@ -22,7 +21,7 @@ local UnitDetailedThreatSituation  = _G.UnitDetailedThreatSituation
 local GetThreatStatusColor         = _G.GetThreatStatusColor
 local math_floor                   = math.floor
 local type                         = _G.type
-local issecretvalue                = common.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 -- ─── Frame Storage ───────────────────────────────────────────────────────────
 local threatBar

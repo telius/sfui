@@ -35,8 +35,6 @@ local GetQuestLogRewardXP = _G.GetQuestLogRewardXP
 local C_Reputation = _G.C_Reputation
 local C_MajorFactions = _G.C_MajorFactions
 local C_GossipInfo = _G.C_GossipInfo
-local C_CurrencyInfo = _G.C_CurrencyInfo
-local Constants = _G.Constants
 local GetWatchedFactionInfo = _G.GetWatchedFactionInfo
 local FACTION_BAR_COLORS = _G.FACTION_BAR_COLORS
 
@@ -181,7 +179,7 @@ function data.GetQuestXPData(maxXP)
     elseif _G.GetNumQuestLogEntries and _G.GetQuestLogTitle then
         local numEntries = _G.GetNumQuestLogEntries() or 0
         for i = 1, numEntries do
-            local title, _, _, isHeader, _, isComplete, _, questID = _G.GetQuestLogTitle(i)
+            local _, _, _, isHeader, _, isComplete, _, questID = _G.GetQuestLogTitle(i)
             if not isHeader and questID and (isComplete == 1 or isComplete == true) then
                 local xp = (GetQuestLogRewardXP and GetQuestLogRewardXP(questID)) or 0
                 if xp > 0 then

@@ -5,12 +5,10 @@ sfui.options = sfui.options or {}
 local g = sfui.config
 local common = sfui.common
 
-local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
 local LibStub = _G.LibStub
 local ipairs = _G.ipairs
 local pairs = _G.pairs
-local tostring = _G.tostring
 local string_lower = string.lower
 
 sfui.options.RegisterTab({

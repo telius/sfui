@@ -22,15 +22,10 @@ local C_KeyBindings                 = _G.C_KeyBindings
 local GetBindingKey                 = _G.GetBindingKey
 local GetTime                       = _G.GetTime
 local tostring                      = _G.tostring
-local SetCVar                       = _G.SetCVar
-local GetCVar                       = _G.GetCVar
 local GetNumLootItems               = _G.GetNumLootItems
 local LootSlot                      = _G.LootSlot
-local IsSpellKnown                  = _G.IsSpellKnown
-local IsPlayerSpell                 = _G.IsPlayerSpell
 local GetProfessions                = _G.GetProfessions
 local GetProfessionInfo             = _G.GetProfessionInfo
-local C_Spell                       = _G.C_Spell
 local C_SpellBook                   = _G.C_SpellBook
 local ipairs, pairs                 = _G.ipairs, _G.pairs
 local wipe                          = _G.wipe or table.wipe or
@@ -176,7 +171,6 @@ end
 
 -- ─── Skill & Spell Detection (Cross-Client) ──────────────────────────────────
 
-local isClassicEra = (_G.WOW_PROJECT_ID ~= nil and _G.WOW_PROJECT_CLASSIC ~= nil and _G.WOW_PROJECT_ID == _G.WOW_PROJECT_CLASSIC)
 
 local function is_classic_client()
     return not sfui.isRetail

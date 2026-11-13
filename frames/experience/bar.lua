@@ -14,7 +14,6 @@ local barModule = sfui.experience.bar
 local _G = _G
 local CreateFrame = _G.CreateFrame
 local math_min = math.min
-local math_max = math.max
 local math_floor = math.floor
 local string_format = string.format
 local tostring = _G.tostring
@@ -142,12 +141,7 @@ function barModule.ApplyTheme()
     if sfui.theme and sfui.theme.ApplyStatusBarStyle then
         sfui.theme.ApplyStatusBarStyle(container, "xp")
     else
-        container:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 1,
-            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-        })
+        container:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         container:SetBackdropColor(0.04, 0.04, 0.04, 0.85)
         container:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
     end

@@ -163,12 +163,7 @@ function repModule.ApplyTheme()
     if sfui.theme and sfui.theme.ApplyStatusBarStyle then
         sfui.theme.ApplyStatusBarStyle(repContainer, "xp")
     else
-        repContainer:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 1,
-            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-        })
+        repContainer:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         repContainer:SetBackdropColor(0.04, 0.04, 0.04, 0.85)
         repContainer:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
     end

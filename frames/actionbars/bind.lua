@@ -19,12 +19,7 @@ local IsAltKeyDown = _G.IsAltKeyDown
 local IsControlKeyDown = _G.IsControlKeyDown
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local IsMetaKeyDown = _G.IsMetaKeyDown
-local hooksecurefunc = _G.hooksecurefunc
 local ipairs = _G.ipairs
-local pairs = _G.pairs
-local type = _G.type
-local tostring = _G.tostring
-local tinsert = _G.table.insert
 local math_max = _G.math.max
 
 local BINDING_SET_ACCOUNT = (_G.Enum and _G.Enum.BindingSet and _G.Enum.BindingSet.Account) or 1
@@ -94,53 +89,9 @@ function bind:GetButtonLabel(btn)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Hover Overlay Frame
+--  Lazy Bind Overlay, Tooltip & Dialog Creation
 -- ─────────────────────────────────────────────────────────────────────────────
-local overlay = CreateFrame("Frame", "sfui_KeybindOverlay", UIParent, "BackdropTemplate")
-overlay:SetFrameStrata("DIALOG")
-overlay:SetFrameLevel(99)
-overlay:EnableMouse(true)
-overlay:EnableKeyboard(true)
-overlay:EnableMouseWheel(true)
-overlay:Hide()
-bind.overlay = overlay
-
-if sfui.common and sfui.common.set_pixel_snapping then
-    sfui.common.set_pixel_snapping(overlay)
-end
-
-overlay:SetBackdrop({
-    bgFile = "Interface/Buttons/WHITE8X8",
-    edgeFile = "Interface/Buttons/WHITE8X8",
-    edgeSize = 1,
-    insets = { left = 0, right = 0, top = 0, bottom = 0 },
-})
-overlay:SetBackdropColor(0, 0.4, 0.8, 0.15)
-local accent = (sfui.config and sfui.config.colors and sfui.config.colors.accent) or { 0.4, 0.9, 1.0 }
-overlay:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1.0)
-
--- ─────────────────────────────────────────────────────────────────────────────
---  Tooltip Frame
--- ─────────────────────────────────────────────────────────────────────────────
-local tip = CreateFrame("Frame", "sfui_KeybindTooltip", UIParent, "BackdropTemplate")
-tip:SetFrameStrata("TOOLTIP")
-tip:SetFrameLevel(100)
-tip:SetClampedToScreen(true)
-tip:Hide()
-bind.tooltip = tip
-
-if sfui.common and sfui.common.set_pixel_snapping then
-    sfui.common.set_pixel_snapping(tip)
-end
-
-tip:SetBackdrop({
-    bgFile = "Interface/Buttons/WHITE8X8",
-    edgeFile = "Interface/Buttons/WHITE8X8",
-    edgeSize = 1,
-    insets = { left = 0, right = 0, top = 0, bottom = 0 },
-})
-tip:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
-tip:SetBackdropBorderColor(0.15, 0.15, 0.15, 1.0)
+local overlay, tip, dialog
 
 local function get_font_file()
     return (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
@@ -148,33 +99,8 @@ local function get_font_file()
         or "Fonts\\FRIZQT__.TTF"
 end
 
-local fontFile = get_font_file()
-
-local titleFs = tip:CreateFontString(nil, "OVERLAY")
-titleFs:SetFont(fontFile, 12, "OUTLINE")
-titleFs:SetPoint("TOPLEFT", tip, "TOPLEFT", 8, -6)
-titleFs:SetTextColor(accent[1], accent[2], accent[3], 1.0)
-tip.title = titleFs
-
-local cmdFs = tip:CreateFontString(nil, "OVERLAY")
-cmdFs:SetFont(fontFile, 10, "")
-cmdFs:SetPoint("TOPLEFT", titleFs, "BOTTOMLEFT", 0, -2)
-cmdFs:SetTextColor(0.65, 0.65, 0.65, 1.0)
-tip.cmd = cmdFs
-
-local bindFs = tip:CreateFontString(nil, "OVERLAY")
-bindFs:SetFont(fontFile, 11, "")
-bindFs:SetPoint("TOPLEFT", cmdFs, "BOTTOMLEFT", 0, -4)
-bindFs:SetTextColor(1, 1, 1, 1.0)
-tip.bindings = bindFs
-
-local hintFs = tip:CreateFontString(nil, "OVERLAY")
-hintFs:SetFont(fontFile, 9, "")
-hintFs:SetPoint("TOPLEFT", bindFs, "BOTTOMLEFT", 0, -4)
-hintFs:SetTextColor(0.5, 0.5, 0.5, 1.0)
-tip.hint = hintFs
-
 function bind:UpdateTooltip()
+    if not tip then return end
     local btn = bind.currentButton
     if not btn or not bind.isActive then
         tip:Hide()
@@ -269,35 +195,8 @@ function bind:ProcessInputKey(key)
     end
 end
 
-overlay:SetScript("OnKeyDown", function(self, key)
-    bind:ProcessInputKey(key)
-end)
-
-overlay:SetScript("OnMouseDown", function(self, button)
-    if button == "LeftButton" or button == "RightButton" then
-        return
-    end
-    local converted = convert_mouse_button(button)
-    if converted then
-        bind:ProcessInputKey(converted)
-    end
-end)
-
-overlay:SetScript("OnMouseWheel", function(self, delta)
-    local key = delta > 0 and "MOUSEWHEELUP" or "MOUSEWHEELDOWN"
-    bind:ProcessInputKey(key)
-end)
-
-overlay:SetScript("OnLeave", function(self)
-    if not self:IsMouseOver() then
-        self:Hide()
-        if bind.tooltip then bind.tooltip:Hide() end
-        bind.currentButton = nil
-    end
-end)
-
 function bind.SetHoveredButton(button)
-    if not bind.isActive or InCombatLockdown() then return end
+    if not bind.isActive or not overlay or InCombatLockdown() then return end
     if not button or not button:IsShown() then return end
 
     bind.currentButton = button
@@ -308,85 +207,167 @@ function bind.SetHoveredButton(button)
     bind:UpdateTooltip()
 end
 
--- ─────────────────────────────────────────────────────────────────────────────
---  Dialog Frame
--- ─────────────────────────────────────────────────────────────────────────────
-local dialog = CreateFrame("Frame", "sfui_KeybindDialog", UIParent, "BackdropTemplate")
-dialog:SetSize(340, 130)
-dialog:SetPoint("CENTER", UIParent, "CENTER", 0, 150)
-dialog:SetFrameStrata("DIALOG")
-dialog:SetFrameLevel(98)
-dialog:SetClampedToScreen(true)
-dialog:EnableMouse(true)
-dialog:SetMovable(true)
-dialog:RegisterForDrag("LeftButton")
-dialog:SetScript("OnDragStart", function(self) self:StartMoving() end)
-dialog:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-dialog:Hide()
-bind.dialog = dialog
+local function ensure_bind_frames()
+    if overlay then return end
 
-if sfui.common and sfui.common.set_pixel_snapping then
-    sfui.common.set_pixel_snapping(dialog)
-end
+    local accent = (sfui.config and sfui.config.colors and sfui.config.colors.accent) or { 0.4, 0.9, 1.0 }
+    local fontFile = get_font_file()
 
-dialog:SetBackdrop({
-    bgFile = "Interface/Buttons/WHITE8X8",
-    edgeFile = "Interface/Buttons/WHITE8X8",
-    edgeSize = 1,
-    insets = { left = 0, right = 0, top = 0, bottom = 0 },
-})
-dialog:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
-dialog:SetBackdropBorderColor(0.15, 0.15, 0.15, 1.0)
+    overlay = CreateFrame("Frame", "sfui_KeybindOverlay", UIParent, "BackdropTemplate")
+    overlay:SetFrameStrata("DIALOG")
+    overlay:SetFrameLevel(99)
+    overlay:EnableMouse(true)
+    overlay:EnableKeyboard(true)
+    overlay:EnableMouseWheel(true)
+    overlay:Hide()
+    bind.overlay = overlay
 
-local headerText = dialog:CreateFontString(nil, "OVERLAY")
-headerText:SetFont(fontFile, 13, "OUTLINE")
-headerText:SetPoint("TOPLEFT", dialog, "TOPLEFT", 14, -12)
-headerText:SetTextColor(accent[1], accent[2], accent[3], 1.0)
-headerText:SetText("quick keybind mode")
-
-local descText = dialog:CreateFontString(nil, "OVERLAY")
-descText:SetFont(fontFile, 11, "")
-descText:SetPoint("TOPLEFT", headerText, "BOTTOMLEFT", 0, -6)
-descText:SetPoint("RIGHT", dialog, "RIGHT", -14, 0)
-descText:SetJustifyH("LEFT")
-descText:SetTextColor(0.75, 0.75, 0.75, 1.0)
-descText:SetText("hover over any action button and press a key to bind it.\npress escape to clear bindings for hovered button.")
-
-local CreateCheckbox = (sfui.common and sfui.common.create_checkbox) or (sfui.widgets and sfui.widgets.create_checkbox)
-local perCharCB = CreateCheckbox(dialog, "character specific keybindings", function()
-    return GetCurrentBindingSet() == BINDING_SET_CHARACTER
-end, function(checked)
-    local newSet = checked and BINDING_SET_CHARACTER or BINDING_SET_ACCOUNT
-    LoadBindings(newSet)
-    if sfui.actionbars and sfui.actionbars.UpdateAllBindings then
-        sfui.actionbars.UpdateAllBindings()
+    if sfui.common and sfui.common.set_pixel_snapping then
+        sfui.common.set_pixel_snapping(overlay)
     end
-    if sfui.common and sfui.common.print then
-        sfui.common.print(checked and "switched to character-specific keybindings." or "switched to account-wide keybindings.")
+
+    overlay:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
+    overlay:SetBackdropColor(0, 0.4, 0.8, 0.15)
+    overlay:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1.0)
+
+    overlay:SetScript("OnKeyDown", function(_, key)
+        bind:ProcessInputKey(key)
+    end)
+
+    overlay:SetScript("OnMouseDown", function(_, button)
+        if button == "LeftButton" or button == "RightButton" then
+            return
+        end
+        local converted = convert_mouse_button(button)
+        if converted then
+            bind:ProcessInputKey(converted)
+        end
+    end)
+
+    overlay:SetScript("OnMouseWheel", function(_, delta)
+        local key = delta > 0 and "MOUSEWHEELUP" or "MOUSEWHEELDOWN"
+        bind:ProcessInputKey(key)
+    end)
+
+    overlay:SetScript("OnLeave", function(self)
+        if not self:IsMouseOver() then
+            self:Hide()
+            if bind.tooltip then bind.tooltip:Hide() end
+            bind.currentButton = nil
+        end
+    end)
+
+    tip = CreateFrame("Frame", "sfui_KeybindTooltip", UIParent, "BackdropTemplate")
+    tip:SetFrameStrata("TOOLTIP")
+    tip:SetFrameLevel(100)
+    tip:SetClampedToScreen(true)
+    tip:Hide()
+    bind.tooltip = tip
+
+    if sfui.common and sfui.common.set_pixel_snapping then
+        sfui.common.set_pixel_snapping(tip)
     end
-end, "when enabled, keybinding changes are saved only for this character.")
-perCharCB:SetPoint("TOPLEFT", descText, "BOTTOMLEFT", 0, -10)
 
-local CreateFlatButton = sfui.common.create_flat_button
+    tip:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
+    tip:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
+    tip:SetBackdropBorderColor(0.15, 0.15, 0.15, 1.0)
 
-local discardBtn = CreateFlatButton(dialog, "discard", 150, 22, function()
-    sfui.actionbars.DeactivateBindMode(false)
-end)
-discardBtn:SetPoint("BOTTOMLEFT", dialog, "BOTTOMLEFT", 14, 12)
+    local titleFs = tip:CreateFontString(nil, "OVERLAY")
+    titleFs:SetFont(fontFile, 12, "OUTLINE")
+    titleFs:SetPoint("TOPLEFT", tip, "TOPLEFT", 8, -6)
+    titleFs:SetTextColor(accent[1], accent[2], accent[3], 1.0)
+    tip.title = titleFs
 
-local saveBtn = CreateFlatButton(dialog, "save", 150, 22, function()
-    sfui.actionbars.DeactivateBindMode(true)
-end)
-saveBtn:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -14, 12)
+    local cmdFs = tip:CreateFontString(nil, "OVERLAY")
+    cmdFs:SetFont(fontFile, 10, "")
+    cmdFs:SetPoint("TOPLEFT", titleFs, "BOTTOMLEFT", 0, -2)
+    cmdFs:SetTextColor(0.65, 0.65, 0.65, 1.0)
+    tip.cmd = cmdFs
 
-if sfui.common and sfui.common.register_special_frame then
-    sfui.common.register_special_frame(dialog)
-end
-dialog:SetScript("OnHide", function(self)
-    if bind.isActive then
+    local bindFs = tip:CreateFontString(nil, "OVERLAY")
+    bindFs:SetFont(fontFile, 11, "")
+    bindFs:SetPoint("TOPLEFT", cmdFs, "BOTTOMLEFT", 0, -4)
+    bindFs:SetTextColor(1, 1, 1, 1.0)
+    tip.bindings = bindFs
+
+    local hintFs = tip:CreateFontString(nil, "OVERLAY")
+    hintFs:SetFont(fontFile, 9, "")
+    hintFs:SetPoint("TOPLEFT", bindFs, "BOTTOMLEFT", 0, -4)
+    hintFs:SetTextColor(0.5, 0.5, 0.5, 1.0)
+    tip.hint = hintFs
+
+    dialog = CreateFrame("Frame", "sfui_KeybindDialog", UIParent, "BackdropTemplate")
+    dialog:SetSize(340, 130)
+    dialog:SetPoint("CENTER", UIParent, "CENTER", 0, 150)
+    dialog:SetFrameStrata("DIALOG")
+    dialog:SetFrameLevel(98)
+    dialog:SetClampedToScreen(true)
+    dialog:EnableMouse(true)
+    dialog:SetMovable(true)
+    dialog:RegisterForDrag("LeftButton")
+    dialog:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    dialog:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    dialog:Hide()
+    bind.dialog = dialog
+
+    if sfui.common and sfui.common.set_pixel_snapping then
+        sfui.common.set_pixel_snapping(dialog)
+    end
+
+    dialog:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
+    dialog:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
+    dialog:SetBackdropBorderColor(0.15, 0.15, 0.15, 1.0)
+
+    local headerText = dialog:CreateFontString(nil, "OVERLAY")
+    headerText:SetFont(fontFile, 13, "OUTLINE")
+    headerText:SetPoint("TOPLEFT", dialog, "TOPLEFT", 14, -12)
+    headerText:SetTextColor(accent[1], accent[2], accent[3], 1.0)
+    headerText:SetText("quick keybind mode")
+
+    local descText = dialog:CreateFontString(nil, "OVERLAY")
+    descText:SetFont(fontFile, 11, "")
+    descText:SetPoint("TOPLEFT", headerText, "BOTTOMLEFT", 0, -6)
+    descText:SetPoint("RIGHT", dialog, "RIGHT", -14, 0)
+    descText:SetJustifyH("LEFT")
+    descText:SetTextColor(0.75, 0.75, 0.75, 1.0)
+    descText:SetText("hover over any action button and press a key to bind it.\npress escape to clear bindings for hovered button.")
+
+    local CreateCheckbox = (sfui.common and sfui.common.create_checkbox) or (sfui.widgets and sfui.widgets.create_checkbox)
+    local perCharCB = CreateCheckbox(dialog, "character specific keybindings", function()
+        return GetCurrentBindingSet() == BINDING_SET_CHARACTER
+    end, function(checked)
+        local newSet = checked and BINDING_SET_CHARACTER or BINDING_SET_ACCOUNT
+        LoadBindings(newSet)
+        if sfui.actionbars and sfui.actionbars.UpdateAllBindings then
+            sfui.actionbars.UpdateAllBindings()
+        end
+        if sfui.common and sfui.common.print then
+            sfui.common.print(checked and "switched to character-specific keybindings." or "switched to account-wide keybindings.")
+        end
+    end, "when enabled, keybinding changes are saved only for this character.")
+    perCharCB:SetPoint("TOPLEFT", descText, "BOTTOMLEFT", 0, -10)
+
+    local CreateFlatButton = sfui.common.create_flat_button
+
+    local discardBtn = CreateFlatButton(dialog, "discard", 150, 22, function()
         sfui.actionbars.DeactivateBindMode(false)
+    end)
+    discardBtn:SetPoint("BOTTOMLEFT", dialog, "BOTTOMLEFT", 14, 12)
+
+    local saveBtn = CreateFlatButton(dialog, "save", 150, 22, function()
+        sfui.actionbars.DeactivateBindMode(true)
+    end)
+    saveBtn:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -14, 12)
+
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(dialog)
     end
-end)
+    dialog:SetScript("OnHide", function()
+        if bind.isActive then
+            sfui.actionbars.DeactivateBindMode(false)
+        end
+    end)
+end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Button Registration & Hooking
@@ -449,6 +430,7 @@ function sfui.actionbars.ActivateBindMode()
         return
     end
 
+    ensure_bind_frames()
     bind.isActive = true
 
     local allBars = sfui.actionbars.GetAllBars and sfui.actionbars.GetAllBars()
@@ -477,7 +459,7 @@ function sfui.actionbars.ActivateBindMode()
 end
 
 function sfui.actionbars.DeactivateBindMode(save)
-    if not bind.isActive and not dialog:IsShown() then return end
+    if not bind.isActive and not (dialog and dialog:IsShown()) then return end
 
     bind.isActive = false
 
@@ -493,10 +475,10 @@ function sfui.actionbars.DeactivateBindMode(save)
         end
     end
 
-    overlay:Hide()
+    if overlay then overlay:Hide() end
     if bind.tooltip then bind.tooltip:Hide() end
     bind.currentButton = nil
-    dialog:Hide()
+    if dialog then dialog:Hide() end
 
     if sfui.actionbars and sfui.actionbars.UpdateAllBindings then
         sfui.actionbars.UpdateAllBindings()

@@ -12,7 +12,6 @@ local events = sfui.experience.events
 
 local _G = _G
 local UnitXP = _G.UnitXP
-local GetTime = _G.GetTime
 local string_match = string.match
 local tonumber = _G.tonumber
 local type = _G.type
@@ -54,21 +53,6 @@ local function RequestDebouncedUpdate()
         end
         if isHunterClass and sfui.experience.pet and sfui.experience.pet.UpdateValues then
             sfui.experience.pet.UpdateValues()
-        end
-    end
-end
-
-local function DisableFrameMouse(f)
-    if not f then return end
-    if f.EnableMouse then f:EnableMouse(false) end
-    if f.barContainers then
-        for _, bContainer in ipairs(f.barContainers) do
-            if bContainer.EnableMouse then bContainer:EnableMouse(false) end
-            if bContainer.bars then
-                for _, b in ipairs(bContainer.bars) do
-                    if b.EnableMouse then b:EnableMouse(false) end
-                end
-            end
         end
     end
 end
@@ -195,8 +179,6 @@ end
 
 -- ─── Reputation Gain Detection & Auto-Switching ─────────────────────────────
 local compiledRepPatterns = nil
-local lastGainFaction = nil
-local lastGainTime = 0
 
 local function BuildPatternFromFormat(fmt)
     if not fmt or type(fmt) ~= "string" then return nil end

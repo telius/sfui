@@ -226,7 +226,6 @@ local function GetDungeonQuestProgress(dungeon)
 end
 
 -- ─── Context Menu Frame (Custom Fallback & MenuUtil) ──────────────────────────
-local contextMenuFrame = nil
 
 local function OpenDungeonContextMenu(owner, dungeon)
     if not dungeon then return end

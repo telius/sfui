@@ -51,7 +51,7 @@ local IsShiftKeyDown = _G.IsShiftKeyDown
 local FollowUnit = _G.FollowUnit
 local C_Timer = _G.C_Timer
 local C_Secrets = _G.C_Secrets
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local GetSubZoneText = _G.GetSubZoneText
 local GetZoneText = _G.GetZoneText
 

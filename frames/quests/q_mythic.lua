@@ -44,11 +44,10 @@ local GetWorldElapsedTime                            = _G.GetWorldElapsedTime
 local GameTooltip                                    = sfui.common.get_tooltip()
 local sfui_api                                       = sfui.api
 local common                                         = sfui.common
-local issecretvalue                                  = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 local math_max, math_min, math_floor, math_ceil, math_abs = math.max, math.min, math.floor, math.ceil, math.abs
 local string_format                                  = string.format
-local table_insert, table_sort, wipe                 = table.insert, table.sort, wipe
-local date                                           = _G.date
+local wipe = wipe
 local ipairs, pairs, type, tonumber, tostring =
     ipairs, pairs, type, tonumber, tostring
 
@@ -1155,12 +1154,7 @@ local function BuildHUDFrame()
     local posY = (SfuiDB and (SfuiDB.mythicHudY or SfuiDB.questlogY)) or mcfg.posY or -10
     MF:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", posX, posY)
 
-    MF:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
+    MF:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
     MF:SetBackdropColor(0.06, 0.06, 0.08, 0.88)
     MF:SetBackdropBorderColor(0, 0, 0, 0.9)
 

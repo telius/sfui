@@ -24,8 +24,6 @@ local _G = _G
 local C_SpecializationInfo = _G.C_SpecializationInfo or {}
 local GetSpecialization         = C_SpecializationInfo.GetSpecialization or _G.GetSpecialization
 local GetSpecializationInfo     = C_SpecializationInfo.GetSpecializationInfo or _G.GetSpecializationInfo
-local GetSpecializationInfoByID = C_SpecializationInfo.GetSpecializationInfoByID or _G.GetSpecializationInfoByID
-local GetSpecializationRole     = C_SpecializationInfo.GetSpecializationRole or _G.GetSpecializationRole
 local GetNumSpecializations     = C_SpecializationInfo.GetNumSpecializations or _G.GetNumSpecializations
 local GetLootSpecialization     = C_SpecializationInfo.GetLootSpecialization or _G.GetLootSpecialization
 
@@ -38,14 +36,13 @@ local GetLootSpecialization     = C_SpecializationInfo.GetLootSpecialization or 
 local function RetailSpecResolver()
     local specIndex = (GetSpecialization and GetSpecialization()) or 0
     if specIndex and specIndex > 0 then
-        local specID, name, desc, icon, role, primaryStat = GetSpecializationInfo(specIndex)
+        local specID, _, _, _, role = GetSpecializationInfo(specIndex)
         if specID and specID > 0 then
             return specID, specIndex, role
         end
     end
 
     -- Fallback for low-level characters without a chosen specialization
-    local _, pClassID = sfui.talents.get_player_class()
     return 0, 0, "DAMAGER"
 end
 sfui.talents._specResolver = RetailSpecResolver

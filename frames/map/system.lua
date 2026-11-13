@@ -6,13 +6,11 @@ local _G = _G
 local date = _G.date
 local math = _G.math
 local pairs = _G.pairs
-local ipairs = _G.ipairs
 local string = _G.string
 local table = _G.table
 local pcall = _G.pcall
 local collectgarbage = _G.collectgarbage
 local CreateFrame = _G.CreateFrame
-local InCombatLockdown = _G.InCombatLockdown
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local GetFramerate = _G.GetFramerate
 local GetNetStats = _G.GetNetStats
@@ -109,7 +107,7 @@ local function update_tooltip(btn)
         GameTooltip:AddDoubleLine("realm time:", realmTime, 0.8, 0.8, 0.8, 1, 1, 1)
     end
 
-    local fps, ping, homePing, worldPing = get_system_stats()
+    local fps, _, homePing, worldPing = get_system_stats()
     GameTooltip:AddDoubleLine("framerate:", string.format("%d fps", fps), 0.8, 0.8, 0.8, 1, 1, 1)
     GameTooltip:AddDoubleLine("home latency:", string.format("%d ms", homePing), 0.8, 0.8, 0.8, 1, 1, 1)
     GameTooltip:AddDoubleLine("world latency:", string.format("%d ms", worldPing), 0.8, 0.8, 0.8, 1, 1, 1)

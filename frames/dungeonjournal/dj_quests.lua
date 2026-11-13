@@ -611,7 +611,7 @@ local function RenderQuestDetail(quest, dungeon)
             GameTooltip:ClearLines()
             GameTooltip:AddLine("show on map", accent[1], accent[2], accent[3])
             local q = detailContent.activeQuest
-            local mapID, x, y, src, step, detail = ResolveQuestMapCoords(q)
+            local mapID, _, _, src, step, detail = ResolveQuestMapCoords(q)
             if src == "chain_step" and step then
                 GameTooltip:AddLine(
                 string_format("opens map and places a waypoint at current step: %s (%s).",
@@ -1094,7 +1094,7 @@ local function RenderQuestDetail(quest, dungeon)
             btn:SetPoint("TOPRIGHT", detailContent, "TOPRIGHT", -8, -startY)
             btn:SetHeight(REWARD_ROW_H)
 
-            local name, link, quality, iLevel, reqLevel, class, subclass, _, equipSlot, icon = common.get_item_info(
+            local name, link, quality, _, _, class, subclass, _, equipSlot, icon = common.get_item_info(
             itemID)
 
             if not name or not icon then

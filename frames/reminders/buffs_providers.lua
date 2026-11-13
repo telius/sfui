@@ -15,7 +15,7 @@ local InCombatLockdown = _G.InCombatLockdown
 
 local QUESTION_MARK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 P.QUESTION_MARK_ICON = QUESTION_MARK_ICON
-local issecretvalue = _G.issecretvalue or (sfui.common and sfui.common.issecretvalue)
+local issecretvalue = sfui.common.issecretvalue
 
 local function IsValidTexture(tex)
     if issecretvalue and issecretvalue(tex) then return true end

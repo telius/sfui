@@ -6,7 +6,6 @@ sfui.alts.mail = sfui.alts.mail or {}
 local mail = sfui.alts.mail
 local common = sfui.common
 local widgets = sfui.widgets
-local config = sfui.config
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/alts/mail_ui.lua
@@ -22,7 +21,6 @@ local activeItemSlots = {}
 
 local GetCursorInfo = _G.GetCursorInfo
 local ClearCursor = _G.ClearCursor
-local GameTooltip = common and common.get_tooltip and common.get_tooltip() or _G.GameTooltip
 local UnitGUID = _G.UnitGUID
 
 local function GetCategoryDefinitions()

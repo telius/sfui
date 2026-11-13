@@ -14,18 +14,11 @@ sfui                    = sfui or {}
 sfui.portals            = sfui.portals or {}
 
 local p                 = sfui.portals
-local cfg               = sfui.config
 
 -- Localization / API aliases
-local CreateFrame       = _G.CreateFrame
-local UIParent          = _G.UIParent
 local UnitClass         = _G.UnitClass
-local GetItemCount      = _G.GetItemCount
 local GetBindLocation   = _G.GetBindLocation
-local InCombatLockdown  = _G.InCombatLockdown
 local tinsert           = _G.tinsert
-local str_format        = string.format
-local unpack            = _G.unpack
 
 local FRAME_WIDTH       = p.FRAME_WIDTH
 
@@ -77,7 +70,7 @@ local function build_camelot_portals_frame()
 
     -- ── Section 1: Title & Reagents ─────────────────────────────
     local titleText = isMage and "mage teleports & portals" or "travel hub"
-    local header = p.make_section_header(frame, titleText, curY)
+    p.make_section_header(frame, titleText, curY)
     curY = curY - 16
 
     local runeFs = nil

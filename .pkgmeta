@@ -30,4 +30,14 @@ ignore:
   - shots
   - scripts
   - docs
+  - scratch
+  - tools
+  - data/dj_droprates.json
+  - data/dj_questrewards.json
+  - data/dj_wowhead_quests.json
+  - data/fishing_wowhead.json
+  - data/forever_zones.json
+  - data/recipes_npcs.json
+  - data/recipes_wowhead.json
+  - data/recipes_zones.json
 

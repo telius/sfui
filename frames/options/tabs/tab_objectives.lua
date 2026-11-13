@@ -4,7 +4,6 @@ sfui.options = sfui.options or {}
 
 local g = sfui.config
 local common = sfui.common
-local isClassic = (sfui.compat and sfui.compat.is_classic)
 
 sfui.options.RegisterTab({
     id = "objectives",

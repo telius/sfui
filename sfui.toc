@@ -24,6 +24,7 @@ data/spells.lua [AllowLoadGameType camelot, classic]
 data/stats.lua
 data/rules.lua
 data/season.lua [AllowLoadGameType standard]
+data/flight_camelot.lua [AllowLoadGameType camelot, classic]
 dispatcher.lua
 compat.lua
 core/safety.lua
@@ -45,7 +46,7 @@ core/tooltips.lua
 core/navigation.lua
 core/widgets.lua
 frames/themes/engine.lua
-frames/themes/modern.lua
+frames/themes/modern.lua [AllowLoadGameType standard, classic]
 frames/themes/camelot.lua [AllowLoadGameType camelot, classic]
 frames/themes/oldgod.lua
 frames/themes/fallensanctum.lua
@@ -134,6 +135,7 @@ frames/bars/target.lua [AllowLoadGameType camelot, classic]
 frames/bars/threat.lua [AllowLoadGameType camelot, classic]
 frames/bars/totembar.lua [AllowLoadGameType camelot, classic]
 frames/bars/pet.lua [AllowLoadGameType camelot, classic]
+frames/bars/flighttimer.lua [AllowLoadGameType camelot, classic]
 frames/experience/data.lua
 frames/experience/challenges.lua [AllowLoadGameType camelot]
 frames/experience/pet.lua [AllowLoadGameType camelot, classic]
@@ -193,6 +195,8 @@ frames/map/buttons.lua
 frames/map/minimap.lua
 frames/map/square.lua
 frames/map/pins.lua [AllowLoadGameType camelot, classic]
+frames/map/zonelevels.lua [AllowLoadGameType camelot, classic]
+frames/map/gatherskill.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Dungeon Journal
 data/dj_camelot.lua [AllowLoadGameType camelot, classic]
@@ -240,9 +244,9 @@ frames/quests/engine/q_tracker.lua
 # Tracker Helpers
 frames/quests/helpers/q_difficulty.lua
 frames/quests/helpers/q_waypoints.lua
-frames/quests/helpers/q_timerbars.lua
+frames/quests/helpers/q_timerbars.lua [AllowLoadGameType standard, classic]
 frames/quests/helpers/q_items.lua
-frames/quests/helpers/q_findgroup.lua
+frames/quests/helpers/q_findgroup.lua [AllowLoadGameType standard]
 frames/quests/helpers/q_tooltip.lua
 frames/quests/helpers/q_common.lua
 frames/quests/helpers/q_boons.lua
@@ -285,7 +289,7 @@ frames/ring/providers/ring_questitems.lua
 frames/ring/providers/ring_tracking.lua
 frames/ring/providers/ring_utility.lua
 frames/ring/providers/ring_specs.lua
-frames/ring/providers/ring_pet.lua
+frames/ring/providers/ring_pet.lua [AllowLoadGameType camelot]
 
 frames/find.lua
 frames/mem.lua

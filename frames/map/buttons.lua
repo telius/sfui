@@ -249,7 +249,7 @@ function ButtonManager:skin_button(button)
     local btnName = (button.GetName and button:GetName()) or ""
     local isButton = button:IsObjectType("Button")
     local normal = isButton and button:GetNormalTexture()
-    local icon, highlight, pushed, border, background, iconMask
+    local icon, highlight, pushed, border, background
 
     local regions = { button:GetRegions() }
 
@@ -538,16 +538,6 @@ function ButtonManager:arrange_buttons()
         end
     end
 
-    local clock = (sfui.minimap and sfui.minimap.system_button and sfui.minimap.system_button:IsShown() and sfui.minimap.system_button) or _G.TimeManagerClockButton
-    local isClockInside = clock and clock:IsShown() and clock:GetParent() == button_bar
-    local clockWidth = isClockInside and (clock:GetWidth() > 0 and clock:GetWidth() or 48) or 0
-
-    local status_container = sfui.minimap.status_container or (sfui.minimap.get_status_container and sfui.minimap.get_status_container())
-    local isStatusInside = status_container and status_container:IsShown() and status_container:GetParent() == button_bar
-    local statusWidth = isStatusInside and (status_container:GetWidth() > 0 and (status_container:GetWidth() + 6) or 0) or 0
-
-    local rightReserved = isClockInside and (clockWidth + 14 + statusWidth) or (basePadX + statusWidth)
-
     local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
         or (SfuiDB and SfuiDB.minimap_width)
         or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
@@ -564,7 +554,6 @@ end
 -- ------------------------------------------------------------------------------
 function sfui.minimap.update_button_bar_position()
     if button_bar then
-        local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
         local barWidth = (SfuiDB and SfuiDB.minimap_width)
             or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
             or (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0 and Minimap:GetWidth())

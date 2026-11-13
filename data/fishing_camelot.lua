@@ -212,6 +212,7 @@ D.SPECIES_NAMES = {
     [6718] = "electropeller",
     [7973] = "big-mouth clam",
     [8365] = "raw mithril head trout",
+    [8366] = "bloated mithril head trout",
     [12238] = "darkshore grouper",
     [13422] = "stonescale eel",
     [13754] = "raw glossy mightfish",
@@ -250,6 +251,7 @@ D.SPECIES_NAMES = {
     [21150] = "iron bound trunk",
     [21153] = "raw greater sagefish",
     [21228] = "mithril bound trunk",
+    [21243] = "bloated glossy mightfish",
     [251524] = "whimsyfin",
 }
 

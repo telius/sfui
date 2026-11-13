@@ -9,10 +9,9 @@ sfui.tracker.blocks              = sfui.tracker.blocks or {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local _G                         = _G
-local CreateFrame, UIParent      = _G.CreateFrame, _G.UIParent
-local GameTooltip                = sfui.common.get_tooltip()
+local CreateFrame = _G.CreateFrame
 local table_insert, table_remove = _G.table.insert, _G.table.remove
-local ipairs, pairs, unpack      = _G.ipairs, _G.pairs, _G.unpack
+local ipairs = _G.ipairs
 
 local Blocks                     = sfui.tracker.blocks
 

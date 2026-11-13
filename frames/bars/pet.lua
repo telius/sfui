@@ -37,7 +37,6 @@ local GameTooltip               = sfui.common.get_tooltip()
 local InCombatLockdown          = _G.InCombatLockdown
 local RegisterStateDriver       = _G.RegisterStateDriver
 local UnregisterStateDriver     = _G.UnregisterStateDriver
-local RegisterUnitWatch         = _G.RegisterUnitWatch
 local UnitExists                = _G.UnitExists
 local UnitHealth                = _G.UnitHealth
 local UnitHealthMax             = _G.UnitHealthMax
@@ -48,17 +47,14 @@ local UnitPowerMax              = _G.UnitPowerMax
 local UnitPowerType             = _G.UnitPowerType
 local UnitName                  = _G.UnitName
 local UnitLevel                 = _G.UnitLevel
-local UnitCreatureFamily        = _G.UnitCreatureFamily
 local UnitGetIncomingHeals      = _G.UnitGetIncomingHeals
 local UnitGetTotalAbsorbs       = _G.UnitGetTotalAbsorbs
 local PowerBarColor             = _G.PowerBarColor
 local GetPetHappiness           = _G.GetPetHappiness or (_G.C_PetInfo and _G.C_PetInfo.GetPetHappiness)
 local math_floor                = math.floor
-local tostring                  = _G.tostring
 local string_format             = string.format
-local type                      = _G.type
 
-local issecretvalue             = (common and common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  frame elements

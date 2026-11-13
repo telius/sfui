@@ -27,13 +27,13 @@ local C_UnitAuras            = _G.C_UnitAuras
 local C_TooltipInfo          = _G.C_TooltipInfo
 local Enum                   = _G.Enum
 local InCombatLockdown       = _G.InCombatLockdown
-local ipairs, pairs, type    = _G.ipairs, _G.pairs, _G.type
-local tonumber, tostring     = _G.tonumber, _G.tostring
+local ipairs, type = _G.ipairs, _G.type
+local tonumber = _G.tonumber
 local math_floor, math_max   = _G.math.floor, _G.math.max
 local string_format          = _G.string.format
 local table_insert           = _G.table.insert
 local table_concat           = _G.table.concat
-local issecretvalue          = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 -- ─── Constants & Spell IDs ──────────────────────────────────────────────────
 local BLESSING_SPELL_ID      = 1229266 -- Blessing of Abundance (Dundun's buff)
@@ -158,7 +158,7 @@ local function GetCriteriaInfo(criteriaIndex)
         end
     end
     if C_Scenario and C_Scenario.GetCriteriaInfo then
-        local desc, cType, comp, quant, totQuant, flags, assetID, quantStr = C_Scenario.GetCriteriaInfo(criteriaIndex)
+        local desc, cType, comp, quant, totQuant, _, _, quantStr = C_Scenario.GetCriteriaInfo(criteriaIndex)
         if desc and desc ~= "" and not issecretvalue(desc) then
             return {
                 description    = desc,

@@ -30,13 +30,12 @@ local GameTooltip         = sfui.common.get_tooltip()
 local InCombatLockdown    = _G.InCombatLockdown
 local GetTotemInfo        = _G.GetTotemInfo
 local GetTime             = _G.GetTime
-local issecretvalue       = _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local pcall, type         = _G.pcall, _G.type
 local tonumber            = _G.tonumber
 local ipairs, pairs, wipe = _G.ipairs, _G.pairs, _G.wipe
 local math_floor          = math.floor
 local string_format       = string.format
-local C_Spell             = _G.C_Spell
 local C_SpellBook         = _G.C_SpellBook
 local IsPlayerSpell       = _G.IsPlayerSpell
 local IsSpellKnown        = _G.IsSpellKnown
@@ -44,15 +43,9 @@ local GetSpellBookItemName = _G.GetSpellBookItemName
 local BOOKTYPE_SPELL      = _G.BOOKTYPE_SPELL
 local Enum                = _G.Enum
 local GetBindingKey       = _G.GetBindingKey
-local SetBinding          = _G.SetBinding
-local SaveBindings        = _G.SaveBindings
-local GetCurrentBindingSet = _G.GetCurrentBindingSet
-local C_KeyBindings       = _G.C_KeyBindings
-local tostring            = _G.tostring
 local table_insert        = table.insert
 local table_concat        = table.concat
 
-local ACTION_SEQUENCE     = "CLICK SfuiTotemSequenceBtn:LeftButton"
 
 -- ---------------------------------------------------------------------------
 -- Constants & Static Totem Database

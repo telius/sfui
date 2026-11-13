@@ -7,7 +7,7 @@ sfui = sfui or {}
 sfui.merchant = sfui.merchant or {}
 
 local common = sfui.common
-local issecretvalue = common.issecretvalue or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local get_item_id = common.get_item_id_from_link
 local cfg = sfui.config.merchant
 local app = sfui.config.appearance
@@ -28,36 +28,15 @@ local function GameTooltip_Hide()
 end
 
 --------------------------------------------------------------------------------
--- Main Merchant Window & Header
+-- Main Merchant Window & Header (Lazy Creation)
 --------------------------------------------------------------------------------
 
-local frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
-frame:SetSize(cfg.frame.width, cfg.frame.height)
-frame:SetPoint("CENTER")
-frame:SetFrameStrata("HIGH")
-frame:SetToplevel(true)
-frame.itemHover = nil
-sfui.merchant.frame = frame
-
-local headerFrame = CreateFrame("Frame", "SfuiMerchantHeader", frame)
-headerFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-headerFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-headerFrame:SetHeight(50)
-headerFrame:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
-headerFrame:EnableMouse(false)
-frame.headerFrame = headerFrame
-
-local closeBtn = common.create_close_button(frame, function() frame:Hide() end, 20)
-closeBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
-frame.closeBtn = closeBtn
-
-local CreateFlatButton = common.create_flat_button
-local filterDropdownBtn = CreateFlatButton(frame, "showing all", 100, 20)
-filterDropdownBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
-filterDropdownBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
-frame.filterDropdownBtn = filterDropdownBtn
+local frame, headerFrame, closeBtn, filterDropdownBtn, scrollBar
+local buttons = {}
+sfui.merchant.buttons = buttons
 
 local function refresh_frame_levels()
+    if not frame then return end
     local base = frame:GetFrameLevel() or 1
     if frame.sfuiThemeLayers and frame.sfuiThemeLayers.borderFrame then
         frame.sfuiThemeLayers.borderFrame:SetFrameLevel(base + 1)
@@ -72,80 +51,6 @@ local function refresh_frame_levels()
         closeBtn:SetFrameLevel(base + 20)
     end
 end
-frame:HookScript("OnShow", refresh_frame_levels)
-
-sfui.theme.ApplyWindowStyle(frame)
-sfui.theme.RegisterWindow(frame, function(f, pal)
-    refresh_frame_levels()
-    if f.merchantName then
-        f.merchantName:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
-    end
-end)
-
-frame:Hide()
-frame:EnableMouse(true)
-frame:SetMovable(true)
-frame:RegisterForDrag("LeftButton")
-frame:SetScript("OnDragStart", frame.StartMoving)
-frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-
-frame.portrait = headerFrame:CreateTexture(nil, "OVERLAY", nil, 2)
-frame.portrait:SetSize(60, 60)
-frame.portrait:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 10, 20)
-
-frame.merchantName = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-frame.merchantName:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 80, -6)
-frame.merchantName:SetJustifyH("LEFT")
-
-frame.merchantTitle = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-frame.merchantTitle:SetPoint("TOPLEFT", frame.merchantName, "BOTTOMLEFT", 0, -2)
-frame.merchantTitle:SetJustifyH("LEFT")
-
-filterDropdownBtn:SetScript("OnClick", function(self)
-    MenuUtil.CreateContextMenu(self, function(owner, rootDescription)
-        rootDescription:SetTag("MENU_MERCHANT_FILTER")
-
-        rootDescription:CreateButton("All Items", function()
-            sfui.merchant.lootFilterState = 0
-            if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 0 end
-            self:SetText("showing all")
-            sfui.merchant.reset_scroll_and_rebuild()
-        end)
-        rootDescription:CreateButton("Current Class", function()
-            sfui.merchant.lootFilterState = 1
-            if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 1 end
-            self:SetText("current class")
-            sfui.merchant.reset_scroll_and_rebuild()
-        end)
-        rootDescription:CreateButton("Current Specialization", function()
-            sfui.merchant.lootFilterState = 2
-            if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 2 end
-            self:SetText("current spec")
-            sfui.merchant.reset_scroll_and_rebuild()
-        end)
-    end)
-end)
-
--- Initialize filter state from DB on load
-frame:HookScript("OnShow", function()
-    if SfuiDB and SfuiDB.merchant and SfuiDB.merchant.lootFilterState then
-        sfui.merchant.lootFilterState = SfuiDB.merchant.lootFilterState
-        if sfui.merchant.lootFilterState == 0 then
-            filterDropdownBtn:SetText("showing all")
-        elseif sfui.merchant.lootFilterState == 1 then
-            filterDropdownBtn:SetText("current class")
-        elseif sfui.merchant.lootFilterState == 2 then
-            filterDropdownBtn:SetText("current spec")
-        end
-    end
-end)
-
---------------------------------------------------------------------------------
--- Item Grid Buttons (4x7)
---------------------------------------------------------------------------------
-
-local buttons = {}
-sfui.merchant.buttons = buttons
 
 function sfui.merchant.create_item_button(id, parent)
     local btn = CreateFrame("Button", "SfuiMerchantItem" .. id, parent, "BackdropTemplate")
@@ -302,64 +207,168 @@ function sfui.merchant.create_item_button(id, parent)
     return btn
 end
 
-for i = 1, ITEMS_PER_PAGE do
-    local btn = sfui.merchant.create_item_button(i, frame)
-    local row = math.floor((i - 1) / NUM_COLS)
-    local col = (i - 1) % NUM_COLS
+local function ensure_merchant_frame()
+    if frame then return frame end
 
-    btn:SetPoint("TOPLEFT", cfg.grid.offset_x + (col * cfg.grid.spacing_x),
-        cfg.grid.offset_y - (row * cfg.grid.spacing_y))
-    buttons[i] = btn
+    frame = CreateFrame("Frame", "SfuiMerchantFrame", UIParent, "BackdropTemplate")
+    frame:SetSize(cfg.frame.width, cfg.frame.height)
+    frame:SetPoint("CENTER")
+    frame:SetFrameStrata("HIGH")
+    frame:SetToplevel(true)
+    frame.itemHover = nil
+    sfui.merchant.frame = frame
+
+    headerFrame = CreateFrame("Frame", "SfuiMerchantHeader", frame)
+    headerFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    headerFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    headerFrame:SetHeight(50)
+    headerFrame:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
+    headerFrame:EnableMouse(false)
+    frame.headerFrame = headerFrame
+
+    closeBtn = common.create_close_button(frame, function() frame:Hide() end, 20)
+    closeBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+    frame.closeBtn = closeBtn
+
+    local CreateFlatButton = common.create_flat_button
+    filterDropdownBtn = CreateFlatButton(frame, "showing all", 100, 20)
+    filterDropdownBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+    filterDropdownBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
+    frame.filterDropdownBtn = filterDropdownBtn
+
+    frame:HookScript("OnShow", refresh_frame_levels)
+
+    sfui.theme.ApplyWindowStyle(frame)
+    sfui.theme.RegisterWindow(frame, function(f, pal)
+        refresh_frame_levels()
+        if f.merchantName then
+            f.merchantName:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
+        end
+    end)
+
+    frame:Hide()
+    frame:EnableMouse(true)
+    frame:SetMovable(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+
+    frame.portrait = headerFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+    frame.portrait:SetSize(60, 60)
+    frame.portrait:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 10, 20)
+
+    frame.merchantName = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    frame.merchantName:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 80, -6)
+    frame.merchantName:SetJustifyH("LEFT")
+
+    frame.merchantTitle = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    frame.merchantTitle:SetPoint("TOPLEFT", frame.merchantName, "BOTTOMLEFT", 0, -2)
+    frame.merchantTitle:SetJustifyH("LEFT")
+
+    filterDropdownBtn:SetScript("OnClick", function(self)
+        MenuUtil.CreateContextMenu(self, function(_, rootDescription)
+            rootDescription:SetTag("MENU_MERCHANT_FILTER")
+
+            rootDescription:CreateButton("All Items", function()
+                sfui.merchant.lootFilterState = 0
+                if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 0 end
+                self:SetText("showing all")
+                sfui.merchant.reset_scroll_and_rebuild()
+            end)
+            rootDescription:CreateButton("Current Class", function()
+                sfui.merchant.lootFilterState = 1
+                if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 1 end
+                self:SetText("current class")
+                sfui.merchant.reset_scroll_and_rebuild()
+            end)
+            rootDescription:CreateButton("Current Specialization", function()
+                sfui.merchant.lootFilterState = 2
+                if SfuiDB.merchant then SfuiDB.merchant.lootFilterState = 2 end
+                self:SetText("current spec")
+                sfui.merchant.reset_scroll_and_rebuild()
+            end)
+        end)
+    end)
+
+    frame:HookScript("OnShow", function()
+        if SfuiDB and SfuiDB.merchant and SfuiDB.merchant.lootFilterState then
+            sfui.merchant.lootFilterState = SfuiDB.merchant.lootFilterState
+            if sfui.merchant.lootFilterState == 0 then
+                filterDropdownBtn:SetText("showing all")
+            elseif sfui.merchant.lootFilterState == 1 then
+                filterDropdownBtn:SetText("current class")
+            elseif sfui.merchant.lootFilterState == 2 then
+                filterDropdownBtn:SetText("current spec")
+            end
+        end
+    end)
+
+    for i = 1, ITEMS_PER_PAGE do
+        local btn = sfui.merchant.create_item_button(i, frame)
+        local row = math.floor((i - 1) / NUM_COLS)
+        local col = (i - 1) % NUM_COLS
+
+        btn:SetPoint("TOPLEFT", cfg.grid.offset_x + (col * cfg.grid.spacing_x),
+            cfg.grid.offset_y - (row * cfg.grid.spacing_y))
+        buttons[i] = btn
+    end
+
+    scrollBar = CreateFrame("Slider", nil, frame, "BackdropTemplate")
+    scrollBar:SetOrientation("VERTICAL")
+    scrollBar:SetPoint("TOPRIGHT", -cfg.scrollbar.right_offset, cfg.grid.offset_y)
+    scrollBar:SetPoint("BOTTOMRIGHT", -cfg.scrollbar.right_offset, 65)
+    scrollBar:SetWidth(cfg.scrollbar.width)
+    scrollBar:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+    })
+    scrollBar:SetBackdropColor(0, 0, 0, 0.3)
+    scrollBar:SetMinMaxValues(0, 0)
+    scrollBar:SetValue(0)
+    scrollBar:SetScript("OnValueChanged", function(_, value)
+        local newOffset = math.floor(value) * NUM_COLS
+
+        if sfui.merchant.scrollOffset ~= newOffset then
+            sfui.merchant.scrollOffset = newOffset
+            sfui.merchant.update_merchant()
+        end
+    end)
+
+    local thumb = scrollBar:CreateTexture(nil, "ARTWORK")
+    thumb:SetSize(6, 30)
+    thumb:SetColorTexture(app.white[1], app.white[2], app.white[3], 1)
+    scrollBar:SetThumbTexture(thumb)
+    frame.scrollBar = scrollBar
+
+    frame:SetScript("OnMouseWheel", function(_, delta)
+        local min, max = scrollBar:GetMinMaxValues()
+        local val = scrollBar:GetValue()
+        local step = 1
+        if delta > 0 then
+            val = val - step
+        else
+            val = val + step
+        end
+
+        if val < min then val = min end
+        if val > max then val = max end
+
+        scrollBar:SetValue(val)
+    end)
+
+    frame.utilityBar = sfui.merchant.create_utility_bar(frame)
+
+    frame:HookScript("OnHide", function()
+        if not frame._closingFromEvent and _G.CloseMerchant then
+            _G.CloseMerchant()
+        end
+    end)
+
+    if sfui.common and sfui.common.register_special_frame then
+        sfui.common.register_special_frame(frame)
+    end
+
+    return frame
 end
-
---------------------------------------------------------------------------------
--- ScrollBar & Wheel Navigation
---------------------------------------------------------------------------------
-
-local scrollBar = CreateFrame("Slider", nil, frame, "BackdropTemplate")
-scrollBar:SetOrientation("VERTICAL")
-scrollBar:SetPoint("TOPRIGHT", -cfg.scrollbar.right_offset, cfg.grid.offset_y)
-scrollBar:SetPoint("BOTTOMRIGHT", -cfg.scrollbar.right_offset, 65)
-scrollBar:SetWidth(cfg.scrollbar.width)
-scrollBar:SetBackdrop({
-    bgFile = "Interface\\Buttons\\WHITE8x8",
-})
-scrollBar:SetBackdropColor(0, 0, 0, 0.3)
-scrollBar:SetMinMaxValues(0, 0)
-scrollBar:SetValue(0)
-scrollBar:SetScript("OnValueChanged", function(self, value)
-    local newOffset = math.floor(value) * NUM_COLS
-
-    if sfui.merchant.scrollOffset ~= newOffset then
-        sfui.merchant.scrollOffset = newOffset
-        sfui.merchant.update_merchant()
-    end
-end)
-
-local thumb = scrollBar:CreateTexture(nil, "ARTWORK")
-thumb:SetSize(6, 30)
-thumb:SetColorTexture(app.white[1], app.white[2], app.white[3], 1)
-scrollBar:SetThumbTexture(thumb)
-frame.scrollBar = scrollBar
-
-frame:SetScript("OnMouseWheel", function(self, delta)
-    local min, max = scrollBar:GetMinMaxValues()
-    local val = scrollBar:GetValue()
-    local step = 1 -- Scroll 1 row
-    if delta > 0 then
-        val = val - step
-    else
-        val = val + step
-    end
-
-    if val < min then val = min end
-    if val > max then val = max end
-
-    scrollBar:SetValue(val)
-end)
-
--- Initialize bottom utility bar
-frame.utilityBar = sfui.merchant.create_utility_bar(frame)
 
 --------------------------------------------------------------------------------
 -- Grid Population & Display Update
@@ -481,6 +490,7 @@ end
 --------------------------------------------------------------------------------
 
 local function update_header()
+    if not frame then return end
     local unit = "npc"
     if not UnitExists(unit) then unit = "target" end
 
@@ -530,6 +540,7 @@ end
 --------------------------------------------------------------------------------
 
 local function on_merchant_update(event, ...)
+    if not frame then return end
     if event == "GET_ITEM_INFO_RECEIVED" then
         local itemID, success = ...
         if not success or not itemID then return end
@@ -561,17 +572,12 @@ local function on_merchant_update(event, ...)
     end
 end
 
-frame:HookScript("OnHide", function()
-    if not frame._closingFromEvent and _G.CloseMerchant then
-        _G.CloseMerchant()
-    end
-end)
-
 sfui.events.RegisterEvent("MERCHANT_SHOW", function()
+    if not (SfuiDB and SfuiDB.enableMerchant) then return end
+    ensure_merchant_frame()
     wipe(sfui.merchant.lockCache)
     update_header()
     sfui.merchant.reset_scroll_and_rebuild()
-    if not SfuiDB.enableMerchant then return end
     frame:Show()
     sfui.merchant.build_item_list()
 
@@ -602,9 +608,11 @@ sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     if sfui.merchant.decorXpCache then
         wipe(sfui.merchant.decorXpCache)
     end
-    frame._closingFromEvent = true
-    frame:Hide()
-    frame._closingFromEvent = nil
+    if frame then
+        frame._closingFromEvent = true
+        frame:Hide()
+        frame._closingFromEvent = nil
+    end
     GameTooltip_Hide()
     if sfui.common and sfui.common.hide_tooltip then
         sfui.common.hide_tooltip()
@@ -622,17 +630,9 @@ end)
 sfui.events.RegisterEvent("MERCHANT_UPDATE",       on_merchant_update)
 sfui.events.RegisterEvent("PLAYER_MONEY",          on_merchant_update)
 
-if sfui.common and sfui.common.register_special_frame then
-    sfui.common.register_special_frame(frame)
-end
-frame:Hide()
-
 local _merchDebug = {}
 function sfui.merchant_debug_info()
-    local pCount = 0
-    local pool = sfui.merchant.tablePool or {}
-    for _ in pairs(pool) do pCount = pCount + 1 end
-    _merchDebug.tablePool    = pCount
+    _merchDebug.tablePool    = sfui.merchant.getTablePoolCount and sfui.merchant.getTablePoolCount() or 0
     _merchDebug.frameCreated = frame ~= nil
     _merchDebug.frameShown   = frame and frame:IsShown() or false
     return _merchDebug

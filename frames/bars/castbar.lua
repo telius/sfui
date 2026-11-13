@@ -27,9 +27,8 @@ local INTERRUPTED                 = _G.INTERRUPTED
 local wipe                        = _G.wipe
 local pairs                       = _G.pairs
 local math_min                    = math.min
-local math_max                    = math.max
 local math_floor                  = math.floor
-local issecretvalue               = common.issecretvalue or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 local unpack_color                = common.unpack_color
 local EvaluateColorValueFromBoolean = C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean
 
@@ -378,7 +377,7 @@ local function Player_OnEvent(event, unit, ...)
     end
 
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
-        local castGUID, spellID = ...
+        local _, spellID = ...
         if unit ~= bar.unit then return end
 
         -- Don't override if currently casting/channeling/empowering
@@ -420,7 +419,7 @@ local function Player_OnEvent(event, unit, ...)
     if unit ~= bar.unit then return end
 
     if event == "UNIT_SPELLCAST_START" then
-        local name, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible, spellID = UnitCastingInfo(unit)
+        local name, text, texture, startTime, endTime, _, castID, notInterruptible = UnitCastingInfo(unit)
         if not name or not startTime or not endTime or not castID then return end
 
         bar.backdrop:Show()
@@ -445,7 +444,7 @@ local function Player_OnEvent(event, unit, ...)
         CreateStageDividers(bar, 0)
         bar:SetScript("OnUpdate", Player_OnUpdate)
     elseif event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_EMPOWER_START" then
-        local name, text, texture, startTime, endTime, isTradeSkill, notInterruptible, spellID, _, numStages = UnitChannelInfo(unit)
+        local name, _, texture, startTime, endTime, _, notInterruptible, spellID, _, numStages = UnitChannelInfo(unit)
         if not name or not startTime or not endTime or not spellID then return end
 
         bar.backdrop:Show()
@@ -487,7 +486,7 @@ local function Player_OnEvent(event, unit, ...)
         bar.Spark:Show()
         bar:SetScript("OnUpdate", Player_OnUpdate)
     elseif event == "UNIT_SPELLCAST_CHANNEL_UPDATE" or event == "UNIT_SPELLCAST_EMPOWER_UPDATE" then
-        local name, text, texture, startTime, endTime, isTradeSkill, notInterruptible, spellID, _, numStages = UnitChannelInfo(unit)
+        local name, _, _, startTime, endTime, _, _, _, _, numStages = UnitChannelInfo(unit)
         if not name or not startTime or not endTime then return end
         local isEmpowered = numStages and numStages > 0
         if isEmpowered then
@@ -561,7 +560,7 @@ end
 
 -- ─── Target CastBar Logic ───────────────────────────────────────────────────
 local function Target_StartCast(self, unit)
-    local name, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible = UnitCastingInfo(unit)
+    local name, text, texture, startTime, endTime, _, castID, notInterruptible = UnitCastingInfo(unit)
 
     if not name then
         self.notInterruptible = nil
@@ -599,7 +598,7 @@ local function Target_StartCast(self, unit)
 end
 
 local function Target_StartChannel(self, unit)
-    local name, text, texture, startTime, endTime, isTradeSkill, notInterruptible = UnitChannelInfo(unit)
+    local name, _, texture, startTime, endTime, _, notInterruptible = UnitChannelInfo(unit)
 
     if not name then
         self.notInterruptible = nil

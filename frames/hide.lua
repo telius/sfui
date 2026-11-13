@@ -561,7 +561,7 @@ end
 --  UI Errors Frame Filtering (Taint-Free SetMessageTypeEnabled Approach)
 -- ─────────────────────────────────────────────────────────────────────────────
 do
-    local issecretvalue = (sfui.common and sfui.common.issecretvalue)
+    local issecretvalue = sfui.common.issecretvalue
         or (sfui.safety and sfui.safety.issecretvalue)
         or _G.issecretvalue
         or function() return false end

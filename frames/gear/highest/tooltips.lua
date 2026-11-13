@@ -3,18 +3,12 @@ sfui.highest = sfui.highest or {}
 
 local _G = _G
 local common = sfui.common
-local C_Item = _G.C_Item
 local C_TooltipInfo = _G.C_TooltipInfo
-local C_Container = _G.C_Container
 local C_PlayerInfo = _G.C_PlayerInfo
 local TooltipUtil = _G.TooltipUtil
 local UnitClass = _G.UnitClass
-local WorldFrame = _G.WorldFrame
-local CreateFrame = _G.CreateFrame
 local tonumber = _G.tonumber
-local tostring = _G.tostring
 local type = _G.type
-local pairs = _G.pairs
 local ipairs = _G.ipairs
 local wipe = _G.wipe
 

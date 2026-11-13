@@ -2,7 +2,6 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.gear = sfui.gear or {}
 
-local cfg = sfui.config
 local common = sfui.common
 local _G = _G
 local CreateFrame = _G.CreateFrame
@@ -14,7 +13,6 @@ local C_EquipmentSet = _G.C_EquipmentSet
 local GetInstanceInfo = _G.GetInstanceInfo
 local C_PvP = _G.C_PvP
 local C_Timer = _G.C_Timer
-local UIParent = _G.UIParent
 local CharacterFrame = _G.CharacterFrame
 local CharacterFrameCloseButton = _G.CharacterFrameCloseButton
 local ipairs = _G.ipairs
@@ -22,22 +20,12 @@ local pairs = _G.pairs
 local type = _G.type
 local table = _G.table
 local string = _G.string
-local tonumber = _G.tonumber
 local tostring = _G.tostring
-local select = _G.select
-local math = _G.math
-local next = _G.next
-local wipe = _G.wipe or function(t)
-    for k in pairs(t) do t[k] = nil end
-    return t
-end
-local unpack = _G.unpack or _G.table.unpack
 local GetInventoryItemLink = sfui.common.get_inventory_item_link
 local GetItemInfoInstant = sfui.common.get_item_instant_info
-local GetItemInfo = sfui.common.get_item_info
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local GetTime = _G.GetTime
-local issecretvalue = (common and common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.common.issecretvalue
 
 local function isWarModeDesired()
     return (C_PvP and C_PvP.IsWarModeDesired and C_PvP.IsWarModeDesired()) or false
@@ -191,7 +179,7 @@ local function TryEquipSet(setName)
     if isPole and isSession then return false end
     local setID = C_EquipmentSet.GetEquipmentSetID(setName)
     if setID then
-        local name, icon, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(setID)
+        local name, _, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(setID)
         if isEquipped then return false end
         if InCombatLockdown() then
             gearEquipQueue = setID

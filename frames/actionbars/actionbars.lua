@@ -5,7 +5,6 @@ sfui.actionbars = sfui.actionbars or {}
 local _G = _G
 local CreateFrame = _G.CreateFrame
 local UIParent = _G.UIParent
-local hooksecurefunc = _G.hooksecurefunc
 local InCombatLockdown = _G.InCombatLockdown
 local ipairs = _G.ipairs
 local pairs = _G.pairs
@@ -320,7 +319,7 @@ function sfui.actionbars_debug_info()
     return get_actionbars_debug_info()
 end
 
-local ActionBarsModule = sfui.RegisterModule("actionbars", {
+sfui.RegisterModule("actionbars", {
     OnInit = function(self)
         if sfui.db and sfui.db.RegisterDefaults and sfui.config.actionbars then
             sfui.db.RegisterDefaults("actionbars", sfui.config.actionbars)

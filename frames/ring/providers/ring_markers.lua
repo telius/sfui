@@ -18,7 +18,7 @@ local TARGET_MARKER_DEFS = {
 }
 
 local GetRaidTargetIndex = _G.GetRaidTargetIndex
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 sfui.ring.register_provider("targetmarkers", {
     name   = "target markers",

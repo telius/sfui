@@ -6,7 +6,6 @@ sfui.alts.mail = sfui.alts.mail or {}
 local mail = sfui.alts.mail
 local common = sfui.common
 local widgets = sfui.widgets
-local config = sfui.config
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/alts/mail_mailbox.lua

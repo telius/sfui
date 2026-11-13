@@ -2,8 +2,6 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.mem = {}
 
-local cfg = sfui.config
-local common = sfui.common
 
 local _G = _G
 local print = print
@@ -172,19 +170,19 @@ function sfui.mem.GetModuleStats()
             line1 = "buffs: 0 active / 0 slots",
             line2 = "preview: off • blizzard cdm: hooked",
         }
-        local tb = GetDebug("trackedbuffs_debug_info", "trackedbuffs")
-        if tb then
-            if tb.previewActive then
+        local tbuff = GetDebug("trackedbuffs_debug_info", "trackedbuffs")
+        if tbuff then
+            if tbuff.previewActive then
                 tbuffStats.status = "|cffff9900preview|r"
-            elseif tb.containerShown then
+            elseif tbuff.containerShown then
                 tbuffStats.status = "|cff00ff88active|r"
-            elseif tb.enabled then
+            elseif tbuff.enabled then
                 tbuffStats.status = "|cff888888idle|r"
             else
                 tbuffStats.status = "|cffff4444disabled|r"
             end
-            tbuffStats.line1 = string_format("buffs: %d active / %d slots", tonumber(tb.activeCount) or 0, tonumber(tb.slotCount) or 0)
-            tbuffStats.line2 = string_format("preview: %s • cdm hooked: %s", tb.previewActive and "yes" or "no", tb.isHooked and "yes" or "no")
+            tbuffStats.line1 = string_format("buffs: %d active / %d slots", tonumber(tbuff.activeCount) or 0, tonumber(tbuff.slotCount) or 0)
+            tbuffStats.line2 = string_format("preview: %s • cdm hooked: %s", tbuff.previewActive and "yes" or "no", tbuff.isHooked and "yes" or "no")
         end
         stats["trackedbuffs"] = tbuffStats
     end
@@ -269,11 +267,11 @@ function sfui.mem.GetModuleStats()
         line1 = "frame: ready",
         line2 = "table pool: 0",
     }
-    local m = GetDebug("merchant_debug_info", "merchant")
-    if m then
-        merchMod.status = m.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
-        merchMod.line1 = string_format("frame: %s", m.frameCreated and "ready" or "none")
-        merchMod.line2 = string_format("table pool: %d tables", tonumber(m.tablePool) or 0)
+    local merch = GetDebug("merchant_debug_info", "merchant")
+    if merch then
+        merchMod.status = merch.frameShown and "|cff00ff88open|r" or "|cff888888closed|r"
+        merchMod.line1 = string_format("frame: %s", merch.frameCreated and "ready" or "none")
+        merchMod.line2 = string_format("table pool: %d tables", tonumber(merch.tablePool) or 0)
     end
     stats["merchant"] = merchMod
 
@@ -327,9 +325,9 @@ function sfui.mem.GetModuleStats()
         line1 = "libcustomglow: ready",
         line2 = "active glow tracker: gated",
     }
-    local gInfo = GetDebug("glows_debug_info", "glows")
-    if gInfo then
-        glowMod.line1 = string_format("libcustomglow-1.0: %s", gInfo.lcgAvailable and "|cff00ff88ok|r" or "|cffff0000missing|r")
+    local glowInfo = GetDebug("glows_debug_info", "glows")
+    if glowInfo then
+        glowMod.line1 = string_format("libcustomglow-1.0: %s", glowInfo.lcgAvailable and "|cff00ff88ok|r" or "|cffff0000missing|r")
         glowMod.line2 = "idle loop gating: enabled"
     end
     stats["glows"] = glowMod
@@ -341,10 +339,10 @@ function sfui.mem.GetModuleStats()
         line1 = "auto-role: off • auto-sign: off",
         line2 = "auto-repair: off • sell-greys: off",
     }
-    local a = GetDebug("automation_debug_info", "automation")
-    if a then
-        autoMod.line1 = string_format("auto-role: %s • auto-sign: %s", a.autoRoleCheck and "|cff00ff88on|r" or "off", a.autoSignLfg and "|cff00ff88on|r" or "off")
-        autoMod.line2 = string_format("auto-repair: %s • sell-greys: %s", a.autoRepair and "|cff00ff88on|r" or "off", a.autoSellGreys and "|cff00ff88on|r" or "off")
+    local autoInfo = GetDebug("automation_debug_info", "automation")
+    if autoInfo then
+        autoMod.line1 = string_format("auto-role: %s • auto-sign: %s", autoInfo.autoRoleCheck and "|cff00ff88on|r" or "off", autoInfo.autoSignLfg and "|cff00ff88on|r" or "off")
+        autoMod.line2 = string_format("auto-repair: %s • sell-greys: %s", autoInfo.autoRepair and "|cff00ff88on|r" or "off", autoInfo.autoSellGreys and "|cff00ff88on|r" or "off")
     end
     stats["automation"] = autoMod
 
@@ -370,11 +368,11 @@ function sfui.mem.GetModuleStats()
         line1 = "frame: ready • btns: 0",
         line2 = "health: off • power: off • cast: off",
     }
-    local v = GetDebug("vehicle_debug_info", "vehicle")
-    if v then
-        vehMod.status = v.frameShown and "|cff00ff88active|r" or "|cff888888idle|r"
-        vehMod.line1 = string_format("frame: %s • btns: %d • unit: %s", v.frameCreated and "ready" or "none", tonumber(v.visibleButtons) or 0, tostring(v.currentUnit or "none"))
-        vehMod.line2 = string_format("health: %s • power: %s • cast: %s", v.healthShown and "|cff00ff88on|r" or "off", v.powerShown and "|cff00ff88on|r" or "off", v.castShown and "|cff00ff88on|r" or "off")
+    local veh = GetDebug("vehicle_debug_info", "vehicle")
+    if veh then
+        vehMod.status = veh.frameShown and "|cff00ff88active|r" or "|cff888888idle|r"
+        vehMod.line1 = string_format("frame: %s • btns: %d • unit: %s", veh.frameCreated and "ready" or "none", tonumber(veh.visibleButtons) or 0, tostring(veh.currentUnit or "none"))
+        vehMod.line2 = string_format("health: %s • power: %s • cast: %s", veh.healthShown and "|cff00ff88on|r" or "off", veh.powerShown and "|cff00ff88on|r" or "off", veh.castShown and "|cff00ff88on|r" or "off")
     end
     stats["vehicle"] = vehMod
 
@@ -597,12 +595,12 @@ function sfui.mem.GetModuleStats()
         line1 = "favs: 0 • hist: 0",
         line2 = "rot: 720s • summoned: none",
     }
-    local p = GetDebug("pets_debug_info", "pets")
-    if p then
-        petStats.status = p.enabled and "|cff00ff88active|r" or "|cff888888disabled|r"
-        local poolType = p.isCharFavs and "char (" .. (p.charFavsCount or 0) .. ")" or "account"
-        petStats.line1 = string_format("favs: %d [%s] • hist: %d", tonumber(p.poolFavsCount) or 0, poolType, tonumber(p.historyCount) or 0)
-        petStats.line2 = string_format("rot: %ds • summoned: %s", tonumber(p.rotationTimer) or 720, p.currentPet and "|cff00ff88yes|r" or "none")
+    local petInfo = GetDebug("pets_debug_info", "pets")
+    if petInfo then
+        petStats.status = petInfo.enabled and "|cff00ff88active|r" or "|cff888888disabled|r"
+        local poolType = petInfo.isCharFavs and "char (" .. (petInfo.charFavsCount or 0) .. ")" or "account"
+        petStats.line1 = string_format("favs: %d [%s] • hist: %d", tonumber(petInfo.poolFavsCount) or 0, poolType, tonumber(petInfo.historyCount) or 0)
+        petStats.line2 = string_format("rot: %ds • summoned: %s", tonumber(petInfo.rotationTimer) or 720, petInfo.currentPet and "|cff00ff88yes|r" or "none")
     end
     stats["pets"] = petStats
 
@@ -1465,16 +1463,15 @@ end
 -- 3. FORCED GARBAGE COLLECTION
 -- ---------------------------------------------------------------------------
 function sfui.mem.RunGC()
-    local beforeAddon = RefreshAddonMemory(true)
+    RefreshAddonMemory(true)
     local beforeLua = collectgarbage("count")
 
     collectgarbage("collect")
 
     local afterLua = collectgarbage("count")
-    local afterAddon = RefreshAddonMemory(true)
+    RefreshAddonMemory(true)
 
     local freedLua = math_max(0, beforeLua - afterLua)
-    local freedAddon = math_max(0, beforeAddon - afterAddon)
 
     local msg = string_format("gc collected: freed %s lua memory", FormatKB(freedLua))
     print(PREFIX .. "|cff00ff88" .. msg .. "|r")
@@ -1560,11 +1557,7 @@ function sfui.mem.create_mem_panel()
         local card = CreateFrame("Frame", nil, frame, "BackdropTemplate")
         card:SetSize(cardW, cardH)
         card:SetPoint("TOPLEFT", 10 + xOffset, -32)
-        card:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        card:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         card:SetBackdropColor(0.08, 0.08, 0.11, 0.8)
         card:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -1621,11 +1614,7 @@ function sfui.mem.create_mem_panel()
     statusBar:SetPoint("TOPLEFT", 10, -104)
     statusBar:SetPoint("TOPRIGHT", -10, -104)
     statusBar:SetHeight(20)
-    statusBar:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
+    statusBar:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
     statusBar:SetBackdropColor(0.06, 0.06, 0.09, 0.85)
     statusBar:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -1647,11 +1636,7 @@ function sfui.mem.create_mem_panel()
     local contentBox = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     contentBox:SetPoint("TOPLEFT", 10, -128)
     contentBox:SetPoint("BOTTOMRIGHT", -10, 10)
-    contentBox:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
+    contentBox:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
     contentBox:SetBackdropColor(0.06, 0.06, 0.08, 0.85)
     contentBox:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -1679,19 +1664,15 @@ function sfui.mem.create_mem_panel()
 
     local modChild = CreateFrame("Frame", nil, modScroll)
     local cardGridW = FRAME_W - 48
-    local cardW = (cardGridW - 6) / 2
-    local cardH = 58
+    local modCardW = (cardGridW - 6) / 2
+    local modCardH = 58
     local currentY = 0
 
     for _, sec in ipairs(MODULE_SECTIONS) do
         local secHeader = CreateFrame("Frame", nil, modChild, "BackdropTemplate")
         secHeader:SetSize(cardGridW, 20)
         secHeader:SetPoint("TOPLEFT", 0, -currentY)
-        secHeader:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        secHeader:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         secHeader:SetBackdropColor(0.06, 0.06, 0.09, 0.75)
         secHeader:SetBackdropBorderColor(0.18, 0.12, 0.28, 0.8)
 
@@ -1711,13 +1692,9 @@ function sfui.mem.create_mem_panel()
             local card = CreateFrame("Frame", nil, modChild, "BackdropTemplate")
             local col = (secIdx - 1) % 2
             local row = math_floor((secIdx - 1) / 2)
-            card:SetSize(cardW, cardH)
-            card:SetPoint("TOPLEFT", col * (cardW + 6), -(currentY + row * (cardH + 4)))
-            card:SetBackdrop({
-                bgFile = "Interface\\Buttons\\WHITE8x8",
-                edgeFile = "Interface\\Buttons\\WHITE8x8",
-                edgeSize = 1,
-            })
+            card:SetSize(modCardW, modCardH)
+            card:SetPoint("TOPLEFT", col * (modCardW + 6), -(currentY + row * (modCardH + 4)))
+            card:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             card:SetBackdropColor(0.09, 0.09, 0.12, 0.7)
             card:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -1751,7 +1728,7 @@ function sfui.mem.create_mem_panel()
         end
 
         local numSecRows = math_ceil(#sec.modules / 2)
-        currentY = currentY + numSecRows * (cardH + 4) + 6
+        currentY = currentY + numSecRows * (modCardH + 4) + 6
     end
 
     modChild:SetSize(cardGridW, currentY + 10)

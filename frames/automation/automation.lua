@@ -558,11 +558,17 @@ sfui.events.RegisterEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED", function()
     C_Timer.After(0.1, initialize_lfg_buttons)
 end)
 sfui.events.RegisterEvent("MERCHANT_SHOW", function()
-    auto_sell_greys()
-    auto_repair()
+    merchantOpen = true
+    local sweep = (SfuiDB and SfuiDB.autoSellGreys) and SellJunk or nil
+    handle_merchant_visit(sweep)
     if sfui.isRetail and sfui.hammer then
         sfui.hammer.update_hammer_popup()
     end
+end)
+
+sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
+    merchantOpen = false
+    StopJunkSweep()
 end)
 
 local function auto_slot_keystone()
@@ -585,10 +591,11 @@ local function auto_slot_keystone()
     return slotted
 end
 
+local _keystoneHooked = false
 local function init_keystone_automation()
     local Frame = ChallengesKeystoneFrame
-    if not Frame or Frame.sfui_keystone_init then return end
-    Frame.sfui_keystone_init = true
+    if not Frame or _keystoneHooked then return end
+    _keystoneHooked = true
 
     Frame:HookScript("OnShow", function()
         if SfuiDB.autoKeystone ~= false then
@@ -606,32 +613,30 @@ local function init_keystone_automation()
 end
 
 local function apply_ah_current_expansion_filter()
-    if SfuiDB.ahCurrentExpansionFilter == false then return end
+    if SfuiDB and SfuiDB.ahCurrentExpansionFilter == false then return end
     if not _G.AuctionHouseFrame then return end
 
-    if _G.g_auctionHouseFilters and _G.g_auctionHouseFilters.filters and Enum and Enum.AuctionHouseFilter then
-        _G.g_auctionHouseFilters.filters[Enum.AuctionHouseFilter.CurrentExpansionOnly] = true
-    end
+    C_Timer.After(0, function()
+        local searchBar = _G.AuctionHouseFrame and _G.AuctionHouseFrame.SearchBar
+        local fb = searchBar and searchBar.FilterButton
+        local filterEnum = Enum and Enum.AuctionHouseFilter and Enum.AuctionHouseFilter.CurrentExpansionOnly
+        if not (fb and fb.GetFilters and fb.ToggleFilter and filterEnum) then return end
 
-    local searchBar = _G.AuctionHouseFrame.SearchBar
-    if searchBar then
-        local fb = searchBar.FilterButton
-        if fb and fb.GetFilters and Enum and Enum.AuctionHouseFilter then
-            local filters = fb:GetFilters()
-            if filters then
-                filters[Enum.AuctionHouseFilter.CurrentExpansionOnly] = true
-            end
+        local filters = fb:GetFilters()
+        if not (filters and filters[filterEnum]) then
+            fb:ToggleFilter(filterEnum)
         end
         if searchBar.UpdateClearFiltersButton then
             searchBar:UpdateClearFiltersButton()
         end
-    end
+    end)
 end
 
+local _ahFilterHooked = false
 local function init_auction_house_automation()
     local ah = _G.AuctionHouseFrame
-    if not ah or ah._sfui_filter_hooked then return end
-    ah._sfui_filter_hooked = true
+    if not ah or _ahFilterHooked then return end
+    _ahFilterHooked = true
 
     ah:HookScript("OnShow", function()
         apply_ah_current_expansion_filter()
@@ -643,7 +648,7 @@ local function init_auction_house_automation()
             apply_ah_current_expansion_filter()
         end)
         local fb = searchBar.FilterButton
-        if fb then
+        if fb and fb.Reset then
             hooksecurefunc(fb, "Reset", function()
                 apply_ah_current_expansion_filter()
             end)
@@ -775,7 +780,7 @@ end
 -- ─────────────────────────────────────────────────────────────
 local _tooltip_automation_initialized = false
 
-local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 local function is_valid_id(id)
     if not id then return false end
@@ -1161,6 +1166,7 @@ local function init_tooltip_automation()
 end
 
 local _automation_initialized = false
+local _pveLfgHooked = false
 function sfui.automation.initialize()
     if _automation_initialized then return end
     _automation_initialized = true
@@ -1170,8 +1176,8 @@ function sfui.automation.initialize()
     init_auction_house_automation()
     init_lfg_dungeon_automation()
     init_tooltip_automation()
-    if _G.PVEFrame and not _G.PVEFrame._sfui_lfg_hooked then
-        _G.PVEFrame._sfui_lfg_hooked = true
+    if _G.PVEFrame and not _pveLfgHooked then
+        _pveLfgHooked = true
         _G.PVEFrame:HookScript("OnShow", function()
             setup_lfg_dialog()
             init_lfg_dungeon_automation()

@@ -6,7 +6,6 @@ local common = sfui.common
 local C_ClassTalents = _G.C_ClassTalents
 local UnitLevel = _G.UnitLevel
 local pairs = _G.pairs
-local ipairs = _G.ipairs
 local math = _G.math
 
 local TANK_SPECS = (sfui.gear and sfui.gear.TANK_SPECS) or {

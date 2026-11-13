@@ -441,7 +441,7 @@ function sfui.widgets.style_text(fs, fontObj, size, flags)
     if not fs then return end
     if fontObj then fs:SetFontObject(fontObj) end
     if size or flags then
-        local font, curSize, curFlags = fs:GetFont()
+        local font, curSize = fs:GetFont()
         fs:SetFont(font, size or curSize, flags or "")
     end
     fs:SetShadowOffset(0, 0)

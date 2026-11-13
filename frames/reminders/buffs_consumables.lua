@@ -123,7 +123,7 @@ end
 --  SHARED ITEM METADATA & ICON HELPERS
 -- ─────────────────────────────────────────────────────────────
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue
+local issecretvalue = sfui.common.issecretvalue
 
 local function IsValidTexture(tex)
     if issecretvalue and issecretvalue(tex) then return true end

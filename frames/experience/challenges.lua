@@ -24,7 +24,6 @@ local tostring = _G.tostring
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local InCombatLockdown = _G.InCombatLockdown
 local C_MajorFactions = _G.C_MajorFactions
-local C_CurrencyInfo = _G.C_CurrencyInfo
 local C_Traits = _G.C_Traits
 local Constants = _G.Constants
 local ChatEdit_GetActiveWindow = _G.ChatEdit_GetActiveWindow
@@ -254,12 +253,7 @@ function challenges.ApplyTheme()
     if sfui.theme and sfui.theme.ApplyStatusBarStyle then
         sfui.theme.ApplyStatusBarStyle(challengesContainer, "xp")
     else
-        challengesContainer:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 1,
-            insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-        })
+        challengesContainer:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         challengesContainer:SetBackdropColor(0.04, 0.04, 0.04, 0.85)
         challengesContainer:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
     end

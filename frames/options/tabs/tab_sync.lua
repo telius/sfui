@@ -32,11 +32,7 @@ local function create_styled_editbox(parent, width, height, placeholder, onCommi
     eb:SetAutoFocus(false)
     eb:SetFontObject("GameFontHighlightSmall")
     eb:SetTextInsets(6, 6, 0, 0)
-    eb:SetBackdrop({
-        bgFile   = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-    })
+    eb:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
     eb:SetBackdropColor(app.editBoxColor[1], app.editBoxColor[2], app.editBoxColor[3], app.editBoxColor[4])
     eb:SetBackdropBorderColor(0, 0, 0, 1)
 

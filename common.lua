@@ -142,7 +142,6 @@ local C_Spell_GetSpellInfo             = C_Spell.GetSpellInfo
 local C_Spell_GetSpellName             = C_Spell.GetSpellName
 local C_Spell_GetSpellTexture          = C_Spell.GetSpellTexture or _G.GetSpellTexture
 local C_Spell_GetSpellCooldown         = C_Spell.GetSpellCooldown or _G.GetSpellCooldown
-local C_Spell_GetSpellCooldownDuration = C_Spell.GetSpellCooldownDuration
 local C_Spell_IsSpellDataCached        = C_Spell.IsSpellDataCached
 local C_Spell_RequestLoadSpellData     = C_Spell.RequestLoadSpellData
 
@@ -630,6 +629,10 @@ sfui.events.RegisterEvent("PLAYER_FLAGS_CHANGED", sync_combat_state)
 
 sync_combat_state()
 
+function sfui.common.get_state()
+    return sfui.state and sfui.state.current or nil
+end
+
 -- ------------------------------------------------------------
 -- Central Safe CVar Accessors (Combat Lockdown Protected)
 -- ------------------------------------------------------------
@@ -944,9 +947,9 @@ function sfui.common.is_item_known(itemLink)
     local itemID = tonumber(string.match(itemLink, "item:(%d+)"))
     if itemID then
         if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
-            local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemID)
+            local _, sourceID = C_TransmogCollection.GetItemInfo(itemID)
             if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
-                local categoryID, visualID, canEnchant, icon, isCollected = C_TransmogCollection.GetAppearanceSourceInfo(
+                local _, _, _, _, isCollected = C_TransmogCollection.GetAppearanceSourceInfo(
                     sourceID)
                 if isCollected then
                     return true

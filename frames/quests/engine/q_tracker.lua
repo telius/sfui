@@ -12,7 +12,7 @@ local _G = _G
 local CreateFrame, UIParent = _G.CreateFrame, _G.UIParent
 local C_Timer = _G.C_Timer
 local InCombatLockdown = _G.InCombatLockdown
-local ipairs, pairs, type = _G.ipairs, _G.pairs, _G.type
+local ipairs, pairs = _G.ipairs, _G.pairs
 local table_insert, table_sort = _G.table.insert, _G.table.sort
 local wipe = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 
