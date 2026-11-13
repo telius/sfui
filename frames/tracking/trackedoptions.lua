@@ -699,7 +699,8 @@ function sfui.trackedoptions.RenderBarsTab(parent)
         s1y - 20)
     BCheck(sec1c, "Show Duration", function() return GetB("showDuration", true) end, function(v) db.showDuration = v end,
         nil, 160, s1y - 50)
-    BCheck(sec1c, "Show Stack Count", function() return GetB("showStacks", false) end, function(v) db.showStacks = v end, "Show stack counts on the bar icons by default.", 160, s1y - 80)
+    BCheck(sec1c, "Show Stack Count", function() return GetB("showStacks", false) end, function(v) db.showStacks = v end,
+        "Show stack counts on the bar icons by default.", 160, s1y - 80)
 
     -- Col 2: Position & Size
     local col2x = 350
@@ -729,7 +730,8 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             sfui.trackedbars.UpdatePosition()
         end, col2x + 130, s1y - 20, 120)
 
-    BSlider(sec1c, "Width", function() return db.width or bar_cfg.width or 200 end, 50, 600, 1, function(v) db.width = v end,
+    BSlider(sec1c, "Width", function() return db.width or bar_cfg.width or 200 end, 50, 600, 1,
+        function(v) db.width = v end,
         col2x, s1y - 60, 120)
     BSlider(sec1c, "Height", function() return db.height or bar_cfg.height or 20 end, 10, 60, 1,
         function(v) db.height = v end, col2x + 130, s1y - 60, 120)
@@ -754,7 +756,8 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     -- Texture
     local lTex = sec2c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lTex:SetPoint("TOPLEFT", 0, s2y); lTex:SetText("bar texture:")
-    local barTextures = bar_cfg.barTextures or sfui.config.barTextures or { { text = "Flat", value = "Interface/Buttons/WHITE8X8" } }
+    local barTextures = bar_cfg.barTextures or sfui.config.barTextures or
+        { { text = "Flat", value = "Interface/Buttons/WHITE8X8" } }
     local texDropDown = common.create_dropdown(sec2c, 160, barTextures,
         function(val)
             db.barTexture = val; Refresh()
@@ -822,7 +825,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     s3y = s3y - 25
 
     local spells = sfui.trackedbars.GetKnownSpells and sfui.trackedbars.GetKnownSpells()
-    
+
     if spells then
         table.sort(spells, function(a, b)
             local cA = sfui.trackedbars.GetConfig and sfui.trackedbars.GetConfig(a.id) or {}
@@ -847,7 +850,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             return (a.name or "") < (b.name or "")
         end)
     end
-    
+
     local ly = s3y
     if spells then
         for i, info in ipairs(spells) do
@@ -862,7 +865,8 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             row:SetBackdropColor(0.1, 0.1, 0.1, (i % 2 == 0) and 0.5 or 0.3)
 
             -- Icon & Name
-            local iconTex = row:CreateTexture(nil, "ARTWORK"); iconTex:SetSize(32, 32); iconTex:SetPoint("LEFT", 4, 0); iconTex:SetTexture(icon)
+            local iconTex = row:CreateTexture(nil, "ARTWORK"); iconTex:SetSize(32, 32); iconTex:SetPoint("LEFT", 4, 0); iconTex
+                :SetTexture(icon)
             local lName = row:CreateFontString(nil, "OVERLAY", "GameFontNormal");
             lName:SetPoint("LEFT", iconTex, "RIGHT", 4, 0);
             lName:SetWidth(95); lName:SetWordWrap(false); lName:SetJustifyH("LEFT");
@@ -874,7 +878,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             btnUp:SetPoint("LEFT", 140, 6)
             btnUp:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
             btnUp:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up", "ADD")
-            
+
             local btnDown = CreateFrame("Button", nil, row)
             btnDown:SetSize(16, 16)
             btnDown:SetPoint("LEFT", 140, -8)
@@ -885,24 +889,24 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                 local cfg = sfui.trackedbars.GetConfig and sfui.trackedbars.GetConfig(id) or {}
                 local isAttached = cfg.stackAboveHealth
                 local curIdx = 100
-                
+
                 if isAttached then
                     curIdx = cfg.attachedIndex or cfg.priority or 100
                 else
                     curIdx = cfg.normalIndex or cfg.priority or 100
                 end
-                
+
                 local dbEntry = common.ensure_tracked_bar_db(id)
                 if isAttached then
                     dbEntry.attachedIndex = curIdx + direction
                 else
                     dbEntry.normalIndex = curIdx + direction
                 end
-                
-                sfui.trackedoptions.RenderBarsTab(parent) 
-                Refresh() 
+
+                sfui.trackedoptions.RenderBarsTab(parent)
+                Refresh()
             end
-            
+
             btnUp:SetScript("OnClick", function() BumpIndex(-1) end)
             btnDown:SetScript("OnClick", function() BumpIndex(1) end)
 
@@ -933,7 +937,7 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                 local dbEntry = specBars and specBars[id]
                 local isAttached = (dbEntry and dbEntry.stackAboveHealth) or false
                 if isAttached then return false end
-                
+
                 local isStack = (dbEntry and (dbEntry.stackMode or dbEntry.showStacksText)) or false
                 local timerOff = dbEntry and (dbEntry.showDuration == false)
                 return isStack and not timerOff
@@ -1144,7 +1148,11 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                         entry.pandemicColor = oldColor
                         UpdatePSwatch(); Refresh()
                     end,
-                    r = r, g = g, b = b, opacity = a, hasOpacity = true,
+                    r = r,
+                    g = g,
+                    b = b,
+                    opacity = a,
+                    hasOpacity = true,
                 })
             end)
 
@@ -1265,7 +1273,8 @@ function sfui.trackedoptions.RefreshBuffsList(parent)
         end
         parent._emptyMsg:ClearAllPoints()
         parent._emptyMsg:SetPoint("TOPLEFT", 5, ly - 10)
-        parent._emptyMsg:SetText("no buffs currently assigned to tracked buffs in blizzard cdm. click 'open blizzard manager' to assign buffs.")
+        parent._emptyMsg:SetText(
+            "no buffs currently assigned to tracked buffs in blizzard cdm. click 'open blizzard manager' to assign buffs.")
         parent._emptyMsg:Show()
 
         if parent._buffRows then
@@ -1401,7 +1410,8 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
 
     BCheck(sec1c, "pandemic glow", function() return GetB("glow", true) end,
         function(v) db.glow = v end, "show pixel glow during pandemic refresh window.", 160, s1y - 20)
-    BCheck(sec1c, "show preview", function() return sfui.trackedbuffs and sfui.trackedbuffs.IsPreview and sfui.trackedbuffs.IsPreview() end,
+    BCheck(sec1c, "show preview",
+        function() return sfui.trackedbuffs and sfui.trackedbuffs.IsPreview and sfui.trackedbuffs.IsPreview() end,
         function(v)
             if sfui.trackedbuffs and sfui.trackedbuffs.SetPreviewMode then
                 sfui.trackedbuffs.SetPreviewMode(v)
@@ -1415,9 +1425,9 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
     lPos:SetText("position & size")
 
     parent._xSlider = BSlider(sec1c, "x offset", function()
-        if db.anchor and db.anchor.isCustom then return db.anchor.x or 0 end
-        return 0
-    end, -1000, 1000, 1,
+            if db.anchor and db.anchor.isCustom then return db.anchor.x or 0 end
+            return 0
+        end, -1000, 1000, 1,
         function(v)
             if not db.anchor then db.anchor = { point = "CENTER", x = 0, y = 0 } end
             db.anchor.x = v
@@ -1425,9 +1435,9 @@ function sfui.trackedoptions.RenderBuffsTab(parent)
         end, col2x, s1y - 20, 120)
 
     parent._ySlider = BSlider(sec1c, "y offset", function()
-        if db.anchor and db.anchor.isCustom then return db.anchor.y or 0 end
-        return 0
-    end, -1000, 1000, 1,
+            if db.anchor and db.anchor.isCustom then return db.anchor.y or 0 end
+            return 0
+        end, -1000, 1000, 1,
         function(v)
             if not db.anchor then db.anchor = { point = "CENTER", x = 0, y = 0 } end
             db.anchor.y = v
@@ -1737,7 +1747,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             if panel[key] ~= nil then return panel[key] end
             local pName = panel.name and string.upper(panel.name)
             local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
-                or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER")
+                    or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER")
                 and cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.center_panel
             if not pDef and pName == "UTILITY" then
                 pDef = cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.utility
@@ -1766,7 +1776,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             if panel[key] ~= nil then return panel[key] end
             local pName = panel.name and string.upper(panel.name)
             local pDef = (pName == "CENTER" or pName == "CAT" or pName == "BEAR" or pName == "MOONKIN" or pName == "STEALTH"
-                or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER")
+                    or pName == "BATTLE" or pName == "DEFENSIVE" or pName == "BERSERKER")
                 and cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.center_panel
             if not pDef and pName == "UTILITY" then
                 pDef = cfg.cooldown_panel_defaults and cfg.cooldown_panel_defaults.utility
@@ -1827,7 +1837,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
     PSlider(s2c, "Columns", "columns", 1, 20, 1, 155, s2y, 140)
     s2y = s2y - 48
 
-    PCheck(s2c, "Span Width", "spanWidth", "Auto-scale icons to fill the target frame width (only active with 4 or more icons).", 0, s2y)
+    PCheck(s2c, "Span Width", "spanWidth",
+        "Auto-scale icons to fill the target frame width (only active with 4 or more icons).", 0, s2y)
     s2y = s2y - 35
 
     local lG = s2c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1952,7 +1963,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         -- Per Blizzard source, calling without args defaults to player config/spec
         local heroSpecs = C_ClassTalents and C_ClassTalents.GetHeroTalentSpecsForClassSpec() or {}
         local secTitle = (#heroSpecs > 0) and "hero talent overrides" or "assigned spell overrides"
-        local secSub = (#heroSpecs > 0) and "show these assigned icons only when a specific hero talent is active." or "aura stacks and missing-buff alerts for assigned spells."
+        local secSub = (#heroSpecs > 0) and "show these assigned icons only when a specific hero talent is active." or
+            "aura stacks and missing-buff alerts for assigned spells."
         local sec4, s4c, h4 = sfui.trackedoptions.CreateSection(parent, secTitle, secSub, yPos, SEC_W)
         if xOffset then sec4:SetPoint("TOPLEFT", xOffset, yPos) end
         local s4y = 0
@@ -1981,7 +1993,8 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             local name = ""
             local nid = tonumber(id)
             local rowCdID = entry.cooldownID or (typeHint == "cooldown" and nid) or nil
-            local rowCdInfo = rowCdID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo and C_CooldownViewer.GetCooldownViewerCooldownInfo(rowCdID) or nil
+            local rowCdInfo = rowCdID and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo and
+                C_CooldownViewer.GetCooldownViewerCooldownInfo(rowCdID) or nil
 
             if nid then
                 if typeHint == "item" then
@@ -2126,33 +2139,35 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
 
             -- Aura & Alert toggles
             local entryHelper = sfui.tracking and sfui.tracking.entry
-            local isForeverSeal = (entryHelper and entryHelper.IsForeverSeal and entryHelper.IsForeverSeal(entry, rowCdInfo)) or false
+            local isForeverSeal = (entryHelper and entryHelper.IsForeverSeal and entryHelper.IsForeverSeal(entry, rowCdInfo)) or
+                false
             local auraCb = common.create_checkbox(row, "aura", function()
-                if entryHelper and entryHelper.ShouldTrackBuffs then
-                    return entryHelper.ShouldTrackBuffs(entry, panel, rowCdInfo)
-                end
-                if entry.settings and entry.settings.trackBuffs ~= nil then
-                    return entry.settings.trackBuffs == true
-                end
-                return isForeverSeal
-            end, function(val)
-                if not entry.settings then entry.settings = {} end
-                if isForeverSeal then
-                    entry.settings.trackBuffs = (val == true)
-                else
-                    entry.settings.trackBuffs = val or nil
-                end
-                entry.trackAsAura = val or nil
-                if not entry.cooldownID then
-                    entry.type = val and "buff" or "spell"
-                end
-                if sfui.trackedicons and sfui.trackedicons.InvalidateConfigCache then
-                    sfui.trackedicons.InvalidateConfigCache()
-                end
-                common.invalidate_panels_cache()
-                sfui.trackedicons.MarkDirty(true)
-                sfui.trackedicons.Update()
-            end, "opt in to buff tracking for this icon: displays active buff duration and stack count (enabled by default for forever paladin seals).")
+                    if entryHelper and entryHelper.ShouldTrackBuffs then
+                        return entryHelper.ShouldTrackBuffs(entry, panel, rowCdInfo)
+                    end
+                    if entry.settings and entry.settings.trackBuffs ~= nil then
+                        return entry.settings.trackBuffs == true
+                    end
+                    return isForeverSeal
+                end, function(val)
+                    if not entry.settings then entry.settings = {} end
+                    if isForeverSeal then
+                        entry.settings.trackBuffs = (val == true)
+                    else
+                        entry.settings.trackBuffs = val or nil
+                    end
+                    entry.trackAsAura = val or nil
+                    if not entry.cooldownID then
+                        entry.type = val and "buff" or "spell"
+                    end
+                    if sfui.trackedicons and sfui.trackedicons.InvalidateConfigCache then
+                        sfui.trackedicons.InvalidateConfigCache()
+                    end
+                    common.invalidate_panels_cache()
+                    sfui.trackedicons.MarkDirty(true)
+                    sfui.trackedicons.Update()
+                end,
+                "opt in to buff tracking for this icon: displays active buff duration and stack count (enabled by default for forever paladin seals).")
 
             local alertCb = common.create_checkbox(row, "alert", function()
                 return entry.settings and entry.settings.glowWhenMissing == true

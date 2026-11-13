@@ -63,7 +63,8 @@ do
 
     local function is_player_spell(id)
         if IsPlayerSpell then return IsPlayerSpell(id) end
-        return (C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player)) or false
+        return (C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id, Enum.SpellBookSpellBank.Player)) or
+            false
     end
 
     local function get_secondary_resource_value(resource)
@@ -149,12 +150,14 @@ do
             end
             if bar1 and bar1.backdrop and bar0 and bar0.backdrop then
                 bar1.backdrop:ClearAllPoints()
-                local topAnchor = (not sfui.isRetail and sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or bar0.backdrop
+                local topAnchor = (not sfui.isRetail and sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or
+                    bar0.backdrop
                 bar1.backdrop:SetPoint("BOTTOM", topAnchor, "TOP", 0, spacing)
             end
             if rune_bar and bar0 and bar0.backdrop then
                 rune_bar:ClearAllPoints()
-                local topAnchor = (not sfui.isRetail and sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or bar0.backdrop
+                local topAnchor = (not sfui.isRetail and sfui.threat and sfui.threat.IsShown and sfui.threat.IsShown() and sfui.threat.GetAnchorFrame and sfui.threat.GetAnchorFrame()) or
+                    bar0.backdrop
                 rune_bar:SetPoint("BOTTOM", topAnchor, "TOP", 0, spacing)
             end
 
@@ -166,7 +169,8 @@ do
 
             -- Swing Timer Bars (slotting below power bar at -2, or below health at -1 if no power bar)
             if not sfui.isRetail and sfui.swing and sfui.swing.UpdatePositions then
-                local anchor = (bar_minus_1 and bar_minus_1.backdrop and (bar_minus_1.backdrop:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and bar_minus_1.backdrop or (bar0 and bar0.backdrop)
+                local anchor = (bar_minus_1 and bar_minus_1.backdrop and (bar_minus_1.backdrop:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and
+                    bar_minus_1.backdrop or (bar0 and bar0.backdrop)
                 sfui.swing.UpdatePositions(anchor, spacing)
             end
         end
@@ -225,8 +229,10 @@ do
     end
 
     local function is_player_casting_channeling()
-        local isCasting = (UnitCastingInfo and UnitCastingInfo("player")) or (C_Spell and C_Spell.GetCastingInfo and C_Spell.GetCastingInfo("player"))
-        local isChanneling = (UnitChannelInfo and UnitChannelInfo("player")) or (C_Spell and C_Spell.GetChannelInfo and C_Spell.GetChannelInfo("player"))
+        local isCasting = (UnitCastingInfo and UnitCastingInfo("player")) or
+            (C_Spell and C_Spell.GetCastingInfo and C_Spell.GetCastingInfo("player"))
+        local isChanneling = (UnitChannelInfo and UnitChannelInfo("player")) or
+            (C_Spell and C_Spell.GetChannelInfo and C_Spell.GetChannelInfo("player"))
         return (isCasting ~= nil) or (isChanneling ~= nil)
     end
 
@@ -240,10 +246,14 @@ do
 
         local vcfg = (sfui.config and sfui.config.barVisibility) or {}
         local alwaysShow = (SfuiDB and (SfuiDB.bars_oocAlways or SfuiDB.bars_alwaysShow)) or vcfg.oocAlways
-        local showOnFriendly = ((SfuiDB and SfuiDB.bars_showFriendlyTarget) or (vcfg.showFriendlyTarget and (SfuiDB == nil or SfuiDB.bars_showFriendlyTarget ~= false))) and hasAnyTarget
-        local showOnHealthMissing = ((SfuiDB == nil and vcfg.showHealthMissing ~= false) or (SfuiDB and SfuiDB.bars_showHealthMissing ~= false)) and is_player_health_missing()
-        local showOnPowerMissing = ((SfuiDB and SfuiDB.bars_showPowerMissing) or (vcfg.showPowerMissing and (SfuiDB == nil or SfuiDB.bars_showPowerMissing ~= false))) and is_player_power_missing()
-        local showOnCasting = ((SfuiDB and SfuiDB.bars_showCasting) or (vcfg.showCasting and (SfuiDB == nil or SfuiDB.bars_showCasting ~= false))) and is_player_casting_channeling()
+        local showOnFriendly = ((SfuiDB and SfuiDB.bars_showFriendlyTarget) or (vcfg.showFriendlyTarget and (SfuiDB == nil or SfuiDB.bars_showFriendlyTarget ~= false))) and
+            hasAnyTarget
+        local showOnHealthMissing = ((SfuiDB == nil and vcfg.showHealthMissing ~= false) or (SfuiDB and SfuiDB.bars_showHealthMissing ~= false)) and
+            is_player_health_missing()
+        local showOnPowerMissing = ((SfuiDB and SfuiDB.bars_showPowerMissing) or (vcfg.showPowerMissing and (SfuiDB == nil or SfuiDB.bars_showPowerMissing ~= false))) and
+            is_player_power_missing()
+        local showOnCasting = ((SfuiDB and SfuiDB.bars_showCasting) or (vcfg.showCasting and (SfuiDB == nil or SfuiDB.bars_showCasting ~= false))) and
+            is_player_casting_channeling()
 
         local showCoreBars = (not inVehicle) and (
             alwaysShow
@@ -301,7 +311,8 @@ do
                 -- Primary Power Bar (bar_minus_1)
                 -- In Camelot / Classic, powerbar should never be hidden; hiddenSpecs is strictly a Retail feature.
                 local isCamelotSpec = is_camelot_or_classic() or (specID and specID >= 1482 and specID <= 14913)
-                local hidePower = sfui.isRetail and not isCamelotSpec and common.is_spec_in_list(cfg.powerBar.hiddenSpecs, specID)
+                local hidePower = sfui.isRetail and not isCamelotSpec and
+                    common.is_spec_in_list(cfg.powerBar.hiddenSpecs, specID)
                 local showPower = (SfuiDB == nil or SfuiDB.enablePowerBar ~= false) and not hidePower
                 if showPower then
                     local bar = get_bar_minus_1()
@@ -311,9 +322,11 @@ do
                 end
 
                 -- Secondary Power Bar (bar1)
-                local hideSecondary = sfui.isRetail and not isCamelotSpec and common.is_spec_in_list(cfg.secondaryPowerBar.hiddenSpecs, specID)
+                local hideSecondary = sfui.isRetail and not isCamelotSpec and
+                    common.is_spec_in_list(cfg.secondaryPowerBar.hiddenSpecs, specID)
                 local secResource = common.get_secondary_resource()
-                local showSecondary = (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false) and not hideSecondary and secResource and secResource ~= Enum.PowerType.Runes
+                local showSecondary = (SfuiDB == nil or SfuiDB.enableSecondaryPowerBar ~= false) and not hideSecondary and
+                    secResource and secResource ~= Enum.PowerType.Runes
 
                 if showSecondary then
                     local bar = get_bar1()
@@ -394,8 +407,10 @@ do
         end
 
         -- Vanilla / Camelot: Hunter Ammo Count Remaining (anchored to the left)
-        local isClassicOrCamelot = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic or sfui.compat.is_classic_era))
-        local pClass = (common.get_player_class and common.get_player_class()) or (UnitClass and select(2, UnitClass("player")))
+        local isClassicOrCamelot = sfui.isClassic or sfui.isCamelot or
+            (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic or sfui.compat.is_classic_era))
+        local pClass = (common.get_player_class and common.get_player_class()) or
+            (UnitClass and select(2, UnitClass("player")))
         if isClassicOrCamelot and pClass == "HUNTER" then
             local ammoText = bar:CreateFontString(nil, "OVERLAY")
             local fontSize = (cfg.powerBar and cfg.powerBar.fontSize) or 10
@@ -463,7 +478,8 @@ do
         local now = GetTime()
         local remaining = fsrEndTime - now
 
-        local isClassic = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local isClassic = sfui.isClassic or sfui.isCamelot or
+            (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         local resource = common.get_primary_resource()
         if resource == nil and UnitPowerType then
             resource = UnitPowerType("player")
@@ -485,7 +501,8 @@ do
     end
 
     function start_fsr_timer()
-        local isClassic = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local isClassic = sfui.isClassic or sfui.isCamelot or
+            (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         if not isClassic then return end
 
         local resource = common.get_primary_resource()
@@ -794,8 +811,8 @@ do
     end
 
     local WARRIOR_STANCES = {
-        [1] = { name = "battle stance",    spellID = 2457, defaultIcon = 132349 }, -- Ability_Warrior_OffensiveStance
-        [2] = { name = "defensive stance", spellID = 71,   defaultIcon = 132341 }, -- Ability_Warrior_DefensiveStance
+        [1] = { name = "battle stance", spellID = 2457, defaultIcon = 132349 },    -- Ability_Warrior_OffensiveStance
+        [2] = { name = "defensive stance", spellID = 71, defaultIcon = 132341 },   -- Ability_Warrior_DefensiveStance
         [3] = { name = "berserker stance", spellID = 2458, defaultIcon = 132275 }, -- Ability_Warrior_InnerRage
     }
 
@@ -976,7 +993,7 @@ do
         return rune_bar
     end
 
-        -- Pre-allocated comparator to avoid closure allocation on every table.sort call
+    -- Pre-allocated comparator to avoid closure allocation on every table.sort call
     local function runeInfoComparator(a, b)
         if a.ready and not b.ready then return true end
         if not a.ready and b.ready then return false end
@@ -1215,7 +1232,8 @@ do
             if isComboPoints then
                 bar.TextValue:SetText(current)
             else
-                local fmt = (common.format_number and common.format_number(current)) or (_G.BreakUpLargeNumbers and _G.BreakUpLargeNumbers(current)) or tostring(current)
+                local fmt = (common.format_number and common.format_number(current)) or
+                    (_G.BreakUpLargeNumbers and _G.BreakUpLargeNumbers(current)) or tostring(current)
                 bar.TextValue:SetText(fmt)
             end
         end
@@ -1595,7 +1613,8 @@ do
 
     local function on_spellcast(event, unit, castGUID, spellID)
         if unit ~= "player" then return end
-        local isClassic = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        local isClassic = sfui.isClassic or sfui.isCamelot or
+            (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         if not isClassic then return end
 
         local resource = common.get_primary_resource()
@@ -1646,11 +1665,11 @@ do
 
     -- UNIT_HEALTH, UNIT_MAXHEALTH, UNIT_HEAL_PREDICTION, and UNIT_ABSORB_AMOUNT_CHANGED share the same handler.
     sfui.events.RegisterUnitEvents(
-        {"UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_HEAL_PREDICTION", "UNIT_ABSORB_AMOUNT_CHANGED"},
+        { "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_HEAL_PREDICTION", "UNIT_ABSORB_AMOUNT_CHANGED" },
         "player", on_unit_health
     )
     sfui.events.RegisterUnitEvents(
-        {"UNIT_HEALTH", "UNIT_MAXHEALTH"},
+        { "UNIT_HEALTH", "UNIT_MAXHEALTH" },
         "pet", function()
             local inCombat = sfui.common.is_in_combat()
             local hasEnemyTarget = UnitCanAttack("player", "target")
@@ -1661,18 +1680,19 @@ do
         end
     )
     sfui.events.RegisterUnitEvents(
-        {"UNIT_POWER_UPDATE", "UNIT_POWER_FREQUENT", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER"},
+        { "UNIT_POWER_UPDATE", "UNIT_POWER_FREQUENT", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER" },
         "player", on_unit_power
     )
     sfui.events.RegisterUnitEvents(
-        {"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP"},
+        { "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
+            "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP" },
         "player", on_cast_or_channel
     )
 
     -- 5-Second Rule (MP5 Regen) events: strictly registered on Classic / Camelot only
     if sfui.isClassic then
         sfui.events.RegisterUnitEvents(
-            {"UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_CHANNEL_START"},
+            { "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_CHANNEL_START" },
             "player", on_spellcast
         )
         sfui.events.RegisterEvent("PLAYER_DEAD", function() stop_fsr_timer() end)
@@ -1688,8 +1708,10 @@ do
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", on_event)
     sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORMS", on_event)
 
-    local isClassicOrCamelot = sfui.isClassic or sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic or sfui.compat.is_classic_era))
-    local pClassBars = (common.get_player_class and common.get_player_class()) or (UnitClass and select(2, UnitClass("player")))
+    local isClassicOrCamelot = sfui.isClassic or sfui.isCamelot or
+        (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic or sfui.compat.is_classic_era))
+    local pClassBars = (common.get_player_class and common.get_player_class()) or
+        (UnitClass and select(2, UnitClass("player")))
     if isClassicOrCamelot and pClassBars == "HUNTER" then
         sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
             update_hunter_ammo_text()
@@ -1707,7 +1729,7 @@ do
     sfui.events.RegisterEvent("RUNE_POWER_UPDATE", on_event)
     sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", on_event)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_event)
-    sfui.events.RegisterUnitEvents({"UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE"}, "player", on_event)
+    sfui.events.RegisterUnitEvents({ "UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE" }, "player", on_event)
     sfui.events.RegisterEvent("VEHICLE_UPDATE", on_event)
     sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_event)
     sfui.events.RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR", on_event)
@@ -1734,4 +1756,3 @@ do
     sfui.bars.GetDebugInfo = sfui.bars_debug_info
     sfui.RegisterModule("bars", sfui.bars)
 end
-

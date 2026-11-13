@@ -16,39 +16,39 @@ sfui.recipes = sfui.recipes or {}
 if sfui.isRetail then return end
 
 -- Localized APIs
-local UnitName                      = _G.UnitName
-local UnitGUID                      = _G.UnitGUID
-local UnitExists                    = _G.UnitExists
-local UnitIsDead                    = _G.UnitIsDead
-local UnitIsPlayer                  = _G.UnitIsPlayer
-local C_Map                         = _G.C_Map
-local C_Item_GetItemInfoInstant     = sfui.common.get_item_instant_info
-local GetMerchantNumItems           = _G.GetMerchantNumItems
-local GetMerchantItemInfo           = sfui.api.GetMerchantItemInfo
-local GetMerchantItemLink           = _G.GetMerchantItemLink
-local GetNumTrainerServices         = _G.GetNumTrainerServices
-local GetTrainerServiceInfo         = _G.GetTrainerServiceInfo
-local GetTrainerServiceCost         = _G.GetTrainerServiceCost
-local GetTrainerServiceSkillReq     = _G.GetTrainerServiceSkillReq
-local GetNumLootItems               = _G.GetNumLootItems
-local GetLootSlotLink               = _G.GetLootSlotLink
-local GetNumQuestRewards            = _G.GetNumQuestRewards
-local GetNumQuestChoices            = _G.GetNumQuestChoices
-local GetQuestItemLink              = _G.GetQuestItemLink
-local GetTitleText                  = _G.GetTitleText
-local GetRealZoneText               = _G.GetRealZoneText
-local GetSubZoneText                = _G.GetSubZoneText
-local strsplit                      = _G.strsplit
-local tonumber = _G.tonumber
-local pcall, type                   = _G.pcall, _G.type
-local ipairs = _G.ipairs
-local math_floor                    = math.floor
-local time                          = _G.time
-local table_insert                  = table.insert
-local issecretvalue = sfui.common.issecretvalue
+local UnitName                  = _G.UnitName
+local UnitGUID                  = _G.UnitGUID
+local UnitExists                = _G.UnitExists
+local UnitIsDead                = _G.UnitIsDead
+local UnitIsPlayer              = _G.UnitIsPlayer
+local C_Map                     = _G.C_Map
+local C_Item_GetItemInfoInstant = sfui.common.get_item_instant_info
+local GetMerchantNumItems       = _G.GetMerchantNumItems
+local GetMerchantItemInfo       = sfui.api.GetMerchantItemInfo
+local GetMerchantItemLink       = _G.GetMerchantItemLink
+local GetNumTrainerServices     = _G.GetNumTrainerServices
+local GetTrainerServiceInfo     = _G.GetTrainerServiceInfo
+local GetTrainerServiceCost     = _G.GetTrainerServiceCost
+local GetTrainerServiceSkillReq = _G.GetTrainerServiceSkillReq
+local GetNumLootItems           = _G.GetNumLootItems
+local GetLootSlotLink           = _G.GetLootSlotLink
+local GetNumQuestRewards        = _G.GetNumQuestRewards
+local GetNumQuestChoices        = _G.GetNumQuestChoices
+local GetQuestItemLink          = _G.GetQuestItemLink
+local GetTitleText              = _G.GetTitleText
+local GetRealZoneText           = _G.GetRealZoneText
+local GetSubZoneText            = _G.GetSubZoneText
+local strsplit                  = _G.strsplit
+local tonumber                  = _G.tonumber
+local pcall, type               = _G.pcall, _G.type
+local ipairs                    = _G.ipairs
+local math_floor                = math.floor
+local time                      = _G.time
+local table_insert              = table.insert
+local issecretvalue             = sfui.common.issecretvalue
 
 -- Recipe item class constant (9 = Recipe)
-local ITEM_CLASS_RECIPE = 9
+local ITEM_CLASS_RECIPE         = 9
 
 local function EnsureStorage()
     SfuiDB = SfuiDB or {}
@@ -165,7 +165,8 @@ local function ScanMerchant()
                         local tokenParts = {}
                         for cIdx = 1, numCosts do
                             local _, count, itemLink = GetMerchantItemCostItem(i, cIdx)
-                            local cName = (itemLink and not issecretvalue(itemLink)) and itemLink:match("%[(.-)%]") or "token"
+                            local cName = (itemLink and not issecretvalue(itemLink)) and itemLink:match("%[(.-)%]") or
+                                "token"
                             if count and not issecretvalue(count) and count > 1 then
                                 table_insert(tokenParts, string.format("%s x%d", cName:lower(), count))
                             else
@@ -354,8 +355,8 @@ local function ScanQuest()
 
     for _, kind in ipairs({ "reward", "choice" }) do
         local count = (kind == "reward" and GetNumQuestRewards and GetNumQuestRewards())
-                   or (kind == "choice" and GetNumQuestChoices and GetNumQuestChoices())
-                   or 0
+            or (kind == "choice" and GetNumQuestChoices and GetNumQuestChoices())
+            or 0
         if issecretvalue(count) then count = 0 end
 
         for i = 1, count do
@@ -369,7 +370,8 @@ local function ScanQuest()
 
                 if classID == ITEM_CLASS_RECIPE or dbRecipes[itemID] then
                     local rawName = link:match("%[(.-)%]") or ""
-                    local cleanName = rawName:gsub("^(Recipe|Pattern|Plans|Schematic|Formula|Manual|Book):%s*", ""):lower()
+                    local cleanName = rawName:gsub("^(Recipe|Pattern|Plans|Schematic|Formula|Manual|Book):%s*", "")
+                        :lower()
 
                     if cleanName ~= "" then
                         SfuiDB.recipe_finds.quests[cleanName] = SfuiDB.recipe_finds.quests[cleanName] or {}

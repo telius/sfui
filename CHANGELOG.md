@@ -1,21 +1,22 @@
 # changelog
 
-## v1.147 (2026-11-12)
+## v1.148 (2026-11-13)
 
 ### new features & improvements
 
-- **universal `/sfui find` search & utility modules (`frames/find.lua`, `frames/mem.lua`, `frames/merchant/merchant_utility.lua`, `frames/ring/providers/ring_utility.lua`, `frames/actionbars/movers.lua`, `commands.lua`, `sfui.toc`)**:
-  - added `/sfui find` (`frames/find.lua`) to search items across bags, bank, warband, alts, profession recipes, fishing spots, dungeon bosses, and quest rewards from one unified interface, plus `/sfui mem` memory diagnostics (`frames/mem.lua`), merchant utility helpers (`frames/merchant/merchant_utility.lua`), radial ring utility actions (`frames/ring/providers/ring_utility.lua`), and expanded mover snapping/controls (`frames/actionbars/movers.lua`).
-- **shared core subsystems & addon interoperability (`core/inventory.lua`, `core/navigation.lua`, `core/queststate.lua`, `core/state.lua`, `core/tooltips.lua`, `core/safety.lua`, `core/module.lua`, `frames/gear/highest.lua`, `frames/fishing/fishing_atlas.lua`, `frames/professions/browser.lua`, `frames/quests/modules/q_recipes.lua`, `frames/quests/modules/q_camelot_recipes.lua`)**:
-  - introduced shared inventory indexing (`core/inventory.lua`), combat-safe map/waypoint navigation (`core/navigation.lua`), quest chain state evaluation (`core/queststate.lua`), reactive state pub/sub (`core/state.lua`), centralized tooltip hooks (`core/tooltips.lua`), and module error boundaries (`core/safety.lua`, `core/module.lua`).
-  - added `DialogueUI` quest reward upgrade badge support on both retail and forever (`frames/gear/highest.lua`), and bound recipe & fishing atlas quick-open links to `ctrl-click` so `alt` hover item-id inspection never conflicts.
-- **camelot dungeon journal, interactive maps & quest chain pins (`frames/dungeonjournal/dungeonjournal.lua`, `frames/dungeonjournal/dj_map.lua`, `frames/dungeonjournal/dj_quests.lua`, `frames/dungeonjournal/dj_bosses.lua`, `frames/map/providers/pins_dungeonjournal.lua`, `data/dj_camelot.lua`, `data/dj_maps_camelot.lua`, `data/fishing_camelot.lua`)**:
-  - audited and updated camelot quest chains, faction restrictions, prerequisite gates, and world map quest pins so multi-step chains (such as `a vengeful fate` and `earthen echo`) point to the active starting prerequisite step instead of locked downstream givers (`data/dj_camelot.lua`, `frames/dungeonjournal/dj_quests.lua`, `frames/map/providers/pins_dungeonjournal.lua`).
-  - fixed reverse-floor phantom transition ladders on multi-floor dungeon maps, restored hover-only traversal notes (`razorfen kraul` roogug hints and `gnomeregan` jump label), added quest-target boss portrait badges and journal navigation (`highland horror`), and added `C_Map` multi-tile fallback rendering (`frames/dungeonjournal/dj_map.lua`, `data/dj_maps_camelot.lua`).
+- **camelot spellbook trainer, flight timer & world map utilities (`frames/character/trainer.lua`, `frames/bars/flighttimer.lua`, `data/flight_camelot.lua`, `frames/map/zonelevels.lua`, `frames/map/gatherskill.lua`, `frames/options/tabs/tab_minimap.lua`, `sfui.toc`)**:
+  - added an integrated spellbook trainer and unlearned rank browser for camelot/forever (`frames/character/trainer.lua`).
+  - added a self-calibrating taxi flight timer bar with multi-hop intermediate stop ticks, learned leg durations, and an early-landing request button (`frames/bars/flighttimer.lua`, `data/flight_camelot.lua`).
+  - added world map cursor zone level and fishing skill readouts (`frames/map/zonelevels.lua`) plus color-coded gathering skill requirements on herb, ore, and skinning tooltips (`frames/map/gatherskill.lua`).
+- **alts ruleset classification, spell upranking & automation upgrades (`frames/alts/alts.lua`, `frames/alts/alts_camelot.lua`, `frames/automation/rankup.lua`, `frames/automation/logs.lua`, `frames/automation/automation.lua`, `frames/hide.lua`, `frames/ring/ring_secure.lua`)**:
+  - fixed camelot character ruleset classification and expanded alt roster, mail, and recipe tracking (`frames/alts/alts.lua`, `frames/alts/alts_camelot.lua`).
+  - upgraded spell upranking with `IsSpellBookItemLowRank`, action bar slots `1-180`, and pet action bar rank upgrades (`frames/automation/rankup.lua`).
+  - added modifier-variant secure keybindings on the radial ring (`frames/ring/ring_secure.lua`), smart instance combat-log toggling (`frames/automation/logs.lua`), `SellAllJunkItems()` retry handling (`frames/automation/automation.lua`), and taint-safe `UIErrorsFrame:SetMessageTypeEnabled` filtering (`frames/hide.lua`).
 
-### bug fixes & safety hardening
+### bug fixes & codebase hardening
 
-- **advisory-only quest reward choices & sync safety (`frames/sync/quests.lua`, `frames/automation/automation.lua`)**:
-  - ensured quest completion never auto-picks or accepts a reward whenever multiple reward choices exist, keeping upgrade badges strictly advisory during both solo turn-ins and multibox quest sync.
-- **secret-value, tooltip & combat lockdown fixes (`frames/bars/target.lua`, `frames/bars/pet.lua`, `frames/bars/soulfragments.lua`, `frames/bars/swing.lua`, `frames/bars/threat.lua`, `core/items.lua`, `core/tooltips.lua`, `frames/automation/automation.lua`, `core/navigation.lua`, `frames/dungeonjournal/dj_map.lua`)**:
-  - fixed secret-key table indexing errors on target bar updates (`frames/bars/target.lua`), guarded invalid/secret arguments before `GetItemInfo` and `C_TooltipInfo` calls (`core/items.lua`, `core/tooltips.lua`, `frames/automation/automation.lua`), and gated world map opening behind `InCombatLockdown()` and `C_Map.OpenWorldMap`.
+- **cdm buff stacks, combat aura resolution & secret-value safety (`frames/tracking/buffs.lua`, `frames/tracking/auras.lua`, `frames/tracking/icon_aura.lua`, `frames/tracking/trackedbars.lua`, `frames/tracking/glows.lua`, `frames/gear/lootviewer.lua`, `frames/bars/soulfragments.lua`)**:
+  - raised `Applications` frame levels above `Cooldown` swipes and enforced outlined stack text on socketed and preview tracked buffs (`frames/tracking/buffs.lua`).
+  - restored combat buff stack display across tracked icons and bars via `ShouldSpellAuraBeSecret`-guarded `GetPlayerAuraBySpellID` queries, `GetApplicationsFontString()` fallbacks, `appsAuthoritative` cast-prediction flags, secret aura table guards, and non-destructive module namespace initializers.
+- **codebase slimming, deduplication & packaging cleanup (`.pkgmeta`, `.luacheckrc`, `README.md`, `data/dj_maps_camelot.lua`, `frames/actionbars/bind.lua`, `frames/merchant/merchant.lua`, `frames/themes/engine.lua`)**:
+  - excluded raw scraper and dev json datasets from release archives in `.pkgmeta`, removed duplicate nested `LibStub` files under `Libs/LibCustomGlow-1.0`, deduplicated camelot map/trainer helpers and shared backdrops, and expanded `.luacheckrc` static analysis across all 238 lua files.

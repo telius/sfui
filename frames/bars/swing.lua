@@ -7,11 +7,11 @@ if sfui.isRetail or (not C_SwingTimer and not sfui.isEra) then
     return
 end
 
-sfui.swing = sfui.swing or {}
+sfui.swing               = sfui.swing or {}
 
-local cfg = sfui.config
-local common = sfui.common
-local issecretvalue = sfui.common.issecretvalue
+local cfg                = sfui.config
+local common             = sfui.common
+local issecretvalue      = sfui.common.issecretvalue
 local IsAttackSpeedValid = common.IsAttackSpeedValid or function(speed)
     if speed == nil then return false end
     if issecretvalue and issecretvalue(speed) then
@@ -19,28 +19,28 @@ local IsAttackSpeedValid = common.IsAttackSpeedValid or function(speed)
     end
     return type(speed) == "number" and speed > 0
 end
-local CreateFrame = CreateFrame
-local UIParent = UIParent
-local GetTime = GetTime
+local CreateFrame        = CreateFrame
+local UIParent           = UIParent
+local GetTime            = GetTime
 local GetInventoryItemID = GetInventoryItemID
-local UnitClass = UnitClass
-local C_SwingTimer = C_SwingTimer
-local Enum = Enum
+local UnitClass          = UnitClass
+local C_SwingTimer       = C_SwingTimer
+local Enum               = Enum
 
 local GetItemInfoInstant = sfui.common.get_item_instant_info
-local INVSLOT_OFFHAND = _G.INVSLOT_OFFHAND or 17
-local INVSLOT_RANGED  = _G.INVSLOT_RANGED or 18
-local ITEM_CLASS_WEAPON = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
+local INVSLOT_OFFHAND    = _G.INVSLOT_OFFHAND or 17
+local INVSLOT_RANGED     = _G.INVSLOT_RANGED or 18
+local ITEM_CLASS_WEAPON  = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
 
-local SWING_MAIN_HAND = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand) or 0
-local SWING_OFF_HAND  = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.OffHand)  or 1
-local SWING_RANGED    = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.Ranged)   or 2
-local SWING_TYPES     = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
+local SWING_MAIN_HAND    = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand) or 0
+local SWING_OFF_HAND     = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.OffHand) or 1
+local SWING_RANGED       = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.Ranged) or 2
+local SWING_TYPES        = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
 
 local OUT_OF_RANGE_ALPHA = 0.4
 
-local swingBars = {}
-sfui.swing._bars = swingBars
+local swingBars          = {}
+sfui.swing._bars         = swingBars
 local playerClass
 local function GetPlayerClass()
     if not playerClass then
@@ -355,7 +355,8 @@ local function EnsureBarsCreated()
                 end
                 local bd = mhBar.backdrop
                 if bd and bd:GetLeft() and bd:GetBottom() and sfui.movers.CalculateRelativeCoordinates then
-                    local pt, rPt, x, y = sfui.movers.CalculateRelativeCoordinates(bd:GetLeft(), bd:GetBottom(), bd:GetWidth(), bd:GetHeight(), "BOTTOM")
+                    local pt, rPt, x, y = sfui.movers.CalculateRelativeCoordinates(bd:GetLeft(), bd:GetBottom(),
+                        bd:GetWidth(), bd:GetHeight(), "BOTTOM")
                     return pt, UIParent, rPt, x, y
                 end
                 local hX = (SfuiDB and SfuiDB.healthBarX) or 0
@@ -510,7 +511,8 @@ function sfui.swing.UpdatePositions(anchorFrame, spacing)
             local b0 = sfui.bars.get_bar0()
             bar0 = b0 and b0.backdrop
         end
-        anchorFrame = (barMinus1 and (barMinus1:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and barMinus1 or bar0
+        anchorFrame = (barMinus1 and (barMinus1:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and
+            barMinus1 or bar0
     end
     if not anchorFrame then return end
 
@@ -526,7 +528,8 @@ function sfui.swing.UpdatePositions(anchorFrame, spacing)
         if bar and bar.backdrop then
             bar.backdrop:ClearAllPoints()
             if isFirst and customPos and customPos.point and customPos.x and customPos.y then
-                bar.backdrop:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x, customPos.y)
+                bar.backdrop:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x,
+                    customPos.y)
                 currentAnchor = bar.backdrop
                 isFirst = false
             else
@@ -790,6 +793,7 @@ function sfui.swing_debug_info()
     _swingDebug.rangedShown = (rBar and rBar:IsShown()) or false
     return _swingDebug
 end
+
 sfui.swing.GetDebugInfo = sfui.swing_debug_info
 
 if sfui.RegisterModule then

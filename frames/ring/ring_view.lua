@@ -1,54 +1,54 @@
-local addonName, addon = ...
-sfui = sfui or {}
-sfui.ring = sfui.ring or {}
-sfui.ring.view = sfui.ring.view or {}
+local addonName, addon               = ...
+sfui                                 = sfui or {}
+sfui.ring                            = sfui.ring or {}
+sfui.ring.view                       = sfui.ring.view or {}
 
-local view = sfui.ring.view
-local geom = sfui.ring.geom
+local view                           = sfui.ring.view
+local geom                           = sfui.ring.geom
 
-local CreateFrame  = _G.CreateFrame
-local UIParent     = _G.UIParent
-local type         = _G.type
-local pairs        = _G.pairs
-local unpack       = _G.unpack
-local math_max     = math.max
-local math_min     = math.min
-local math_abs     = math.abs
-local math_ceil    = math.ceil
-local math_floor   = math.floor
-local string_format = string.format
-local GetTime      = _G.GetTime
-local tonumber     = _G.tonumber
-local tostring     = _G.tostring
-local UnitExists   = _G.UnitExists
-local C_Item       = _G.C_Item
-local C_Spell      = _G.C_Spell
-local C_Container  = _G.C_Container
-local C_Minimap    = _G.C_Minimap
-local C_QuestLog   = _G.C_QuestLog
-local InCombatLockdown = _G.InCombatLockdown
-local issecretvalue = sfui.common.issecretvalue
+local CreateFrame                    = _G.CreateFrame
+local UIParent                       = _G.UIParent
+local type                           = _G.type
+local pairs                          = _G.pairs
+local unpack                         = _G.unpack
+local math_max                       = math.max
+local math_min                       = math.min
+local math_abs                       = math.abs
+local math_ceil                      = math.ceil
+local math_floor                     = math.floor
+local string_format                  = string.format
+local GetTime                        = _G.GetTime
+local tonumber                       = _G.tonumber
+local tostring                       = _G.tostring
+local UnitExists                     = _G.UnitExists
+local C_Item                         = _G.C_Item
+local C_Spell                        = _G.C_Spell
+local C_Container                    = _G.C_Container
+local C_Minimap                      = _G.C_Minimap
+local C_QuestLog                     = _G.C_QuestLog
+local InCombatLockdown               = _G.InCombatLockdown
+local issecretvalue                  = sfui.common.issecretvalue
 local GetQuestLogSpecialItemCooldown = _G.GetQuestLogSpecialItemCooldown
 
 local rootFrame
 local slotPool
-local activeSlots = {}
-local activeSlotIndex = nil
-local currentRingID = nil
-local currentSlotsData = nil
+local activeSlots                    = {}
+local activeSlotIndex                = nil
+local currentRingID                  = nil
+local currentSlotsData               = nil
 
-local openAnimActive = false
-local openAnimTimer = 0
-local openAnimDuration = 0.10
+local openAnimActive                 = false
+local openAnimTimer                  = 0
+local openAnimDuration               = 0.10
 
 local function get_config()
-    local db = sfui.db and sfui.db.Get
-    local radius   = (db and db("ring", "radius", 95)) or 95
-    local deadzone = (db and db("ring", "deadzone", 28)) or 28
-    local slotSize = (db and db("ring", "slot_size", 40)) or 40
-    local labels   = (db and db("ring", "show_labels", true)) ~= false
+    local db            = sfui.db and sfui.db.Get
+    local radius        = (db and db("ring", "radius", 95)) or 95
+    local deadzone      = (db and db("ring", "deadzone", 28)) or 28
+    local slotSize      = (db and db("ring", "slot_size", 40)) or 40
+    local labels        = (db and db("ring", "show_labels", true)) ~= false
     local showCooldowns = (db and db("ring", "show_cooldowns", true)) ~= false
-    local animations = (db and db("ring", "animations", true)) ~= false
+    local animations    = (db and db("ring", "animations", true)) ~= false
     return radius, deadzone, slotSize, labels, showCooldowns, animations
 end
 
@@ -243,7 +243,7 @@ local function get_slot_cooldown(data)
         elseif _G.GetSpellCooldown then
             start, duration, enable = _G.GetSpellCooldown(attrs.spell)
         end
-    -- 3. toy cooldown
+        -- 3. toy cooldown
     elseif attrs.type == "toy" and (attrs.toy or data.id) then
         local toyID = tonumber(attrs.toy) or tonumber(tostring(attrs.toy or data.id):match("(%d+)"))
         if toyID then

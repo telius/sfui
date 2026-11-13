@@ -23,54 +23,54 @@ if not sfui.isRetail then
     return
 end
 
-local _G                                      = _G
-local C_QuestLog                              = _G.C_QuestLog
-local C_SuperTrack                            = _G.C_SuperTrack
-local Enum                                    = _G.Enum
-local GetNumAutoQuestPopUps                   = _G.GetNumAutoQuestPopUps
-local GetAutoQuestPopUp                       = _G.GetAutoQuestPopUp
-local GetQuestLogTitle                        = _G.GetQuestLogTitle
-local GetNumQuestLogEntries                   = _G.GetNumQuestLogEntries
-local GetQuestProgressBarPercent              = _G.GetQuestProgressBarPercent
-local IsInGroup                               = _G.IsInGroup
-local InCombatLockdown                        = _G.InCombatLockdown
-local IsShiftKeyDown                          = _G.IsShiftKeyDown
-local IsControlKeyDown                        = _G.IsControlKeyDown
-local IsAltKeyDown                            = _G.IsAltKeyDown
+local _G                            = _G
+local C_QuestLog                    = _G.C_QuestLog
+local C_SuperTrack                  = _G.C_SuperTrack
+local Enum                          = _G.Enum
+local GetNumAutoQuestPopUps         = _G.GetNumAutoQuestPopUps
+local GetAutoQuestPopUp             = _G.GetAutoQuestPopUp
+local GetQuestLogTitle              = _G.GetQuestLogTitle
+local GetNumQuestLogEntries         = _G.GetNumQuestLogEntries
+local GetQuestProgressBarPercent    = _G.GetQuestProgressBarPercent
+local IsInGroup                     = _G.IsInGroup
+local InCombatLockdown              = _G.InCombatLockdown
+local IsShiftKeyDown                = _G.IsShiftKeyDown
+local IsControlKeyDown              = _G.IsControlKeyDown
+local IsAltKeyDown                  = _G.IsAltKeyDown
 
 local ipairs, pairs, type, tonumber = _G.ipairs, _G.pairs, _G.type, _G.tonumber
-local math_floor                              = math.floor
-local table_insert, table_sort                = _G.table.insert, _G.table.sort
-local string_format                           = string.format
+local math_floor                    = math.floor
+local table_insert, table_sort      = _G.table.insert, _G.table.sort
+local string_format                 = string.format
 
 
 -- ─────────────────────────────────────────────────────────
 --  HELPERS & CACHE
 -- ─────────────────────────────────────────────────────────
-local Waypoints                               = sfui.tracker.helpers.waypoints
-local TimerBars                               = sfui.tracker.helpers.timerbars
-local Items                                   = sfui.tracker.helpers.items
-local FindGroup                               = sfui.tracker.helpers.findgroup
-local QuestCommon                             = sfui.tracker.helpers.quest
+local Waypoints                 = sfui.tracker.helpers.waypoints
+local TimerBars                 = sfui.tracker.helpers.timerbars
+local Items                     = sfui.tracker.helpers.items
+local FindGroup                 = sfui.tracker.helpers.findgroup
+local QuestCommon               = sfui.tracker.helpers.quest
 
-local wipe                                    = _G.wipe or function(t)
+local wipe                      = _G.wipe or function(t)
     for k in pairs(t) do t[k] = nil end
     return t
 end
 
 -- Fallback stubs for legacy references
-sfui.questlog.IsClassQuest                    = sfui.questlog.IsClassQuest or function() return false end
-sfui.questlog.IsDungeonQuest                  = sfui.questlog.IsDungeonQuest or function() return false end
-sfui.questlog.IsProfessionQuest               = sfui.questlog.IsProfessionQuest or function() return false end
+sfui.questlog.IsClassQuest      = sfui.questlog.IsClassQuest or function() return false end
+sfui.questlog.IsDungeonQuest    = sfui.questlog.IsDungeonQuest or function() return false end
+sfui.questlog.IsProfessionQuest = sfui.questlog.IsProfessionQuest or function() return false end
 
 -- ─────────────────────────────────────────────────────────
 --  EXPANSION & WATCH CACHE
 -- ─────────────────────────────────────────────────────────
-local recentlyWatched                         = {}
-local manualExpanded                          = {}
+local recentlyWatched           = {}
+local manualExpanded            = {}
 
-local GetQuestProgressDetails                 = QuestCommon.GetQuestProgressDetails
-local GetQLState                              = sfui.questlog.GetState
+local GetQuestProgressDetails   = QuestCommon.GetQuestProgressDetails
+local GetQLState                = sfui.questlog.GetState
 
 local function IsQuestWatched(questID, questLogIndex)
     return QuestCommon.IsQuestWatched(questID, questLogIndex, recentlyWatched)
@@ -563,7 +563,8 @@ function QuestsModule:BuildBlocks(container)
 
             -- Smart progress-based expansion & inline tag (including synced peers)
             local hasProgress, inlineTag = GetQuestProgressDetails(questID, i, isComplete, objs, canClickToComplete)
-            local syncInfo = QuestCommon and QuestCommon.GetSyncedQuestTrackerInfo and QuestCommon.GetSyncedQuestTrackerInfo(questID)
+            local syncInfo = QuestCommon and QuestCommon.GetSyncedQuestTrackerInfo and
+                QuestCommon.GetSyncedQuestTrackerInfo(questID)
             local hasMissingParty = (syncInfo and syncInfo.hasMissingParty) or false
             local hasIncompletePeers = (syncInfo and syncInfo.hasIncompletePeers) or false
             local hasSyncProgress = (syncInfo and syncInfo.hasProgress) or false
