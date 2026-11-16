@@ -77,6 +77,7 @@ local BOOK_ICON = "Interface\\Icons\\INV_Misc_Book_09"
 local BANK_PLAYER = (Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player ~= nil and Enum.SpellBookSpellBank.Player) or 0
 local ITEM_TYPE_SPELL = (Enum.SpellBookItemType and Enum.SpellBookItemType.Spell) or 1
 local ITEM_TYPE_FUTURE = (Enum.SpellBookItemType and Enum.SpellBookItemType.FutureSpell) or 2
+local ITEM_TYPE_FLYOUT = (Enum.SpellBookItemType and Enum.SpellBookItemType.Flyout) or 4
 local SKILL_LINE_GENERAL = (Enum.SpellBookSkillLineIndex and Enum.SpellBookSkillLineIndex.General) or 1
 local TRAINER_TYPE_GENERAL = (Enum.TrainerType and Enum.TrainerType.General ~= nil and Enum.TrainerType.General) or 0
 
@@ -136,13 +137,21 @@ local scratch = {
     knownNames = {},
     knownMaxRank = {},
     knownExactKey = {},
+    knownPassiveTalents = {},
     seenSpellIDs = {},
     seenExactKeys = {},
+    seenRank1OrUnranked = {},
     nameCategoryMap = {},
     hasRank1Trainable = {},
     requestedSpellLoads = {},
     futureTemp = {},
+    futureByExactKey = {},
+    futureByLowerName = {},
     categorySeen = {},
+    classSpecSet = {},
+    classAllLinesSet = {},
+    trainerSeenKeys = {},
+    trainerSeenSpecs = {},
 }
 
 local entryPool = sfui.pool.create_table_pool(300)
@@ -225,6 +234,18 @@ local function FormatMoney(copper)
     return string_format("%dc", c)
 end
 
+local function RequestSpellLoadOnce(spellID)
+    if not spellID or issecretvalue(spellID) or scratch.requestedSpellLoads[spellID] then
+        return
+    end
+    scratch.requestedSpellLoads[spellID] = true
+    if common and common.request_spell_load then
+        common.request_spell_load(spellID)
+    elseif C_Spell and C_Spell.RequestLoadSpellData then
+        C_Spell.RequestLoadSpellData(spellID)
+    end
+end
+
 local function GetSpellNameSafe(spellID)
     if not spellID then return nil end
     if common and common.get_spell_name then
@@ -239,6 +260,7 @@ local function GetSpellNameSafe(spellID)
         local n = _G.GetSpellInfo(spellID)
         if n and not issecretvalue(n) and n ~= "" then return n end
     end
+    RequestSpellLoadOnce(spellID)
     return nil
 end
 
@@ -271,14 +293,7 @@ local function GetSpellSubtextSafe(spellID, rawSubName)
             return sub
         end
     end
-    if spellID and not scratch.requestedSpellLoads[spellID] then
-        scratch.requestedSpellLoads[spellID] = true
-        if common and common.request_spell_load then
-            common.request_spell_load(spellID)
-        elseif C_Spell and C_Spell.RequestLoadSpellData then
-            C_Spell.RequestLoadSpellData(spellID)
-        end
-    end
+    RequestSpellLoadOnce(spellID)
     return ""
 end
 
@@ -308,13 +323,17 @@ local function BuildExactKey(lowerName, subName)
     return lowerName .. "|"
 end
 
-local function LookupCachedCost(classFile, exactKey, lowerName)
+local function LookupCachedCost(classFile, exactKey, lowerName, rank)
     local db = SfuiDB and SfuiDB.trainerCosts and SfuiDB.trainerCosts[classFile]
     if not db then return nil end
     local cost = db[exactKey]
     if cost and cost > 0 then return cost end
-    cost = db[lowerName .. "|"]
-    if cost and cost > 0 then return cost end
+    if (rank or 0) <= 1 then
+        cost = db[lowerName .. "|rank 1"]
+        if cost and cost > 0 then return cost end
+        cost = db[lowerName .. "|"]
+        if cost and cost > 0 then return cost end
+    end
     return nil
 end
 
@@ -333,13 +352,124 @@ local function IsClassTrainerOpen()
     return true
 end
 
+local function CollectClassSkillLines(specSet, allClassSet)
+    wipe(specSet)
+    wipe(allClassSet)
+
+    local classLocalized, classFile = UnitClass("player")
+    local locLower = SafeLower(classLocalized, "")
+    local fileLower = SafeLower(classFile, "")
+    if locLower ~= "" then allClassSet[locLower] = true end
+    if fileLower ~= "" then allClassSet[fileLower] = true end
+
+    if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo then
+        local classInfo = C_SpellBook.GetClassSkillLineInfo and C_SpellBook.GetClassSkillLineInfo()
+        local classInfoLower = classInfo and SafeLower(classInfo.name, "") or ""
+        if classInfoLower ~= "" then
+            allClassSet[classInfoLower] = true
+        end
+        local numLines = C_SpellBook.GetNumSpellBookSkillLines() or 0
+        for lineIdx = 1, numLines do
+            local lineInfo = C_SpellBook.GetSpellBookSkillLineInfo(lineIdx)
+            if lineInfo and not lineInfo.shouldHide and not lineInfo.isGuild then
+                local cat = SafeLower(lineInfo.name, "")
+                if cat ~= "" and lineIdx ~= SKILL_LINE_GENERAL then
+                    specSet[cat] = true
+                    allClassSet[cat] = true
+                end
+            end
+        end
+    end
+
+    if not next(specSet) and _G.GetNumSpellTabs and _G.GetSpellTabInfo then
+        local numTabs = _G.GetNumSpellTabs() or 0
+        for tab = 2, numTabs do
+            local tabName = _G.GetSpellTabInfo(tab)
+            local cat = SafeLower(tabName, "")
+            if cat ~= "" then
+                specSet[cat] = true
+                allClassSet[cat] = true
+            end
+        end
+    end
+end
+
+local function ResolveTrainerServiceCategory(idx, rawCategory)
+    local rawCat = (rawCategory and not issecretvalue(rawCategory) and rawCategory ~= "") and rawCategory
+        or (_G.GetTrainerServiceSkillLine and _G.GetTrainerServiceSkillLine(idx))
+    if rawCat and not issecretvalue(rawCat) and type(rawCat) == "string" and rawCat ~= "" then
+        return string_lower(rawCat)
+    end
+    return nil
+end
+
+local function ResolveTrainerAbilityReq(idx, lowerName)
+    if not (_G.GetTrainerServiceNumAbilityReq and _G.GetTrainerServiceAbilityReq) then
+        return nil
+    end
+    local numReq = _G.GetTrainerServiceNumAbilityReq(idx) or 0
+    for r = 1, numReq do
+        local abil = _G.GetTrainerServiceAbilityReq(idx, r)
+        if abil and not issecretvalue(abil) and abil ~= "" then
+            local abilLower = string_lower(abil)
+            local baseAbil = string_match(abilLower, "^(.-)%s*%(") or abilLower
+            if baseAbil ~= lowerName then
+                return baseAbil
+            end
+        end
+    end
+    return nil
+end
+
+local function IsTrainableServiceType(serviceType)
+    return serviceType == "available" or serviceType == "unavailable" or serviceType == "used"
+end
+
 local function ScanOpenClassTrainer()
     if IsInCombat() or not IsClassTrainerOpen() then return end
     local numServices = _G.GetNumTrainerServices() or 0
     if numServices <= 0 then return end
 
-    local _, classFile = UnitClass("player")
+    local classLocalized, classFile = UnitClass("player")
     if not classFile then return end
+    local classCatFallback = SafeLower(classLocalized, SafeLower(classFile, ""))
+    if classCatFallback == "" then classCatFallback = nil end
+
+    local stepIndex = _G.GetTrainerServiceStepIndex and _G.GetTrainerServiceStepIndex() or nil
+    CollectClassSkillLines(scratch.classSpecSet, scratch.classAllLinesSet)
+    wipe(scratch.trainerSeenKeys)
+    wipe(scratch.trainerSeenSpecs)
+
+    -- Validation pass: distinguish true class trainers from non-class General trainers (Riding, Weapon Masters)
+    local hadPendingNames = false
+    local anySkillLineReturned = false
+    local matchedClassCount = 0
+
+    for idx = 1, numServices do
+        if idx ~= stepIndex then
+            local serviceName, serviceType, _, _, _, category = _G.GetTrainerServiceInfo(idx)
+            local _, isProfession = _G.GetTrainerServiceCost(idx)
+            if not isProfession and IsTrainableServiceType(serviceType) then
+                if not serviceName or issecretvalue(serviceName) or serviceName == "" or serviceName == _G.UNKNOWN then
+                    hadPendingNames = true
+                end
+                local catLower = ResolveTrainerServiceCategory(idx, category)
+                if catLower then
+                    anySkillLineReturned = true
+                    if scratch.classAllLinesSet[catLower] then
+                        matchedClassCount = matchedClassCount + 1
+                    end
+                    if scratch.classSpecSet[catLower] then
+                        scratch.trainerSeenSpecs[catLower] = true
+                    end
+                end
+            end
+        end
+    end
+
+    if anySkillLineReturned and next(scratch.classAllLinesSet) and matchedClassCount == 0 then
+        return
+    end
 
     SfuiDB = SfuiDB or {}
     SfuiDB.trainerCosts = SfuiDB.trainerCosts or {}
@@ -351,17 +481,27 @@ local function ScanOpenClassTrainer()
 
     local costBucket = SfuiDB.trainerCosts[classFile]
     local catBucket = SfuiDB.trainerCatalog[profileKey]
-    local stepIndex = _G.GetTrainerServiceStepIndex and _G.GetTrainerServiceStepIndex() or nil
 
     local changed = false
+    local validServiceCount = 0
+    local maxReqLevelSeen = 0
+
+    -- Capture pass: snapshot authoritative server reqLevel, skill-line category, and costs
     for idx = 1, numServices do
         if idx ~= stepIndex then
             local serviceName, serviceType, texture, reqLevel, serviceSubText, category = _G.GetTrainerServiceInfo(idx)
             local moneyCost, isProfession = _G.GetTrainerServiceCost(idx)
-            if not isProfession and serviceName and not issecretvalue(serviceName)
+            if not isProfession and IsTrainableServiceType(serviceType)
+                and serviceName and not issecretvalue(serviceName)
                 and serviceName ~= "" and serviceName ~= _G.UNKNOWN then
                 local lowerName = string_lower(serviceName)
                 local exactKey = BuildExactKey(lowerName, serviceSubText)
+
+                scratch.trainerSeenKeys[exactKey] = true
+                validServiceCount = validServiceCount + 1
+                if reqLevel and not issecretvalue(reqLevel) and type(reqLevel) == "number" and reqLevel > maxReqLevelSeen then
+                    maxReqLevelSeen = reqLevel
+                end
 
                 if moneyCost and not issecretvalue(moneyCost) and moneyCost > 0 then
                     if costBucket[exactKey] ~= moneyCost then
@@ -370,24 +510,15 @@ local function ScanOpenClassTrainer()
                     end
                 end
 
-                local reqOther = nil
-                if _G.GetTrainerServiceNumAbilityReq and _G.GetTrainerServiceAbilityReq then
-                    local numReq = _G.GetTrainerServiceNumAbilityReq(idx) or 0
-                    for r = 1, numReq do
-                        local abil = _G.GetTrainerServiceAbilityReq(idx, r)
-                        if abil and not issecretvalue(abil) and abil ~= "" then
-                            local abilLower = string_lower(abil)
-                            local baseAbil = string_match(abilLower, "^(.-)%s*%(") or abilLower
-                            if baseAbil ~= lowerName then
-                                reqOther = baseAbil
-                                break
-                            end
-                        end
-                    end
+                local catLower = ResolveTrainerServiceCategory(idx, category)
+                local entryCat = (catLower == "general") and classCatFallback or catLower
+                if entryCat and next(scratch.classAllLinesSet) and not scratch.classAllLinesSet[entryCat] then
+                    entryCat = classCatFallback
                 end
 
+                local reqOther = ResolveTrainerAbilityReq(idx, lowerName)
+
                 if serviceType ~= "used" or not catBucket[exactKey] then
-                    local catLower = (category and not issecretvalue(category) and category ~= "") and string_lower(category) or nil
                     local existing = catBucket[exactKey]
                     if not existing then
                         existing = {}
@@ -397,10 +528,34 @@ local function ScanOpenClassTrainer()
                     existing.subName = (serviceSubText and not issecretvalue(serviceSubText)) and serviceSubText or ""
                     existing.icon = (texture and not issecretvalue(texture)) and texture or existing.icon or BOOK_ICON
                     existing.reqLevel = (reqLevel and not issecretvalue(reqLevel) and reqLevel > 0) and reqLevel or existing.reqLevel or 1
-                    existing.category = catLower or existing.category
+                    existing.category = entryCat or existing.category
                     existing.reqOther = reqOther
                     changed = true
+                elseif entryCat and catBucket[exactKey] and catBucket[exactKey].category ~= entryCat then
+                    catBucket[exactKey].category = entryCat
+                    changed = true
                 end
+            end
+        end
+    end
+
+    local distinctSpecs = 0
+    for _ in pairs(scratch.trainerSeenSpecs) do
+        distinctSpecs = distinctSpecs + 1
+    end
+    local availFilter = not _G.GetTrainerServiceTypeFilter or _G.GetTrainerServiceTypeFilter("available")
+    local unavailFilter = not _G.GetTrainerServiceTypeFilter or _G.GetTrainerServiceTypeFilter("unavailable")
+
+    if availFilter and unavailFilter and not hadPendingNames
+        and distinctSpecs >= 2 and maxReqLevelSeen >= 50 and validServiceCount >= 20 then
+        if not catBucket._fullScan then
+            catBucket._fullScan = true
+            changed = true
+        end
+        for k, v in pairs(catBucket) do
+            if type(v) == "table" and (v.reqLevel or 0) > 6 and not scratch.trainerSeenKeys[k] then
+                catBucket[k] = nil
+                changed = true
             end
         end
     end
@@ -436,6 +591,92 @@ local function IsSpellEntryAlreadyKnown(lowerName, rank, spellID, exactKey)
     return false
 end
 
+local function RecordKnownSpell(spellID, actionID, spellName, rawSubName, lineCategory, isGeneralLine, isClassTalent, isPassive)
+    if spellID and not issecretvalue(spellID) then
+        scratch.knownSpellIDs[spellID] = true
+    end
+    if actionID and not issecretvalue(actionID) then
+        scratch.knownSpellIDs[actionID] = true
+    end
+    if not spellName or issecretvalue(spellName) or spellName == "" then
+        return
+    end
+
+    local lowerName = string_lower(spellName)
+    local subName = GetSpellSubtextSafe(spellID, rawSubName)
+    local rank = ParseRank(subName)
+    local exactKey = BuildExactKey(lowerName, subName)
+
+    scratch.knownNames[lowerName] = true
+    scratch.knownExactKey[exactKey] = true
+    -- Unranked/unloaded known spells count as rank >= 1 so trainer catalog rank 1 duplicates are suppressed
+    local effRank = rank > 0 and rank or 1
+    if effRank > (scratch.knownMaxRank[lowerName] or 0) then
+        scratch.knownMaxRank[lowerName] = effRank
+    end
+    if not isGeneralLine and lineCategory ~= "" then
+        scratch.nameCategoryMap[lowerName] = lineCategory
+    end
+    if isClassTalent and isPassive then
+        scratch.knownPassiveTalents[lowerName] = true
+    end
+end
+
+local function RecordFlyoutKnownSpells(flyoutID, lineCategory, isGeneralLine)
+    if not flyoutID or issecretvalue(flyoutID) or not (_G.GetFlyoutInfo and _G.GetFlyoutSlotInfo) then
+        return
+    end
+    local _, _, numSlots, isFlyoutKnown = _G.GetFlyoutInfo(flyoutID)
+    if not isFlyoutKnown or type(numSlots) ~= "number" or numSlots <= 0 then
+        return
+    end
+    for fSlot = 1, numSlots do
+        local fSpellID, fOverrideID, fIsKnown, fSpellName = _G.GetFlyoutSlotInfo(flyoutID, fSlot)
+        if fIsKnown then
+            local name = (fSpellName and not issecretvalue(fSpellName) and fSpellName ~= "")
+                and fSpellName or GetSpellNameSafe(fSpellID)
+            RecordKnownSpell(fSpellID, fOverrideID, name, nil, lineCategory, isGeneralLine, false, false)
+        end
+    end
+end
+
+local function AddFutureTempEntry(spellID, slotIndex, spellBank, spellName, subName, icon, isPassive, lvl, lineCategory, isGeneralLine)
+    local lowerName = string_lower(spellName)
+    local rank = ParseRank(subName)
+    local exactKey = BuildExactKey(lowerName, subName)
+
+    if not isGeneralLine and lineCategory ~= "" then
+        scratch.nameCategoryMap[lowerName] = lineCategory
+    end
+
+    local entry = AcquireEntry()
+    entry.spellID = spellID
+    entry.slotIndex = slotIndex
+    entry.spellBank = spellBank
+    entry.name = spellName
+    entry.lowerName = lowerName
+    entry.subName = subName
+    entry.rank = rank
+    entry.exactKey = exactKey
+    entry.icon = icon or GetSpellIconSafe(spellID)
+    entry.isPassive = isPassive and true or false
+    entry.levelLearned = lvl
+    entry.fromGeneralLine = isGeneralLine
+    entry.category = isGeneralLine and (scratch.nameCategoryMap[lowerName] or summary.className) or lineCategory
+    entry.cost = nil
+
+    table_insert(scratch.futureTemp, entry)
+    if not scratch.futureByExactKey[exactKey] then
+        scratch.futureByExactKey[exactKey] = entry
+    end
+    if rank <= 1 then
+        scratch.hasRank1Trainable[lowerName] = true
+        if not scratch.futureByLowerName[lowerName] then
+            scratch.futureByLowerName[lowerName] = entry
+        end
+    end
+end
+
 local function RebuildCatalog()
     catalogDirty = false
     for i = 1, #activePoolEntries do
@@ -443,22 +684,30 @@ local function RebuildCatalog()
     end
     wipe(activePoolEntries)
     local futureTemp = scratch.futureTemp
+    local futureByExactKey = scratch.futureByExactKey
+    local futureByLowerName = scratch.futureByLowerName
     local knownSpellIDs = scratch.knownSpellIDs
     local knownNames = scratch.knownNames
     local knownMaxRank = scratch.knownMaxRank
     local knownExactKey = scratch.knownExactKey
+    local knownPassiveTalents = scratch.knownPassiveTalents
     local seenSpellIDs = scratch.seenSpellIDs
     local seenExactKeys = scratch.seenExactKeys
+    local seenRank1OrUnranked = scratch.seenRank1OrUnranked
     local nameCategoryMap = scratch.nameCategoryMap
     local hasRank1Trainable = scratch.hasRank1Trainable
     local categorySeen = scratch.categorySeen
     wipe(futureTemp)
+    wipe(futureByExactKey)
+    wipe(futureByLowerName)
     wipe(knownSpellIDs)
     wipe(knownNames)
     wipe(knownMaxRank)
     wipe(knownExactKey)
+    wipe(knownPassiveTalents)
     wipe(seenSpellIDs)
     wipe(seenExactKeys)
+    wipe(seenRank1OrUnranked)
     wipe(nameCategoryMap)
     wipe(hasRank1Trainable)
     wipe(catalogEntries)
@@ -480,62 +729,44 @@ local function RebuildCatalog()
     summary.upcomingCost = 0
     summary.nextLevel = nil
 
-    -- Pass 1: Scan C_SpellBook skill lines (both known spells and FutureSpell entries)
+    -- Pass 1: Scan C_SpellBook skill lines across all class trees (known, flyout, and FutureSpell entries)
     if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo then
         local numLines = C_SpellBook.GetNumSpellBookSkillLines() or 0
         for lineIdx = 1, numLines do
             local lineInfo = C_SpellBook.GetSpellBookSkillLineInfo(lineIdx)
-            if lineInfo and not lineInfo.shouldHide and not lineInfo.offSpecID then
+            if lineInfo and not lineInfo.shouldHide and not lineInfo.isGuild then
                 local lineCategory = SafeLower(lineInfo.name, "general")
+                local isGeneralLine = (lineIdx == SKILL_LINE_GENERAL)
                 local offset = lineInfo.itemIndexOffset or 0
                 local count = lineInfo.numSpellBookItems or 0
                 for i = 1, count do
                     local slot = offset + i
                     local itemInfo = C_SpellBook.GetSpellBookItemInfo(slot, BANK_PLAYER)
-                    if itemInfo and not itemInfo.isOffSpec then
+                    if itemInfo then
                         local spellID = itemInfo.spellID or itemInfo.actionID
-                        local spellName = itemInfo.name or GetSpellNameSafe(spellID)
-                        if spellName and not issecretvalue(spellName) and spellName ~= "" then
-                            local lowerName = string_lower(spellName)
-                            local subName = GetSpellSubtextSafe(spellID, itemInfo.subName)
-                            local rank = ParseRank(subName)
-                            local exactKey = BuildExactKey(lowerName, subName)
-
-                            if lineIdx ~= SKILL_LINE_GENERAL and lineCategory ~= "" then
-                                nameCategoryMap[lowerName] = lineCategory
-                            end
-
-                            if itemInfo.itemType == ITEM_TYPE_SPELL then
-                                if spellID then knownSpellIDs[spellID] = true end
-                                knownNames[lowerName] = true
-                                knownExactKey[exactKey] = true
-                                if rank > (knownMaxRank[lowerName] or 0) then
-                                    knownMaxRank[lowerName] = rank
-                                end
-                            elseif itemInfo.itemType == ITEM_TYPE_FUTURE then
+                        if itemInfo.itemType == ITEM_TYPE_FLYOUT then
+                            RecordFlyoutKnownSpells(itemInfo.actionID, lineCategory, isGeneralLine)
+                        elseif itemInfo.itemType == ITEM_TYPE_SPELL then
+                            local spellName = itemInfo.name or GetSpellNameSafe(spellID)
+                            local isClassTalent = C_SpellBook.IsClassTalentSpellBookItem and C_SpellBook.IsClassTalentSpellBookItem(slot, BANK_PLAYER)
+                            local isPassive = (C_SpellBook.IsSpellBookItemPassive and C_SpellBook.IsSpellBookItemPassive(slot, BANK_PLAYER))
+                                or itemInfo.isPassive or false
+                            RecordKnownSpell(spellID, itemInfo.actionID, spellName, itemInfo.subName, lineCategory, isGeneralLine, isClassTalent, isPassive)
+                        elseif itemInfo.itemType == ITEM_TYPE_FUTURE then
+                            local spellName = itemInfo.name or GetSpellNameSafe(spellID)
+                            if spellName and not issecretvalue(spellName) and spellName ~= "" then
+                                local isTalentItem = (C_SpellBook.IsClassTalentSpellBookItem and C_SpellBook.IsClassTalentSpellBookItem(slot, BANK_PLAYER))
+                                    or (C_SpellBook.IsPvPTalentSpellBookItem and C_SpellBook.IsPvPTalentSpellBookItem(slot, BANK_PLAYER))
                                 local lvl = (C_SpellBook.GetSpellBookItemLevelLearned and C_SpellBook.GetSpellBookItemLevelLearned(slot, BANK_PLAYER)) or 0
                                 if issecretvalue(lvl) or type(lvl) ~= "number" then lvl = 0 end
-                                if lineIdx ~= SKILL_LINE_GENERAL or lvl > 0 then
+                                if not isTalentItem and lvl > 0 then
+                                    local subName = GetSpellSubtextSafe(spellID, itemInfo.subName)
                                     local isPassive = (C_SpellBook.IsSpellBookItemPassive and C_SpellBook.IsSpellBookItemPassive(slot, BANK_PLAYER))
                                         or itemInfo.isPassive or false
-                                    local entry = AcquireEntry()
-                                    entry.spellID = spellID
-                                    entry.slotIndex = slot
-                                    entry.spellBank = BANK_PLAYER
-                                    entry.name = spellName
-                                    entry.lowerName = lowerName
-                                    entry.subName = subName
-                                    entry.rank = rank
-                                    entry.exactKey = exactKey
-                                    entry.icon = itemInfo.iconID or GetSpellIconSafe(spellID)
-                                    entry.isPassive = isPassive and true or false
-                                    entry.levelLearned = lvl > 0 and lvl or pLevel
-                                    entry.category = lineCategory
-                                    entry.cost = nil
-                                    table_insert(futureTemp, entry)
-                                    if rank <= 1 then
-                                        hasRank1Trainable[lowerName] = true
-                                    end
+                                    AddFutureTempEntry(
+                                        spellID, slot, BANK_PLAYER, spellName, subName,
+                                        itemInfo.iconID, isPassive, lvl, lineCategory, isGeneralLine
+                                    )
                                 end
                             end
                         end
@@ -550,47 +781,27 @@ local function RebuildCatalog()
         local bookType = _G.BOOKTYPE_SPELL or "spell"
         local numTabs = _G.GetNumSpellTabs() or 0
         for tab = 1, numTabs do
-            local tabName, _, offset, numSpells, _, offSpecID = _G.GetSpellTabInfo(tab)
-            if not offSpecID or offSpecID == 0 then
+            local tabName, _, offset, numSpells = _G.GetSpellTabInfo(tab)
+            if tabName and not issecretvalue(tabName) and tabName ~= "" then
                 local tabCat = SafeLower(tabName, "general")
+                local isGeneralLine = (tab == 1)
                 for s = (offset or 0) + 1, (offset or 0) + (numSpells or 0) do
                     local spellName, subName = _G.GetSpellBookItemName(s, bookType)
                     local slotType, spellID = _G.GetSpellBookItemInfo(s, bookType)
-                    if spellName and not issecretvalue(spellName) and slotType ~= "FUTURESPELL" then
-                        local lowerName = string_lower(spellName)
-                        local rank = ParseRank(subName)
-                        local exactKey = BuildExactKey(lowerName, subName)
-                        if spellID then knownSpellIDs[spellID] = true end
-                        knownNames[lowerName] = true
-                        knownExactKey[exactKey] = true
-                        if rank > (knownMaxRank[lowerName] or 0) then
-                            knownMaxRank[lowerName] = rank
-                        end
-                        if tab > 1 and tabCat ~= "" then
-                            nameCategoryMap[lowerName] = tabCat
-                        end
-                    elseif spellName and not issecretvalue(spellName) and slotType == "FUTURESPELL" then
-                        local lowerName = string_lower(spellName)
-                        local rank = ParseRank(subName)
-                        local exactKey = BuildExactKey(lowerName, subName)
-                        local lvl = (_G.GetSpellAvailableLevel and _G.GetSpellAvailableLevel(s, bookType)) or pLevel
-                        local entry = AcquireEntry()
-                        entry.spellID = spellID
-                        entry.slotIndex = s
-                        entry.spellBank = bookType
-                        entry.name = spellName
-                        entry.lowerName = lowerName
-                        entry.subName = subName or ""
-                        entry.rank = rank
-                        entry.exactKey = exactKey
-                        entry.icon = (_G.GetSpellBookItemTexture and _G.GetSpellBookItemTexture(s, bookType)) or GetSpellIconSafe(spellID)
-                        entry.isPassive = (_G.IsPassiveSpell and _G.IsPassiveSpell(s, bookType)) and true or false
-                        entry.levelLearned = (type(lvl) == "number" and lvl > 0) and lvl or pLevel
-                        entry.category = tabCat
-                        entry.cost = nil
-                        table_insert(futureTemp, entry)
-                        if rank <= 1 then
-                            hasRank1Trainable[lowerName] = true
+                    if slotType ~= "FUTURESPELL" then
+                        local isPassive = (_G.IsPassiveSpell and _G.IsPassiveSpell(s, bookType)) and true or false
+                        RecordKnownSpell(spellID, spellID, spellName, subName, tabCat, isGeneralLine, false, isPassive)
+                    elseif spellName and not issecretvalue(spellName) and spellName ~= "" then
+                        local lvl = (_G.GetSpellAvailableLevel and _G.GetSpellAvailableLevel(s, bookType)) or 0
+                        if issecretvalue(lvl) or type(lvl) ~= "number" then lvl = 0 end
+                        if lvl > 0 then
+                            local safeSub = GetSpellSubtextSafe(spellID, subName)
+                            local icon = _G.GetSpellBookItemTexture and _G.GetSpellBookItemTexture(s, bookType)
+                            local isPassive = (_G.IsPassiveSpell and _G.IsPassiveSpell(s, bookType)) and true or false
+                            AddFutureTempEntry(
+                                spellID, s, bookType, spellName, safeSub,
+                                icon, isPassive, lvl, tabCat, isGeneralLine
+                            )
                         end
                     end
                 end
@@ -598,71 +809,12 @@ local function RebuildCatalog()
         end
     end
 
-    -- Add deduplicated FutureSpell entries
-    for i = 1, #futureTemp do
-        local e = futureTemp[i]
-        if not IsSpellEntryAlreadyKnown(e.lowerName, e.rank, e.spellID, e.exactKey)
-            and not seenExactKeys[e.exactKey]
-            and (not e.spellID or not seenSpellIDs[e.spellID]) then
-            if e.spellID then seenSpellIDs[e.spellID] = true end
-            seenExactKeys[e.exactKey] = true
-            e.cost = LookupCachedCost(summary.classFile, e.exactKey, e.lowerName)
-            table_insert(catalogEntries, e)
-        end
-    end
-
-    -- Pass 2: C_SpellBook.GetCurrentLevelSpells(1..maxLevel) enrichment
-    if C_SpellBook and C_SpellBook.GetCurrentLevelSpells then
-        local maxLvl = GetMaxPlayerLevel()
-        for lvl = 1, maxLvl do
-            local levelSpellIDs = C_SpellBook.GetCurrentLevelSpells(lvl)
-            if type(levelSpellIDs) == "table" then
-                for j = 1, #levelSpellIDs do
-                    local spellID = levelSpellIDs[j]
-                    if spellID and not issecretvalue(spellID) and not seenSpellIDs[spellID] and not knownSpellIDs[spellID] then
-                        local isKnown = C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(spellID, BANK_PLAYER)
-                        if not isKnown then
-                            local spellName = GetSpellNameSafe(spellID)
-                            if spellName and not issecretvalue(spellName) and spellName ~= "" then
-                                local lowerName = string_lower(spellName)
-                                local subName = GetSpellSubtextSafe(spellID, nil)
-                                local rank = ParseRank(subName)
-                                local exactKey = BuildExactKey(lowerName, subName)
-                                if not seenExactKeys[exactKey] and not IsSpellEntryAlreadyKnown(lowerName, rank, spellID, exactKey) then
-                                    seenSpellIDs[spellID] = true
-                                    seenExactKeys[exactKey] = true
-                                    if rank <= 1 then
-                                        hasRank1Trainable[lowerName] = true
-                                    end
-                                    local isPassive = (C_Spell and C_Spell.IsSpellPassive and C_Spell.IsSpellPassive(spellID)) or false
-                                    local entry = AcquireEntry()
-                                    entry.spellID = spellID
-                                    entry.slotIndex = nil
-                                    entry.spellBank = nil
-                                    entry.name = spellName
-                                    entry.lowerName = lowerName
-                                    entry.subName = subName
-                                    entry.rank = rank
-                                    entry.exactKey = exactKey
-                                    entry.icon = GetSpellIconSafe(spellID)
-                                    entry.isPassive = isPassive and true or false
-                                    entry.levelLearned = lvl
-                                    entry.category = nameCategoryMap[lowerName] or summary.className
-                                    entry.cost = LookupCachedCost(summary.classFile, exactKey, lowerName)
-                                    table_insert(catalogEntries, entry)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- Pass 3: Merge cached trainer catalog services (multi-rank roadmap + Classic Era support)
+    -- Priority 1: Cached NPC trainer catalog (authoritative server reqLevel + multi-rank roadmap)
     local profileKey = GetProfileCatalogKey()
     local cachedCatalog = SfuiDB and SfuiDB.trainerCatalog and SfuiDB.trainerCatalog[profileKey]
-    if cachedCatalog then
+    local hasFullScan = (type(cachedCatalog) == "table" and cachedCatalog._fullScan == true)
+
+    if type(cachedCatalog) == "table" then
         for _, info in pairs(cachedCatalog) do
             if type(info) == "table" and info.name then
                 local lowerName = string_lower(info.name)
@@ -677,7 +829,12 @@ local function RebuildCatalog()
             if type(info) == "table" and info.name and not seenExactKeys[exactKey] then
                 local lowerName = string_lower(info.name)
                 local rank = ParseRank(info.subName)
-                if not IsSpellEntryAlreadyKnown(lowerName, rank, nil, exactKey) then
+                local matchedFuture = futureByExactKey[exactKey] or (rank <= 1 and futureByLowerName[lowerName]) or nil
+                local matchedSpellID = matchedFuture and matchedFuture.spellID or nil
+
+                if not IsSpellEntryAlreadyKnown(lowerName, rank, matchedSpellID, exactKey)
+                    and not (rank <= 1 and seenRank1OrUnranked[lowerName])
+                    and not (matchedSpellID and seenSpellIDs[matchedSpellID]) then
                     -- Guard talent/tome-gated rank 2+ spells (e.g. pyroblast, mortal strike, ice barrier)
                     local prereqMet = true
                     if rank > 1 and not knownNames[lowerName] and not hasRank1Trainable[lowerName] then
@@ -689,22 +846,104 @@ local function RebuildCatalog()
 
                     if prereqMet then
                         seenExactKeys[exactKey] = true
-                        local cat = info.category or nameCategoryMap[lowerName] or summary.className
+                        if matchedSpellID then seenSpellIDs[matchedSpellID] = true end
+                        if rank <= 1 then seenRank1OrUnranked[lowerName] = true end
+
+                        local futureCat = nil
+                        if matchedFuture then
+                            futureCat = matchedFuture.fromGeneralLine and (nameCategoryMap[lowerName] or summary.className) or matchedFuture.category
+                        end
+                        local cat = info.category or futureCat or nameCategoryMap[lowerName] or summary.className
+                        if cat == "" or cat == "general" then
+                            cat = nameCategoryMap[lowerName] or summary.className
+                        end
+
                         local entry = AcquireEntry()
-                        entry.spellID = nil
-                        entry.slotIndex = nil
-                        entry.spellBank = nil
+                        entry.spellID = matchedSpellID
+                        entry.slotIndex = matchedFuture and matchedFuture.slotIndex or nil
+                        entry.spellBank = matchedFuture and matchedFuture.spellBank or nil
                         entry.name = info.name
                         entry.lowerName = lowerName
                         entry.subName = info.subName or ""
                         entry.rank = rank
                         entry.exactKey = exactKey
-                        entry.icon = info.icon or BOOK_ICON
-                        entry.isPassive = SafeLower(info.subName, "") == "passive"
-                        entry.levelLearned = info.reqLevel or 1
+                        entry.icon = (matchedFuture and matchedFuture.icon) or info.icon or BOOK_ICON
+                        entry.isPassive = (matchedFuture and matchedFuture.isPassive) or (SafeLower(info.subName, "") == "passive")
+                        entry.levelLearned = info.reqLevel or (matchedFuture and matchedFuture.levelLearned) or 1
                         entry.category = cat
-                        entry.cost = LookupCachedCost(summary.classFile, exactKey, lowerName)
+                        entry.cost = LookupCachedCost(summary.classFile, exactKey, lowerName, rank)
                         table_insert(catalogEntries, entry)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Priority 2: Remaining FutureSpell entries from C_SpellBook across all class trees
+    for i = 1, #futureTemp do
+        local e = futureTemp[i]
+        if not (hasFullScan and e.fromGeneralLine)
+            and not IsSpellEntryAlreadyKnown(e.lowerName, e.rank, e.spellID, e.exactKey)
+            and not seenExactKeys[e.exactKey]
+            and not (e.rank <= 1 and seenRank1OrUnranked[e.lowerName])
+            and not (e.spellID and seenSpellIDs[e.spellID]) then
+            seenExactKeys[e.exactKey] = true
+            if e.spellID then seenSpellIDs[e.spellID] = true end
+            if e.rank <= 1 then seenRank1OrUnranked[e.lowerName] = true end
+            if e.fromGeneralLine or not e.category or e.category == "" or e.category == "general" then
+                e.category = nameCategoryMap[e.lowerName] or summary.className
+            end
+            e.cost = LookupCachedCost(summary.classFile, e.exactKey, e.lowerName, e.rank)
+            table_insert(catalogEntries, e)
+        end
+    end
+
+    -- Priority 3: Restricted GetCurrentLevelSpells Rank 2+ fallback (only before a full city trainer scan exists)
+    if not hasFullScan and C_SpellBook and C_SpellBook.GetCurrentLevelSpells then
+        local maxLvl = GetMaxPlayerLevel()
+        for lvl = 1, maxLvl do
+            local levelSpellIDs = C_SpellBook.GetCurrentLevelSpells(lvl)
+            if type(levelSpellIDs) == "table" then
+                for j = 1, #levelSpellIDs do
+                    local spellID = levelSpellIDs[j]
+                    if spellID and not issecretvalue(spellID) and not seenSpellIDs[spellID] and not knownSpellIDs[spellID] then
+                        local isKnown = C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(spellID, BANK_PLAYER)
+                        local isPassive = (C_Spell and C_Spell.IsSpellPassive and C_Spell.IsSpellPassive(spellID)) or false
+                        if not isKnown and not isPassive then
+                            local spellName = GetSpellNameSafe(spellID)
+                            if spellName and not issecretvalue(spellName) and spellName ~= "" then
+                                local lowerName = string_lower(spellName)
+                                local subName = GetSpellSubtextSafe(spellID, nil)
+                                local rank = ParseRank(subName)
+                                local prereqRank2Plus = rank > 1
+                                    and not knownPassiveTalents[lowerName]
+                                    and ((knownNames[lowerName] and rank > (knownMaxRank[lowerName] or 0))
+                                        or hasRank1Trainable[lowerName])
+                                if prereqRank2Plus then
+                                    local exactKey = BuildExactKey(lowerName, subName)
+                                    if not seenExactKeys[exactKey]
+                                        and not IsSpellEntryAlreadyKnown(lowerName, rank, spellID, exactKey) then
+                                        seenSpellIDs[spellID] = true
+                                        seenExactKeys[exactKey] = true
+                                        local entry = AcquireEntry()
+                                        entry.spellID = spellID
+                                        entry.slotIndex = nil
+                                        entry.spellBank = nil
+                                        entry.name = spellName
+                                        entry.lowerName = lowerName
+                                        entry.subName = subName
+                                        entry.rank = rank
+                                        entry.exactKey = exactKey
+                                        entry.icon = GetSpellIconSafe(spellID)
+                                        entry.isPassive = false
+                                        entry.levelLearned = lvl
+                                        entry.category = nameCategoryMap[lowerName] or summary.className
+                                        entry.cost = LookupCachedCost(summary.classFile, exactKey, lowerName, rank)
+                                        table_insert(catalogEntries, entry)
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
             end
@@ -3193,8 +3432,11 @@ local function OnPlayerMoney()
     end
 end
 
-local function OnSpellTextUpdate(_, spellID)
+local function OnSpellTextUpdate(event, spellID, success)
     if not spellID or issecretvalue(spellID) or not scratch.requestedSpellLoads[spellID] then
+        return
+    end
+    if event == "SPELL_DATA_LOAD_RESULT" and success == false then
         return
     end
     RequestRefresh()
@@ -3581,8 +3823,10 @@ local function Initialize()
         events.RegisterEvent("PLAYER_REGEN_ENABLED", OnCombatEnd)
         events.RegisterEvent("TRAINER_SHOW", QueueTrainerScan)
         events.RegisterEvent("TRAINER_UPDATE", QueueTrainerScan)
+        events.RegisterEvent("TRAINER_SERVICE_INFO_NAME_UPDATE", QueueTrainerScan)
         events.RegisterEvent("PLAYER_MONEY", OnPlayerMoney)
         events.RegisterEvent("SPELL_TEXT_UPDATE", OnSpellTextUpdate)
+        events.RegisterEvent("SPELL_DATA_LOAD_RESULT", OnSpellTextUpdate)
         events.RegisterEvent("ADDON_LOADED", function(_, loadedAddon)
             if loadedAddon == "Blizzard_PlayerSpells" then
                 HookPlayerSpellsFrame()

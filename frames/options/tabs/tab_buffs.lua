@@ -148,14 +148,14 @@ sfui.options.RegisterTab({
         end, "clicking a missing reminder icon out of combat casts the spell or activates the enchant.")
         click_cb:SetPoint("TOPLEFT", mounted_cb, "BOTTOMLEFT", 0, -8)
 
-        local party_cb = create_checkbox(p, "party blessing reminders (paladin)", function()
+        local party_cb = create_checkbox(p, "party buff reminders", function()
             return SfuiDB.buffReminders.partyBuffs ~= false
         end, function(checked)
             SfuiDB.buffReminders.partyBuffs = checked
             if sfui.buffs and sfui.buffs.scan then
                 sfui.buffs.scan.RequestScan()
             end
-        end, "automatically checks party members' existing blessings, class, and spec to suggest non-conflicting paladin blessings.")
+        end, "reminds you when party members are missing single-target class buffs (power word: fortitude, divine spirit, arcane intellect, mark of the wild, and smart paladin blessings).")
         party_cb:SetPoint("LEFT", click_cb, "LEFT", COL_OFFSET_X, 0)
 
         -- ── Section 2: Expiration Warning Thresholds ─────────────────────────
@@ -350,10 +350,14 @@ sfui.options.RegisterTab({
             local labelText = entry.name or key
 
             local entry_cb = create_checkbox(p, labelText, function()
+                local dataMod = sfui.buffs and sfui.buffs.data
+                if dataMod and dataMod.IsEntryDisabled then
+                    return not dataMod.IsEntryDisabled(entry, SfuiDB.buffReminders.disabledBuffs)
+                end
                 return not SfuiDB.buffReminders.disabledBuffs[key]
             end, function(checked)
                 if checked then
-                    SfuiDB.buffReminders.disabledBuffs[key] = nil
+                    SfuiDB.buffReminders.disabledBuffs[key] = (entry.isDefaultDisabled and false) or nil
                 else
                     SfuiDB.buffReminders.disabledBuffs[key] = true
                 end

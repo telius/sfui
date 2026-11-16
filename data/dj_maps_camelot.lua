@@ -26,7 +26,7 @@ end
 
 local RAW_MAPS = {
     alcaz_prison = {
-        f = { { "@AlcazPrisonMap", 1, 0.66699200000000003 } },
+        f = { { "@AlcazPrisonMap", 1, 0.66699200000000003, "main unit" }, { "@AlcazPrisonMap2", 1, 0.66699200000000003, "maximum security unit" } },
         e = { { 1, 0.35299999999999998, 0.16, 180, "entrance" } },
     },
     blackfathom_deeps = {
@@ -43,6 +43,17 @@ local RAW_MAPS = {
             { 3, "Old Serra'kis", 0.58499999999999996, 0.28999999999999998, "26", 4360, 1816, false },
         },
         t = { { 1, 0.61499999999999999, 0.69999999999999996, nil, nil, 2 }, { 2, 0.46999999999999997, 0.69999999999999996, nil, "swim underwater to next level", 3 } },
+    },
+    blackmaw_hold = {
+        f = {
+            { "@BlackmawHoldGroveMap", 1, 0.66699200000000003, "blackmaw grove" },
+            { "@BlackmawHoldFesteringGrottoMap", 1, 0.66699200000000003, "festering grotto" },
+            { "@BlackmawHoldFallenGroveMap", 1, 0.66699200000000003, "depths of the fallen grove" },
+            { "@BlackmawHoldEldersMap", 1, 0.66699200000000003, "depths of the elders" },
+            { "@BlackmawHoldBurrowMap", 1, 0.66699200000000003, "depths of the burrow" },
+            { "@BlackmawHoldForbiddenMagicMap", 1, 0.66699200000000003, "depths of forbidden magic" },
+        },
+        e = { { 1, 0.183, 0.74, 90, "entrance" } },
     },
     blackrock_depths = {
         f = { { "@BlackrockDepths1", 0.97851600000000005, 0.65234400000000003, nil, 242 }, { "@BlackrockDepths2", 0.97851600000000005, 0.65234400000000003, nil, 243 } },
@@ -160,6 +171,14 @@ local RAW_MAPS = {
     kroldok_stronghold = {
         f = { { "@KroldokMap", 1, 0.66699200000000003 } },
         e = { { 1, 0.20499999999999999, 0.80700000000000005, 180, "entrance" } },
+        b = {
+            { 1, "Slavecrusher Grox", 0.331, 0.703, "42", 258966, 141217, false },
+            { 1, "Twilight Commander Zarmok", 0.392, 0.734, "43", 258972, 141219, false },
+            { 1, "War Handler Ashka", 0.621, 0.527, "43", 259281, 141443, false },
+            { 1, "Nar'gurk", 0.411, 0.579, "44", 258964, 141215, false },
+            { 1, "Bossman Toof", 0.617, 0.432, "42", 264773, 14424, false },
+            { 1, "Overlord Mugg", 0.688, 0.242, "45", 258968, 141218, false },
+        },
     },
     maraudon = {
         f = { { "@Maraudon1", 0.97851600000000005, 0.65234400000000003, nil, 280 }, { "@Maraudon2", 0.97851600000000005, 0.65234400000000003, nil, 281 } },
@@ -209,7 +228,7 @@ local RAW_MAPS = {
             { 1, "Charlga Razorflank", 0.221, 0.313, "33", 4421, 4642, false },
             { 1, "Agathelos the Raging", 0.082000000000000003, 0.68600000000000005, "33", 6510, 2450, false },
         },
-        t = { { 1, 0.60599999999999998, 0.72499999999999998, nil, "wall jump the gate to reach roogug", nil, true }, { 1, 0.626, 0.56200000000000006, nil, "jump on this vine to reach roogug", nil, true } },
+        t = { { 1, 0.626, 0.56200000000000006, nil, "jump on this vine to reach roogug", nil, true } },
     },
     ruins_of_lordaeron = {
         f = { { "@RuinsOfLordaeronMap", 1, 0.66699200000000003 } },
@@ -256,6 +275,29 @@ local RAW_MAPS = {
             { 1, "Arcanist Doan", 0.83499999999999996, 0.73999999999999999, "37", 6487, 5266, false },
         },
     },
+    scholomance = {
+        f = {
+            { nil, nil, nil, "the reliquary", 306, "Interface\\WorldMap\\ScholomanceOLD\\ScholomanceOLD1_" },
+            { nil, nil, nil, "chamber of summoning", 307, "Interface\\WorldMap\\ScholomanceOLD\\ScholomanceOLD2_" },
+            { nil, nil, nil, "the upper study", 308, "Interface\\WorldMap\\ScholomanceOLD\\ScholomanceOLD3_" },
+            { nil, nil, nil, "headmaster's study", 309, "Interface\\WorldMap\\ScholomanceOLD\\ScholomanceOLD4_" },
+        },
+        e = { { 1, 0.39, 0.652, 0, "entrance" } },
+        b = {
+            { 2, "Kirtonos the Herald", 0.495, 0.043, "60", 10506, 7534, false },
+            { 2, "Marduk Blackpool", 0.444, 0.639, "58", 10433, 10248, false },
+            { 2, "Vectus", 0.482, 0.662, "60", 10432, 2606, false },
+            { 3, "Rattlegore", 0.313, 0.646, "60", 11622, 12073, false },
+            { 3, "Instructor Malicia", 0.721, 0.706, "60", 10505, 11069, false },
+            { 3, "Doctor Theolen Krastinov", 0.889, 0.462, "60", 11261, 10901, false },
+            { 3, "Lorekeeper Polkelt", 0.72, 0.225, "60", 10901, 11492, false },
+            { 4, "Ras Frostwhisper", 0.406, 0.884, "60", 10508, 7919, false },
+            { 4, "The Ravenian", 0.675, 0.521, "60", 10507, 10433, false },
+            { 4, "Lord Alexei Barov", 0.844, 0.308, "60", 10504, 11072, false },
+            { 4, "Lady Illucia Barov", 0.67, 0.061, "60", 10502, 11835, false },
+            { 4, "Darkmaster Gandling", 0.682, 0.302, "61", 1853, 11070, false },
+        },
+    },
     shadowfang_keep = {
         f = { { "@ShadowfangKeep1", 0.97851600000000005, 0.65234400000000003, nil, 310 }, { "@ShadowfangKeep7", 0.97851600000000005, 0.65234400000000003, nil, 316 }, { "@ShadowfangKeep6", 0.97851600000000005, 0.65234400000000003, nil, 315 } },
         e = { { 1, 0.70499999999999996, 0.60499999999999998, 0, "entrance" } },
@@ -299,16 +341,24 @@ local RAW_MAPS = {
         },
     },
     sunken_temple = {
-        f = { { "@TheTempleOfAtalHakkar1", 0.97851600000000005, 0.65234400000000003, nil, 220 } },
+        f = { { "@SunkenTempleMap", 1, 0.66699200000000003 } },
+        e = { { 1, 0.499, 0.13, 0, "entrance" } },
         b = {
-            { 1, "Avatar of Hakkar", 0.24299999999999999, 0.45900000000000002, "55", 8443, 8053, false },
-            { 1, "Jammal'an the Prophet", 0.76000000000000001, 0.37, "54", 5710, 6708, false },
-            { 1, "Ogom the Wretched", 0.78000000000000003, 0.38500000000000001, "53", 5711, 6709, false },
-            { 1, "Dreamscythe", 0.42999999999999999, 0.86499999999999999, "53", 5721, 7553, "Dreamscythe & Weaver" },
-            { 1, "Weaver", 0.47799999999999998, 0.82999999999999996, "51", 5721, 7553, "Dreamscythe & Weaver" },
-            { 1, "Morphaz", 0.46100000000000002, 0.84499999999999997, "52", 5720, 6375, "Morphaz & Hazzas" },
-            { 1, "Hazzas", 0.44800000000000001, 0.85099999999999998, "53", 5720, 6375, "Morphaz & Hazzas" },
-            { 1, "Shade of Eranikus", 0.68600000000000005, 0.874, "55", 5709, 7806, false },
+            { 1, "Atal'alarion", 0.499, 0.455, "53", 8580, 7873, false },
+            { 1, "Avatar of Hakkar", 0.24, 0.453, "55", 8443, 8053, false },
+            { 1, "Jammal'an the Prophet", 0.76, 0.454, "54", 5710, 6708, false },
+            { 1, "Ogom the Wretched", 0.79, 0.395, "53", 5711, 6709, false },
+            { 1, "Dreamscythe & Weaver", 0.5, 0.383, "54", 5721, 7553, false },
+            { 1, "Morphaz & Hazzas", 0.498, 0.865, "54", 5720, 6375, false },
+            { 1, "Shade of Eranikus", 0.666, 0.873, "55", 5709, 7806, false },
+        },
+        m = {
+            { 1, 1, 0.4985, 0.5908, true, false, "statue 1 of 6 - south", "use the six statues in this order, 1 to 6: atal'alarion then appears in the pit below.", "Atal'alarion" },
+            { 1, 2, 0.4985, 0.3094, true, false, "statue 2 of 6 - north", "use the six statues in this order, 1 to 6: atal'alarion then appears in the pit below.", "Atal'alarion" },
+            { 1, 3, 0.4207, 0.5234, true, true,  "statue 3 of 6 - southwest", "use the six statues in this order, 1 to 6: atal'alarion then appears in the pit below.", "Atal'alarion" },
+            { 1, 4, 0.5763, 0.5234, true, false, "statue 4 of 6 - southeast", "use the six statues in this order, 1 to 6: atal'alarion then appears in the pit below.", "Atal'alarion" },
+            { 1, 5, 0.4207, 0.3887, true, true,  "statue 5 of 6 - northwest", "use the six statues in this order, 1 to 6: atal'alarion then appears in the pit below.", "Atal'alarion" },
+            { 1, 6, 0.5763, 0.3887, true, false, "statue 6 of 6 - northeast", "use the six statues in this order, 1 to 6: atal'alarion then appears in the pit below.", "Atal'alarion" },
         },
     },
     the_deadmines = {
@@ -328,8 +378,16 @@ local RAW_MAPS = {
         t = { { 1, 0.61499999999999999, 0.60999999999999999, nil, nil, 2 } },
     },
     the_drowned_city = {
-        f = { { "@DrownedCityMap", 1, 0.66699200000000003 } },
+        f = { { "@DrownedCityMap", 1, 0.66699200000000003, "the drowned city" }, { "@DrownedCityAtalByzalMap", 1, 0.66699200000000003, "atal'byzal" } },
         e = { { 1, 0.84599999999999997, 0.52100000000000002, 0, "entrance" } },
+        b = {
+            { 1, "Zul'Alai", 0.697, 0.572, "38", 258905, 144475, false },
+            { 1, "Primeval Elemental", 0.618, 0.672, "38", 270887, 129945, false },
+            { 1, "Var'Taka", 0.514, 0.689, "38", 258924, 144487, false },
+            { 1, "Captain Dreadrise", 0.546, 0.344, "39", 260042, 142144, false },
+            { 1, "Deathless Marrow", 0.349, 0.536, "39", 270885, 142245, false },
+            { 1, "Min'loth the Serpent", 0.196, 0.539, "40", 260274, 142322, false },
+        },
     },
     the_stockade = {
         f = { { "@TheStockade1", 0.97851600000000005, 0.65234400000000003, nil, 225 } },
@@ -391,7 +449,7 @@ local function decode_map(raw)
     if not raw then return nil end
     local floors = {}
     for i, f in ipairs(raw.f or {}) do
-        floors[i] = { texture = resolve_tex(f[1]), texRight = f[2], texBottom = f[3], name = f[4], uiMapID = f[5] }
+        floors[i] = { texture = resolve_tex(f[1]), texRight = f[2], texBottom = f[3], name = f[4], uiMapID = f[5], tiles = f[6] }
     end
     local entrances = {}
     for i, e in ipairs(raw.e or {}) do
@@ -410,12 +468,17 @@ local function decode_map(raw)
     for i, ti in ipairs(raw.ti or {}) do
         turnins[i] = { floor = ti[1], x = ti[2], y = ti[3], npc = ti[4] }
     end
+    local markers = {}
+    for i, mk in ipairs(raw.m or {}) do
+        markers[i] = { floor = mk[1], n = mk[2], x = mk[3], y = mk[4], statue = mk[5], flip = mk[6], title = mk[7], body = mk[8], boss = mk[9] }
+    end
     return {
         floors = floors,
         entrances = entrances,
         bosses = bosses,
         transitions = transitions,
         turnins = turnins,
+        markers = markers,
     }
 end
 
@@ -617,14 +680,14 @@ local QUEST_START_UPDATES = {
     [1050] = { label = "Librarian Mae Paledust — Ironforge", mapID = 1455, targetName = "Librarian Mae Paledust", x = 0.73999999999999999, y = 0.13400000000000001 },
     [1053] = { label = "Raleigh the Devout — Hillsbrad Foothills", mapID = 1424, targetName = "Raleigh the Devout", x = 0.51400000000000001, y = 0.58399999999999996 },
     [1098] = { label = "High Executor Hadrec", mapID = 1421, x = 0.434, y = 0.40899999999999997 },
-    [1101] = { label = "Falfindel Waywarder — Thalanaar", mapID = 1444, targetName = "Falfindel Waywarder", x = 0.89000000000000001, y = 0.46000000000000002 },
+    [1101] = { label = "Falfindel Waywarder — Thalanaar", mapID = 1444, targetName = "Falfindel Waywarder", x = 0.896, y = 0.466 },
     [1102] = { label = "Auld Stonespire — Thunder Bluff", mapID = 1456, targetName = "Auld Stonespire", x = 0.35999999999999999, y = 0.58999999999999997 },
     [1109] = { label = "Master Apothecary Faranell — Apothecarium", mapID = 1458, targetName = "Master Apothecary Faranell", x = 0.47999999999999998, y = 0.68999999999999995 },
     [1113] = { label = "Master Apothecary Faranell — Apothecarium", mapID = 1458, targetName = "Master Apothecary Faranell", x = 0.47999999999999998, y = 0.68999999999999995 },
     [1139] = { label = "Advisor Belgrum — Ironforge", mapID = 1455, targetName = "Advisor Belgrum", x = 0.76400000000000001, y = 0.108 },
     [1198] = { label = "Dawnwatcher Shaedlass", mapID = 1457, x = 0.55000000000000004, y = 0.23999999999999999 },
     [1199] = { label = "Argent Guard Manados", mapID = 1457, x = 0.55000000000000004, y = 0.23999999999999999 },
-    [1221] = { label = "Mebok Mizzyrix — Ratchet", mapID = 1413, targetName = "Mebok Mizzyrix", x = 0.62, y = 0.37 },
+    [1221] = { label = "Mebok Mizzyrix — Ratchet", mapID = 1413, targetName = "Mebok Mizzyrix", x = 0.624, y = 0.376 },
     [1275] = { label = "Gershala Nightwhisper", mapID = 1439, x = 0.38300000000000001, y = 0.43099999999999999 },
     [132] = { detail = "Wiley the Black: Lakeshire inn, Redridge Mountains", label = "Wiley the Black — Redridge Mountains", mapID = 1433, targetName = "Wiley the Black", x = 0.214, y = 0.45400000000000001 },
     [135] = { detail = "Gryan Stoutmantle: Sentinel Hill, Westfall", label = "Gryan Stoutmantle — Westfall", mapID = 1436, targetName = "Gryan Stoutmantle", x = 0.56299999999999994, y = 0.47499999999999998 },
@@ -702,7 +765,7 @@ local QUEST_START_UPDATES = {
     [4123] = { label = "Maxwort Uberglint — Burning Steppes", mapID = 1428, targetName = "Maxwort Uberglint", x = 0.65200000000000002, y = 0.23799999999999999 },
     [4126] = { label = "Ragnar Thunderbrew — Dun Morogh", mapID = 1426, targetName = "Ragnar Thunderbrew", x = 0.46800000000000003, y = 0.52400000000000002 },
     [4128] = { detail = "Enohar Thunderbrew: Nethergarde Keep, Blasted Lands", label = "Enohar Thunderbrew — Blasted Lands", mapID = 1419, targetName = "Enohar Thunderbrew", x = 0.63600000000000001, y = 0.20599999999999999 },
-    [4132] = { label = "Warlord Goretooth — Badlands", mapID = 1418, targetName = "Warlord Goretooth", x = 0.029999999999999999, y = 0.47599999999999998 },
+    [4132] = { label = "Warlord Goretooth — Badlands", mapID = 1418, targetName = "Warlord Goretooth", x = 0.058, y = 0.474 },
     [4133] = { detail = "Apothecary Zinge: The Apothecarium, Undercity", label = "Apothecary Zinge — Undercity", mapID = 1458, targetName = "Apothecary Zinge", x = 0.501, y = 0.68000000000000005 },
     [4134] = { label = "Shadowmage Vivian Lagrave — Badlands", mapID = 1418, targetName = "Shadowmage Vivian Lagrave", x = 0.029999999999999999, y = 0.47599999999999998 },
     [4136] = { label = "Yuka Screwspigot — Burning Steppes", mapID = 1428, targetName = "Yuka Screwspigot", x = 0.66000000000000003, y = 0.22 },
@@ -726,7 +789,7 @@ local QUEST_START_UPDATES = {
     [4788] = { label = "Prospector Ironboot — Tanaris", mapID = 1446, targetName = "Prospector Ironboot", x = 0.66800000000000004, y = 0.23999999999999999 },
     [4862] = { label = "Kibler — Burning Steppes", mapID = 1428, targetName = "Kibler", x = 0.65800000000000003, y = 0.22 },
     [4866] = { label = "Ragged John — Burning Steppes", mapID = 1428, targetName = "Ragged John", x = 0.65000000000000002, y = 0.23599999999999999 },
-    [4903] = { label = "Warlord Goretooth — Badlands", mapID = 1418, targetName = "Warlord Goretooth", x = 0.029999999999999999, y = 0.47599999999999998 },
+    [4903] = { label = "Warlord Goretooth — Badlands", mapID = 1418, targetName = "Warlord Goretooth", x = 0.058, y = 0.474 },
     [4974] = { label = "Thrall — Orgrimmar", mapID = 1454, targetName = "Thrall", x = 0.32000000000000001, y = 0.378 },
     [5081] = { label = "Marshal Maxwell — Burning Steppes", mapID = 1428, targetName = "Marshal Maxwell", x = 0.84599999999999997, y = 0.68799999999999994 },
     [5102] = { label = "Marshal Maxwell — Burning Steppes", mapID = 1428, targetName = "Marshal Maxwell", x = 0.84599999999999997, y = 0.68799999999999994 },
@@ -769,6 +832,7 @@ local QUEST_START_UPDATES = {
     [6602] = { label = "Rexxar — Feralas", mapID = 1444, targetName = "Rexxar", x = 0.44800000000000001, y = 0.073999999999999996 },
     [6626] = { label = "Myriam Moonsinger — The Barrens", mapID = 1413, targetName = "Myriam Moonsinger", x = 0.48999999999999999, y = 0.94799999999999995 },
     [6921] = { label = "Je'neu Sancrea", mapID = 1440, x = 0.12, y = 0.34000000000000002 },
+    [6981] = { detail = "In a tent on top of the mountain above Wailing Caverns", label = "Falla Sagewind — above Wailing Caverns", mapID = 1413, targetName = "Falla Sagewind", x = 0.482, y = 0.328 },
     [7028] = { label = "Willow — Desolace", mapID = 1443, targetName = "Willow", x = 0.62, y = 0.39400000000000002 },
     [7029] = { label = "Vark Battlescar — Desolace", mapID = 1443, targetName = "Vark Battlescar", x = 0.23200000000000001, y = 0.70199999999999996 },
     [704] = { label = "Prospector Ironband — Loch Modan", mapID = 1432, targetName = "Prospector Ironband", x = 0.65800000000000003, y = 0.65400000000000003 },
@@ -779,7 +843,7 @@ local QUEST_START_UPDATES = {
     [7067] = { label = "Centaur Pariah — Desolace", mapID = 1443, targetName = "Centaur Pariah", x = 0.434, y = 0.84799999999999998 },
     [7068] = { label = "Uthel'nay — Orgrimmar", mapID = 1454, targetName = "Uthel'nay", x = 0.38800000000000001, y = 0.85399999999999998 },
     [707] = { label = "Prospector Stormpike — Ironforge", mapID = 1455, targetName = "Prospector Stormpike", x = 0.73799999999999999, y = 0.13 },
-    [7070] = { label = "Archmage Tervosh — Dustwallow Marsh", mapID = 1445, targetName = "Archmage Tervosh", x = 0.45200000000000001, y = 0.24399999999999999 },
+    [7070] = { label = "Archmage Tervosh — Dustwallow Marsh", mapID = 1445, targetName = "Archmage Tervosh", x = 0.664, y = 0.493 },
     [709] = { label = "Theldurin the Lost — Badlands", mapID = 1418, targetName = "Theldurin the Lost", x = 0.51400000000000001, y = 0.76400000000000001 },
     [7201] = { label = "Shadowmage Vivian Lagrave — Badlands", mapID = 1418, targetName = "Shadowmage Vivian Lagrave", x = 0.029999999999999999, y = 0.47599999999999998 },
     [721] = { label = "Prospector Ryedol — Badlands", mapID = 1418, targetName = "Prospector Ryedol", x = 0.53400000000000003, y = 0.432 },
@@ -814,9 +878,9 @@ local QUEST_START_UPDATES = {
     [92401] = { label = "Tabitha Heartweaver — The Sepulcher", mapID = 1421, x = 0.44500000000000001, y = 0.42999999999999999 },
     [92421] = { label = "Morbin Lightbane — Royal Quarter", mapID = 1458, x = 0.57899999999999996, y = 0.89500000000000002 },
     [92422] = { label = "Deathguard Kristof — southeast of Brill", mapID = 1420, x = 0.65200000000000002, y = 0.60199999999999998 },
-    [92456] = { label = "Shylamiir — Stormwind City", mapID = 1453, targetName = "Shylamiir", x = 0.314, y = 0.628 },
-    [92457] = { label = "Image of Archmage Modera — Lordamere Lake near Dalaran", mapID = 1416, targetName = "Image of Archmage Modera", x = 0.091999999999999998, y = 0.59999999999999998 },
-    [92458] = { label = "Image of Archmage Modera — Lordamere Lake near Dalaran", mapID = 1416, targetName = "Image of Archmage Modera", x = 0.091999999999999998, y = 0.59999999999999998 },
+    [92456] = { label = "Shylamiir — Stormwind", mapID = 1453, targetName = "Shylamiir", x = 0.404, y = 0.652 },
+    [92457] = { label = "Image of Archmage Modera — Silverpine Forest", mapID = 1421, targetName = "Image of Archmage Modera", x = 0.684, y = 0.452 },
+    [92458] = { label = "Image of Archmage Modera — Silverpine Forest", mapID = 1421, targetName = "Image of Archmage Modera", x = 0.684, y = 0.452 },
     [92489] = { label = "High Sorcerer Andromath — Stormwind", mapID = 1453, targetName = "High Sorcerer Andromath", x = 0.48799999999999999, y = 0.874 },
     [92749] = { detail = "Sprite Jumpsprocket: Dwarven District, Stormwind", label = "Sprite Jumpsprocket — Stormwind", mapID = 1453, targetName = "Sprite Jumpsprocket", x = 0.61899999999999999, y = 0.30599999999999999 },
     [92750] = { detail = "Sprite Jumpsprocket: Dwarven District, Stormwind", label = "Sprite Jumpsprocket — Stormwind", mapID = 1453, targetName = "Sprite Jumpsprocket", x = 0.61899999999999999, y = 0.30599999999999999 },
@@ -824,8 +888,8 @@ local QUEST_START_UPDATES = {
     [92752] = { detail = "Sprite Jumpsprocket: Dwarven District, Stormwind", label = "Sprite Jumpsprocket — Stormwind", mapID = 1453, targetName = "Sprite Jumpsprocket", x = 0.61899999999999999, y = 0.30599999999999999 },
     [95216] = { label = "Theodore Griffs — Apothecarium", mapID = 1458, x = 0.46500000000000002, y = 0.71599999999999997 },
     [95646] = { label = "Rethiel the Greenwarden — Wetlands", mapID = 1437, targetName = "Rethiel the Greenwarden", x = 0.56200000000000006, y = 0.40400000000000003 },
-    [95663] = { detail = "Start Dragonmaw Rumors here", label = "Zaruk — Hammerfall", mapID = 1417, targetName = "Zaruk", x = 0.73999999999999999, y = 0.35999999999999999 },
-    [95682] = { label = "Deathstalker Agent — outside Excavation Site: Wetlands", mapID = 1437, targetName = "Deathstalker Agent", x = 0.47799999999999998, y = 0.56299999999999994 },
+    [95663] = { detail = "Start Dragonmaw Rumors here", label = "Zaruk — Hammerfall", mapID = 1417, targetName = "Zaruk", x = 0.7454, y = 0.3563 },
+    [95682] = { label = "Deathstalker Agent — Wetlands", mapID = 1437, targetName = "Deathstalker Agent", x = 0.514, y = 0.592 },
     [95697] = { label = "Borstan — Orgrimmar", mapID = 1454, targetName = "Borstan", x = 0.57399999999999995, y = 0.53400000000000003 },
     [95772] = { label = "Dorin Songblade — Redridge Mountains", mapID = 1433, targetName = "Dorin Songblade", x = 0.25600000000000001, y = 0.46400000000000002 },
     [959] = { label = "Crane Operator Bigglefuzz", mapID = 1413, x = 0.63900000000000001, y = 0.38300000000000001 },
@@ -833,8 +897,9 @@ local QUEST_START_UPDATES = {
     [96393] = { label = "Earthseer Farsen — Gol'Bolar Quarry, Dun Morogh", mapID = 1426, targetName = "Earthseer Farsen", x = 0.64700000000000002, y = 0.58399999999999996 },
     [96394] = { detail = "Top of Old Ironforge, outside the dungeon", label = "Afadra Dunwall — top of Old Ironforge", mapID = 1455, targetName = "Afadra Dunwall", x = 0.33300000000000002, y = 0.48099999999999998 },
     [96403] = { label = "Thom Filch — Hall of Thanes portal, Ironforge", mapID = 1455, targetName = "Thom Filch", x = 0.435, y = 0.52000000000000002 },
+    [96776] = { detail = "Olana Brighthoof: Camp Gev'rek, Skywatcher Plateau, Mulgore (33.8, 23.7)", label = "Olana Brighthoof - Skywatcher Plateau, Mulgore", mapID = 1412, targetName = "Olana Brighthoof", x = 0.338, y = 0.237 },
     [96800] = { label = "Magus Olvek — Alterac Mountains", mapID = 1416, targetName = "Magus Olvek", x = 0.094, y = 0.626 },
-    [96984] = { label = "Image of Archmage Modera — Lordamere Lake near Dalaran", mapID = 1416, targetName = "Image of Archmage Modera", x = 0.091999999999999998, y = 0.59999999999999998 },
+    [96984] = { label = "Image of Archmage Modera — Silverpine Forest", mapID = 1421, targetName = "Image of Archmage Modera", x = 0.684, y = 0.452 },
     [96986] = { label = "Melisara — Hillsbrad Foothills", mapID = 1424, targetName = "Melisara", x = 0.624, y = 0.20399999999999999 },
     [96988] = { label = "Doctor Martin Felben — Undercity", mapID = 1458, targetName = "Doctor Martin Felben", x = 0.45800000000000002, y = 0.73199999999999998 },
     [971] = { label = "Gerrig Bonegrip", mapID = 1455, x = 0.50829999999999997, y = 0.056099999999999997 },
@@ -872,6 +937,9 @@ sfui.dj_camelot.instanceToDungeon = {
     [3065] = "hall_of_thanes",
     [2994] = "alcaz_prison",
     [2974] = "blackmaw_hold",
+    [3001] = "shapers_terrace",
+    [2970] = "the_drowned_city",
+    [3039] = "kroldok_stronghold",
 }
 
 sfui.dj_camelot.scarletWingMaps = {
@@ -932,6 +1000,50 @@ local SUBZONE_TO_DUNGEON = {
     ["spire throne"]            = "upper_blackrock_spire",
 }
 
+local SUBZONE_TO_FLOOR = {
+    -- Alcaz Prison
+    ["main unit"]                 = { id = "alcaz_prison", floor = 1 },
+    ["maximum security unit"]     = { id = "alcaz_prison", floor = 2 },
+    -- The Drowned City
+    ["the drowned city"]          = { id = "the_drowned_city", floor = 1 },
+    ["drowned city"]              = { id = "the_drowned_city", floor = 1 },
+    ["sunken hollow"]             = { id = "the_drowned_city", floor = 1 },
+    ["atal'byzal"]                = { id = "the_drowned_city", floor = 2 },
+    -- Blackmaw Hold
+    ["blackmaw grove"]            = { id = "blackmaw_hold", floor = 1 },
+    ["festering grotto"]          = { id = "blackmaw_hold", floor = 2 },
+    ["depths of the fallen grove"]= { id = "blackmaw_hold", floor = 3 },
+    ["depths of the elders"]      = { id = "blackmaw_hold", floor = 4 },
+    ["depths of the burrow"]      = { id = "blackmaw_hold", floor = 5 },
+    ["depths of forbidden magic"] = { id = "blackmaw_hold", floor = 6 },
+    -- Scholomance
+    ["the reliquary"]             = { id = "scholomance", floor = 1 },
+    ["chamber of summoning"]      = { id = "scholomance", floor = 2 },
+    ["the chamber of summoning"]  = { id = "scholomance", floor = 2 },
+    ["the upper study"]           = { id = "scholomance", floor = 3 },
+    ["upper study"]               = { id = "scholomance", floor = 3 },
+    ["great ossuary"]             = { id = "scholomance", floor = 3 },
+    ["the great ossuary"]         = { id = "scholomance", floor = 3 },
+    ["hall of secrets"]           = { id = "scholomance", floor = 3 },
+    ["hall of the damned"]        = { id = "scholomance", floor = 3 },
+    ["the coven"]                 = { id = "scholomance", floor = 3 },
+    ["headmaster's study"]        = { id = "scholomance", floor = 4 },
+    ["the headmaster's study"]    = { id = "scholomance", floor = 4 },
+    ["ras frostwhisper's chamber"]= { id = "scholomance", floor = 4 },
+    ["vault of the ravenian"]     = { id = "scholomance", floor = 4 },
+    ["barov family vault"]        = { id = "scholomance", floor = 4 },
+    -- Stratholme
+    ["crusaders' square"]         = { id = "stratholme_main", floor = 1 },
+    ["king's square"]             = { id = "stratholme_main", floor = 1 },
+    ["market row"]                = { id = "stratholme_main", floor = 1 },
+    ["festival lane"]             = { id = "stratholme_main", floor = 1 },
+    ["the scarlet bastion"]       = { id = "stratholme_main", floor = 1 },
+    ["the gauntlet"]              = { id = "stratholme_main", floor = 2 },
+    ["elders' square"]            = { id = "stratholme_main", floor = 2 },
+    ["slaughter square"]          = { id = "stratholme_main", floor = 2 },
+    ["slaughterhouse"]            = { id = "stratholme_main", floor = 2 },
+}
+
 local UIMAP_TO_DUNGEON = {}
 for dID, mapData in pairs(RAW_MAPS) do
     for idxFloor, fl in ipairs(mapData.f or {}) do
@@ -988,6 +1100,10 @@ function sfui.dj_camelot.GetCurrentInstanceDungeon()
         or SafePlainString(type(GetMinimapZoneText) == "function" and GetMinimapZoneText() or nil)
     if subZone then
         local low = subZone:lower()
+        if SUBZONE_TO_FLOOR[low] then
+            local hit = SUBZONE_TO_FLOOR[low]
+            return hit.id, hit.floor
+        end
         if SUBZONE_TO_DUNGEON[low] then
             if sfui.dj_camelot.InScarletMonastery() then
                 SfuiDB = SfuiDB or {}

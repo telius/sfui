@@ -21,6 +21,7 @@ local _G = _G
 local type = _G.type
 local tonumber = _G.tonumber
 local string_lower = string.lower
+local table_remove = table.remove
 local wipe = _G.wipe
 
 local UnitExists = _G.UnitExists
@@ -375,6 +376,256 @@ for i = 1, 4 do
     }
 end
 
+-- Scratch tables & pools for non-Paladin single-target party buffs (e.g. Power Word: Fortitude)
+local activePartyAuraEntries = {}
+local partyAuraCastNames = {}
+local partyAuraCastIcons = {}
+local partyAuraCastIDs = {}
+local partyUnitAuraRecordPool = {}
+local partyUnitAuraList = {}
+local partyUnitAurasBySpellID = {}
+local partyUnitAurasByName = {}
+local partyAuraEntryPool = {}
+
+local function IsEligiblePartyUnit(unit)
+    local isSelf = (sfui.safety and sfui.safety.SafeUnitIsUnit and sfui.safety.SafeUnitIsUnit(unit, "player")) or false
+    return UnitExists and UnitExists(unit)
+        and not isSelf
+        and (not UnitIsConnected or UnitIsConnected(unit))
+        and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost(unit))
+        and (not UnitIsVisible or UnitIsVisible(unit))
+        and not IsUnitAuraRestricted(unit, nil)
+end
+
+local function GetUnitShortNameLower(unit)
+    local rawName = UnitName and UnitName(unit)
+    local unitName = (IsSafeValue(rawName) and rawName) or unit
+    local shortName = unitName:match("^([^%-]+)") or unitName
+    return shortName:lower()
+end
+
+local function ReleasePartyUnitAuras()
+    wipe(partyUnitAurasBySpellID)
+    wipe(partyUnitAurasByName)
+    for i = #partyUnitAuraList, 1, -1 do
+        local r = table_remove(partyUnitAuraList, i)
+        wipe(r)
+        partyUnitAuraRecordPool[#partyUnitAuraRecordPool + 1] = r
+    end
+end
+
+local function RecordPartyUnitAura(name, spellId, duration, expirationTime, icon)
+    if not IsSafeValue(name) then name = nil end
+    if not IsSafeValue(spellId) then spellId = nil end
+    if not IsSafeValue(duration) then duration = 0 end
+    if not IsSafeValue(expirationTime) then expirationTime = 0 end
+    if not IsSafeValue(icon) then icon = nil end
+    if not name and not spellId then return end
+
+    local r = table_remove(partyUnitAuraRecordPool) or {}
+    r.name = name
+    r.spellId = spellId
+    r.duration = duration or 0
+    r.expirationTime = expirationTime or 0
+    r.icon = icon
+
+    if spellId then
+        partyUnitAurasBySpellID[spellId] = r
+    end
+    if type(name) == "string" and name ~= "" then
+        partyUnitAurasByName[string_lower(name)] = r
+    end
+    partyUnitAuraList[#partyUnitAuraList + 1] = r
+end
+
+local function CollectPartyUnitAuras(unit)
+    ReleasePartyUnitAuras()
+    if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+        for aIdx = 1, 40 do
+            if not IsUnitAuraRestricted(unit, aIdx) then
+                local aura = C_UnitAuras.GetAuraDataByIndex(unit, aIdx, "HELPFUL")
+                if not aura then break end
+                RecordPartyUnitAura(aura.name, aura.spellId, aura.duration, aura.expirationTime, aura.icon)
+            end
+        end
+    elseif _G.UnitAura then
+        for aIdx = 1, 40 do
+            local name, icon, _, _, duration, expTime, _, _, _, sID = _G.UnitAura(unit, aIdx, "HELPFUL")
+            if not (issecretvalue and issecretvalue(name)) and not name then break end
+            RecordPartyUnitAura(name, sID, duration, expTime, icon)
+        end
+    end
+end
+
+local function MatchPartyUnitAura(entry)
+    local spellIDs = entry.spellIDs
+    if spellIDs then
+        for i = 1, #spellIDs do
+            local a = partyUnitAurasBySpellID[spellIDs[i]]
+            if a then return a end
+        end
+    end
+    local lowerNames = entry.lowerNames
+    if lowerNames then
+        for i = 1, #lowerNames do
+            local a = partyUnitAurasByName[lowerNames[i]]
+            if a then return a end
+        end
+    end
+    if entry.lowerName then
+        local a = partyUnitAurasByName[entry.lowerName]
+        if a then return a end
+    end
+    local spellbookNames = entry.spellbookNames
+    if spellbookNames then
+        for i = 1, #spellbookNames do
+            local a = partyUnitAurasByName[spellbookNames[i]]
+            if a then return a end
+        end
+    end
+    return nil
+end
+
+local function ShouldSkipManaOnlyPartyBuff(entry, unit, classFile)
+    if not entry.partyManaOnly then return false end
+    if classFile == "WARRIOR" or classFile == "ROGUE" or classFile == "DEATHKNIGHT" then
+        return true
+    end
+    if not classFile then
+        local maxMana = UnitPowerMax and UnitPowerMax(unit, 0)
+        if IsSafeValue(maxMana) and maxMana <= 0 then
+            return true
+        end
+    end
+    return false
+end
+
+local function AppendClassPartyAuraReminders(activeResults, count, now, cfg)
+    local data = sfui.buffs.data
+    local scan = sfui.buffs.scan
+    if not data or not data.GetClassEntries or not data.GetBestCastSpell then
+        return count
+    end
+
+    wipe(activePartyAuraEntries)
+    wipe(partyAuraCastNames)
+    wipe(partyAuraCastIcons)
+    wipe(partyAuraCastIDs)
+
+    local classEntries = data.GetClassEntries()
+    local disabledBuffs = cfg and cfg.disabledBuffs
+    for i = 1, #classEntries do
+        local entry = classEntries[i]
+        if entry.partyBuff
+            and (not scan or not scan.IsEntryKnown or scan.IsEntryKnown(entry.key))
+            and not (data.IsEntryDisabled and data.IsEntryDisabled(entry, disabledBuffs)) then
+            local castName, castIcon, castID = data.GetBestCastSpell(entry)
+            if castName or castID then
+                local n = #activePartyAuraEntries + 1
+                activePartyAuraEntries[n] = entry
+                partyAuraCastNames[n] = castName
+                partyAuraCastIcons[n] = castIcon
+                partyAuraCastIDs[n] = castID
+            end
+        end
+    end
+
+    if #activePartyAuraEntries == 0 then
+        return count
+    end
+
+    local allowExpiring = not cfg or (cfg.showExpiring ~= false)
+    local thresholdShort = (cfg and cfg.thresholdShort) or 60
+    local thresholdLong = (cfg and cfg.thresholdLong) or 300
+
+    for idx = 1, 4 do
+        local unit = PARTY_UNITS[idx]
+        if IsEligiblePartyUnit(unit) then
+            CollectPartyUnitAuras(unit)
+            local _, classFile = UnitClass(unit)
+            if not IsSafeValue(classFile) then classFile = nil end
+            local shortNameLower = nil
+
+            for eIdx = 1, #activePartyAuraEntries do
+                local entry = activePartyAuraEntries[eIdx]
+                if not ShouldSkipManaOnlyPartyBuff(entry, unit, classFile) then
+                    local matched = MatchPartyUnitAura(entry)
+                    local isMissing = (matched == nil)
+                    local dur = (matched and matched.duration) or 0
+                    local exp = (matched and matched.expirationTime) or 0
+
+                    local baseThreshold = entry.threshold or 300
+                    local effectiveThreshold = (baseThreshold > 60) and thresholdLong or thresholdShort
+                    if dur > 0 and dur <= 300 and effectiveThreshold >= dur then
+                        effectiveThreshold = thresholdShort
+                    end
+
+                    local isExpiring = false
+                    if not isMissing and allowExpiring and exp > 0 and effectiveThreshold > 0 then
+                        local rem = exp - now
+                        if rem > 0 and rem <= effectiveThreshold then
+                            isExpiring = true
+                        end
+                    end
+
+                    if isMissing or isExpiring then
+                        if not shortNameLower then
+                            shortNameLower = GetUnitShortNameLower(unit)
+                        end
+                        local poolKey = entry.key .. "_party_" .. idx
+                        local pEntry = partyAuraEntryPool[poolKey]
+                        if not pEntry then
+                            pEntry = {
+                                key = poolKey,
+                                type = "party_aura",
+                                isPartyBuff = true,
+                                sourceKey = entry.key,
+                            }
+                            partyAuraEntryPool[poolKey] = pEntry
+                        end
+                        local castName = partyAuraCastNames[eIdx]
+                        local castIcon = partyAuraCastIcons[eIdx]
+                        local castID = partyAuraCastIDs[eIdx]
+                        pEntry.fallbackIcon = entry.fallbackIcon
+                        pEntry.unit = unit
+                        pEntry.unitName = shortNameLower
+                        pEntry.unitClass = classFile
+                        pEntry.castSpellName = castName
+                        pEntry.castSpellID = castID
+                        pEntry.castIcon = castIcon
+                        pEntry.name = ((castName and string_lower(castName)) or entry.name or entry.key) .. " -> " .. shortNameLower
+
+                        count = count + 1
+                        local rec = activeResults[count]
+                        if not rec then
+                            rec = {}
+                            activeResults[count] = rec
+                        end
+
+                        rec.entry = pEntry
+                        rec.unit = unit
+                        rec.unitName = shortNameLower
+                        rec.unitClass = classFile
+                        rec.unitSpecLabel = nil
+                        rec.hasBuff = not isMissing
+                        rec.isMissing = isMissing
+                        rec.isExpiring = isExpiring
+                        rec.expirationTime = exp
+                        rec.duration = dur
+                        rec.charges = 0
+                        rec.icon = castIcon or (matched and matched.icon) or entry.fallbackIcon
+                        rec.activeEnchant = nil
+                    end
+                end
+            end
+
+            ReleasePartyUnitAuras()
+        end
+    end
+
+    return count
+end
+
 --- Cycles manual blessing override for a specific party member (via mouse wheel on their reminder icon)
 function sfui.buffs.party.CyclePartyBlessing(unit, delta)
     if not unit or not sfui.buffs.paladin or not sfui.buffs.paladin.GetAvailableBlessings then
@@ -462,11 +713,11 @@ function sfui.buffs.party.AppendPartyReminders(activeResults, count, now, cfg)
     if cfg and cfg.partyBuffs == false then
         return count
     end
-    if sfui.buffs.playerClass ~= "PALADIN" then
-        return count
-    end
     if not IsInGroup or not IsInGroup() or (IsInRaid and IsInRaid()) then
         return count
+    end
+    if sfui.buffs.playerClass ~= "PALADIN" then
+        return AppendClassPartyAuraReminders(activeResults, count, now, cfg)
     end
     if not sfui.buffs.paladin or not sfui.buffs.paladin.GetAvailableBlessings then
         return count
@@ -509,13 +760,7 @@ function sfui.buffs.party.AppendPartyReminders(activeResults, count, now, cfg)
 
     for idx = 1, 4 do
         local unit = PARTY_UNITS[idx]
-        local isSelf = (sfui.safety and sfui.safety.SafeUnitIsUnit and sfui.safety.SafeUnitIsUnit(unit, "player")) or false
-        if UnitExists and UnitExists(unit)
-            and not isSelf
-            and (not UnitIsConnected or UnitIsConnected(unit))
-            and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost(unit))
-            and (not UnitIsVisible or UnitIsVisible(unit))
-            and not IsUnitAuraRestricted(unit, nil) then
+        if IsEligiblePartyUnit(unit) then
 
             wipe(otherBlessingsScratch)
             local myBlessingKey = nil
@@ -619,13 +864,9 @@ function sfui.buffs.party.AppendPartyReminders(activeResults, count, now, cfg)
                 end
 
                 if chosenBlessing then
-                    local rawName = UnitName and UnitName(unit)
-                    local unitName = (IsSafeValue(rawName) and rawName) or unit
-                    local shortName = unitName:match("^([^%-]+)") or unitName
-
                     local pEntry = partyEntryPool[idx]
                     pEntry.unit = unit
-                    pEntry.unitName = shortName:lower()
+                    pEntry.unitName = GetUnitShortNameLower(unit)
                     pEntry.unitClass = classFile
                     pEntry.unitSpecLabel = specLabel
                     pEntry.blessingKey = chosenBlessing.key
@@ -690,6 +931,20 @@ if P and P.Register then
             P.AddClickPrompt(tip, "cast", bLabel .. " on " .. coloredUnit, isTestMode)
             local allBlessings = sfui.buffs.paladin and sfui.buffs.paladin.GetAvailableBlessings and sfui.buffs.paladin.GetAvailableBlessings()
             P.AddSpellChoiceList(tip, "scroll wheel to override blessing:", allBlessings, "key", entry.blessingKey)
+        end,
+    })
+
+    P.Register("party_aura", {
+        populateTooltip = function(tip, rec, _, isTestMode)
+            local entry = rec and rec.entry
+            if not entry then return end
+            local coloredUnit = entry.unitName or entry.unit or "party"
+            if entry.unitClass and sfui.common and sfui.common.class_color_name then
+                coloredUnit = sfui.common.class_color_name(coloredUnit, entry.unitClass)
+            end
+            local bLabel = (entry.castSpellName and entry.castSpellName:lower()) or entry.name or "buff"
+            P.AddStatusHeader(tip, rec, bLabel .. " -> " .. coloredUnit)
+            P.AddClickPrompt(tip, "cast", bLabel .. " on " .. coloredUnit, isTestMode)
         end,
     })
 end

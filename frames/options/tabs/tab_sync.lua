@@ -234,32 +234,38 @@ sfui.options.RegisterTab({
         local cb_mb_quest = create_checkbox(panel, "auto-quest, abandon & dialog sync",
             function() return sync.GetSettings().mbAutoQuest ~= false end,
             function(v) set_sync_setting("mbAutoQuest", v) end,
-            "auto-accepts quests, turns in quests without item rewards, syncs quest abandon, mirrors lead gossip/dialog choices, and notifies when a peer completes a quest.")
+            "auto-accepts quests, turns in quests without item rewards (or all quests when auto-pick reward is enabled), syncs quest abandon, mirrors lead gossip/dialog choices, and notifies when a peer completes a quest.")
         cb_mb_quest:SetPoint("TOPLEFT", cb_mb_follow, "BOTTOMLEFT", 0, -6)
+
+        local cb_mb_quest_reward = create_checkbox(panel, "auto-complete & pick best reward",
+            function() return sync.GetSettings().mbAutoQuestReward == true end,
+            function(v) set_sync_setting("mbAutoQuestReward", v) end,
+            "when auto-quest is active, automatically completes quests with rewards: grabs the highest equippable upgrade for your current spec, or the best gold reward if none upgrade (hold shift to cancel and choose manually).")
+        cb_mb_quest_reward:SetPoint("LEFT", cb_mb_quest, "LEFT", COL_OFFSET_X, 0)
 
         local cb_mb_taxi = create_checkbox(panel, "sync flight master destinations",
             function() return sync.GetSettings().mbAutoTaxi ~= false end,
             function(v) set_sync_setting("mbAutoTaxi", v) end,
             "automatically takes the same flight master destination that a synced party member selected within the last 45 seconds.")
-        cb_mb_taxi:SetPoint("LEFT", cb_mb_quest, "LEFT", COL_OFFSET_X, 0)
+        cb_mb_taxi:SetPoint("TOPLEFT", cb_mb_quest, "BOTTOMLEFT", 0, -6)
 
         local cb_mb_trade = create_checkbox(panel, "auto-fill trade with routed mats",
             function() return sync.GetSettings().mbAutoTrade ~= false end,
             function(v) set_sync_setting("mbAutoTrade", v) end,
             "extends alt mail routing & synced professions into trading with synced party members, plus 'give mats' and 'dump junk' buttons on the trade frame.")
-        cb_mb_trade:SetPoint("TOPLEFT", cb_mb_quest, "BOTTOMLEFT", 0, -6)
-
-        local cb_mb_loot = create_checkbox(panel, "follower auto-pass loot rolls",
-            function() return sync.GetSettings().mbFollowerPassLoot == true end,
-            function(v) set_sync_setting("mbFollowerPassLoot", v) end,
-            "when not the party leader in a synced group, automatically passes on loot rolls unless the item is on this character's dungeon journal wishlist.")
-        cb_mb_loot:SetPoint("LEFT", cb_mb_trade, "LEFT", COL_OFFSET_X, 0)
+        cb_mb_trade:SetPoint("LEFT", cb_mb_taxi, "LEFT", COL_OFFSET_X, 0)
 
         local cb_mb_corpse = create_checkbox(panel, "corpse quest-item loot alerts",
             function() return sync.GetSettings().mbCorpseAlert ~= false end,
             function(v) set_sync_setting("mbCorpseAlert", v) end,
             "alerts the lead window after looting a per-player quest item from a corpse if another synced party member still needs to loot their own copy.")
-        cb_mb_corpse:SetPoint("TOPLEFT", cb_mb_trade, "BOTTOMLEFT", 0, -6)
+        cb_mb_corpse:SetPoint("TOPLEFT", cb_mb_taxi, "BOTTOMLEFT", 0, -6)
+
+        local cb_mb_loot = create_checkbox(panel, "follower auto-pass loot rolls",
+            function() return sync.GetSettings().mbFollowerPassLoot == true end,
+            function(v) set_sync_setting("mbFollowerPassLoot", v) end,
+            "when not the party leader in a synced group, automatically passes on loot rolls unless the item is on this character's dungeon journal wishlist.")
+        cb_mb_loot:SetPoint("LEFT", cb_mb_corpse, "LEFT", COL_OFFSET_X, 0)
 
         local cb_mb_hud = create_checkbox(panel, "show party status & bag/gold hud",
             function() return sync.GetSettings().mbShowHud ~= false end,
@@ -270,10 +276,10 @@ sfui.options.RegisterTab({
                 end
             end,
             "shows a compact draggable party status bar with live free bag slots, team gold, click-to-target, and alt+click away/paused mode when grouped with synced characters.")
-        cb_mb_hud:SetPoint("LEFT", cb_mb_corpse, "LEFT", COL_OFFSET_X, 0)
+        cb_mb_hud:SetPoint("TOPLEFT", cb_mb_corpse, "BOTTOMLEFT", 0, -6)
 
         -- ── 3. Content Modules & Transport Channels (2-Column Grid) ───────────
-        local sep2 = create_section_divider(panel, cb_mb_corpse, -10)
+        local sep2 = create_section_divider(panel, cb_mb_hud, -10)
 
         local mod_header = panel:CreateFontString(nil, "OVERLAY", g.font)
         mod_header:SetPoint("TOPLEFT", sep2, "BOTTOMLEFT", 0, -10)
@@ -450,10 +456,11 @@ sfui.options.RegisterTab({
             { cb = cb_whisper,   get = function(c) return c.useWhisper == true end },
             { cb = cb_guild,     get = function(c) return c.useGuild == true end },
             { cb = cb_bnet,      get = function(c) return c.useBNet == true end },
-            { cb = cb_mb_follow, get = function(c) return c.mbAutoFollow ~= false end },
-            { cb = cb_mb_invite, get = function(c) return c.mbAutoInvite ~= false end },
-            { cb = cb_mb_quest,  get = function(c) return c.mbAutoQuest ~= false end },
-            { cb = cb_mb_taxi,   get = function(c) return c.mbAutoTaxi ~= false end },
+            { cb = cb_mb_follow,       get = function(c) return c.mbAutoFollow ~= false end },
+            { cb = cb_mb_invite,       get = function(c) return c.mbAutoInvite ~= false end },
+            { cb = cb_mb_quest,        get = function(c) return c.mbAutoQuest ~= false end },
+            { cb = cb_mb_quest_reward, get = function(c) return c.mbAutoQuestReward == true end },
+            { cb = cb_mb_taxi,         get = function(c) return c.mbAutoTaxi ~= false end },
             { cb = cb_mb_trade,  get = function(c) return c.mbAutoTrade ~= false end },
             { cb = cb_mb_corpse, get = function(c) return c.mbCorpseAlert ~= false end },
             { cb = cb_mb_hud,    get = function(c) return c.mbShowHud ~= false end },

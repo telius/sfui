@@ -22,9 +22,11 @@ sfui.tracking.auras = sfui.tracking.auras or {}
 local A = sfui.tracking.auras
 
 local C_Spell = C_Spell
+local C_SpellBook = _G.C_SpellBook
 local C_UnitAuras = C_UnitAuras
 local C_Secrets = _G.C_Secrets
 local C_DurationUtil = _G.C_DurationUtil
+local Enum = _G.Enum
 local GetTime = GetTime
 local InCombatLockdown = InCombatLockdown
 local pairs = pairs
@@ -32,10 +34,30 @@ local type = type
 local wipe = wipe or table.wipe
 local issecretvalue = sfui.common.issecretvalue
 
+local BANK_PLAYER = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
+
 A.HIDE_AURA_FLAG = (Enum and Enum.CooldownSetSpellFlags and Enum.CooldownSetSpellFlags.HideAura) or 1
 A.SEALS_COOLDOWN_ID = 200340
 A.SEALS_SPELL_ID = 1323522
 A.DEFAULT_SEAL_DURATION = 30
+
+local function IsCastablePlayerSpell(spellID)
+    if not spellID or issecretvalue(spellID) or type(spellID) ~= "number" or spellID <= 0 then
+        return false
+    end
+    if C_SpellBook then
+        if C_SpellBook.IsSpellInSpellBook and C_SpellBook.IsSpellInSpellBook(spellID, BANK_PLAYER, true) then
+            return true
+        end
+        if C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(spellID, BANK_PLAYER) then
+            return true
+        end
+    end
+    if _G.IsPlayerSpell and _G.IsPlayerSpell(spellID) then
+        return true
+    end
+    return false
+end
 
 local _spellNameCache = {}
 local _spellTexCache = {}
@@ -262,7 +284,13 @@ local function AddCandidate(list, seen, id)
 end
 
 function A.GetCandidates(holder, activeID, linkedSpellIDs, cdInfo)
-    if holder._auraCandidates and holder._auraCandActive == activeID and holder._auraCandLinked == linkedSpellIDs then
+    local camelot = sfui.tracking.camelot
+    local isCover = A.IsCoverSpell(cdInfo, cdInfo and cdInfo.cooldownID, activeID)
+    local sealRev = (isCover and camelot and camelot.GetKnownSealsRev and camelot.GetKnownSealsRev()) or 0
+    if holder._auraCandidates
+        and holder._auraCandActive == activeID
+        and holder._auraCandLinked == linkedSpellIDs
+        and holder._auraCandSealRev == sealRev then
         return holder._auraCandidates, false
     end
     local list, seen = {}, {}
@@ -276,10 +304,14 @@ function A.GetCandidates(holder, activeID, linkedSpellIDs, cdInfo)
         AddCandidate(list, seen, cdInfo.overrideSpellID)
         AddCandidate(list, seen, cdInfo.spellID)
     end
+    if isCover and camelot and camelot.AppendKnownSealCandidates then
+        camelot.AppendKnownSealCandidates(AddCandidate, list, seen)
+    end
     AddCandidate(list, seen, activeID)
     holder._auraCandidates = list
     holder._auraCandActive = activeID
     holder._auraCandLinked = linkedSpellIDs
+    holder._auraCandSealRev = sealRev
     return list, true
 end
 
@@ -331,6 +363,7 @@ local function RecordCastAura(spellID, name, icon, startTime, duration, auraInst
 end
 
 local function UpdateFromReadableAura(aura, now)
+    if A.PlainField(aura, "isHarmful") == true then return nil, false end
     local name = A.PlainField(aura, "name")
     local sid = A.PlainField(aura, "spellId")
     if not name and not sid then return nil, false end
@@ -614,16 +647,34 @@ local function OnUnitSpellCastSucceeded(_event, _unit, _castGUID, spellID)
     local now = GetTime()
     local camelot = sfui.tracking.camelot
 
-    if _watchSeals and camelot and camelot.OnSpellCastSucceeded then
-        local icon = GetCachedSpellTexture(spellID)
-        if camelot.OnSpellCastSucceeded(spellID, name, icon, now) then
-            NotifyTrackingDirty()
+    if camelot and camelot.IsSealName and camelot.IsSealName(name) then
+        if not (camelot.IsCastableSealSpell and camelot.IsCastableSealSpell(spellID, name)) then
             return
         end
+        local changed = false
+        local icon = GetCachedSpellTexture(spellID)
+        if _watchSeals and camelot.OnSpellCastSucceeded and camelot.OnSpellCastSucceeded(spellID, name, icon, now) then
+            changed = true
+        end
+        if _watchedSpellIDs[spellID] or (name and _watchedNames[name]) then
+            local dur = _learnedDurations[spellID]
+                or (name and _learnedDurations[name])
+                or camelot.DEFAULT_SEAL_DURATION
+            if dur and dur > 0 then
+                RecordCastAura(spellID, name, icon, now, dur, nil, 1, false)
+                changed = true
+            end
+        end
+        if changed then
+            NotifyTrackingDirty()
+        end
+        return
     end
 
-    if not _watchedSpellIDs[spellID] and not (name and _watchedNames[name]) then
-        return
+    if not _watchedSpellIDs[spellID] then
+        if not (name and _watchedNames[name] and IsCastablePlayerSpell(spellID)) then
+            return
+        end
     end
 
     local dur = _learnedDurations[spellID]

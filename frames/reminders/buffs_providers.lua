@@ -200,6 +200,8 @@ local function ResolveProviderId(entry)
         id = "paladin_blessing"
     elseif eType == "party_blessing" then
         id = "party_blessing"
+    elseif eType == "party_aura" then
+        id = "party_aura"
     elseif eType == "pet" then
         id = "pet"
     elseif eType == "stance" then

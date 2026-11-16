@@ -325,6 +325,11 @@ sfui.fishing.session = {
     getaways = 0,
     streak = 0,
     value = 0,
+    fish = {},
+    zoneFish = {},
+    castsSinceSkillup = 0,
+    catchesSinceSkillup = 0,
+    lastSkillRank = nil,
 }
 
 function sfui.fishing.GetSessionMetrics()
@@ -338,6 +343,7 @@ function sfui.fishing.GetSessionMetrics()
 end
 
 function sfui.fishing.ResetSession()
+    local curRank = get_fishing_skill()
     sfui.fishing.session = {
         startTime = GetTime(),
         casts = 0,
@@ -345,6 +351,11 @@ function sfui.fishing.ResetSession()
         getaways = 0,
         streak = 0,
         value = 0,
+        fish = {},
+        zoneFish = {},
+        castsSinceSkillup = 0,
+        catchesSinceSkillup = 0,
+        lastSkillRank = (curRank and curRank > 0) and curRank or nil,
     }
     if sfui.fishing.hud and sfui.fishing.hud.Update then sfui.fishing.hud.Update() end
     if sfui.fishing.atlas and sfui.fishing.atlas.Update then sfui.fishing.atlas.Update() end
@@ -352,6 +363,21 @@ function sfui.fishing.ResetSession()
         sfui.events.SendMessage("SFUI_FISHING_SESSION_RESET")
     end
     sfui.common.print("fishing: session stats reset.")
+end
+
+local function check_skillup_progress()
+    local rank, maxRank = get_fishing_skill()
+    local s = sfui.fishing.session
+    if rank and rank > 0 and s then
+        if s.lastSkillRank and rank > s.lastSkillRank then
+            s.castsSinceSkillup = 0
+            s.catchesSinceSkillup = 0
+            if sfui.events and sfui.events.SendMessage then
+                sfui.events.SendMessage("SFUI_FISHING_SKILLUP", rank, maxRank)
+            end
+        end
+        s.lastSkillRank = rank
+    end
 end
 
 local function get_or_create_zone_bucket(zonesTable, mapID)
@@ -785,6 +811,14 @@ function sfui.fishing.RecordCatch(itemID, quantity, quality, mapID, link)
     if s then
         s.catches = (s.catches or 0) + quantity
         s.streak = (s.streak or 0) + 1
+        s.fish = s.fish or {}
+        s.fish[itemID] = (s.fish[itemID] or 0) + quantity
+        if mapID and mapID > 0 then
+            s.zoneFish = s.zoneFish or {}
+            s.zoneFish[mapID] = s.zoneFish[mapID] or {}
+            s.zoneFish[mapID][itemID] = (s.zoneFish[mapID][itemID] or 0) + quantity
+        end
+        s.catchesSinceSkillup = (s.catchesSinceSkillup or 0) + 1
         if s.streak > (SfuiDB.fishing.records.longestStreak or 0) then
             SfuiDB.fishing.records.longestStreak = s.streak
         end
@@ -1600,6 +1634,13 @@ local function on_channel_start(event, unit, castGUID, spellID)
     local s = sfui.fishing.session
     if s then
         s.casts = (s.casts or 0) + 1
+        if not s.lastSkillRank then
+            local curRank = get_fishing_skill()
+            if curRank and curRank > 0 then
+                s.lastSkillRank = curRank
+            end
+        end
+        s.castsSinceSkillup = (s.castsSinceSkillup or 0) + 1
     end
     local cLedger = sfui.fishing.EnsureCharLedger()
     if cLedger then
@@ -1776,6 +1817,7 @@ local function _perform_spells_or_skills_changed(event)
 end
 
 local function on_spells_or_skills_changed(event)
+    check_skillup_progress()
     if sfui.common and sfui.common.debounce then
         sfui.common.debounce("fishing_spells_changed", 0.25, function()
             _perform_spells_or_skills_changed(event)
@@ -1846,6 +1888,7 @@ sfui.RegisterModule("fishing", {
     OnEnable = function(self)
         sfui.fishing.EnsureCharLedger()
         sfui.fishing.RebuildAggregates()
+        check_skillup_progress()
         update_bound_keys()
         get_secure_button()
         _state.poleWasEquipped = is_fishing_pole_equipped()
@@ -1922,6 +1965,7 @@ function sfui.fishing_debug_info()
     _fishDebug.sessionCasts    = (s and s.casts) or 0
     _fishDebug.sessionStreak   = (s and s.streak) or 0
     _fishDebug.sessionGetaways = (s and s.getaways) or 0
+    _fishDebug.catchesSinceSkillup = (s and s.catchesSinceSkillup) or 0
     return _fishDebug
 end
 

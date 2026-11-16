@@ -31,6 +31,30 @@ for _, lure in ipairs(D.LURES) do
     D.LURE_ITEM_IDS[lure.itemID] = lure
 end
 
+-- Unlocked containers, clams, crates & bloated fish openable directly from bags
+D.OPENABLE_CONTAINERS = {
+    [5523]  = "small barnacled clam",
+    [5524]  = "thick-shelled clam",
+    [6307]  = "message in a bottle",
+    [6351]  = "dented crate",
+    [6352]  = "waterlogged crate",
+    [6353]  = "small chest",
+    [6356]  = "battered chest",
+    [6357]  = "sealed crate",
+    [6643]  = "bloated brilliant smallfish",
+    [6645]  = "bloated mud snapper",
+    [6647]  = "bloated catfish",
+    [7973]  = "big-mouth clam",
+    [8366]  = "bloated mithril head trout",
+    [13874] = "heavy crate",
+    [15874] = "soft-shelled clam",
+    [20708] = "tightly sealed trunk",
+    [21113] = "watertight trunk",
+    [21150] = "iron bound trunk",
+    [21228] = "mithril bound trunk",
+    [21243] = "bloated glossy mightfish",
+}
+
 -- ─── 2. Zone Skill Requirements ──────────────────────────────────────────────
 -- Minimum fishing skill (base + lure + gear) needed for 0% escape rate by classic UiMap ID.
 D.ZONE_SKILL = {
@@ -1044,13 +1068,16 @@ function D.GetAllWaters()
     return waters
 end
 
--- ─── Lure Detection & Memoized Bag Cache ─────────────────────────────────────
+-- ─── Lure & Container Detection + Memoized Bag Cache ──────────────────────────
 local cachedLure = nil
 local cachedLureRank = nil
 local lureCacheDirty = true
+local cachedContainer = nil
+local containerCacheDirty = true
 
 function D.InvalidateLureCache()
     lureCacheDirty = true
+    containerCacheDirty = true
 end
 
 --- Returns best bag lure that the player can use given their current skill rank
@@ -1111,6 +1138,192 @@ function D.FindBestLureInBags(skillRank)
     cachedLureRank = skillRank
     lureCacheDirty = false
     return cachedLure
+end
+
+--- Returns the first unlocked openable fishing container (clam, crate, trunk, bloated fish) in bags
+--- @return table|nil { itemID, name, bag, slot, link, icon, totalCount }
+function D.FindOpenableContainerInBags()
+    if not containerCacheDirty then
+        return cachedContainer
+    end
+
+    local common = sfui.common
+    if not common or not common.for_each_bag_item then return nil end
+
+    local firstItemID, firstName, firstBag, firstSlot, firstLink, firstIcon
+    local totalCount = 0
+    local C_Container = _G.C_Container
+
+    common.for_each_bag_item(function(bag, slot, itemID, itemLink)
+        if itemID and D.OPENABLE_CONTAINERS[itemID] then
+            local count = 1
+            local isLocked = false
+            local slotTex
+            if C_Container and C_Container.GetContainerItemInfo then
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info then
+                    if info.isLocked then isLocked = true end
+                    if info.stackCount and info.stackCount > 0 then count = info.stackCount end
+                    slotTex = info.iconFileID
+                end
+            elseif _G.GetContainerItemInfo then
+                local tex, c, locked = _G.GetContainerItemInfo(bag, slot)
+                if locked then isLocked = true end
+                if c and c > 0 then count = c end
+                slotTex = tex
+            end
+
+            if not isLocked then
+                totalCount = totalCount + count
+                if not firstItemID then
+                    firstItemID = itemID
+                    firstName = D.OPENABLE_CONTAINERS[itemID]
+                    firstBag = bag
+                    firstSlot = slot
+                    firstLink = itemLink
+                    firstIcon = slotTex
+                    if not firstIcon and common.get_item_instant_info then
+                        firstIcon = select(5, common.get_item_instant_info(itemID))
+                    end
+                    if not firstIcon and common.get_item_info then
+                        firstIcon = select(10, common.get_item_info(itemID))
+                    end
+                end
+            end
+        end
+    end, false, true, false)
+
+    if firstItemID and totalCount > 0 then
+        if not cachedContainer then cachedContainer = {} end
+        cachedContainer.itemID = firstItemID
+        cachedContainer.name = firstName
+        cachedContainer.bag = firstBag
+        cachedContainer.slot = firstSlot
+        cachedContainer.link = firstLink
+        cachedContainer.icon = firstIcon or "Interface\\Icons\\INV_Box_01"
+        cachedContainer.totalCount = totalCount
+    else
+        cachedContainer = nil
+    end
+
+    containerCacheDirty = false
+    return cachedContainer
+end
+
+-- ─── Time-of-Day / Seasonal Bite Windows & Skillup Curve ─────────────────────
+
+local function format_short_hm(sec)
+    sec = math.max(0, math.floor((sec or 0) + 0.5))
+    local h = math.floor(sec / 3600)
+    local m = math.floor((sec % 3600) / 60)
+    if h > 0 then
+        return string.format("%dh%02dm", h, m)
+    end
+    return string.format("%dm", math.max(1, m))
+end
+
+--- Evaluates server time-of-day or seasonal bite window for time-gated Classic species
+--- @param itemID number
+--- @return string|nil state ('peak' | 'active' | 'off'), string|nil badge, string|nil detail, number|nil secondsUntilChange
+function D.GetSpeciesBiteWindow(itemID)
+    if itemID ~= 13759 and itemID ~= 13760 and itemID ~= 13756 and itemID ~= 13755 then
+        return nil
+    end
+
+    local hour, minute
+    if _G.GetGameTime then
+        hour, minute = _G.GetGameTime()
+    end
+    if hour == nil or minute == nil then
+        local srv = (_G.GetServerTime and _G.GetServerTime()) or time()
+        local t = _G.date and _G.date("*t", srv)
+        hour = (t and t.hour) or 12
+        minute = (t and t.min) or 0
+    end
+    local secOfDay = (hour * 3600) + (minute * 60)
+
+    if itemID == 13759 then
+        if hour < 6 then
+            local rem = (6 * 3600) - secOfDay
+            local dur = format_short_hm(rem)
+            return "peak", "|cff00ff88[peak]|r", string.format("nightfin peak (00:00-06:00 • tapers in %s)", dur), rem
+        elseif hour < 12 then
+            local rem = (12 * 3600) - secOfDay
+            local dur = format_short_hm(rem)
+            return "active", "|cffffd100[taper]|r", string.format("morning taper (06:00-12:00 • ends in %s)", dur), rem
+        elseif hour < 18 then
+            local rem = (18 * 3600) - secOfDay
+            local dur = format_short_hm(rem)
+            return "off", "|cffff5555[off " .. dur .. "]|r", string.format("off-hours (12:00-18:00 • resumes in %s)", dur), rem
+        else
+            local rem = (24 * 3600) - secOfDay
+            local dur = format_short_hm(rem)
+            return "active", "|cffffd100[rising]|r", string.format("evening window (18:00-00:00 • peaks in %s)", dur), rem
+        end
+    elseif itemID == 13760 then
+        if hour >= 12 and hour < 18 then
+            local rem = (18 * 3600) - secOfDay
+            local dur = format_short_hm(rem)
+            return "peak", "|cff00ff88[peak]|r", string.format("sunscale peak (12:00-18:00 • tapers in %s)", dur), rem
+        elseif hour >= 6 and hour < 12 then
+            local rem = (12 * 3600) - secOfDay
+            local dur = format_short_hm(rem)
+            return "active", "|cffffd100[rising]|r", string.format("morning window (06:00-12:00 • peaks in %s)", dur), rem
+        elseif hour >= 18 then
+            local rem = (24 * 3600) - secOfDay
+            local dur = format_short_hm(rem)
+            return "active", "|cffffd100[taper]|r", string.format("evening taper (18:00-00:00 • ends in %s)", dur), rem
+        else
+            local rem = (6 * 3600) - secOfDay
+            local dur = format_short_hm(rem)
+            return "off", "|cffff5555[off " .. dur .. "]|r", string.format("off-hours (00:00-06:00 • resumes in %s)", dur), rem
+        end
+    end
+
+    local month, day
+    if _G.C_DateAndTime and _G.C_DateAndTime.GetCurrentCalendarTime then
+        local cal = _G.C_DateAndTime.GetCurrentCalendarTime()
+        if cal then
+            month = cal.month
+            day = cal.monthDay
+        end
+    end
+    if not month or not day then
+        local srv = (_G.GetServerTime and _G.GetServerTime()) or time()
+        local t = _G.date and _G.date("*t", srv)
+        month = (t and t.month) or 1
+        day = (t and t.day) or 1
+    end
+    local isSummer = (month == 3 and day >= 20) or (month > 3 and month < 9) or (month == 9 and day <= 22)
+
+    if itemID == 13756 then
+        if isSummer then
+            if hour >= 12 and hour < 18 then
+                return "peak", "|cff00ff88[peak]|r", "summer season • midday peak (12:00-18:00)"
+            end
+            return "active", "|cff66dd88[season]|r", "summer season active (mar 20 - sep 22)"
+        end
+        return "off", "|cff888888[summer]|r", "seasonal fish: active mar 20 - sep 22"
+    elseif itemID == 13755 then
+        if not isSummer then
+            if hour >= 12 and hour < 18 then
+                return "peak", "|cff00ff88[peak]|r", "winter season • midday peak (12:00-18:00)"
+            end
+            return "active", "|cff66dd88[season]|r", "winter season active (sep 23 - mar 19)"
+        end
+        return "off", "|cff888888[winter]|r", "seasonal fish: active sep 23 - mar 19"
+    end
+
+    return nil
+end
+
+--- Approximate expected catches per +1 skill point on the Classic fishing curve (< 300)
+--- @param baseRank number
+--- @return number|nil
+function D.GetExpectedCatchesForSkillup(baseRank)
+    if not baseRank or baseRank <= 0 or baseRank >= 300 then return nil end
+    if baseRank < 75 then return 1 end
+    return math.max(1, math.floor((baseRank - 75) / 25) + 2)
 end
 
 if sfui.events and sfui.events.RegisterEvent then

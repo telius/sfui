@@ -336,8 +336,13 @@ local function ScanLoot()
         end
     end
 
-    if updatedDrop and sfui.events and sfui.events.SendMessage then
-        sfui.events.SendMessage("SFUI_CONTACTS_UPDATED", "drop", updatedDrop)
+    if updatedDrop then
+        if sfui.recipes and sfui.recipes.InvalidateLiveIndices then
+            sfui.recipes.InvalidateLiveIndices()
+        end
+        if sfui.events and sfui.events.SendMessage then
+            sfui.events.SendMessage("SFUI_CONTACTS_UPDATED", "drop", updatedDrop)
+        end
     end
 end
 
@@ -400,8 +405,13 @@ local function ScanQuest()
         end
     end
 
-    if updatedQuest and sfui.events and sfui.events.SendMessage then
-        sfui.events.SendMessage("SFUI_CONTACTS_UPDATED", "quest", updatedQuest)
+    if updatedQuest then
+        if sfui.recipes and sfui.recipes.InvalidateLiveIndices then
+            sfui.recipes.InvalidateLiveIndices()
+        end
+        if sfui.events and sfui.events.SendMessage then
+            sfui.events.SendMessage("SFUI_CONTACTS_UPDATED", "quest", updatedQuest)
+        end
     end
 end
 

@@ -18,8 +18,9 @@ local quests   = sfui.sync.quests
 --       safety protection.
 --    2. Multi-Step Turn-In Catch-Up (`GossipFrame` -> `QuestFrameProgressPanel`
 --       -> `QuestFrameRewardPanel` / `DUIQuestFrame`).
---    3. Quest Reward Advisor Badges (`+X% upg`, `+X% off`, `best gold`) — strictly
---       advisory; never pre-selects or accepts a quest reward when there is a choice.
+--    3. Quest Reward Advisor Badges (`+X% upg`, `+X% off`, `best gold`) — visual
+--       badges by default, or auto-picks best current-spec upgrade / best gold
+--       when `mbAutoQuestReward` is enabled.
 --    4. Gossip / Dialog / Safe StaticPopup Mirroring & Missing-Quest Auto-Share.
 -- ══════════════════════════════════════════════════════════════════════════════
 
@@ -27,6 +28,8 @@ local type = _G.type
 local ipairs = _G.ipairs
 local tonumber = _G.tonumber
 local select = _G.select
+local math_abs = math.abs
+local math_max = math.max
 local string_lower = string.lower
 local string_match = string.match
 local string_format = string.format
@@ -50,8 +53,15 @@ local replayingDialog      = false
 local replayingAbandon     = false
 local abandoningQuestID    = nil
 local abandoningQuestTitle = nil
-local isActive             = false
-local hooksInstalled       = false
+local isActive                  = false
+local hooksInstalled            = false
+local pendingAutoReward         = false
+local pendingAutoRewardReplay   = false
+local pendingAutoRewardSince    = 0
+local pendingAutoRewardQuestKey = nil
+local completedAutoRewardKey    = nil
+local completedAutoRewardAt     = 0
+local shiftCancelledRewardKey   = nil
 
 local SAFE_POPUPS = {
     CONFIRM_SUMMON            = true,
@@ -163,12 +173,15 @@ local function score_quest_reward_choice(choiceIdx)
     sellPrice = tonumber(sellPrice) or 0
 
     local isUsable = true
+    local qty = 1
     if _G.GetQuestItemInfo then
-        local _, _, _, _, usable = _G.GetQuestItemInfo("choice", choiceIdx)
+        local _, _, q, _, usable = _G.GetQuestItemInfo("choice", choiceIdx)
+        qty = math_max(1, tonumber(q) or 1)
         if usable == false or usable == 0 then
             isUsable = false
         end
     end
+    sellPrice = sellPrice * qty
 
     local weaponClass = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Weapon) or 2
     local armorClass  = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Armor) or 4
@@ -323,6 +336,264 @@ local function has_quest_reward_choice()
         return true
     end
     return false
+end
+
+local function clear_pending_auto_reward()
+    pendingAutoReward = false
+    pendingAutoRewardReplay = false
+    pendingAutoRewardSince = 0
+    pendingAutoRewardQuestKey = nil
+end
+
+local function get_active_quest_key()
+    local qID = (_G.GetQuestID and _G.GetQuestID()) or 0
+    if qID and qID > 0 then
+        return "id:" .. qID
+    end
+    local title = _G.GetTitleText and _G.GetTitleText()
+    if title and not issecretvalue(title) and title ~= "" then
+        return "t:" .. title
+    end
+    return "open"
+end
+
+local function is_quest_reward_panel_open()
+    if _G.QuestFrameRewardPanel and _G.QuestFrameRewardPanel:IsShown() then
+        return true
+    end
+    local duiFrame = _G.DUIQuestFrame
+    if duiFrame and duiFrame.IsShown and duiFrame:IsShown() and duiFrame.handler == "HandleQuestComplete" then
+        return true
+    end
+    return false
+end
+
+local function is_better_spec_upgrade(candEval, candSell, curEval, curSell)
+    if not curEval then return true end
+    local candPct = candEval.pctGain or 0
+    local curPct  = curEval.pctGain or 0
+    if math_abs(candPct - curPct) > 0.05 then
+        return candPct > curPct
+    end
+    local candScore = candEval.scoreDelta or 0
+    local curScore  = curEval.scoreDelta or 0
+    if math_abs(candScore - curScore) > 0.05 then
+        return candScore > curScore
+    end
+    local candIlvl = candEval.ilvlDelta or 0
+    local curIlvl  = curEval.ilvlDelta or 0
+    if candIlvl ~= curIlvl then
+        return candIlvl > curIlvl
+    end
+    return (candSell or 0) > (curSell or 0)
+end
+
+local function select_best_quest_reward_choice(allowIncompleteCache)
+    local numChoices = (_G.GetNumQuestChoices and _G.GetNumQuestChoices()) or 0
+    if numChoices <= 0 then
+        if has_quest_reward_choice() and not allowIncompleteCache then
+            return nil, "pending", nil, nil, nil
+        end
+        return nil, "ready", nil, nil, "no_choice"
+    end
+
+    local GetItemInfo = (sfui.common and sfui.common.get_item_info) or _G.GetItemInfo
+    local hasUncached = false
+
+    for i = 1, numChoices do
+        local link = _G.GetQuestItemLink and _G.GetQuestItemLink("choice", i)
+        local questItemID = nil
+        if _G.GetQuestItemInfo then
+            questItemID = select(6, _G.GetQuestItemInfo("choice", i))
+        end
+        local itemName = link and GetItemInfo(link)
+        if not link or not itemName then
+            local itemID = (link and tonumber(string_match(link, "item:(%d+)"))) or tonumber(questItemID)
+            if itemID and sfui.common and sfui.common.request_item_load then
+                sfui.common.request_item_load(itemID)
+            end
+            hasUncached = true
+        end
+    end
+
+    if hasUncached and not allowIncompleteCache then
+        return nil, "pending", nil, nil, nil
+    end
+
+    if numChoices == 1 then
+        local link = _G.GetQuestItemLink and _G.GetQuestItemLink("choice", 1)
+        return 1, "ready", link, nil, "single"
+    end
+
+    local activeSpecID = sfui.common and sfui.common.get_current_spec_id and sfui.common.get_current_spec_id()
+    if not activeSpecID or activeSpecID == 0 then
+        activeSpecID = nil
+    end
+
+    local weaponClass = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Weapon) or 2
+    local armorClass  = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Armor) or 4
+    local projClass   = (_G.Enum and _G.Enum.ItemClass and _G.Enum.ItemClass.Projectile) or 6
+
+    local bestUpgradeIdx  = nil
+    local bestUpgradeEval = nil
+    local bestUpgradeSell = -1
+    local bestUpgradeLink = nil
+    local bestGoldIdx     = nil
+    local bestGoldSell    = -1
+    local bestGoldLink    = nil
+
+    for i = 1, numChoices do
+        local link = _G.GetQuestItemLink and _G.GetQuestItemLink("choice", i)
+        local qty = 1
+        local usable = true
+        if _G.GetQuestItemInfo then
+            local _, _, q, _, u = _G.GetQuestItemInfo("choice", i)
+            qty = math_max(1, tonumber(q) or 1)
+            if u == false or u == 0 then
+                usable = false
+            end
+        end
+
+        local equipLoc, sellPrice, classID
+        if link then
+            local _, _, _, _, _, _, _, _, eqLoc, _, sp, cID = GetItemInfo(link)
+            equipLoc = eqLoc
+            sellPrice = (tonumber(sp) or 0) * qty
+            classID = cID
+        else
+            sellPrice = 0
+        end
+
+        if sellPrice > bestGoldSell then
+            bestGoldSell = sellPrice
+            bestGoldIdx = i
+            bestGoldLink = link
+        end
+
+        local isEquippableClass = (classID == weaponClass or classID == armorClass or (not sfui.isRetail and classID == projClass))
+        local isEquippableLoc = equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP" and equipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" and equipLoc ~= "INVTYPE_BAG"
+        if link and usable and isEquippableClass and isEquippableLoc and activeSpecID and sfui.gear and sfui.gear.EvaluateItemUpgrade then
+            local eval = sfui.gear.EvaluateItemUpgrade(link, activeSpecID, false)
+            if eval and eval.isUpgrade and not eval.isOffSpec then
+                if is_better_spec_upgrade(eval, sellPrice, bestUpgradeEval, bestUpgradeSell) then
+                    bestUpgradeIdx = i
+                    bestUpgradeEval = eval
+                    bestUpgradeSell = sellPrice
+                    bestUpgradeLink = link
+                end
+            end
+        end
+    end
+
+    if bestUpgradeIdx then
+        return bestUpgradeIdx, "ready", bestUpgradeLink, bestUpgradeEval, "upgrade"
+    end
+
+    local fallbackIdx = bestGoldIdx or 1
+    local fallbackLink = bestGoldLink or (_G.GetQuestItemLink and _G.GetQuestItemLink("choice", fallbackIdx)) or nil
+    return fallbackIdx, "ready", fallbackLink, nil, "gold"
+end
+
+local function try_auto_complete_quest_reward(isReplay, forceTimeout)
+    local qKey = get_active_quest_key()
+    if IsShiftKeyDown and IsShiftKeyDown() then
+        shiftCancelledRewardKey = qKey
+        clear_pending_auto_reward()
+        return false
+    end
+    if shiftCancelledRewardKey and shiftCancelledRewardKey == qKey then
+        clear_pending_auto_reward()
+        return false
+    end
+
+    if not should_automate_quests() or not _G.GetQuestReward then
+        clear_pending_auto_reward()
+        return false
+    end
+
+    if _G.GetQuestMoneyToGet and (_G.GetQuestMoneyToGet() or 0) > 0 then
+        clear_pending_auto_reward()
+        return false
+    end
+
+    local now = (GetTime and GetTime()) or 0
+    if completedAutoRewardKey and completedAutoRewardKey == qKey and (now - completedAutoRewardAt) < 1.5 then
+        clear_pending_auto_reward()
+        return false
+    end
+
+    local s = sync.GetSettings and sync.GetSettings()
+    if not s or s.mbAutoQuestReward ~= true then
+        local numRewards = (_G.GetNumQuestRewards and _G.GetNumQuestRewards()) or 0
+        clear_pending_auto_reward()
+        if not has_quest_reward_choice() and numRewards == 0 then
+            completedAutoRewardKey = qKey
+            completedAutoRewardAt = now
+            if isReplay then replayingDialog = true end
+            _G.GetQuestReward(nil)
+            if isReplay then replayingDialog = false end
+            return true
+        end
+        return false
+    end
+
+    if pendingAutoReward and pendingAutoRewardQuestKey and pendingAutoRewardQuestKey ~= qKey then
+        clear_pending_auto_reward()
+    end
+    if not pendingAutoReward then
+        pendingAutoRewardSince = now
+        pendingAutoRewardQuestKey = qKey
+    end
+    if isReplay then
+        pendingAutoRewardReplay = true
+    end
+
+    local timedOut = (forceTimeout == true) or ((now - (pendingAutoRewardSince or now)) >= 1.45)
+    local choiceIdx, status, chosenLink, chosenEval, reason = select_best_quest_reward_choice(timedOut)
+    if status == "pending" then
+        pendingAutoReward = true
+        if C_Timer and C_Timer.After then
+            local expectedKey = qKey
+            C_Timer.After(1.55, function()
+                if not isActive or not pendingAutoReward or pendingAutoRewardQuestKey ~= expectedKey then
+                    return
+                end
+                if is_quest_reward_panel_open() then
+                    try_auto_complete_quest_reward(pendingAutoRewardReplay, true)
+                else
+                    clear_pending_auto_reward()
+                end
+            end)
+        end
+        return false
+    end
+
+    local replayFlag = isReplay or pendingAutoRewardReplay
+    clear_pending_auto_reward()
+    completedAutoRewardKey = qKey
+    completedAutoRewardAt = now
+
+    if _G.QuestInfoFrame then
+        _G.QuestInfoFrame.itemChoice = choiceIdx or 0
+    end
+    if _G.QuestFrameRewardPanel then
+        _G.QuestFrameRewardPanel.itemChoice = choiceIdx or 0
+    end
+
+    local numChoices = (_G.GetNumQuestChoices and _G.GetNumQuestChoices()) or 0
+    if numChoices > 1 and chosenLink and sfui.common and sfui.common.print then
+        if reason == "upgrade" and chosenEval then
+            local pct = (chosenEval.pctGain >= 99.5) and "+upgrade" or string_format("+%.0f%%", chosenEval.pctGain)
+            sfui.common.print(string_format("sync: auto-picked spec upgrade %s (|cff33ff88%s|r).", chosenLink, pct))
+        elseif reason == "gold" then
+            sfui.common.print(string_format("sync: auto-picked best gold reward %s.", chosenLink))
+        end
+    end
+
+    if replayFlag then replayingDialog = true end
+    _G.GetQuestReward(choiceIdx)
+    if replayFlag then replayingDialog = false end
+    return true
 end
 
 local function decorate_quest_reward_choices()
@@ -606,6 +877,7 @@ local function replay_static_popup(which, buttonIndex)
 end
 
 local function drain_pending_dialogs()
+    if not should_automate_quests() then return false end
     if #pendingDialogChoices == 0 then return false end
     local now = (GetTime and GetTime()) or 0
 
@@ -669,14 +941,9 @@ local function drain_pending_dialogs()
                 end
             elseif p.verb == "turnin" then
                 if isRewardOpen and _G.GetQuestReward then
-                    local numRewards = (_G.GetNumQuestRewards and _G.GetNumQuestRewards()) or 0
                     table_remove(pendingDialogChoices, idx)
                     decorate_quest_reward_choices()
-                    if not has_quest_reward_choice() and numRewards == 0 then
-                        replayingDialog = true
-                        _G.GetQuestReward(nil)
-                        replayingDialog = false
-                    end
+                    try_auto_complete_quest_reward(true, false)
                     return true
                 elseif isProgressOpen then
                     -- Multi-step catch-up: step through CompleteQuest(), keep `turnin` queued for QUEST_COMPLETE
@@ -863,15 +1130,19 @@ end
 
 local function on_quest_complete()
     current_npc_name()
+    clear_pending_auto_reward()
     decorate_quest_reward_choices()
+    local qKey = get_active_quest_key()
+    if IsShiftKeyDown and IsShiftKeyDown() then
+        shiftCancelledRewardKey = qKey
+    elseif shiftCancelledRewardKey ~= qKey then
+        shiftCancelledRewardKey = nil
+    end
     if not should_automate_quests() then
         return
     end
     if retry_pending_dialogs() then return end
-    local numRewards = (_G.GetNumQuestRewards and _G.GetNumQuestRewards()) or 0
-    if not has_quest_reward_choice() and numRewards == 0 and _G.GetQuestReward then
-        _G.GetQuestReward(nil)
-    end
+    try_auto_complete_quest_reward(false, false)
 end
 
 local function on_quest_accepted(_, arg1, arg2)
@@ -1078,6 +1349,15 @@ function quests.HandleSyncMessage(sender, msgType, data)
     end
 end
 
+local function on_modifier_state_changed(_, key, down)
+    if down == 1 and (key == "LSHIFT" or key == "RSHIFT" or key == "SHIFT") then
+        if pendingAutoReward or is_quest_reward_panel_open() then
+            shiftCancelledRewardKey = get_active_quest_key()
+            clear_pending_auto_reward()
+        end
+    end
+end
+
 local QUEST_EVENTS = {
     { "GOSSIP_SHOW",          on_gossip_show },
     { "GOSSIP_CLOSED",        on_gossip_closed },
@@ -1087,6 +1367,7 @@ local QUEST_EVENTS = {
     { "QUEST_PROGRESS",       on_quest_progress },
     { "QUEST_COMPLETE",       on_quest_complete },
     { "QUEST_ACCEPTED",       on_quest_accepted },
+    { "MODIFIER_STATE_CHANGED", on_modifier_state_changed },
 }
 
 function quests.Enable()
@@ -1103,6 +1384,9 @@ end
 function quests.Disable()
     if not isActive then return end
     isActive = false
+    clear_pending_auto_reward()
+    completedAutoRewardKey = nil
+    shiftCancelledRewardKey = nil
     wipe(pendingDialogChoices)
     if sfui.events and sfui.events.UnregisterEvent then
         for _, entry in ipairs(QUEST_EVENTS) do
@@ -1127,6 +1411,9 @@ end
 local function refresh_open_quest_advisor()
     if not is_any_quest_dialog_open() then return end
     decorate_quest_reward_choices()
+    if pendingAutoReward and is_quest_reward_panel_open() then
+        try_auto_complete_quest_reward(pendingAutoRewardReplay, false)
+    end
 end
 
 local function hook_dialogue_ui()
@@ -1179,7 +1466,12 @@ if sfui.events and sfui.events.RegisterEvent then
             refresh_open_quest_advisor()
         end
     end)
-    sfui.events.RegisterEvent("QUEST_FINISHED", hide_all_advisor_badges)
+    sfui.events.RegisterEvent("QUEST_FINISHED", function()
+        clear_pending_auto_reward()
+        completedAutoRewardKey = nil
+        shiftCancelledRewardKey = nil
+        hide_all_advisor_badges()
+    end)
 end
 
 if multibox and multibox.RegisterPartySubmodule then

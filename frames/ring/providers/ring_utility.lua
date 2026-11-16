@@ -177,7 +177,8 @@ local CLASS_DEFAULT_SPELLS = {
         391054, -- Intercession
     },
     PRIEST = {
-        21562,  -- Power Word: Fortitude
+        1243,   -- Power Word: Fortitude (Classic/Forever)
+        21562,  -- Power Word: Fortitude / Prayer of Fortitude
         1706,   -- Levitate
         13877,  -- Shadowform
         32375,  -- Mass Dispel
@@ -416,7 +417,7 @@ sfui.ring.register_provider("utility", {
                                 icon    = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
                                 attrs   = {
                                     type  = "spell",
-                                    spell = spellID,
+                                    spell = ((sfui.isCamelot or sfui.isClassic) and name and name ~= "" and name) or spellID,
                                 },
                             }
                         end
@@ -571,7 +572,7 @@ sfui.ring.register_provider("utility", {
                             local spellToCast = (entry.type == "pet" and castSpellID) or castSpell or castSpellID
                             if spellToCast then
                                 local spKey = "spell:" .. tostring(castSpellID or spellToCast) .. ":" .. tostring(entry.unit or rec.unit or "player")
-                                if not seen[spKey] and not seen["spell:" .. tostring(castSpellID or spellToCast)] then
+                                if not seen[spKey] and (entry.isPartyBuff or not seen["spell:" .. tostring(castSpellID or spellToCast)]) then
                                     seen[spKey] = true
                                     addedReminders = addedReminders + 1
                                     local attrs = {
@@ -583,7 +584,7 @@ sfui.ring.register_provider("utility", {
                                     elseif entry.type ~= "pet" and entry.type ~= "stance" and entry.type ~= "tracking" then
                                         attrs.unit = entry.unit or rec.unit or "player"
                                     end
-                                    local rawName = (entry.type == "party_blessing" and entry.name) or castSpell or entry.name or tostring(spellToCast)
+                                    local rawName = (entry.isPartyBuff and entry.name) or castSpell or entry.name or tostring(spellToCast)
                                     out[#out + 1] = {
                                         id             = "util_rem_" .. tostring(entry.key or spellToCast),
                                         spellID        = tonumber(castSpellID or spellToCast),

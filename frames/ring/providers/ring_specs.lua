@@ -90,8 +90,10 @@ local function add_item_slice(out, idPrefix, itemID, name, icon, count, labelPre
 end
 
 local function add_spell_slice(out, idPrefix, spellID, spellToCast, name, icon, labelPrefix, color, selectionColor, extraAttrs)
-    local key = tostring(spellID or spellToCast)
-    if not key or _seenSpells[key] then return end
+    local targetUnit = extraAttrs and extraAttrs.unit
+    local baseKey = tostring(spellID or spellToCast)
+    local key = (targetUnit and targetUnit ~= "player") and (baseKey .. ":" .. tostring(targetUnit)) or baseKey
+    if not baseKey or _seenSpells[key] then return end
     _seenSpells[key] = true
 
     local attrs = {
@@ -323,7 +325,7 @@ local function build_classic_consumables_and_buffs_ring(out)
                         elseif entry.type ~= "pet" and entry.type ~= "stance" and entry.type ~= "tracking" then
                             extra = { unit = entry.unit or rec.unit or "player" }
                         end
-                        local sliceLabel = (entry.type == "party_blessing" and entry.name) or castSpell or entry.name
+                        local sliceLabel = (entry.isPartyBuff and entry.name) or castSpell or entry.name
                         add_spell_slice(
                             out,
                             "buff_" .. tostring(entry.key or "reminder"),

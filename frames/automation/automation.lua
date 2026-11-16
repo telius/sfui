@@ -1165,6 +1165,258 @@ local function init_tooltip_automation()
     end
 end
 
+-- ─────────────────────────────────────────────────────────────
+-- Trainer "train all" button (Forever / Classic / Retail)
+-- ─────────────────────────────────────────────────────────────
+local _trainAllBtn = nil
+local _trainer_ui_hooked = false
+local _syncingTrainerLayout = false
+
+local function is_train_all_enabled()
+    if SfuiDB and SfuiDB.trainAllButton ~= nil then
+        return SfuiDB.trainAllButton
+    end
+    if sfui.config and sfui.config.automation and sfui.config.automation.train_all_button ~= nil then
+        return sfui.config.automation.train_all_button
+    end
+    return true
+end
+
+local function is_pet_trainer()
+    local ct = _G.C_Trainer
+    local tt = _G.Enum and _G.Enum.TrainerType
+    return (ct and ct.GetTrainerType and tt and tt.Pet and ct.GetTrainerType() == tt.Pet) and true or false
+end
+
+local function free_profession_slots()
+    if _G.GetProfessions then
+        local a, b = _G.GetProfessions()
+        return 2 - (a and 1 or 0) - (b and 1 or 0)
+    end
+    if _G.GetNumPrimaryProfessions then
+        return math.max(2 - (_G.GetNumPrimaryProfessions() or 0), 0)
+    end
+    return 2
+end
+
+local function get_trainer_service_kind(index)
+    local _, r2, r3 = _G.GetTrainerServiceInfo(index)
+    if r2 == "available" or r2 == "unavailable" or r2 == "used" or r2 == "header" then
+        return r2
+    end
+    return r3
+end
+
+local function skill_is_affordable(index, wallet, freeSlots)
+    if not _G.GetTrainerServiceInfo or not _G.GetTrainerServiceCost then
+        return false, 0, false, false
+    end
+    if get_trainer_service_kind(index) ~= "available" then
+        return false, 0, false, false
+    end
+    local cost, takesProfSlot = _G.GetTrainerServiceCost(index)
+    cost = cost or 0
+    local profFlag = takesProfSlot and true or false
+    if profFlag and freeSlots <= 0 then
+        return false, cost, true, false
+    end
+    if cost > wallet then
+        return false, cost, profFlag, true
+    end
+    return true, cost, profFlag, true
+end
+
+local function trainable_summary()
+    if not _G.GetNumTrainerServices then
+        return 0, 0, 0, 0
+    end
+    local trainCount, trainCopper = 0, 0
+    local availCount, availCopper = 0, 0
+    local wallet = _G.GetMoney and _G.GetMoney() or 0
+    local slots = free_profession_slots()
+    -- Mirror OnClick's descending loop so summary count and copper match actual purchases 1:1
+    for i = (_G.GetNumTrainerServices() or 0), 1, -1 do
+        local ok, cost, takesProfSlot, isSlotValidAvail = skill_is_affordable(i, wallet, slots)
+        if isSlotValidAvail then
+            availCount = availCount + 1
+            availCopper = availCopper + cost
+        end
+        if ok then
+            trainCount = trainCount + 1
+            trainCopper = trainCopper + cost
+            wallet = wallet - cost
+            if takesProfSlot then
+                slots = slots - 1
+            end
+        end
+    end
+    return trainCount, trainCopper, availCount, availCopper
+end
+
+local function show_train_all_tooltip(btn)
+    local tip = sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()
+    if not tip then return end
+
+    local n, copper, availCount, availCopper = trainable_summary()
+    local msg
+    if n > 0 then
+        local word = (n == 1) and "skill" or "skills"
+        if copper > 0 and sfui.common and sfui.common.SafeGetCoinTextureString then
+            msg = string.format("learn %d %s for %s", n, word, sfui.common.SafeGetCoinTextureString(copper))
+        else
+            msg = string.format("learn %d free %s", n, word)
+        end
+    elseif availCount > 0 and availCopper > 0 and sfui.common and sfui.common.SafeGetCoinTextureString then
+        msg = string.format("need %s to train available skills", sfui.common.SafeGetCoinTextureString(availCopper))
+    else
+        msg = "no skills available to train"
+    end
+
+    tip:SetOwner(btn, "ANCHOR_RIGHT")
+    tip:ClearLines()
+    tip:AddLine(msg, 1, 1, 1)
+    tip:Show()
+end
+
+local function hide_train_all_tooltip()
+    local tip = sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()
+    if tip and tip:IsShown() and tip.GetOwner and tip:GetOwner() == _trainAllBtn then
+        if sfui.common and sfui.common.hide_tooltip then
+            sfui.common.hide_tooltip()
+        end
+        if tip:IsShown() then
+            tip:Hide()
+        end
+    end
+end
+
+local function sync_classic_era_trainer_layout(enable)
+    local cancelBtn = _G.ClassTrainerCancelButton
+    local trainBtn = _G.ClassTrainerTrainButton
+    local frame = _G.ClassTrainerFrame
+    if not cancelBtn or not trainBtn or not frame then return end
+
+    _syncingTrainerLayout = true
+    if enable then
+        cancelBtn:Hide()
+        trainBtn:ClearAllPoints()
+        trainBtn:SetPoint("CENTER", frame, "TOPLEFT", 305, -420)
+        if _trainAllBtn then
+            _trainAllBtn:ClearAllPoints()
+            _trainAllBtn:SetPoint("RIGHT", trainBtn, "LEFT", -1, 0)
+        end
+    else
+        cancelBtn:Show()
+        trainBtn:ClearAllPoints()
+        trainBtn:SetPoint("CENTER", frame, "TOPLEFT", 224, -420)
+    end
+    _syncingTrainerLayout = false
+end
+
+local function refresh_train_all_button()
+    if not _trainAllBtn then return end
+
+    local trainerFrame = _G.ClassTrainerFrame
+    local trainBtn = _G.ClassTrainerTrainButton
+    local canShow = is_train_all_enabled()
+        and not is_pet_trainer()
+        and trainerFrame and trainerFrame:IsShown()
+        and (_G.ClassTrainerCancelButton ~= nil or (trainBtn and trainBtn:IsShown()))
+
+    if not canShow then
+        if _G.ClassTrainerCancelButton then
+            sync_classic_era_trainer_layout(false)
+        end
+        _trainAllBtn:Hide()
+        hide_train_all_tooltip()
+        return
+    end
+
+    if _G.ClassTrainerCancelButton then
+        sync_classic_era_trainer_layout(true)
+    end
+
+    local n = trainable_summary()
+    _trainAllBtn:SetEnabled(n > 0)
+    _trainAllBtn:Show()
+
+    local tip = sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()
+    if tip and tip:IsShown() and tip.GetOwner and tip:GetOwner() == _trainAllBtn then
+        show_train_all_tooltip(_trainAllBtn)
+    end
+end
+
+local function init_trainer_automation()
+    local trainerFrame = _G.ClassTrainerFrame
+    local trainBtn = _G.ClassTrainerTrainButton
+    if not trainerFrame or not trainBtn then return end
+    if not is_train_all_enabled() and not _trainAllBtn then return end
+
+    if not _trainAllBtn then
+        local template = (_G.ClassTrainerCancelButton == nil) and "MagicButtonTemplate" or "UIPanelButtonTemplate"
+        _trainAllBtn = CreateFrame("Button", "SfuiTrainAllButton", trainerFrame, template)
+        _trainAllBtn:SetText("train all")
+        _trainAllBtn:SetSize(80, trainBtn:GetHeight() or 22)
+        if _trainAllBtn.SetMotionScriptsWhileDisabled then
+            _trainAllBtn:SetMotionScriptsWhileDisabled(true)
+        end
+        if _G.ClassTrainerCancelButton == nil then
+            _trainAllBtn:SetPoint("RIGHT", trainBtn, "LEFT", -2, 0)
+        end
+
+        _trainAllBtn:SetScript("OnClick", function()
+            if (_G.InCombatLockdown and _G.InCombatLockdown()) or is_pet_trainer() then return end
+            if not _G.GetNumTrainerServices or not _G.BuyTrainerService then return end
+
+            local wallet = _G.GetMoney and _G.GetMoney() or 0
+            local slots = free_profession_slots()
+            -- Descending: buying a skill reindexes the trainer list, so only higher already-visited indices shift
+            for i = (_G.GetNumTrainerServices() or 0), 1, -1 do
+                local ok, cost, takesProfSlot = skill_is_affordable(i, wallet, slots)
+                if ok then
+                    _G.BuyTrainerService(i)
+                    wallet = wallet - cost
+                    if takesProfSlot then
+                        slots = slots - 1
+                    end
+                end
+            end
+        end)
+
+        _trainAllBtn:SetScript("OnEnter", function(self)
+            show_train_all_tooltip(self)
+        end)
+        _trainAllBtn:SetScript("OnLeave", hide_train_all_tooltip)
+        _trainAllBtn:SetScript("OnHide", hide_train_all_tooltip)
+    end
+
+    if not _trainer_ui_hooked then
+        _trainer_ui_hooked = true
+        if _G.ClassTrainerFrame_Update then
+            hooksecurefunc("ClassTrainerFrame_Update", refresh_train_all_button)
+        end
+        trainerFrame:HookScript("OnShow", refresh_train_all_button)
+        trainBtn:HookScript("OnShow", function()
+            if not _syncingTrainerLayout then
+                refresh_train_all_button()
+            end
+        end)
+        trainBtn:HookScript("OnHide", function()
+            if not _syncingTrainerLayout then
+                refresh_train_all_button()
+            end
+        end)
+    end
+
+    refresh_train_all_button()
+end
+
+local function apply_train_all_button()
+    init_trainer_automation()
+    refresh_train_all_button()
+end
+sfui.automation.apply_train_all_button = apply_train_all_button
+
 local _automation_initialized = false
 local _pveLfgHooked = false
 function sfui.automation.initialize()
@@ -1176,6 +1428,7 @@ function sfui.automation.initialize()
     init_auction_house_automation()
     init_lfg_dungeon_automation()
     init_tooltip_automation()
+    init_trainer_automation()
     if _G.PVEFrame and not _pveLfgHooked then
         _pveLfgHooked = true
         _G.PVEFrame:HookScript("OnShow", function()
@@ -1193,6 +1446,17 @@ sfui.events.RegisterEvent("AUCTION_HOUSE_SHOW", function()
     apply_ah_current_expansion_filter()
 end)
 
+sfui.events.RegisterEvent("TRAINER_SHOW", function()
+    init_trainer_automation()
+    refresh_train_all_button()
+end)
+
+sfui.events.RegisterEvent("PLAYER_MONEY", function()
+    if _trainAllBtn and _G.ClassTrainerFrame and _G.ClassTrainerFrame:IsShown() then
+        refresh_train_all_button()
+    end
+end)
+
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
     setup_lfg_dialog()
     init_tooltip_automation()
@@ -1205,6 +1469,10 @@ sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
 
     if loadedAddon == "Blizzard_AuctionHouseUI" then
         init_auction_house_automation()
+    end
+
+    if loadedAddon == "Blizzard_TrainerUI" then
+        init_trainer_automation()
     end
 
     if loadedAddon == "Blizzard_GroupFinder" or loadedAddon == "Blizzard_PVEFrame" then
@@ -1221,6 +1489,7 @@ function sfui.automation_debug_info()
     _autoDebug.autoSellGreys          = SfuiDB and SfuiDB.autoSellGreys or false
     _autoDebug.autoLfgDungeonDefaults = SfuiDB and SfuiDB.autoLfgDungeonDefaults ~= false
     _autoDebug.tooltipAltIDs          = SfuiDB and SfuiDB.tooltipAltIDs ~= false
+    _autoDebug.trainAllButton         = is_train_all_enabled()
     return _autoDebug
 end
 

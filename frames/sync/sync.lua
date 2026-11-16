@@ -80,6 +80,7 @@ local DEFAULT_SETTINGS = {
     mbAutoFollow       = true,
     mbAutoInvite       = true,
     mbAutoQuest        = true,
+    mbAutoQuestReward  = false,
     mbAutoTaxi         = true,
     mbAutoTrade        = true,
     mbCorpseAlert      = true,
@@ -127,6 +128,7 @@ function sync.GetSettings()
     if s.mbAutoFollow == nil then s.mbAutoFollow = true end
     if s.mbAutoInvite == nil then s.mbAutoInvite = true end
     if s.mbAutoQuest == nil then s.mbAutoQuest = true end
+    if s.mbAutoQuestReward == nil then s.mbAutoQuestReward = false end
     if s.mbAutoTaxi == nil then s.mbAutoTaxi = true end
     if s.mbAutoTrade == nil then s.mbAutoTrade = true end
     if s.mbCorpseAlert == nil then s.mbCorpseAlert = true end
@@ -1265,6 +1267,7 @@ local SHARED_SETTING_KEYS = {
     "mbAutoFollow",
     "mbAutoInvite",
     "mbAutoQuest",
+    "mbAutoQuestReward",
     "mbAutoTaxi",
     "mbAutoTrade",
     "mbCorpseAlert",

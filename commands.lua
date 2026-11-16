@@ -367,12 +367,20 @@ if not sfui.isRetail then
             SfuiDB = SfuiDB or {}
             SfuiDB.fishing = SfuiDB.fishing or {}
             SfuiDB.fishing.hud = SfuiDB.fishing.hud or {}
-            SfuiDB.fishing.hud.enabled = not SfuiDB.fishing.hud.enabled
+            local cur = (SfuiDB.fishing.hud.enabled ~= false)
+            SfuiDB.fishing.hud.enabled = not cur
             if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.CheckVisibility then
                 sfui.fishing.hud.CheckVisibility()
             end
             if sfui.common and sfui.common.print then
                 sfui.common.print("fishing hud: " .. (SfuiDB.fishing.hud.enabled and "enabled" or "disabled"))
+            end
+        elseif clean == "collapse" then
+            if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.ToggleCollapse then
+                local collapsed = sfui.fishing.hud.ToggleCollapse()
+                if sfui.common and sfui.common.print then
+                    sfui.common.print("fishing hud: " .. (collapsed and "collapsed" or "expanded"))
+                end
             end
         elseif clean == "lock" or clean == "unlock" then
             if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.ToggleLock then

@@ -147,11 +147,64 @@ local function OnClickRecipePin(pin, mouseBtn, pinData)
     end
 end
 
+-- ─── Spatial & Profession Caches ──────────────────────────────────────────────
+local cachedProfList = nil
+local skillMapSources = {}
+local skillMapSourcesVersion = -1
+
+local function InvalidateProfListCache()
+    cachedProfList = nil
+end
+
+local function GetCachedProfessions(B)
+    if not B or not B.GetPlayerProfessionsList then return {} end
+    if not cachedProfList then
+        cachedProfList = B.GetPlayerProfessionsList() or {}
+    end
+    return cachedProfList
+end
+
+local function GetSkillMapEntries(B, skillID)
+    local liveVer = sfui.recipes.GetLiveIndexVersion and sfui.recipes.GetLiveIndexVersion() or 0
+    if skillMapSourcesVersion ~= liveVer then
+        skillMapSources = {}
+        skillMapSourcesVersion = liveVer
+    end
+
+    local byMap = skillMapSources[skillID]
+    if byMap then return byMap end
+
+    local candidates = B and B.GetCandidatesForSkill and B.GetCandidatesForSkill(skillID)
+    if not candidates or not sfui.recipes.GetAllNonHostileSources then
+        return nil
+    end
+
+    byMap = {}
+    for _, r in ipairs(candidates) do
+        local sources = sfui.recipes.GetAllNonHostileSources(r, true)
+        if sources then
+            for _, s in ipairs(sources) do
+                if s.mapID and s.x and s.y then
+                    local bucket = byMap[s.mapID]
+                    if not bucket then
+                        bucket = {}
+                        byMap[s.mapID] = bucket
+                    end
+                    table_insert(bucket, { recipe = r, source = s })
+                end
+            end
+        end
+    end
+
+    skillMapSources[skillID] = byMap
+    return byMap
+end
+
 -- ─── Provider Implementation ──────────────────────────────────────────────────
 local function GetRecipePins(mapID, playerLevel, playerFaction)
     if not sfui.recipes.pins.GetOption("showMapPins") then return nil end
     local B = sfui.recipes.browser
-    local profList = (B and B.GetPlayerProfessionsList and B.GetPlayerProfessionsList()) or {}
+    local profList = GetCachedProfessions(B)
     if #profList == 0 then return nil end
 
     local mapGroups = {}
@@ -159,10 +212,13 @@ local function GetRecipePins(mapID, playerLevel, playerFaction)
 
     for _, p in ipairs(profList) do
         local currentRank = p.rank or 0
-        local candidates = B and B.GetCandidatesForSkill and B.GetCandidatesForSkill(p.skillID)
+        local byMap = GetSkillMapEntries(B, p.skillID)
+        local entries = byMap and byMap[mapID]
 
-        if candidates then
-            for _, r in ipairs(candidates) do
+        if entries then
+            for _, item in ipairs(entries) do
+                local r = item.recipe
+                local s = item.source
                 local isLearned = B.IsRecipeLearned and B.IsRecipeLearned(r.id, r)
                 if not isLearned then
                     local minSkill = r.minSkill or (r.colors and r.colors[1]) or 0
@@ -171,29 +227,22 @@ local function GetRecipePins(mapID, playerLevel, playerFaction)
                         if r.spec and B.PlayerHasSpec then passSpec = B.PlayerHasSpec(r.spec) end
 
                         if passSpec then
-                            local sources = sfui.recipes.GetAllNonHostileSources and sfui.recipes.GetAllNonHostileSources(r)
-                            if sources then
-                                for _, s in ipairs(sources) do
-                                    if s.mapID == mapID and s.x and s.y then
-                                        local groupKey = string_format("%.4f:%.4f:%s", s.x, s.y, s.name or s.desc or s.type or "npc")
-                                        local g = mapGroups[groupKey]
-                                        if not g then
-                                            g = {
-                                                mapID   = s.mapID,
-                                                x       = s.x,
-                                                y       = s.y,
-                                                name    = s.name or s.desc or s.type or "source",
-                                                type    = s.type or "vendor",
-                                                zone    = s.zone,
-                                                recipes = {},
-                                            }
-                                            mapGroups[groupKey] = g
-                                            table_insert(groupOrder, g)
-                                        end
-                                        table_insert(g.recipes, { recipe = r, source = s })
-                                    end
-                                end
+                            local groupKey = string_format("%.4f:%.4f:%s", s.x, s.y, s.name or s.desc or s.type or "npc")
+                            local g = mapGroups[groupKey]
+                            if not g then
+                                g = {
+                                    mapID   = s.mapID,
+                                    x       = s.x,
+                                    y       = s.y,
+                                    name    = s.name or s.desc or s.type or "source",
+                                    type    = s.type or "vendor",
+                                    zone    = s.zone,
+                                    recipes = {},
+                                }
+                                mapGroups[groupKey] = g
+                                table_insert(groupOrder, g)
                             end
+                            table_insert(g.recipes, { recipe = r, source = s })
                         end
                     end
                 end
@@ -248,6 +297,21 @@ pins.RegisterProvider("recipes", {
 pins.RegisterTrackingCategory("recipe catalogue", {
     { text = "available unlearned recipes", get = function() return sfui.recipes.pins.GetOption("showMapPins") end, set = function(v) sfui.recipes.pins.SetOption("showMapPins", v) end },
 })
+
+if sfui.events and sfui.events.RegisterEvent then
+    local profEvents = {
+        "SKILL_LINES_CHANGED",
+        "CHAT_MSG_SKILL",
+        "TRADE_SKILL_SHOW",
+        "CRAFT_SHOW",
+        "SPELLS_CHANGED",
+        "NEW_RECIPE_LEARNED",
+        "PLAYER_ENTERING_WORLD",
+    }
+    for _, ev in ipairs(profEvents) do
+        sfui.events.RegisterEvent(ev, InvalidateProfListCache)
+    end
+end
 
 if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_RECIPE_PINNED_CHANGED", function()

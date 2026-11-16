@@ -95,6 +95,13 @@ local function RefreshSpellKnowledge()
 end
 sfui.buffs.scan.RefreshSpellKnowledge = RefreshSpellKnowledge
 
+--- Returns whether a reminder entry key was resolved as known during spell knowledge refresh
+--- @param key string
+--- @return boolean
+function sfui.buffs.scan.IsEntryKnown(key)
+    return knownCache[key] == true
+end
+
 local function ReleasePlayerAuras()
     wipe(activeAurasBySpellID)
     wipe(activeAurasByName)
@@ -707,7 +714,8 @@ function sfui.buffs.scan.RunScan()
     for i = 1, #entries do
         local entry = entries[i]
         local isKnown = knownCache[entry.key]
-        local isBuffDisabled = disabledBuffs and disabledBuffs[entry.key]
+        local isBuffDisabled = (data.IsEntryDisabled and data.IsEntryDisabled(entry, disabledBuffs))
+            or (disabledBuffs and disabledBuffs[entry.key])
 
         if isKnown and not isBuffDisabled then
             local provider = providers and providers.Resolve(entry)
@@ -783,7 +791,7 @@ function sfui.buffs.scan.RunScan()
         for i = 1, count do
             local rec = activeResults[i]
             local prev = prevResultKeys[i]
-            if not rec or not prev or rec.entry.key ~= prev.key or rec.isMissing ~= prev.isMissing or rec.isExpiring ~= prev.isExpiring then
+            if not rec or not prev or rec.entry.key ~= prev.key or rec.isMissing ~= prev.isMissing or rec.isExpiring ~= prev.isExpiring or rec.unitName ~= prev.unitName then
                 resultsChanged = true
                 break
             end
@@ -802,6 +810,7 @@ function sfui.buffs.scan.RunScan()
             p.key = rec.entry.key
             p.isMissing = rec.isMissing
             p.isExpiring = rec.isExpiring
+            p.unitName = rec.unitName
         end
         for i = count + 1, #prevResultKeys do
             prevResultKeys[i] = nil
@@ -879,7 +888,7 @@ local function InitScanEvents()
 
     -- C-level unit filtered events: only invoke Lua when the player token updates
     sfui.events.RegisterUnitEvent("UNIT_AURA", "player", on_player_unit_change)
-    if sfui.buffs.playerClass == "PALADIN" then
+    if (data.ClassHasPartyBuffs and data.ClassHasPartyBuffs()) or sfui.buffs.playerClass == "PALADIN" then
         sfui.events.RegisterUnitEvent("UNIT_AURA", "party1", on_player_unit_change)
         sfui.events.RegisterUnitEvent("UNIT_AURA", "party2", on_player_unit_change)
         sfui.events.RegisterUnitEvent("UNIT_AURA", "party3", on_player_unit_change)

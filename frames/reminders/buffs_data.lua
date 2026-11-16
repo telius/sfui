@@ -999,7 +999,7 @@ end
 --- @return string|nil, string|nil, number|nil
 local function GetBestCastSpell(entry, activeEnchantName)
     if not entry then return nil end
-    if entry.type == "party_blessing" then
+    if entry.type == "party_blessing" or entry.type == "party_aura" then
         return entry.castSpellName, entry.castIcon, entry.castSpellID
     end
     if entry.castSpell then
@@ -1061,8 +1061,21 @@ local function GetBestCastSpell(entry, activeEnchantName)
         end
     end
 
-    if entry.spellIDs then
+    local candidateSpellIDs = ((sfui.isCamelot or sfui.isClassic) and entry.castSpellIDs) or entry.spellIDs
+    if candidateSpellIDs then
         -- Search in reverse to find highest known rank
+        for i = #candidateSpellIDs, 1, -1 do
+            local id = candidateSpellIDs[i]
+            if IsSpellActuallyKnown(id) then
+                local name = ResolveSpellName(id)
+                if name and name ~= "" then
+                    local icon = ResolveTexture(id, entry.fallbackIcon)
+                    return name, icon, id
+                end
+            end
+        end
+    end
+    if candidateSpellIDs ~= entry.spellIDs and entry.spellIDs then
         for i = #entry.spellIDs, 1, -1 do
             local id = entry.spellIDs[i]
             if IsSpellActuallyKnown(id) then
@@ -1247,7 +1260,9 @@ local CLASS_BUFFS = {
             key = "fortitude",
             name = "power word: fortitude",
             type = "aura",
-            spellIDs = { 1243, 1244, 1245, 2791, 10937, 10938, 25389, 21562, 21564 },
+            partyBuff = true,
+            castSpellIDs = { 1243, 1244, 1245, 2791, 10937, 10938, 25389 },
+            spellIDs = { 1243, 1244, 1245, 2791, 10937, 10938, 25389, 21562, 21564, 25392 },
             names = { "Power Word: Fortitude", "Prayer of Fortitude" },
             threshold = 300,
             fallbackIcon = "Interface\\Icons\\Spell_Holy_WordFortitude",
@@ -1264,7 +1279,10 @@ local CLASS_BUFFS = {
             key = "divine_spirit",
             name = "divine spirit",
             type = "aura",
-            spellIDs = { 14752, 14818, 14819, 27841, 32999, 27681, 32998 },
+            partyBuff = true,
+            partyManaOnly = true,
+            castSpellIDs = { 14752, 14818, 14819, 27841, 25312 },
+            spellIDs = { 14752, 14818, 14819, 27841, 25312, 32999, 27681, 32998 },
             names = { "Divine Spirit", "Prayer of Spirit" },
             threshold = 300,
             fallbackIcon = "Interface\\Icons\\Spell_Holy_DivineSpirit",
@@ -1273,6 +1291,8 @@ local CLASS_BUFFS = {
             key = "shadow_protection",
             name = "shadow protection",
             type = "aura",
+            partyBuff = true,
+            castSpellIDs = { 976, 10957, 10958, 25433 },
             spellIDs = { 976, 10957, 10958, 25433, 27683, 39374 },
             names = { "Shadow Protection", "Prayer of Shadow Protection" },
             threshold = 300,
@@ -1373,6 +1393,9 @@ local CLASS_BUFFS = {
             key = "intellect",
             name = "arcane intellect",
             type = "aura",
+            partyBuff = true,
+            partyManaOnly = true,
+            castSpellIDs = { 1459, 1460, 1461, 10156, 10157, 27126 },
             spellIDs = { 1459, 1460, 1461, 10156, 10157, 27126, 23028, 27127 },
             names = { "Arcane Intellect", "Arcane Brilliance" },
             threshold = 300,
@@ -1418,7 +1441,9 @@ local CLASS_BUFFS = {
             key = "mark_of_the_wild",
             name = "mark of the wild",
             type = "aura",
-            spellIDs = { 1126, 5232, 6756, 5234, 8907, 9884, 9885, 26990, 21849, 21850 },
+            partyBuff = true,
+            castSpellIDs = { 1126, 5232, 6756, 5234, 8907, 9884, 9885, 26990 },
+            spellIDs = { 1126, 5232, 6756, 5234, 8907, 9884, 9885, 26990, 21849, 21850, 26991 },
             names = { "Mark of the Wild", "Gift of the Wild" },
             threshold = 300,
             fallbackIcon = "Interface\\Icons\\Spell_Nature_Regeneration",
@@ -1551,6 +1576,35 @@ function sfui.buffs.data.GetAllEntries()
     end
 
     return result
+end
+
+--- Returns whether a reminder entry is disabled via user DB or default flag
+--- @param entry table
+--- @param disabledBuffs table|nil
+--- @return boolean
+function sfui.buffs.data.IsEntryDisabled(entry, disabledBuffs)
+    if not entry then return true end
+    if disabledBuffs and disabledBuffs[entry.key] ~= nil then
+        return disabledBuffs[entry.key] == true
+    end
+    return entry.isDefaultDisabled == true
+end
+
+--- Returns whether the current player class has party buff reminders
+--- @return boolean
+function sfui.buffs.data.ClassHasPartyBuffs()
+    if playerClass == "PALADIN" then
+        return true
+    end
+    local classList = CLASS_BUFFS[playerClass]
+    if classList then
+        for i = 1, #classList do
+            if classList[i].partyBuff then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 -- ─────────────────────────────────────────────────────────────

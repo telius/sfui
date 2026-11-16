@@ -45,6 +45,7 @@ sfui.options.RegisterTab({
             end
         end)
 
+        local hud_enable_cb
         local hud_toggle_btn = CreateFlatButton(p, "toggle hud", 90, 22)
         hud_toggle_btn:SetPoint("LEFT", atlas_btn, "RIGHT", 6, 0)
         hud_toggle_btn:SetScript("OnClick", function()
@@ -52,7 +53,11 @@ sfui.options.RegisterTab({
                 SfuiDB = SfuiDB or {}
                 SfuiDB.fishing = SfuiDB.fishing or {}
                 SfuiDB.fishing.hud = SfuiDB.fishing.hud or {}
-                SfuiDB.fishing.hud.enabled = not SfuiDB.fishing.hud.enabled
+                local cur = (SfuiDB.fishing.hud.enabled ~= false)
+                SfuiDB.fishing.hud.enabled = not cur
+                if hud_enable_cb and hud_enable_cb.SetChecked then
+                    hud_enable_cb:SetChecked(SfuiDB.fishing.hud.enabled)
+                end
                 if sfui.fishing.hud.CheckVisibility then
                     sfui.fishing.hud.CheckVisibility()
                 end
@@ -116,9 +121,42 @@ sfui.options.RegisterTab({
             sfui.fishing.RestoreSoundDefaults()
         end)
 
-        -- ── Section 3: Keybinds & Instructions ───────────────────────────────
+        -- ── Section 3: Floating Fishing HUD ──────────────────────────────────
+        local hud_header = p:CreateFontString(nil, "OVERLAY", g.font)
+        hud_header:SetPoint("TOPLEFT", fishing_vol_slider, "BOTTOMLEFT", 0, -SECTION_GAP)
+        hud_header:SetTextColor(0, 1, 1, 1)
+        hud_header:SetText("floating fishing hud")
+
+        local function get_hud_tbl()
+            SfuiDB = SfuiDB or {}
+            SfuiDB.fishing = SfuiDB.fishing or {}
+            SfuiDB.fishing.hud = SfuiDB.fishing.hud or {}
+            return SfuiDB.fishing.hud
+        end
+
+        hud_enable_cb = create_checkbox(p, "show floating fishing hud", function()
+            return get_hud_tbl().enabled ~= false
+        end, function(checked)
+            get_hud_tbl().enabled = checked and true or false
+            if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.CheckVisibility then
+                sfui.fishing.hud.CheckVisibility()
+            end
+        end, "shows the floating zone species, lure, skillup, and catch tracker hud whenever a fishing pole is equipped.")
+        hud_enable_cb:SetPoint("TOPLEFT", hud_header, "BOTTOMLEFT", 0, -10)
+
+        local hud_trophies_cb = create_checkbox(p, "hide <1% trophy fish unless caught", function()
+            return get_hud_tbl().hideTrophies ~= false
+        end, function(checked)
+            get_hud_tbl().hideTrophies = checked and true or false
+            if sfui.fishing and sfui.fishing.hud and sfui.fishing.hud.Update then
+                sfui.fishing.hud.Update()
+            end
+        end, "hides rare <1% trophy fish and minor crates from the hud table until caught in the zone or targeted.")
+        hud_trophies_cb:SetPoint("LEFT", hud_enable_cb, "LEFT", COL_OFFSET_X, 0)
+
+        -- ── Section 4: Keybinds & Instructions ───────────────────────────────
         local tips_header = p:CreateFontString(nil, "OVERLAY", g.font)
-        tips_header:SetPoint("TOPLEFT", fishing_vol_slider, "BOTTOMLEFT", 0, -SECTION_GAP)
+        tips_header:SetPoint("TOPLEFT", hud_enable_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
         tips_header:SetTextColor(0, 1, 1, 1)
         tips_header:SetText("keybinds & instructions")
 
@@ -315,9 +353,9 @@ sfui.options.RegisterTab({
             end)
         end
 
-        attach_tooltip(bind_btn, "fishing keybind", "Left-click: bind a key, button, or wheel scroll.\nRight-click: unbind active key.\nPress ESC while listening to cancel.")
-        attach_tooltip(unbind_btn, "clear keybind", "Removes active fishing keybind.")
-        attach_tooltip(keybind_btn, "blizzard keybindings", "Opens the standard World of Warcraft keybindings interface.")
+        attach_tooltip(bind_btn, "fishing keybind", "left-click: bind a key, button, or wheel scroll.\nright-click: unbind active key.\npress esc while listening to cancel.")
+        attach_tooltip(unbind_btn, "clear keybind", "removes active fishing keybind.")
+        attach_tooltip(keybind_btn, "blizzard keybindings", "opens the standard world of warcraft keybindings interface.")
 
         local tips_text = p:CreateFontString(nil, "OVERLAY", g.font_small)
         tips_text:SetPoint("TOPLEFT", bind_btn, "BOTTOMLEFT", 0, -14)
@@ -327,12 +365,19 @@ sfui.options.RegisterTab({
         tips_text:SetText(
             "• |cffffffff1-key cast, catch & loot|r: press your bound key once to cast. when the bobber splashes, press the exact same key to reel in. caught fish are looted automatically.\n\n" ..
             "• |cfffffffffishing atlas & journal|r: type |cff00ffff/sffish|r or |cff00ffff/sffish atlas|r to view all species, drop rates, zone skill requirements, and personal catch logs.\n\n" ..
-            "• |cfffffffffloating status hud|r: a compact pill appears automatically when a fishing pole is equipped, showing zone difficulty, lure timers, and species drop rates.\n\n" ..
+            "• |cfffffffffloating status hud|r: appears when a pole is equipped, listing zone fish, session/total counts, bag goals (alt-click/scroll), bite windows, clickable lure & container buttons, and skillup progress.\n\n" ..
             "• |cffffffffmacro & slash|r: use |cff00ffff/sffish|r or |cff00ffff/click SfuiFishingButton|r in macros or chat."
         )
 
         p:HookScript("OnShow", function()
             update_keybind_display()
+            local h = get_hud_tbl()
+            if hud_enable_cb and hud_enable_cb.SetChecked then
+                hud_enable_cb:SetChecked(h.enabled ~= false)
+            end
+            if hud_trophies_cb and hud_trophies_cb.SetChecked then
+                hud_trophies_cb:SetChecked(h.hideTrophies ~= false)
+            end
         end)
         p:HookScript("OnHide", function()
             stop_listening()

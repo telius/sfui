@@ -702,6 +702,13 @@ local function RenderPins(force)
         return
     end
 
+    local djOverlay = _G.SfuiWorldMapDungeonOverlay
+    if djOverlay and djOverlay:IsShown() then
+        ReleasePins()
+        lastMapID = nil
+        return
+    end
+
     local canvas = GetCanvas()
     if not canvas then
         ReleasePins()

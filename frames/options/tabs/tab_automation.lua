@@ -50,6 +50,13 @@ sfui.options.RegisterTab({
         local auto_alt_ids_cb = create_checkbox(automation_panel, "hold alt for item / spell / quest id", "tooltipAltIDs", nil,
             "shows item id, spell id, or quest id at the bottom of tooltips while holding the alt key.")
 
+        if SfuiDB.trainAllButton == nil then SfuiDB.trainAllButton = true end
+        local train_all_cb = create_checkbox(automation_panel, "train all button", "trainAllButton", function()
+            if sfui.automation and sfui.automation.apply_train_all_button then
+                sfui.automation.apply_train_all_button()
+            end
+        end, "adds a train all button to class and profession trainer windows to learn all affordable skills in one click.")
+
         if sfui.isCamelot or sfui.isClassic or isClassic then
             if SfuiDB.autoRankUp == nil then SfuiDB.autoRankUp = true end
             local auto_rankup_cb = create_checkbox(automation_panel, "auto spell rank-up", "autoRankUp", function(checked)
@@ -62,9 +69,11 @@ sfui.options.RegisterTab({
             end, "automatically replaces lower-rank player and pet spells on action bars when learning new ranks.")
             auto_rankup_cb:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -10)
             auto_alt_ids_cb:SetPoint("LEFT", auto_rankup_cb, "LEFT", COL_OFFSET_X, 0)
-            last_general_anchor = auto_rankup_cb
+            train_all_cb:SetPoint("TOPLEFT", auto_rankup_cb, "BOTTOMLEFT", 0, -10)
+            last_general_anchor = train_all_cb
         else
             auto_alt_ids_cb:SetPoint("TOPLEFT", auto_sign_cb, "BOTTOMLEFT", 0, -10)
+            train_all_cb:SetPoint("LEFT", auto_alt_ids_cb, "LEFT", COL_OFFSET_X, 0)
             last_general_anchor = auto_alt_ids_cb
         end
 
@@ -410,6 +419,6 @@ sfui.options.RegisterTab({
             end)
         end
 
-        automation_panel.customContentHeight = 820
+        automation_panel.customContentHeight = 855
     end,
 })

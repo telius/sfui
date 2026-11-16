@@ -376,7 +376,6 @@ local function GetCamelotQuestPins(mapID)
 
     -- 1. Cozy Sleeping Bag Questline
     if GetOption("showSleepingBag") then
-        local currentStep = GetCurrentSleepingBagStep()
         local factionSteps = SLEEPING_BAG_STEPS[playerFaction] or SLEEPING_BAG_STEPS.Alliance
         local sharedSteps  = SLEEPING_BAG_STEPS.Shared
 
@@ -389,81 +388,93 @@ local function GetCamelotQuestPins(mapID)
             sharedSteps[6],
         }
 
-        for idx, step in ipairs(allSteps) do
-            local matchesMap = (step.mapID == mapID) or (step.altMapID == mapID)
-            if matchesMap then
-                local isStepDone = (idx < currentStep)
-                local isCurrent  = (idx == currentStep)
+        local hasMapStep = false
+        for _, step in ipairs(allSteps) do
+            if (step.mapID == mapID) or (step.altMapID == mapID) then
+                hasMapStep = true
+                break
+            end
+        end
 
-                if not (hideCompleted and isStepDone) then
-                    local targetX = (step.altMapID == mapID) and step.altX or step.x
-                    local targetY = (step.altMapID == mapID) and step.altY or step.y
+        if hasMapStep then
+            local currentStep = GetCurrentSleepingBagStep()
 
-                    local borderColor
-                    local countColor
-                    local desaturated = false
-                    local vertexColor = { 1, 1, 1, 1 }
-                    local size = 20
+            for idx, step in ipairs(allSteps) do
+                local matchesMap = (step.mapID == mapID) or (step.altMapID == mapID)
+                if matchesMap then
+                    local isStepDone = (idx < currentStep)
+                    local isCurrent  = (idx == currentStep)
 
-                    if isStepDone then
-                        borderColor = { 0.35, 0.35, 0.35, 0.8 }
-                        desaturated = true
-                        vertexColor = { 0.60, 0.60, 0.60, 0.8 }
-                        countColor  = { 0.50, 0.50, 0.50, 0.8 }
-                        size        = 18
-                    elseif isCurrent then
-                        borderColor = { 1.00, 0.82, 0.00, 1.0 }
-                        countColor  = { 1.00, 0.90, 0.20, 1.0 }
-                        size        = 22
-                    else
-                        borderColor = { 0.20, 0.75, 1.00, 0.9 }
-                        countColor  = { 0.70, 0.85, 1.00, 1.0 }
-                        size        = 20
-                    end
+                    if not (hideCompleted and isStepDone) then
+                        local targetX = (step.altMapID == mapID) and step.altX or step.x
+                        local targetY = (step.altMapID == mapID) and step.altY or step.y
 
-                    local pinData = {
-                        id          = string_format("sleeping_bag_%d_%d", idx, mapID),
-                        provider    = "camelot_quests",
-                        mapID       = mapID,
-                        x           = targetX,
-                        y           = targetY,
-                        size        = size,
-                        icon        = "Interface\\Icons\\INV_Misc_Bag_BigBagOfEnchantments",
-                        desaturated = desaturated,
-                        vertexColor = vertexColor,
-                        borderColor = borderColor,
-                        countText   = tostring(step.stepNumber),
-                        countColor  = countColor,
-                        title       = string_format("cozy sleeping bag: step %d", step.stepNumber),
-                        step        = step,
-                        status      = isStepDone and "completed" or (isCurrent and "active" or "future"),
-                        isCurrent   = isCurrent,
-                        OnEnter     = OnEnterSleepingBagPin,
-                    }
-                    table_insert(out, pinData)
+                        local borderColor
+                        local countColor
+                        local desaturated = false
+                        local vertexColor = { 1, 1, 1, 1 }
+                        local size = 20
 
-                    -- Trailhead helper pin on Stonetalon Mountains for step 3
-                    if idx == 3 and mapID == 1442 and step.trailX and step.trailY then
-                        local trailDone = isStepDone
-                        if not (hideCompleted and trailDone) then
-                            local trailPin = {
-                                id          = "sleeping_bag_trailhead_1442",
-                                provider    = "camelot_quests",
-                                mapID       = mapID,
-                                x           = step.trailX,
-                                y           = step.trailY,
-                                size        = 18,
-                                icon        = "Interface\\Icons\\INV_Misc_Map02",
-                                desaturated = trailDone,
-                                vertexColor = trailDone and { 0.6, 0.6, 0.6, 0.8 } or { 1, 1, 1, 1 },
-                                borderColor = isCurrent and { 1.00, 0.82, 0.00, 1.0 } or { 0.20, 0.75, 1.00, 0.9 },
-                                countText   = "3",
-                                countColor  = isCurrent and { 1.00, 0.90, 0.20, 1.0 } or { 0.70, 0.85, 1.00, 1.0 },
-                                title       = "trailhead to abandoned camp",
-                                step        = step,
-                                OnEnter     = OnEnterSleepingBagTrailhead,
-                            }
-                            table_insert(out, trailPin)
+                        if isStepDone then
+                            borderColor = { 0.35, 0.35, 0.35, 0.8 }
+                            desaturated = true
+                            vertexColor = { 0.60, 0.60, 0.60, 0.8 }
+                            countColor  = { 0.50, 0.50, 0.50, 0.8 }
+                            size        = 18
+                        elseif isCurrent then
+                            borderColor = { 1.00, 0.82, 0.00, 1.0 }
+                            countColor  = { 1.00, 0.90, 0.20, 1.0 }
+                            size        = 22
+                        else
+                            borderColor = { 0.20, 0.75, 1.00, 0.9 }
+                            countColor  = { 0.70, 0.85, 1.00, 1.0 }
+                            size        = 20
+                        end
+
+                        local pinData = {
+                            id          = string_format("sleeping_bag_%d_%d", idx, mapID),
+                            provider    = "camelot_quests",
+                            mapID       = mapID,
+                            x           = targetX,
+                            y           = targetY,
+                            size        = size,
+                            icon        = "Interface\\Icons\\INV_Misc_Bag_BigBagOfEnchantments",
+                            desaturated = desaturated,
+                            vertexColor = vertexColor,
+                            borderColor = borderColor,
+                            countText   = tostring(step.stepNumber),
+                            countColor  = countColor,
+                            title       = string_format("cozy sleeping bag: step %d", step.stepNumber),
+                            step        = step,
+                            status      = isStepDone and "completed" or (isCurrent and "active" or "future"),
+                            isCurrent   = isCurrent,
+                            OnEnter     = OnEnterSleepingBagPin,
+                        }
+                        table_insert(out, pinData)
+
+                        -- Trailhead helper pin on Stonetalon Mountains for step 3
+                        if idx == 3 and mapID == 1442 and step.trailX and step.trailY then
+                            local trailDone = isStepDone
+                            if not (hideCompleted and trailDone) then
+                                local trailPin = {
+                                    id          = "sleeping_bag_trailhead_1442",
+                                    provider    = "camelot_quests",
+                                    mapID       = mapID,
+                                    x           = step.trailX,
+                                    y           = step.trailY,
+                                    size        = 18,
+                                    icon        = "Interface\\Icons\\INV_Misc_Map02",
+                                    desaturated = trailDone,
+                                    vertexColor = trailDone and { 0.6, 0.6, 0.6, 0.8 } or { 1, 1, 1, 1 },
+                                    borderColor = isCurrent and { 1.00, 0.82, 0.00, 1.0 } or { 0.20, 0.75, 1.00, 0.9 },
+                                    countText   = "3",
+                                    countColor  = isCurrent and { 1.00, 0.90, 0.20, 1.0 } or { 0.70, 0.85, 1.00, 1.0 },
+                                    title       = "trailhead to abandoned camp",
+                                    step        = step,
+                                    OnEnter     = OnEnterSleepingBagTrailhead,
+                                }
+                                table_insert(out, trailPin)
+                            end
                         end
                     end
                 end

@@ -185,8 +185,8 @@ sfui.highest.GetPrimaryStatValue = GetPrimaryStatValue
 -- ══════════════════════════════════════════════════════════════════════════════
 sfui.highest.validationCache = sfui.highest.validationCache or {}
 local validationCache = sfui.highest.validationCache
-local validationCacheCount = 0
-local VALIDATION_CACHE_MAX = 300
+sfui.highest.validationCacheCount = sfui.highest.validationCacheCount or 0
+local VALIDATION_CACHE_MAX = 3000
 
 -- Returns true, itemLevel, statVal, itemEquipLoc if the item is valid for the spec rules
 local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, ignoreTalents)
@@ -476,11 +476,11 @@ function sfui.highest.IsItemValidForSpec(itemLink, specID, ignorePlayerLevel, ig
         return c[1], c[2], c[3], c[4], c[5]
     end
     local isValid, itemLevel, statVal, itemEquipLoc, itemQuality = IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, ignoreTalents)
-    if validationCacheCount >= VALIDATION_CACHE_MAX then
+    if (sfui.highest.validationCacheCount or 0) >= VALIDATION_CACHE_MAX then
         wipe(validationCache)
-        validationCacheCount = 0
+        sfui.highest.validationCacheCount = 0
     end
-    validationCacheCount = validationCacheCount + 1
+    sfui.highest.validationCacheCount = (sfui.highest.validationCacheCount or 0) + 1
     validationCache[cacheKey] = { isValid, itemLevel, statVal, itemEquipLoc, itemQuality }
     return isValid, itemLevel, statVal, itemEquipLoc, itemQuality
 end

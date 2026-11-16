@@ -1396,6 +1396,7 @@ function sfui.initialize_database()
     -- automation settings
     if SfuiDB.auto_role_check == nil then SfuiDB.auto_role_check = true end
     if SfuiDB.auto_sign_lfg == nil then SfuiDB.auto_sign_lfg = true end
+    if SfuiDB.trainAllButton == nil then SfuiDB.trainAllButton = true end
     if SfuiDB.autoDungeonPortalPopup == nil then SfuiDB.autoDungeonPortalPopup = true end
     if SfuiDB.portalPopupOnlyWhenFull == nil then SfuiDB.portalPopupOnlyWhenFull = true end
 

@@ -18,6 +18,10 @@ local MEDIA_PATH = "Interface\\AddOns\\sfui\\media\\dungeonmaps\\"
 local LADDER_TEX = MEDIA_PATH .. "LevelLadder"
 local ENTRANCE_TEX = MEDIA_PATH .. "EntranceArrow"
 local WISHLIST_TEX = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_3"
+local STATUE_TEX = MEDIA_PATH .. "SerpentStatue"
+local STATUE_BOTTOM = 198 / 256
+local STATUE_ASPECT = 128 / 198
+local STATUE_HEAD_X = 0.33
 
 local MIN_ZOOM = 1.0
 local MAX_ZOOM = 4.0
@@ -286,6 +290,32 @@ end
 --  1. Interactive Map Widget Builder (Shared by Journal & WorldMap M Overlay)
 -- ══════════════════════════════════════════════════════════════════════════════
 
+local function OpenBossInJournal(ctrl, targetBossName)
+    if not ctrl or not ctrl.dungeon then return end
+    if ctrl.isWorldMapOverlay then
+        if sfui.dungeonjournal and sfui.dungeonjournal.OpenToBoss then
+            sfui.dungeonjournal.OpenToBoss(targetBossName, ctrl.dungeon.id)
+        elseif sfui.dungeonjournal and sfui.dungeonjournal.OpenToDungeon then
+            sfui.dungeonjournal.OpenToDungeon(ctrl.dungeon.id, "bosses")
+            if targetBossName and sfui.dungeonjournal.SelectBoss then
+                sfui.dungeonjournal.SelectBoss(targetBossName)
+            end
+        end
+        local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
+        if djFrame then
+            djFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+            if djFrame.Raise then djFrame:Raise() end
+        end
+    else
+        if sfui.dungeonjournal then
+            sfui.dungeonjournal.SetMode("bosses")
+            if targetBossName and sfui.dungeonjournal.SelectBoss then
+                sfui.dungeonjournal.SelectBoss(targetBossName)
+            end
+        end
+    end
+end
+
 local function CreateMapController(parent, isWorldMapOverlay)
     local ctrl = {
         parent = parent,
@@ -302,6 +332,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
         questPins = {},
         ladderPins = {},
         entrancePins = {},
+        markerPins = {},
         stepRows = {},
     }
 
@@ -520,6 +551,12 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin:SetPoint("CENTER", self.holder, "TOPLEFT", pin.normX * artW, -(pin.normY * artH))
             end
         end
+        for _, pin in ipairs(self.markerPins) do
+            if pin:IsShown() and pin.normX and pin.normY then
+                pin:ClearAllPoints()
+                pin:SetPoint("CENTER", self.holder, "TOPLEFT", pin.normX * artW, -(pin.normY * artH))
+            end
+        end
         if self.pingFrame:IsShown() and self.pingFrame.normX and self.pingFrame.normY then
             self.pingFrame:ClearAllPoints()
             self.pingFrame:SetPoint("CENTER", self.holder, "TOPLEFT", self.pingFrame.normX * artW, -(self.pingFrame.normY * artH))
@@ -698,6 +735,9 @@ local function CreateMapController(parent, isWorldMapOverlay)
             end
         elseif #floors > 1 then
             self.singleFloorLabel:Hide()
+            local rightReserved = self.isWorldMapOverlay and 256 or (self.routeBtn:IsShown() and 248 or 146)
+            local maxTabsW = math.max(160, (self.toolbar:GetWidth() or 600) - xOff - rightReserved)
+            local fullWidths, fullTotalW = {}, 0
             for i, fl in ipairs(floors) do
                 local btn = self.floorButtons[i]
                 if not btn then
@@ -705,16 +745,37 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     btn:SetHeight(20)
                     btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
                     btn.label:SetPoint("CENTER")
+                    btn.label:SetWordWrap(false)
+                    if btn.label.SetMaxLines then btn.label:SetMaxLines(1) end
                     self.floorButtons[i] = btn
                 end
+                btn.label:SetWidth(0)
                 local text = fl.name and (i .. " · " .. fl.name:lower()) or ("floor " .. i)
                 btn.label:SetText(text)
-                local bw = math.max(54, math.ceil((btn.label:GetStringWidth() or 40) + 16))
+                local w = math.max(54, math.ceil((btn.label:GetStringWidth() or 40) + 16))
+                fullWidths[i] = w
+                fullTotalW = fullTotalW + w + (i > 1 and 4 or 0)
+            end
+            local compact = (#floors > 3) or (fullTotalW > maxTabsW)
+            for i, fl in ipairs(floors) do
+                local btn = self.floorButtons[i]
+                local active = (self.floorIndex == i)
+                local bw
+                if compact and not active then
+                    btn.label:SetWidth(0)
+                    btn.label:SetText(tostring(i))
+                    bw = 26
+                elseif compact and active then
+                    local availActive = math.max(72, maxTabsW - (#floors - 1) * 30)
+                    bw = math.min(fullWidths[i], availActive)
+                    btn.label:SetWidth(bw - 12)
+                else
+                    bw = fullWidths[i]
+                end
                 btn:SetWidth(bw)
                 btn:ClearAllPoints()
                 btn:SetPoint("LEFT", self.toolbar, "LEFT", xOff, 0)
                 xOff = xOff + bw + 4
-                local active = (self.floorIndex == i)
                 if active then
                     ApplyBackdrop(btn, 0.16, 0.10, 0.26, 1.0, 0.66, 0.40, 1.0, 1.0)
                     btn.label:SetTextColor(1.0, 1.0, 1.0)
@@ -722,6 +783,16 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     ApplyBackdrop(btn, 0.07, 0.07, 0.10, 1.0, 0.20, 0.20, 0.25, 1.0)
                     btn.label:SetTextColor(0.65, 0.65, 0.72)
                 end
+                local fullText = fl.name and ("floor " .. i .. " · " .. fl.name:lower()) or ("floor " .. i)
+                btn:SetScript("OnEnter", function(s)
+                    GameTooltip:SetOwner(s, "ANCHOR_TOP")
+                    GameTooltip:SetText(fullText, 1.0, 0.82, 0.0)
+                    if not active then
+                        GameTooltip:AddLine("click to view floor", 0.65, 0.65, 0.72)
+                    end
+                    GameTooltip:Show()
+                end)
+                btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
                 btn:SetScript("OnClick", function()
                     self:SetFloor(i)
                 end)
@@ -819,6 +890,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
         for _, p in ipairs(self.ladderPins) do p:Hide() end
         for _, p in ipairs(self.bossPins) do p:Hide() end
         for _, p in ipairs(self.questPins) do p:Hide() end
+        for _, p in ipairs(self.markerPins) do p:Hide() end
 
         if not self.dungeon then return end
         local m = sfui.dj_camelot and sfui.dj_camelot.maps and sfui.dj_camelot.maps[self.dungeon.id]
@@ -831,7 +903,10 @@ local function CreateMapController(parent, isWorldMapOverlay)
         if fl.texture then
             self.tileGrid = nil
             for _, t in ipairs(self.mapTiles) do t:Hide() end
-            self.mapTex:SetTexture(fl.texture)
+            if self.mapTex._loadedTex ~= fl.texture then
+                self.mapTex._loadedTex = fl.texture
+                self.mapTex:SetTexture(fl.texture)
+            end
             self.mapTex:SetTexCoord(0, fl.texRight or 1, 0, fl.texBottom or 1)
             self.mapTex:Show()
         else
@@ -845,6 +920,10 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         apiLayer, apiTextures = layers[1], textures
                     end
                 end
+            end
+            local wantFirst = fl.tiles and type(GetFileIDFromPath) == "function" and SafePlain(GetFileIDFromPath(fl.tiles .. "1"))
+            if apiTextures and wantFirst and wantFirst > 0 and SafePlain(apiTextures[1]) ~= wantFirst then
+                apiLayer, apiTextures = nil, nil
             end
             local layerW = (apiLayer and tonumber(SafePlain(apiLayer.layerWidth))) or 1002
             local layerH = (apiLayer and tonumber(SafePlain(apiLayer.layerHeight))) or 668
@@ -861,7 +940,18 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         self.mapTiles[i] = t
                     end
                     local texSrc = (apiTextures and SafePlain(apiTextures[i])) or (fl.tiles and (fl.tiles .. i))
-                    t:SetTexture(texSrc)
+                    if texSrc and t._loadedTex ~= texSrc then
+                        local okTex = t:SetTexture(texSrc)
+                        if okTex == false and apiTextures and fl.tiles then
+                            local fallbackTex = fl.tiles .. i
+                            if t._loadedTex ~= fallbackTex then
+                                t:SetTexture(fallbackTex)
+                            end
+                            t._loadedTex = fallbackTex
+                        else
+                            t._loadedTex = texSrc
+                        end
+                    end
                     t:SetTexCoord(0, 1, 0, 1)
                     t:Show()
                 elseif t then
@@ -902,10 +992,14 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin.normX, pin.normY = e.x, e.y
                 pin:ClearAllPoints()
                 pin:SetPoint("CENTER", self.holder, "TOPLEFT", e.x * artW, -(e.y * artH))
+                local extEnt = self.dungeon and ((fIdx > 1 and self.dungeon.extraEntrances and self.dungeon.extraEntrances[fIdx - 1]) or self.dungeon.entrance) or nil
                 pin:SetScript("OnEnter", function(s)
                     GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
                     GameTooltip:SetText((e.label or "entrance"):lower(), 0.35, 1.0, 0.45)
-                    if self.dungeon and self.dungeon.entrance then
+                    if extEnt and extEnt.detail and extEnt.detail ~= "" then
+                        GameTooltip:AddLine(extEnt.detail:lower(), 0.85, 0.85, 0.90, true)
+                    end
+                    if extEnt then
                         GameTooltip:AddLine("left-click: mark dungeon entrance on world map", 0.65, 0.65, 0.72)
                     end
                     GameTooltip:Show()
@@ -922,8 +1016,8 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         end
                         return
                     end
-                    if self.dungeon and self.dungeon.entrance then
-                        dj_map.OpenWorldMapSpot(self.dungeon.entrance, self.dungeon.name .. " entrance")
+                    if extEnt then
+                        dj_map.OpenWorldMapSpot(extEnt, (extEnt.label or (self.dungeon.name .. " entrance")):lower())
                     end
                 end)
                 pin:Show()
@@ -1129,28 +1223,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         return
                     end
                     local targetBossName = (sfuiBoss and sfuiBoss.name) or b.targetName or b.name
-                    if self.isWorldMapOverlay then
-                        if sfui.dungeonjournal and sfui.dungeonjournal.OpenToBoss then
-                            sfui.dungeonjournal.OpenToBoss(targetBossName, self.dungeon.id)
-                        elseif sfui.dungeonjournal and sfui.dungeonjournal.OpenToDungeon then
-                            sfui.dungeonjournal.OpenToDungeon(self.dungeon.id, "bosses")
-                            if targetBossName and sfui.dungeonjournal.SelectBoss then
-                                sfui.dungeonjournal.SelectBoss(targetBossName)
-                            end
-                        end
-                        local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
-                        if djFrame then
-                            djFrame:SetFrameStrata("FULLSCREEN_DIALOG")
-                            if djFrame.Raise then djFrame:Raise() end
-                        end
-                    else
-                        if sfui.dungeonjournal then
-                            sfui.dungeonjournal.SetMode("bosses")
-                            if targetBossName and sfui.dungeonjournal.SelectBoss then
-                                sfui.dungeonjournal.SelectBoss(targetBossName)
-                            end
-                        end
-                    end
+                    OpenBossInJournal(self, targetBossName)
                 end)
                 pin:Show()
             end
@@ -1292,6 +1365,104 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         pin:Show()
                     end
                 end
+            end
+        end
+
+        -- 5. Special map markers (e.g., Sunken Temple serpent statues)
+        local mUsed = 0
+        for _, mk in ipairs(m.markers or {}) do
+            if (mk.floor or 1) == fIdx then
+                mUsed = mUsed + 1
+                local pin = self.markerPins[mUsed]
+                if not pin then
+                    pin = CreateFrame("Button", nil, self.holder)
+                    pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                    pin.statue = pin:CreateTexture(nil, "ARTWORK")
+                    pin.statue:SetAllPoints()
+                    pin.statue:Hide()
+                    pin.badge = CreateFrame("Button", nil, pin)
+                    pin.badge:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                    pin.rim = pin.badge:CreateTexture(nil, "ARTWORK", nil, 1)
+                    pin.rim:SetAllPoints()
+                    pin.rim:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                    pin.rim:SetVertexColor(0.95, 0.74, 0.25, 1)
+                    pin.disc = pin.badge:CreateTexture(nil, "ARTWORK", nil, 2)
+                    pin.disc:SetPoint("TOPLEFT", 2, -2)
+                    pin.disc:SetPoint("BOTTOMRIGHT", -2, 2)
+                    pin.disc:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                    pin.disc:SetVertexColor(0.10, 0.07, 0.04, 0.95)
+                    pin.text = pin.badge:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    pin.text:SetPoint("CENTER", 0, 0)
+                    pin.text:SetTextColor(1.00, 0.84, 0.30)
+                    self.markerPins[mUsed] = pin
+                end
+
+                pin.text:SetText(tostring(mk.n or ""))
+                pin.normX, pin.normY = mk.x, mk.y
+                pin:ClearAllPoints()
+                pin:SetPoint("CENTER", self.holder, "TOPLEFT", mk.x * artW, -(mk.y * artH))
+
+                pin.badge:ClearAllPoints()
+                if mk.statue then
+                    local sh = math.max(26, math.floor(self.baseH * 0.08))
+                    local sw = math.floor(sh * STATUE_ASPECT + 0.5)
+                    local bs = math.max(14, math.floor(self.baseH * 0.042))
+                    pin:SetSize(sw, sh)
+                    pin.statue:SetTexture(STATUE_TEX)
+                    if mk.flip then
+                        pin.statue:SetTexCoord(1, 0, 0, STATUE_BOTTOM)
+                    else
+                        pin.statue:SetTexCoord(0, 1, 0, STATUE_BOTTOM)
+                    end
+                    pin.statue:Show()
+                    pin:SetFrameLevel(self.holder:GetFrameLevel() + 8)
+                    pin.badge:SetSize(bs, bs)
+                    local hx = mk.flip and (1 - STATUE_HEAD_X) or STATUE_HEAD_X
+                    pin.badge:SetPoint("CENTER", pin, "TOPLEFT", hx * sw, bs * 0.22)
+                else
+                    local sz = math.max(18, math.floor(self.baseH * 0.055))
+                    pin:SetSize(sz, sz)
+                    pin.statue:Hide()
+                    pin:SetFrameLevel(self.holder:GetFrameLevel() + 16)
+                    pin.badge:SetAllPoints(pin)
+                end
+                pin.badge:SetFrameLevel(self.holder:GetFrameLevel() + 19)
+                pin.badge:Show()
+
+                local function onMarkerEnter(s)
+                    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+                    GameTooltip:SetText((mk.title or ("marker " .. tostring(mk.n or ""))):lower(), 1.0, 0.82, 0.0)
+                    if mk.body and mk.body ~= "" then
+                        GameTooltip:AddLine(mk.body:lower(), 0.9, 0.9, 0.92, true)
+                    end
+                    if mk.boss then
+                        GameTooltip:AddLine("left-click: view " .. mk.boss:lower() .. " loot", 0.65, 0.65, 0.72)
+                    end
+                    GameTooltip:Show()
+                end
+                local function onMarkerLeave() GameTooltip:Hide() end
+                local function onMarkerClick(_, button)
+                    if button == "RightButton" then
+                        if self.zoom > 1.001 then
+                            self.zoom = 1.0
+                            self.panX, self.panY = 0, 0
+                            self:ApplyTransform()
+                        elseif self.isWorldMapOverlay and self.onRightClickOut then
+                            self.onRightClickOut()
+                        end
+                        return
+                    end
+                    if mk.boss then
+                        OpenBossInJournal(self, mk.boss)
+                    end
+                end
+                pin:SetScript("OnEnter", onMarkerEnter)
+                pin:SetScript("OnLeave", onMarkerLeave)
+                pin:SetScript("OnClick", onMarkerClick)
+                pin.badge:SetScript("OnEnter", onMarkerEnter)
+                pin.badge:SetScript("OnLeave", onMarkerLeave)
+                pin.badge:SetScript("OnClick", onMarkerClick)
+                pin:Show()
             end
         end
     end
@@ -1749,6 +1920,9 @@ local function EnsureWorldMapOverlay()
             WorldMapFrame:SetMapID(outMap)
         end
         wmAdjustingMap = false
+        if sfui.pins and sfui.pins.RequestRefresh then
+            sfui.pins.RequestRefresh(0)
+        end
     end
 
     local function ShowDungeonMap()
@@ -1808,8 +1982,13 @@ local function SyncWorldMapOverlay()
         wmOverlayHolder:Hide()
     else
         wmToggleBtn.label:SetText("world map")
-        wmOverlayHolder:Show()
-        wmOverlayHolder.ctrl:SetDungeon(d, flIdx)
+        local alreadyShowing = wmOverlayHolder:IsShown()
+            and wmOverlayHolder.ctrl.dungeon == d
+            and (flIdx == nil or wmOverlayHolder.ctrl.floorIndex == flIdx)
+        if not alreadyShowing then
+            wmOverlayHolder:Show()
+            wmOverlayHolder.ctrl:SetDungeon(d, flIdx)
+        end
     end
 end
 

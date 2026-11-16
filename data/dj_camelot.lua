@@ -30,7 +30,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 133738,
         iconStr  = "Interface\\Icons\\INV_Hammer_04",
         category = "camelot",
-        entrance = { mapID = 1455, x = 0.322, y = 0.455 },
+        entrance = { mapID = 1455, x = 0.435, y = 0.520, label = "Hall of Thanes Entrance", detail = "Dungeon entrance beneath Ironforge" },
         bosses = {
             { name = "Faldrim Anvilmar",  displayId = 142826, npcID = 261306, level = "16",
               items = { 270227, 271096, 271097 }, dropRates = { [270227] = 33, [271096] = 33, [271097] = 34 } },
@@ -99,7 +99,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 136012,
         iconStr  = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01",
         category = "camelot",
-        entrance = { mapID = 1420, x = 0.644, y = 0.675 },
+        entrance = { mapID = 1420, x = 0.634, y = 0.674, label = "Ruins of Lordaeron Entrance", detail = "Dungeon entrance in the Ruins of Lordaeron" },
         bosses = {
             { name = "Witherfang",        displayId = 144189, npcID = 250483, level = "17",
               items = { 271201, 271202, 271203 }, dropRates = { [271201] = 28, [271202] = 32, [271203] = 32 } },
@@ -221,7 +221,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134444,
         iconStr  = "Interface\\Icons\\INV_Pick_02",
         category = "camelot",
-        entrance = { mapID = 1437, x = 0.478, y = 0.563 },
+        entrance = { mapID = 1437, x = 0.477, y = 0.562, label = "Excavation Site: Wetlands Entrance", detail = "Blue mist portal under a large tree, in the hills southeast of Whelgar's Excavation, reached from Thelgen Rock" },
         bosses = {
             { name = "Saltspine",       displayId = 144209, npcID = 260322, level = "28",
               items = { 273024, 273022, 273023 }, dropRates = { [273024] = 31, [273022] = 34, [273023] = 34 } },
@@ -377,7 +377,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 135738,
         iconStr  = "Interface\\Icons\\Spell_Arcane_Arcane01",
         category = "camelot",
-        entrance = { mapID = 1416, x = 0.150, y = 0.660 },
+        entrance = { mapID = 1416, x = 0.085, y = 0.593, label = "City of Dalaran Entrance", detail = "Enter through the city's sewers: drop through a grate in the streets and follow the Underbelly pipe to the portal" },
         bosses = {
             { name = "Atrexis the Grave Knight", displayId = 145787, npcID = 247126, level = "29", items = { 273032, 273033, 273036 }, dropRates = { [273032] = 35, [273033] = 28, [273036] = 37 } },
             { name = "Arcane Anomaly", displayId = 129891,           npcID = 245999, level = "30", items = { 273031, 273034, 273035 }, dropRates = { [273031] = 35, [273034] = 33, [273035] = 32 } },
@@ -488,12 +488,13 @@ sfui.dj_camelot.dungeons = {
         icon     = 135852,
         iconStr  = "Interface\\Icons\\Spell_Frost_SummonWaterElemental",
         category = "camelot",
-        entrance = { mapID = 1434, x = 0.214, y = 0.279 },
+        entrance = { mapID = 1434, x = 0.214, y = 0.279, label = "The Drowned City Entrance", detail = "Underwater west of the Vile Reef: swim to Sunken Hollow by the island with the water elementals; the cave has a large tablet beside it" },
         bosses   = {
             { name = "Zul'Alai",              displayId = 144475, npcID = 258905, level = "38", items = {} },
             { name = "Var'Taka",              displayId = 144487, npcID = 258924, level = "38", items = {} },
             { name = "Captain Dreadrise",     displayId = 142144, npcID = 260042, level = "39", items = {} },
             { name = "Deathless Marrow",      displayId = 142245, npcID = 270885, level = "39", items = {} },
+            { name = "Primeval Elemental",    displayId = 129945, npcID = 270887, level = "38", items = { 274611, 274612, 274615 }, dropRates = { [274611] = 33, [274612] = 33, [274615] = 33 } },
             { name = "Gill",                  displayId = 144023, npcID = 264177, level = "38", items = { 286646, 286649 } },
             { name = "Umbra",                 displayId = 144022, npcID = 264172, level = "38", items = { 286662, 286658 } },
             { name = "\"Pyromancer\" Braxton", displayId = 142457, npcID = 260468, level = "38", items = { 286650, 286651 } },
@@ -606,7 +607,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134169,
         iconStr  = "Interface\\Icons\\INV_Misc_MonsterHorn_03",
         category = "camelot",
-        entrance = { mapID = 2548, x = 0.656, y = 0.214 },
+        entrance = { mapID = 2548, x = 0.375, y = 0.373, label = "Krol'dok Stronghold Entrance", detail = "Northern Riverglades, on the hill above Sunnyglade: not the big fortress gates but the small cave just west of them" },
         bosses   = {
             { name = "Slavecrusher Grox",         displayId = 141217, npcID = 258966, level = "42", items = { 274996, 274997, 274995, 273101 } },
             { name = "Twilight Commander Zarmok", displayId = 141219, npcID = 258972, level = "43", items = { 275000, 274998, 274999 } },
@@ -786,7 +787,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134237,
         iconStr  = "Interface\\Icons\\INV_Misc_Key_03",
         category = "camelot",
-        entrance = { mapID = 1445, x = 0.762, y = 0.175 },
+        entrance = { mapID = 1445, x = 0.753, y = 0.141, label = "Alcaz Prison Entrance", detail = "On Alcaz Island, off north-east Dustwallow Marsh: from the dock take the path up the hill to the prison building at the north end; the portal is in its cellar" },
         bosses   = {
             { name = "Overseer Wrex",        displayId = 2316,   npcID = 0,      level = "50", items = { 276734 } },
             { name = "The Questioner",       displayId = 140092, npcID = 256236, level = "51", items = { 276742, 276743, 276741 } },
@@ -813,7 +814,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 132147,
         iconStr  = "Interface\\Icons\\Ability_Druid_Maul",
         category = "camelot",
-        entrance = { mapID = 1447, x = 0.416, y = 0.234 },
+        entrance = { mapID = 1447, x = 0.386, y = 0.332, label = "Blackmaw Hold Entrance", detail = "Northern Azshara, at the old furbolg gate: follow the long tunnel into the mountain; the portal is at its far end, under Darkwhisper Gorge by the Winterspring border" },
         bosses   = {
             { name = "Impaan the Imprisoner",  displayId = 130432, npcID = 247206, level = "57", items = {} },
             { name = "Bonesnout the Unbroken", displayId = 130427, npcID = 247198, level = "58", items = {} },
@@ -892,7 +893,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134077,
         iconStr  = "Interface\\Icons\\INV_Misc_Gem_Crystal_02",
         category = "camelot",
-        entrance = { mapID = 1449, x = 0.505, y = 0.088 },
+        entrance = { mapID = 1449, x = 0.481, y = 0.061, label = "Shaper's Terrace Entrance", detail = "Northern rim of Un'Goro Crater, on the hill right above Marshal's Refuge: climb the stairs to the titan temple" },
         bosses   = {
             { name = "Titanosaur",           displayId = 142989, npcID = 253201, level = "61", items = { 280009, 280011, 280010 } },
             { name = "Venomridge",           displayId = 144511, npcID = 261813, level = "61", items = { 280015, 280017, 280016 } },
@@ -924,7 +925,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 135824,
         iconStr  = "Interface\\Icons\\Spell_Fire_LavaSpawn",
         category = "classic",
-        entrance = { mapID = 1454, x = 0.534, y = 0.487 },
+        entrance = { mapID = 1454, x = 0.526, y = 0.490, label = "Ragefire Chasm Entrance", detail = "Dungeon entrance in the Cleft of Shadow" },
         bosses = {
             { name = "Oggleflint", displayId = 5027,            npcID = 4887,  level = "16", items = { 272999, 272996, 272998 }, dropRates = { [272999] = 33, [272996] = 33, [272998] = 33 } },
             { name = "Taragaman the Hungerer", displayId = 7970, npcID = 4936,  level = "16", items = { 14149, 14148, 14145 }, dropRates = { [14149] = 33, [14148] = 33, [14145] = 33 } },
@@ -989,7 +990,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 136015,
         iconStr  = "Interface\\Icons\\Spell_Nature_Purge",
         category = "classic",
-        entrance = { mapID = 1413, x = 0.460, y = 0.363 },
+        entrance = { mapID = 1413, x = 0.460, y = 0.364, label = "Wailing Caverns Entrance", detail = "Cave entrance at Lushwater Oasis" },
         bosses = {
             { name = "Lord Cobrahn", displayId = 4213,           npcID = 3669, level = "20", items = { 6460, 10410, 6465 }, dropRates = { [6460] = 19, [10410] = 19, [6465] = 53 } },
             { name = "Lady Anacondra", displayId = 4313,         npcID = 3671, level = "20", items = { 10412, 5404, 6446, 273088 }, dropRates = { [10412] = 11, [5404] = 41, [6446] = 5, [273088] = 2 } },
@@ -1076,7 +1077,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 135640,
         iconStr  = "Interface\\Icons\\INV_Weapon_ShortBlade_05",
         category = "classic",
-        entrance = { mapID = 1436, x = 0.420, y = 0.720 },
+        entrance = { mapID = 1436, x = 0.425, y = 0.717, label = "The Deadmines Entrance", detail = "Dungeon entrance in Moonbrook" },
         bosses = {
             { name = "Rhahk'Zor", displayId = 14403,         npcID = 644,  level = "19", items = { 872, 5187, 273289 }, dropRates = { [872] = 5, [5187] = 70, [273289] = 2 } },
             { name = "Miner Johnson", displayId = 556,     npcID = 3586, level = "19", items = { 5443, 5444 }, dropRates = { [5443] = 41, [5444] = 55 } },
@@ -1196,7 +1197,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 136224,
         iconStr  = "Interface\\Icons\\Spell_Shadow_UnholyFrenzy",
         category = "classic",
-        entrance = { mapID = 1421, x = 0.448, y = 0.678 },
+        entrance = { mapID = 1421, x = 0.448, y = 0.678, label = "Shadowfang Keep Entrance", detail = "Dungeon entrance north of Pyrewood Village" },
         bosses = {
             { name = "Rethilgore", displayId = 524,            npcID = 3914, level = "20", items = { 5254, 273457, 273456 }, dropRates = { [5254] = 82, [273457] = 2, [273456] = 2 } },
             { name = "Razorclaw the Butcher", displayId = 524, npcID = 3886, level = "22", items = { 1292, 6226, 6633 }, dropRates = { [1292] = 10, [6226] = 42, [6633] = 40 } },
@@ -1236,7 +1237,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134297,
         iconStr  = "Interface\\Icons\\INV_Misc_MonsterClaw_04",
         category = "classic",
-        entrance = { mapID = 1440, x = 0.145, y = 0.146 },
+        entrance = { mapID = 1440, x = 0.145, y = 0.142, label = "Blackfathom Deeps Entrance", detail = "Dungeon entrance on the Zoram Strand" },
         bosses = {
             { name = "Ghamoo-ra", displayId = 5027,            npcID = 4887, level = "22", items = { 6907, 6908, 273839 }, dropRates = { [6907] = 37, [6908] = 53, [273839] = 4 } },
             { name = "Lady Sarevess", displayId = 4979,        npcID = 4359, level = "23", items = { 888, 3078, 11121, 252798 }, dropRates = { [888] = 25, [3078] = 25, [11121] = 25, [252798] = 25 } },
@@ -1290,7 +1291,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134227,
         iconStr  = "Interface\\Icons\\INV_Misc_Key_03",
         category = "classic",
-        entrance = { mapID = 1453, x = 0.411, y = 0.690 },
+        entrance = { mapID = 1453, x = 0.524, y = 0.700, label = "The Stockade Entrance", detail = "Dungeon entrance in Stormwind's Canal District" },
         bosses = {
             { name = "Targorr the Dread", displayId = 517,  npcID = 1696, level = "24", items = { 273805, 273804, 273806 }, dropRates = { [273805] = 2, [273804] = 2, [273806] = 2 } },
             { name = "Kam Deepfury", displayId = 825,       npcID = 1666, level = "24", items = { 2280, 273808 }, dropRates = { [2280] = 3, [273808] = 2 } },
@@ -1363,7 +1364,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134071,
         iconStr  = "Interface\\Icons\\INV_Gizmo_02",
         category = "classic",
-        entrance = { mapID = 1426, x = 0.240, y = 0.400 },
+        entrance = { mapID = 1426, x = 0.243, y = 0.398, label = "Gnomeregan Entrance", detail = "Take the elevator down in north-west Dun Morogh, then keep left through the tunnels to the portal" },
         bosses = {
             { name = "Grubbis", displayId = 6533,               npcID = 7361, level = "32", items = { 9445 }, dropRates = { [9445] = 10 } },
             { name = "Viscous Fallout", displayId = 5497,       npcID = 7079, level = "30", items = { 9452, 9453, 9454 }, dropRates = { [9452] = 20, [9453] = 18, [9454] = 59 } },
@@ -1427,7 +1428,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134296,
         iconStr  = "Interface\\Icons\\INV_Misc_MonsterClaw_03",
         category = "classic",
-        entrance = { mapID = 1413, x = 0.430, y = 0.900 },
+        entrance = { mapID = 1413, x = 0.429, y = 0.902, label = "Razorfen Kraul Entrance", detail = "Southern Barrens, at the end of the thorny corridor" },
         bosses = {
             { name = "Roogug", displayId = 6168,               npcID = 6168, level = "28", items = { 274155, 274152 }, dropRates = { [274155] = 3, [274152] = 3 } },
             { name = "Aggem Thorncurse", displayId = 6097,     npcID = 6166, level = "30", items = { 6681, 274158 }, dropRates = { [6681] = 50, [274158] = 50 } },
@@ -1494,7 +1495,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134159,
         iconStr  = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01",
         category = "classic",
-        entrance = { mapID = 1420, x = 0.839, y = 0.234 },
+        entrance = { mapID = 1420, x = 0.826, y = 0.338, label = "Scarlet Monastery Entrance", detail = "Inside the Scarlet Monastery courtyard; the Graveyard is the portal on the right" },
         bosses = {
             { name = "Interrogator Vishas", displayId = 2044,  npcID = 3983, level = "32", items = { 7682, 7683, 274290, 252513 }, dropRates = { [7682] = 8, [7683] = 51, [274290] = 1, [252513] = 40 } },
             { name = "Azshir the Sleepless", displayId = 5534, npcID = 4294, level = "33", items = { 7709, 7708, 7731 }, dropRates = { [7709] = 33, [7708] = 33, [7731] = 33 } },
@@ -1540,7 +1541,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134423,
         iconStr  = "Interface\\Icons\\INV_Misc_Book_09",
         category = "classic",
-        entrance = { mapID = 1420, x = 0.839, y = 0.234 },
+        entrance = { mapID = 1420, x = 0.826, y = 0.338, label = "Scarlet Monastery Entrance", detail = "Inside the Scarlet Monastery; the Library has its own portal door" },
         bosses = {
             { name = "Houndmaster Loksey", displayId = 2040, npcID = 3974, level = "34", items = { 7710, 7756 }, dropRates = { [7710] = 14, [7756] = 56 } },
             { name = "Arcanist Doan", displayId = 5266,       npcID = 6487, level = "37", items = { 7711, 7712, 7713, 7714 }, dropRates = { [7711] = 46, [7712] = 47, [7713] = 47, [7714] = 48 } },
@@ -1570,7 +1571,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 133583,
         iconStr  = "Interface\\Icons\\INV_Helmet_24",
         category = "classic",
-        entrance = { mapID = 1420, x = 0.839, y = 0.234 },
+        entrance = { mapID = 1420, x = 0.826, y = 0.338, label = "Scarlet Monastery Entrance", detail = "Inside the Scarlet Monastery; the Armory door needs The Scarlet Key from the Library" },
         bosses = {
             { name = "Herod", displayId = 2041, npcID = 3975, level = "40", items = { 7717, 7718, 7719 }, dropRates = { [7717] = 14, [7718] = 34, [7719] = 33 } },
         },
@@ -1608,7 +1609,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 135943,
         iconStr  = "Interface\\Icons\\Spell_Holy_PrayerOfHealing",
         category = "classic",
-        entrance = { mapID = 1420, x = 0.839, y = 0.234 },
+        entrance = { mapID = 1420, x = 0.826, y = 0.338, label = "Scarlet Monastery Entrance", detail = "Inside the Scarlet Monastery; the Cathedral door needs The Scarlet Key from the Library" },
         bosses = {
             { name = "High Inquisitor Fairbanks", displayId = 2605,  npcID = 4542, level = "40", items = { 19507, 19508, 19509 }, dropRates = { [19507] = 34, [19508] = 32, [19509] = 32 } },
             { name = "Scarlet Commander Mograine", displayId = 2042, npcID = 3976, level = "42", items = { 7723, 7724, 7726 }, dropRates = { [7723] = 37, [7724] = 20, [7726] = 43 } },
@@ -1633,7 +1634,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 135840,
         iconStr  = "Interface\\Icons\\Spell_Frost_FreezingBreath",
         category = "classic",
-        entrance = { mapID = 1413, x = 0.430, y = 0.950 },
+        entrance = { mapID = 1413, x = 0.500, y = 0.920, label = "Razorfen Downs Entrance", detail = "Far south of the Barrens, at the border with Thousand Needles: through the thorny tunnel to the entrance" },
         bosses = {
             { name = "Tuten'kash", displayId = 7845,                 npcID = 7355, level = "40", items = { 10775, 10776, 10777 }, dropRates = { [10775] = 32, [10776] = 34, [10777] = 30 } },
             { name = "Lady Falther'ess", displayId = 6124,           npcID = 7356, level = "40", items = { 10762, 10763 }, dropRates = { [10762] = 50, [10763] = 50 } },
@@ -1682,7 +1683,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134376,
         iconStr  = "Interface\\Icons\\INV_Misc_Platnumdisks",
         category = "classic",
-        entrance = { mapID = 1418, x = 0.440, y = 0.120 },
+        entrance = { mapID = 1418, x = 0.443, y = 0.120, label = "Uldaman Entrance", detail = "Northern Badlands: through the excavation cave north of Angor Fortress to the stone door at the back" },
         bosses = {
             { name = "Revelosh", displayId = 5945,              npcID = 6910, level = "40", items = { 9387, 9388, 9389, 9390 }, dropRates = { [9387] = 23, [9388] = 21, [9389] = 23, [9390] = 21 } },
             { name = "Ironaya", displayId = 6089,               npcID = 7228, level = "40", items = { 9407, 9408, 9409 }, dropRates = { [9407] = 38, [9408] = 20, [9409] = 38 } },
@@ -1721,7 +1722,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 135502,
         iconStr  = "Interface\\Icons\\INV_Weapon_Halberd_02",
         category = "classic",
-        entrance = { mapID = 1446, x = 0.390, y = 0.200 },
+        entrance = { mapID = 1446, x = 0.387, y = 0.200, label = "Zul'Farrak Entrance", detail = "North-west Tanaris, at the gate of the troll city" },
         bosses = {
             { name = "Antu'sul", displayId = 7353,               npcID = 8127, level = "48", items = { 9379, 9639, 9640, 9641 }, dropRates = { [9379] = 25, [9639] = 25, [9640] = 25, [9641] = 25 } },
             { name = "Theka the Martyr", displayId = 7272,       npcID = 7272, level = "48", items = { 9445, 9446, 9447 }, dropRates = { [9445] = 33, [9446] = 33, [9447] = 33 } },
@@ -1778,7 +1779,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 136018,
         iconStr  = "Interface\\Icons\\Spell_Nature_AbolishPoison",
         category = "classic",
-        entrance = { mapID = 1443, x = 0.380, y = 0.580 },
+        entrance = { mapID = 1443, x = 0.291, y = 0.625, label = "Maraudon Entrance", detail = "Western Desolace: through the Valley of Spears into the cave mouth below the Maraudon cliffs" },
         bosses = {
             { name = "Noxxion", displayId = 5489,              npcID = 13280, level = "48", items = { 17744, 17745, 17746 }, dropRates = { [17744] = 33, [17745] = 33, [17746] = 33 } },
             { name = "Razorlash", displayId = 12389,            npcID = 12258, level = "48", items = { 17748, 17749, 17750, 17751 }, dropRates = { [17748] = 25, [17749] = 25, [17750] = 25, [17751] = 25 } },
@@ -1817,11 +1818,12 @@ sfui.dj_camelot.dungeons = {
         icon     = 134153,
         iconStr  = "Interface\\Icons\\INV_Misc_Head_Dragon_01",
         category = "classic",
-        entrance = { mapID = 1435, x = 0.695, y = 0.528 },
+        entrance = { mapID = 1435, x = 0.695, y = 0.535, label = "Sunken Temple Entrance", detail = "Swamp of Sorrows: dive into the Pool of Tears and follow the stairs down to the temple door" },
         bosses = {
             { name = "Atal'alarion", displayId = 7873,           npcID = 8580, level = "53", items = { 10798, 10799, 10800 }, dropRates = { [10798] = 33, [10799] = 33, [10800] = 33 } },
             { name = "Dreamscythe & Weaver", displayId = 7553,    npcID = 5721, level = "54", items = { 10795, 10796, 10797, 12243, 12463, 12464, 12465, 12466 }, dropRates = { [10795] = 12, [10796] = 12, [10797] = 12, [12243] = 12, [12463] = 12, [12464] = 12, [12465] = 12, [12466] = 12 } },
             { name = "Jammal'an the Prophet", displayId = 6708,  npcID = 5710, level = "54", items = { 10806, 10807, 10808 }, dropRates = { [10806] = 33, [10807] = 33, [10808] = 33 } },
+            { name = "Ogom the Wretched", displayId = 6709,      npcID = 5711, level = "53", items = { 10803, 10804, 10805 }, dropRates = { [10803] = 33, [10804] = 33, [10805] = 33 } },
             { name = "Morphaz & Hazzas", displayId = 6375,        npcID = 5720, level = "54", items = { 10795, 10796, 10797, 12243, 12463, 12464, 12465, 12466 }, dropRates = { [10795] = 12, [10796] = 12, [10797] = 12, [12243] = 12, [12463] = 12, [12464] = 12, [12465] = 12, [12466] = 12 } },
             { name = "Shade of Eranikus", displayId = 7806,      npcID = 5709, level = "55", items = { 10828, 10829, 10833, 10835, 10836, 10837, 10847 }, dropRates = { [10828] = 14, [10829] = 14, [10833] = 14, [10835] = 14, [10836] = 14, [10837] = 14, [10847] = 14 } },
             { name = "Avatar of Hakkar", displayId = 8053,       npcID = 8443, level = "55", items = { 10838, 10842, 10843, 10844, 10845, 10846 }, dropRates = { [10838] = 17, [10842] = 17, [10843] = 17, [10844] = 17, [10845] = 17, [10846] = 17 } },
@@ -1850,7 +1852,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 133739,
         iconStr  = "Interface\\Icons\\INV_Hammer_05",
         category = "classic",
-        entrance = { mapID = 1428, x = 0.354, y = 0.844 },
+        entrance = { mapID = 1427, x = 0.348, y = 0.840, label = "Blackrock Depths Entrance", detail = "Blackrock Mountain, between Searing Gorge and the Burning Steppes: take the chain down from the Blackrock Spire ledge and follow the lower path to the Depths portal" },
         bosses = {
             { name = "High Interrogator Gerstahn", displayId = 8761, npcID = 9018, level = "52", items = { 11624, 11625, 11626, 22240 }, dropRates = { [11624] = 25, [11625] = 25, [11626] = 25, [22240] = 25 } },
             { name = "Lord Roccor", displayId = 5781,               npcID = 9025, level = "53", items = { 11631, 11632, 22234, 22397 }, dropRates = { [11631] = 25, [11632] = 25, [22234] = 25, [22397] = 25 } },
@@ -1946,7 +1948,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 133903,
         iconStr  = "Interface\\Icons\\INV_Misc_Gem_Bloodstone_01",
         category = "classic",
-        entrance = { mapID = 1428, x = 0.354, y = 0.844 },
+        entrance = { mapID = 1427, x = 0.348, y = 0.840, label = "Lower Blackrock Spire Entrance", detail = "Blackrock Mountain, between Searing Gorge and the Burning Steppes: climb to the upper ledge to the Blackrock Spire portal" },
         bosses = {
             { name = "Highlord Omokk", displayId = 11565,           npcID = 9196,  level = "58", items = { 13166, 13167, 13168, 13169, 13170, 16670 }, dropRates = { [13166] = 18, [13167] = 18, [13168] = 18, [13169] = 18, [13170] = 18, [16670] = 11 } },
             { name = "Shadow Hunter Vosh'gajin", displayId = 9732, npcID = 9236,  level = "58", items = { 12626, 12651, 12653, 13255, 13257, 16712 }, dropRates = { [12626] = 16, [12651] = 16, [12653] = 16, [13255] = 16, [13257] = 16, [16712] = 18 } },
@@ -1997,7 +1999,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134153,
         iconStr  = "Interface\\Icons\\INV_Misc_Head_Dragon_01",
         category = "classic",
-        entrance = { mapID = 1428, x = 0.354, y = 0.844 },
+        entrance = { mapID = 1427, x = 0.348, y = 0.840, label = "Upper Blackrock Spire Entrance", detail = "Blackrock Mountain, between Searing Gorge and the Burning Steppes: climb to the upper ledge to the Blackrock Spire portal, then through Lower Blackrock Spire to the sealed door" },
         bosses = {
             { name = "Pyroguard Emberseer", displayId = 2172,     npcID = 9816,  level = "60", items = { 12926, 12927, 12929, 16672 }, dropRates = { [12926] = 27, [12927] = 27, [12929] = 27, [16672] = 18 } },
             { name = "Solakar Flamewreath", displayId = 9581,     npcID = 10264, level = "60", items = { 12589, 12603, 12606, 12609, 16695 }, dropRates = { [12589] = 20, [12603] = 20, [12606] = 20, [12609] = 20, [16695] = 18 } },
@@ -2086,7 +2088,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 136065,
         iconStr  = "Interface\\Icons\\Spell_Nature_NaturesBlessing",
         category = "classic",
-        entrance = { mapID = 1444, x = 0.619, y = 0.309 },
+        entrance = { mapID = 1444, x = 0.590, y = 0.450, label = "Dire Maul Entrance", detail = "Central Feralas, inside the ruins of Eldre'Thalas: the East wing is reached through the Broken Commons and the gate on the east side" },
         bosses = {
             { name = "Pusillin", displayId = 14354,             npcID = 14354, level = "57", items = { 18258, 18249 }, dropRates = { [18258] = 19, [18249] = 81 } },
             { name = "Zevrim Thornhoof", displayId = 11335,     npcID = 11490, level = "57", items = { 18306, 18308, 18313, 18319, 18323 }, dropRates = { [18306] = 20, [18308] = 20, [18313] = 20, [18319] = 20, [18323] = 20 } },
@@ -2123,7 +2125,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 136170,
         iconStr  = "Interface\\Icons\\Spell_Shadow_ManaBurn",
         category = "classic",
-        entrance = { mapID = 1444, x = 0.619, y = 0.309 },
+        entrance = { mapID = 1444, x = 0.590, y = 0.450, label = "Dire Maul Entrance", detail = "Central Feralas, inside the ruins of Eldre'Thalas: the West wing door, opened with the Crescent Key" },
         bosses = {
             { name = "Tendris Warpwood", displayId = 14383,      npcID = 11489, level = "58", items = { 18352, 18353, 18390, 18393 }, dropRates = { [18352] = 25, [18353] = 25, [18390] = 25, [18393] = 25 } },
             { name = "Illyanna Ravenoak", displayId = 11270,     npcID = 11488, level = "58", items = { 18347, 18349, 18383, 18386 }, dropRates = { [18347] = 25, [18349] = 25, [18383] = 25, [18386] = 25 } },
@@ -2150,7 +2152,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 133374,
         iconStr  = "Interface\\Icons\\INV_Crown_02",
         category = "classic",
-        entrance = { mapID = 1444, x = 0.619, y = 0.309 },
+        entrance = { mapID = 1444, x = 0.590, y = 0.450, label = "Dire Maul Entrance", detail = "Central Feralas, inside the ruins of Eldre'Thalas: the North (Gordok) wing door, opened with the Crescent Key" },
         bosses = {
             { name = "Guard Mol'dar", displayId = 11561,         npcID = 14326, level = "58", items = { 18450, 18451, 18458, 18459, 18460, 18462, 18463, 18464, 18493, 18494, 18496, 18497, 18498 }, dropRates = { [18450] = 8, [18451] = 8, [18458] = 8, [18459] = 8, [18460] = 8, [18462] = 8, [18463] = 8, [18464] = 8, [18493] = 8, [18494] = 8, [18496] = 8, [18497] = 8, [18498] = 8 } },
             { name = "Stomper Kreeg", displayId = 11545,         npcID = 14322, level = "58", items = { 18425 }, dropRates = { [18425] = 100 } },
@@ -2178,11 +2180,13 @@ sfui.dj_camelot.dungeons = {
         icon     = 134151,
         iconStr  = "Interface\\Icons\\INV_Misc_Bone_09",
         category = "classic",
-        entrance = { mapID = 1422, x = 0.694, y = 0.728 },
+        entrance = { mapID = 1422, x = 0.697, y = 0.732, label = "Scholomance Entrance", detail = "Caer Darrow, the island in Darrowmere Lake, Western Plaguelands: the crypt door at the back of the keep" },
         bosses = {
             { name = "Kirtonos the Herald", displayId = 7534,       npcID = 10506, level = "60", items = { 13955, 13956, 13957, 13960, 13967, 13969, 13983, 14024, 16734 }, dropRates = { [13955] = 10, [13956] = 10, [13957] = 10, [13960] = 10, [13967] = 10, [13969] = 10, [13983] = 10, [14024] = 10, [16734] = 19 } },
             { name = "Jandice Barov", displayId = 11073,             npcID = 10503, level = "60", items = { 14541, 14543, 14545, 14548, 16701, 18689, 18690, 22394 }, dropRates = { [14541] = 12, [14543] = 12, [14545] = 12, [14548] = 12, [16701] = 17, [18689] = 12, [18690] = 12, [22394] = 12 } },
             { name = "Rattlegore", displayId = 12073,                npcID = 11622, level = "60", items = { 14528, 14531, 14537, 14538, 14539, 16711, 18686 }, dropRates = { [14528] = 14, [14531] = 14, [14537] = 14, [14538] = 14, [14539] = 14, [16711] = 18, [18686] = 14 } },
+            { name = "Marduk Blackpool", displayId = 10248,          npcID = 10433, level = "58", items = { 14576, 18692 }, dropRates = { [14576] = 50, [18692] = 50 } },
+            { name = "Vectus", displayId = 2606,                     npcID = 10432, level = "60", items = { 14577, 18691 }, dropRates = { [14577] = 50, [18691] = 50 } },
             { name = "Ras Frostwhisper", displayId = 7919,          npcID = 10508, level = "60", items = { 13314, 13952, 14340, 14487, 14502, 14503, 14522, 14525, 16689, 18693, 18694, 18695, 18696 }, dropRates = { [13314] = 7, [13952] = 7, [14340] = 7, [14487] = 7, [14502] = 7, [14503] = 7, [14522] = 7, [14525] = 7, [16689] = 19, [18693] = 7, [18694] = 7, [18695] = 7, [18696] = 7 } },
             { name = "Instructor Malicia", displayId = 11069,        npcID = 10505, level = "60", items = { 14611, 14612, 14614, 14615, 14616, 14620, 14621, 14622, 14623, 14624, 14626, 14629, 14631, 14632, 14633, 14636, 14637, 14638, 14640, 14641, 18680, 18681, 18682, 18683, 18684, 23200, 23201 }, dropRates = { [14611] = 4, [14612] = 4, [14614] = 4, [14615] = 4, [14616] = 4, [14620] = 4, [14621] = 4, [14622] = 4, [14623] = 4, [14624] = 4, [14626] = 4, [14629] = 4, [14631] = 4, [14632] = 4, [14633] = 4, [14636] = 4, [14637] = 4, [14638] = 4, [14640] = 4, [14641] = 4, [18680] = 4, [18681] = 4, [18682] = 4, [18683] = 4, [18684] = 4, [23200] = 4, [23201] = 4 } },
             { name = "Doctor Theolen Krastinov", displayId = 10901,  npcID = 11261, level = "60", items = { 14611, 14612, 14614, 14615, 14616, 14617, 14620, 14621, 14622, 14623, 14624, 14626, 14629, 14631, 14632, 14633, 14636, 14637, 14638, 14640, 14641, 16684, 18680, 18681, 18682, 18683, 18684, 23200, 23201 }, dropRates = { [14611] = 3, [14612] = 3, [14614] = 3, [14615] = 3, [14616] = 3, [14617] = 1, [14620] = 3, [14621] = 3, [14622] = 3, [14623] = 3, [14624] = 3, [14626] = 3, [14629] = 3, [14631] = 3, [14632] = 3, [14633] = 3, [14636] = 3, [14637] = 3, [14638] = 3, [14640] = 3, [14641] = 3, [16684] = 8, [18680] = 3, [18681] = 3, [18682] = 3, [18683] = 3, [18684] = 3, [23200] = 3, [23201] = 3 } },
@@ -2268,7 +2272,8 @@ sfui.dj_camelot.dungeons = {
         icon     = 136143,
         iconStr  = "Interface\\Icons\\Spell_Shadow_DeathPact",
         category = "classic",
-        entrance = { mapID = 1423, x = 0.270, y = 0.120 },
+        entrance = { mapID = 1423, x = 0.300, y = 0.150, label = "Stratholme Main Gate", detail = "North-west Eastern Plaguelands: the main gate of Stratholme" },
+        extraEntrances = { { mapID = 1423, x = 0.440, y = 0.190, label = "Stratholme Service Entrance", detail = "North of the Eastern Plaguelands: the service entrance on the east side of the city" } },
         bosses = {
             { name = "Skul", displayId = 2606,                  npcID = 10393, level = "58", items = { 13394, 13395, 13396 }, dropRates = { [13394] = 33, [13395] = 33, [13396] = 33 } },
             { name = "Hearthsinger Forresten", displayId = 10482,npcID = 10558, level = "58", items = { 13378, 13379, 13383, 13384, 16682 }, dropRates = { [13378] = 22, [13379] = 22, [13383] = 22, [13384] = 22, [16682] = 14 } },

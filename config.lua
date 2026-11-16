@@ -792,6 +792,7 @@ sfui.config = {
         auto_role_check = true,
         auto_sign_lfg = true,
         tooltip_alt_ids = true,
+        train_all_button = true,
     },
 
 

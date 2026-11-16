@@ -279,17 +279,23 @@ sfui.common.get_inventory_item_link = sfui.items.get_inventory_item_link
 
 local itemStatsCache = {}
 local itemStatsCacheCount = 0
-local ITEM_STATS_CACHE_MAX = 500
+local ITEM_STATS_CACHE_MAX = 2500
 
 local shieldStatsCache = {}
 local shieldStatsCacheCount = 0
-local SHIELD_STATS_CACHE_MAX = 300
+local SHIELD_STATS_CACHE_MAX = 600
+
+local weaponStatsCache = {}
+local weaponStatsCacheCount = 0
+local WEAPON_STATS_CACHE_MAX = 1000
 
 function sfui.items.clear_item_stats_cache()
     _G.wipe(itemStatsCache)
     itemStatsCacheCount = 0
     _G.wipe(shieldStatsCache)
     shieldStatsCacheCount = 0
+    _G.wipe(weaponStatsCache)
+    weaponStatsCacheCount = 0
 end
 sfui.common.clear_item_stats_cache = sfui.items.clear_item_stats_cache
 
@@ -581,10 +587,6 @@ function sfui.items.get_item_stats(itemLink)
     return stats
 end
 sfui.common.get_item_stats = sfui.items.get_item_stats
-
-local weaponStatsCache = {}
-local weaponStatsCacheCount = 0
-local WEAPON_STATS_CACHE_MAX = 300
 
 function sfui.items.get_weapon_stats(itemLink)
     if not itemLink then return 0, 0, 0, 0 end

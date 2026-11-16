@@ -1,22 +1,27 @@
 # changelog
 
-## v1.148 (2026-11-13)
+## v1.149 (2026-11-16)
 
 ### new features & improvements
 
-- **camelot spellbook trainer, flight timer & world map utilities (`frames/character/trainer.lua`, `frames/bars/flighttimer.lua`, `data/flight_camelot.lua`, `frames/map/zonelevels.lua`, `frames/map/gatherskill.lua`, `frames/options/tabs/tab_minimap.lua`, `sfui.toc`)**:
-  - added an integrated spellbook trainer and unlearned rank browser for camelot/forever (`frames/character/trainer.lua`).
-  - added a self-calibrating taxi flight timer bar with multi-hop intermediate stop ticks, learned leg durations, and an early-landing request button (`frames/bars/flighttimer.lua`, `data/flight_camelot.lua`).
-  - added world map cursor zone level and fishing skill readouts (`frames/map/zonelevels.lua`) plus color-coded gathering skill requirements on herb, ore, and skinning tooltips (`frames/map/gatherskill.lua`).
-- **alts ruleset classification, spell upranking & automation upgrades (`frames/alts/alts.lua`, `frames/alts/alts_camelot.lua`, `frames/automation/rankup.lua`, `frames/automation/logs.lua`, `frames/automation/automation.lua`, `frames/hide.lua`, `frames/ring/ring_secure.lua`)**:
-  - fixed camelot character ruleset classification and expanded alt roster, mail, and recipe tracking (`frames/alts/alts.lua`, `frames/alts/alts_camelot.lua`).
-  - upgraded spell upranking with `IsSpellBookItemLowRank`, action bar slots `1-180`, and pet action bar rank upgrades (`frames/automation/rankup.lua`).
-  - added modifier-variant secure keybindings on the radial ring (`frames/ring/ring_secure.lua`), smart instance combat-log toggling (`frames/automation/logs.lua`), `SellAllJunkItems()` retry handling (`frames/automation/automation.lua`), and taint-safe `UIErrorsFrame:SetMessageTypeEnabled` filtering (`frames/hide.lua`).
+- **expandable fishing hud, container buttons, bite windows & skillup tracking (`frames/fishing/fishing_hud.lua`, `data/fishing_camelot.lua`, `frames/automation/fishing.lua`, `frames/options/tabs/tab_fishing.lua`, `commands.lua`)**:
+  - upgraded the floating fishing hud with an expandable current-zone species drawer displaying drop rates, time-of-day and seasonal bite windows, session catches, lifetime catches, and interactive bag/goal counters with goal alerts.
+  - added a secure clickable bag-container button for clams, crates, and bloated fish alongside lure status, free-bag warnings, expected catches-per-skillup progress, and `/sfui fish collapse`.
+- **camelot dungeon maps & multi-floor subzone detection (`data/dj_maps_camelot.lua`, `data/dj_camelot.lua`, `frames/dungeonjournal/dj_map.lua`, `frames/dungeonjournal/dungeonjournal.lua`, `media/dungeonmaps/`)**:
+  - integrated new custom dungeon map floors and artwork for alcaz prison, blackmaw hold (6 floors), the drowned city / atal'byzal, sunken temple, and serpent statue (replacing `media/dungeonmaps/TheTempleOfAtalHakkar1.blp`).
+  - expanded automatic in-instance subzone-to-floor detection across alcaz prison, blackmaw hold, the drowned city, scholomance, and stratholme.
+- **trainer "train all" button & spellbook catalog improvements (`frames/automation/automation.lua`, `frames/character/trainer.lua`, `frames/automation/rankup.lua`, `frames/options/tabs/tab_automation.lua`, `common.lua`, `config.lua`)**:
+  - added a configurable "train all" button with affordability, free profession-slot, and cost summary tooltips on class and profession trainers (`frames/automation/automation.lua`, `frames/options/tabs/tab_automation.lua`).
+  - improved camelot spellbook trainer scanning, rank cost lookups, flyout/future spell indexing, and low-rank spell reconciliation (`frames/character/trainer.lua`, `frames/automation/rankup.lua`).
+- **party class buff reminders & multibox quest reward automation (`frames/reminders/buffs_party.lua`, `frames/reminders/buffs_data.lua`, `frames/reminders/buffs_providers.lua`, `frames/reminders/buffs_scan.lua`, `frames/options/tabs/tab_buffs.lua`, `frames/ring/providers/ring_specs.lua`, `frames/ring/providers/ring_utility.lua`, `frames/sync/quests.lua`, `frames/sync/sync.lua`, `frames/options/tabs/tab_sync.lua`)**:
+  - expanded party buff reminders beyond paladin blessings to detect missing single-target class buffs (`power word: fortitude`, `divine spirit`, `arcane intellect`, and `mark of the wild`) with per-member radial ring slices.
+  - added optional multibox auto-complete and smart quest reward selection (`frames/sync/quests.lua`, `frames/options/tabs/tab_sync.lua`) that picks the highest spec upgrade or best vendor-gold reward unless shift is held.
 
-### bug fixes & codebase hardening
+### bug fixes & performance
 
-- **cdm buff stacks, combat aura resolution & secret-value safety (`frames/tracking/buffs.lua`, `frames/tracking/auras.lua`, `frames/tracking/icon_aura.lua`, `frames/tracking/trackedbars.lua`, `frames/tracking/glows.lua`, `frames/gear/lootviewer.lua`, `frames/bars/soulfragments.lua`)**:
-  - raised `Applications` frame levels above `Cooldown` swipes and enforced outlined stack text on socketed and preview tracked buffs (`frames/tracking/buffs.lua`).
-  - restored combat buff stack display across tracked icons and bars via `ShouldSpellAuraBeSecret`-guarded `GetPlayerAuraBySpellID` queries, `GetApplicationsFontString()` fallbacks, `appsAuthoritative` cast-prediction flags, secret aura table guards, and non-destructive module namespace initializers.
-- **codebase slimming, deduplication & packaging cleanup (`.pkgmeta`, `.luacheckrc`, `README.md`, `data/dj_maps_camelot.lua`, `frames/actionbars/bind.lua`, `frames/merchant/merchant.lua`, `frames/themes/engine.lua`)**:
-  - excluded raw scraper and dev json datasets from release archives in `.pkgmeta`, removed duplicate nested `LibStub` files under `Libs/LibCustomGlow-1.0`, deduplicated camelot map/trainer helpers and shared backdrops, and expanded `.luacheckrc` static analysis across all 238 lua files.
+- **dungeon journal & world map lag elimination (`frames/dungeonjournal/dj_sidebar.lua`, `frames/dungeonjournal/dungeonjournal.lua`, `frames/dungeonjournal/dj_map.lua`, `frames/map/pins.lua`, `frames/map/providers/pins_dungeonjournal.lua`, `frames/map/providers/pins_recipes.lua`, `frames/map/providers/pins_camelot_quests.lua`, `frames/professions/sources.lua`, `frames/professions/contacts.lua`, `frames/gear/highest.lua`, `frames/gear/highest/validator.lua`, `frames/gear/highest/tooltips.lua`, `core/items.lua`)**:
+  - moved unfiltered dungeon sidebar upgrade counting onto an incremental `3`-dungeon-per-tick queue, raised gear/item stat evaluation caches (`1500`-`3000`), and skipped retail-only embellishment tooltip scans on classic/camelot.
+  - added lazy per-map spatial indices for dungeon entrances, dungeon quests, and unlearned profession recipes, skipped fallback recipe source text queries during spatial indexing, gated sleeping-bag scans to relevant maps, suppressed world map pin providers while the dungeon overlay is shown, and deduplicated floor texture assignments.
+- **quest objective reward tooltips, paladin seal tracking & theme loading (`frames/quests/helpers/q_tooltip.lua`, `frames/tracking/auras.lua`, `frames/tracking/tracking_camelot.lua`, `sfui.toc`)**:
+  - restored quest objective tooltip item rewards across classic/camelot and retail quest log signatures with live hover refresh on asynchronous item/quest data loads (`frames/quests/helpers/q_tooltip.lua`).
+  - tightened camelot paladin seal cast-aura tracking and harmful-aura filtering (`frames/tracking/auras.lua`, `frames/tracking/tracking_camelot.lua`) and enabled `frames/themes/modern.lua` across all client game types in `sfui.toc`.

@@ -135,13 +135,13 @@ local function CollectPlayerBook(highestByName, lowRanksByName)
         local numLines = C_SpellBook.GetNumSpellBookSkillLines()
         for tab = 1, numLines do
             local line = C_SpellBook.GetSpellBookSkillLineInfo(tab)
-            if line and not line.isGuild and not line.offSpecID then
+            if line and not line.shouldHide and not line.isGuild then
                 local offset = line.itemIndexOffset or 0
                 local numItems = line.numSpellBookItems or 0
                 for i = 1, numItems do
                     local slot = offset + i
                     local info = C_SpellBook.GetSpellBookItemInfo(slot, BANK_PLAYER)
-                    if info and not info.isPassive and not info.isOffSpec
+                    if info and not info.isPassive
                         and info.itemType == SPELL_ITEM_TYPE and info.spellID and info.name then
                         if C_SpellBook.IsSpellBookItemLowRank(slot, BANK_PLAYER) then
                             local list = lowRanksByName[info.name]
@@ -287,6 +287,11 @@ local function ReconcileBook(known, highestByName, lowRanksByName, pending, forc
                 end
             end
         elseif prevID and prevID ~= bestID then
+            for oldID, targetID in pairs(pending) do
+                if targetID == prevID then
+                    pending[oldID] = bestID
+                end
+            end
             pending[prevID] = bestID
         end
         known[spellName] = bestID

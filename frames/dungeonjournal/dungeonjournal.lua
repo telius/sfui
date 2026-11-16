@@ -463,6 +463,9 @@ sfui.dungeonjournal.IsQuestDone      = IsQuestCompleted
 
 local function IsQuestActive(questID)
     if not questID then return false end
+    if sfui.pins and sfui.pins.IsQuestActive then
+        return sfui.pins.IsQuestActive(questID)
+    end
     if _G.C_QuestLog and _G.C_QuestLog.IsOnQuest then
         local ok, on = pcall(_G.C_QuestLog.IsOnQuest, questID)
         if ok and on then return true end
@@ -488,27 +491,54 @@ local function ReleaseAll(pool)
 end
 sfui.dungeonjournal.ReleaseAll = ReleaseAll
 
+local cachedPlayerClass = nil
+local cachedPlayerRace  = nil
+
+local function GetCachedPlayerClass()
+    if cachedPlayerClass then return cachedPlayerClass end
+    local playerClass = nil
+    if _G.UnitClassBase then
+        local c = _G.UnitClassBase("player")
+        if c and not (_G.issecretvalue and _G.issecretvalue(c)) and type(c) == "string" then
+            playerClass = c
+        end
+    end
+    if not playerClass and _G.UnitClass then
+        local _, c = _G.UnitClass("player")
+        if c and not (_G.issecretvalue and _G.issecretvalue(c)) and type(c) == "string" then
+            playerClass = c
+        end
+    end
+    if playerClass and playerClass ~= "" then
+        cachedPlayerClass = playerClass:upper()
+    end
+    return cachedPlayerClass
+end
+
+local function GetCachedPlayerRace()
+    if cachedPlayerRace then return cachedPlayerRace end
+    if _G.UnitRace then
+        local raceName, raceFile = _G.UnitRace("player")
+        local pRace = nil
+        if raceFile and not (_G.issecretvalue and _G.issecretvalue(raceFile)) and type(raceFile) == "string" then
+            pRace = raceFile:lower()
+        elseif raceName and not (_G.issecretvalue and _G.issecretvalue(raceName)) and type(raceName) == "string" then
+            pRace = raceName:lower()
+        end
+        if pRace and pRace ~= "" then
+            cachedPlayerRace = pRace
+        end
+    end
+    return cachedPlayerRace
+end
 
 local function IsQuestClassRaceEligible(quest)
     if not quest then return true end
 
     local classReq = quest.classOnly or quest.class or quest.classes
     if classReq then
-        local playerClass = nil
-        if _G.UnitClassBase then
-            local c = _G.UnitClassBase("player")
-            if c and not (_G.issecretvalue and _G.issecretvalue(c)) then
-                playerClass = c
-            end
-        end
-        if not playerClass and _G.UnitClass then
-            local _, c = _G.UnitClass("player")
-            if c and not (_G.issecretvalue and _G.issecretvalue(c)) then
-                playerClass = c
-            end
-        end
-        if playerClass and type(playerClass) == "string" then
-            local pClass = playerClass:upper()
+        local pClass = GetCachedPlayerClass()
+        if pClass then
             if type(classReq) == "string" then
                 if classReq:upper() ~= pClass then return false end
             elseif type(classReq) == "table" then
@@ -525,14 +555,8 @@ local function IsQuestClassRaceEligible(quest)
     end
 
     local raceReq = quest.races or quest.race
-    if raceReq and _G.UnitRace then
-        local raceName, raceFile = _G.UnitRace("player")
-        local pRace = nil
-        if raceFile and not (_G.issecretvalue and _G.issecretvalue(raceFile)) and type(raceFile) == "string" then
-            pRace = raceFile:lower()
-        elseif raceName and not (_G.issecretvalue and _G.issecretvalue(raceName)) and type(raceName) == "string" then
-            pRace = raceName:lower()
-        end
+    if raceReq then
+        local pRace = GetCachedPlayerRace()
         if pRace then
             local isUndead = (pRace == "scourge" or pRace == "undead")
             if type(raceReq) == "string" then
@@ -562,57 +586,66 @@ sfui.dungeonjournal.IsQuestClassRaceEligible = IsQuestClassRaceEligible
 
 function sfui.dungeonjournal.GetQuestChainInfo(quest)
     if not quest then return nil end
-    local rawChain = quest.chain
-    if not rawChain and quest.chainStart then
-        rawChain = { quest.chainStart }
-    end
-    if not rawChain or #rawChain == 0 then return nil end
+    local steps = quest._cachedChainSteps
+    if steps == false then return nil end
+    if not steps then
+        local rawChain = quest.chain
+        if not rawChain and quest.chainStart then
+            rawChain = { quest.chainStart }
+        end
+        if not rawChain or #rawChain == 0 then
+            quest._cachedChainSteps = false
+            return nil
+        end
 
-    local steps = {}
-    for _, s in ipairs(rawChain) do
-        local inDung = (s.pickedUpInDungeon == true or s.inDungeon == true)
-        local coords = (not inDung) and (
-            s.coords
-            or (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[s.id])
-        ) or nil
-        steps[#steps + 1] = {
-            id = s.id,
-            name = s.name,
-            pickup = s.pickup,
-            coords = coords,
-            entranceCoords = s.entranceCoords,
-            level = s.level,
-            minLevel = s.minLevel,
-            faction = s.faction,
-            objective = s.objective,
-            pickedUpInDungeon = inDung or (s.id == quest.id and quest.pickedUpInDungeon == true) or nil,
-            acceptOnly = s.acceptOnly or nil,
-            classOnly = s.classOnly or nil,
-            races = s.races or nil,
-            isDungeonQuest = s.isDungeonQuest or (s.id == quest.id),
-        }
-    end
-    if steps[#steps].id ~= quest.id then
-        local qInDung = (quest.pickedUpInDungeon == true or quest.inDungeon == true)
-        local qCoords = (not qInDung) and (
-            (sfui.dj_camelot and sfui.dj_camelot.questCoords and sfui.dj_camelot.questCoords[quest.id])
-            or quest.coords
-        ) or nil
-        steps[#steps + 1] = {
-            id = quest.id,
-            name = quest.name,
-            pickup = quest.pickup,
-            coords = qCoords,
-            entranceCoords = quest.entranceCoords,
-            level = quest.level,
-            minLevel = quest.minLevel,
-            faction = quest.faction,
-            objective = quest.objective,
-            pickedUpInDungeon = qInDung or nil,
-            classOnly = quest.classOnly or nil,
-            races = quest.races or nil,
-            isDungeonQuest = true,
-        }
+        steps = {}
+        local questCoordsDB = sfui.dj_camelot and sfui.dj_camelot.questCoords
+        for _, s in ipairs(rawChain) do
+            local inDung = (s.pickedUpInDungeon == true or s.inDungeon == true)
+            local coords = (not inDung) and (
+                s.coords
+                or (questCoordsDB and s.id and questCoordsDB[s.id])
+            ) or nil
+            steps[#steps + 1] = {
+                id = s.id,
+                name = s.name,
+                pickup = s.pickup,
+                coords = coords,
+                entranceCoords = s.entranceCoords,
+                level = s.level,
+                minLevel = s.minLevel,
+                faction = s.faction,
+                objective = s.objective,
+                pickedUpInDungeon = inDung or (s.id == quest.id and quest.pickedUpInDungeon == true) or nil,
+                acceptOnly = s.acceptOnly or nil,
+                classOnly = s.classOnly or nil,
+                races = s.races or nil,
+                isDungeonQuest = s.isDungeonQuest or (s.id == quest.id),
+            }
+        end
+        if steps[#steps].id ~= quest.id then
+            local qInDung = (quest.pickedUpInDungeon == true or quest.inDungeon == true)
+            local qCoords = (not qInDung) and (
+                (questCoordsDB and quest.id and questCoordsDB[quest.id])
+                or quest.coords
+            ) or nil
+            steps[#steps + 1] = {
+                id = quest.id,
+                name = quest.name,
+                pickup = quest.pickup,
+                coords = qCoords,
+                entranceCoords = quest.entranceCoords,
+                level = quest.level,
+                minLevel = quest.minLevel,
+                faction = quest.faction,
+                objective = quest.objective,
+                pickedUpInDungeon = qInDung or nil,
+                classOnly = quest.classOnly or nil,
+                races = quest.races or nil,
+                isDungeonQuest = true,
+            }
+        end
+        quest._cachedChainSteps = steps
     end
 
     local currentStep = nil

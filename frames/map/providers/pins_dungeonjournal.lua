@@ -89,9 +89,10 @@ local function OnEnterEntrance(pin, tooltip, pinData)
     if not d then return end
 
     tooltip:SetOwner(pin, "ANCHOR_RIGHT")
-    tooltip:AddLine(d.name or "dungeon entrance", 1, 0.82, 0)
+    tooltip:AddLine((pinData.title or d.name or "dungeon entrance"):lower(), 1, 0.82, 0)
     if d.level then tooltip:AddLine("level: " .. d.level, 0.85, 0.85, 0.85) end
-    if d.zone then tooltip:AddLine("zone: " .. d.zone, 0.65, 0.65, 0.65) end
+    if d.zone then tooltip:AddLine("zone: " .. d.zone:lower(), 0.65, 0.65, 0.65) end
+    if pinData.detail and pinData.detail ~= "" then tooltip:AddLine(pinData.detail:lower(), 0.75, 0.85, 1.0, true) end
 
     local db = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
     local playerFaction = (sfui.common and sfui.common.get_player_faction and sfui.common.get_player_faction()) or "Alliance"
@@ -449,23 +450,120 @@ local function OnClickQuestGroup(pin, mouseBtn, pinData)
     end
 end
 
+-- ─── Spatial Indices (lazy built once per db) ─────────────────────────────────
+local indexedEntranceDB = nil
+local entrancesByMapID = {}
+local indexedQuestDB = nil
+local questsByMapID = {}
+
+local function AddBucketEntry(mapTable, mapID, entry)
+    if not mapID then return end
+    local bucket = mapTable[mapID]
+    if not bucket then
+        bucket = {}
+        mapTable[mapID] = bucket
+    end
+    table_insert(bucket, entry)
+end
+
+local function EnsureEntranceIndex(db)
+    if indexedEntranceDB == db then return end
+    indexedEntranceDB = db
+    entrancesByMapID = {}
+
+    local function IndexList(list)
+        if not list then return end
+        for _, d in ipairs(list) do
+            if d.entrance and d.entrance.mapID and d.entrance.x and d.entrance.y then
+                AddBucketEntry(entrancesByMapID, d.entrance.mapID, {
+                    dungeon  = d,
+                    entrance = d.entrance,
+                    extraIdx = nil,
+                })
+            end
+            if d.extraEntrances then
+                for idx, ex in ipairs(d.extraEntrances) do
+                    if ex and ex.mapID and ex.x and ex.y then
+                        AddBucketEntry(entrancesByMapID, ex.mapID, {
+                            dungeon  = d,
+                            entrance = ex,
+                            extraIdx = idx,
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    IndexList(db.dungeons)
+    IndexList(db.raids)
+end
+
+local function EnsureQuestMapIndex(db)
+    if indexedQuestDB == db then return end
+    indexedQuestDB = db
+    questsByMapID = {}
+    local questCoords = db.questCoords
+
+    local function IndexQuestList(list)
+        if not list then return end
+        for _, d in ipairs(list) do
+            for _, q in ipairs(d.quests or {}) do
+                local seenMaps = {}
+                local function MarkCoord(coords)
+                    if coords and coords.mapID and not seenMaps[coords.mapID] then
+                        seenMaps[coords.mapID] = true
+                        AddBucketEntry(questsByMapID, coords.mapID, {
+                            dungeon = d,
+                            quest   = q,
+                        })
+                    end
+                end
+
+                MarkCoord(questCoords and q.id and questCoords[q.id])
+                MarkCoord(q.coords)
+
+                if q.chainStart then
+                    MarkCoord(q.chainStart.coords)
+                    MarkCoord(questCoords and q.chainStart.id and questCoords[q.chainStart.id])
+                end
+                if q.chain then
+                    for _, s in ipairs(q.chain) do
+                        MarkCoord(s.coords)
+                        MarkCoord(questCoords and s.id and questCoords[s.id])
+                    end
+                end
+            end
+        end
+    end
+
+    IndexQuestList(db.dungeons)
+    IndexQuestList(db.raids)
+end
+
 -- ─── Provider Implementation ──────────────────────────────────────────────────
 local function GetEntrancePins(mapID, playerLevel, playerFaction)
     if DJ_DB().showEntrancePins == false then return nil end
     local db = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
     if not db then return nil end
 
+    EnsureEntranceIndex(db)
+    local entries = entrancesByMapID[mapID]
+    if not entries then return nil end
+
     local out = {}
-    local function ProcessEntrance(d)
-        if sfui.dungeonjournal and sfui.dungeonjournal.AreDungeonPinsHidden and sfui.dungeonjournal.AreDungeonPinsHidden(d.id) then return end
-        if DJ_DB().autoHideTrivialPins and sfui.dungeonjournal and sfui.dungeonjournal.IsDungeonTrivial and sfui.dungeonjournal.IsDungeonTrivial(d, playerLevel) then
-            return
-        end
-        local ent = d.entrance
-        if ent and ent.mapID == mapID and ent.x and ent.y then
+    local dj = sfui.dungeonjournal
+    local autoHideTrivial = DJ_DB().autoHideTrivialPins
+    for _, item in ipairs(entries) do
+        local d = item.dungeon
+        local ent = item.entrance
+        local extraIdx = item.extraIdx
+        local hidden = dj and dj.AreDungeonPinsHidden and dj.AreDungeonPinsHidden(d.id)
+        local trivial = autoHideTrivial and dj and dj.IsDungeonTrivial and dj.IsDungeonTrivial(d, playerLevel)
+        if not hidden and not trivial then
             local iconTexture = d.iconStr or d.icon or "Interface\\Icons\\INV_Misc_Rune_01"
             table_insert(out, {
-                id          = "dj_entrance_" .. d.id,
+                id          = extraIdx and ("dj_entrance_" .. d.id .. "_extra_" .. extraIdx) or ("dj_entrance_" .. d.id),
                 dungeonID   = d.id,
                 provider    = "dj_entrances",
                 mapID       = ent.mapID,
@@ -475,7 +573,8 @@ local function GetEntrancePins(mapID, playerLevel, playerFaction)
                 icon        = iconTexture,
                 texCoord    = { 0.08, 0.92, 0.08, 0.92 },
                 borderColor = { 0, 0, 0, 1 },
-                title       = d.name or "dungeon entrance",
+                title       = (extraIdx and ent.label) or d.name or ent.label or "dungeon entrance",
+                detail      = ent.detail,
                 dungeon     = d,
                 OnEnter     = OnEnterEntrance,
                 OnClick     = OnClickEntrance,
@@ -483,8 +582,6 @@ local function GetEntrancePins(mapID, playerLevel, playerFaction)
         end
     end
 
-    if db.dungeons then for _, d in ipairs(db.dungeons) do ProcessEntrance(d) end end
-    if db.raids then for _, r in ipairs(db.raids) do ProcessEntrance(r) end end
     return out
 end
 
@@ -493,26 +590,34 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
     local db = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
     if not db then return nil end
 
+    EnsureQuestMapIndex(db)
+    local entries = questsByMapID[mapID]
+    if not entries then return nil end
+
     local requireLevel = DJ_DB().questPinsRequireLevel ~= false
     local questCoords  = db.questCoords
     local groups       = {}
+    local pFaction     = playerFaction and playerFaction:lower() or "alliance"
+    local dj           = sfui.dungeonjournal
+    local checkClassRace = dj and dj.IsQuestClassRaceEligible
+    local isDungeonHidden = dj and dj.AreDungeonPinsHidden
+    local isQuestPinHidden = dj and dj.IsQuestPinHidden
+    local getChainInfo = dj and dj.GetQuestChainInfo
 
-    local function ProcessQuestDungeon(d)
-        if sfui.dungeonjournal and sfui.dungeonjournal.AreDungeonPinsHidden and sfui.dungeonjournal.AreDungeonPinsHidden(d.id) then return end
-
-        local checkClassRace = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestClassRaceEligible
-        for _, q in ipairs(d.quests or {}) do
+    for _, entry in ipairs(entries) do
+        local d = entry.dungeon
+        local q = entry.quest
+        if not (isDungeonHidden and isDungeonHidden(d.id)) then
             local minLevel = q.minLevel or (db.questMinLevels and db.questMinLevels[q.id]) or 1
             local levelEligible = (not requireLevel) or (playerLevel >= minLevel)
             local f = q.faction and q.faction:lower() or "both"
-            local pFaction = playerFaction and playerFaction:lower() or "alliance"
             local factionEligible = (f == "both" or f == pFaction)
             local classRaceEligible = (not checkClassRace) or checkClassRace(q)
 
             if factionEligible and classRaceEligible then
                 local steps, currentStep, currentStepIndex, allDone = nil, nil, nil, nil
-                if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
-                    steps, currentStep, currentStepIndex, allDone = sfui.dungeonjournal.GetQuestChainInfo(q)
+                if getChainInfo then
+                    steps, currentStep, currentStepIndex, allDone = getChainInfo(q)
                 end
 
                 if steps then
@@ -528,8 +633,7 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
                         local insideDungeon = IsQuestPickedUpInDungeon(currentStep)
                             or (currentStep.id == q.id and IsQuestPickedUpInDungeon(q))
                         local stepID = currentStep.id or q.id
-                        local isStepHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and
-                            sfui.dungeonjournal.IsQuestPinHidden(stepID, d.id)
+                        local isStepHidden = isQuestPinHidden and isQuestPinHidden(stepID, d.id)
 
                         if stepFactionEligible and stepClassRaceEligible and not isStepHidden and stepLevelEligible and not stepActive and not insideDungeon then
                             local coords = currentStep.coords or (questCoords and currentStep.id and questCoords[currentStep.id])
@@ -572,8 +676,7 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
                     local isDone = pins.IsQuestCompleted(q.id)
                     local isActive = pins.IsQuestActive(q.id)
                     local insideDungeon = IsQuestPickedUpInDungeon(q)
-                    local isQuestHidden = sfui.dungeonjournal and sfui.dungeonjournal.IsQuestPinHidden and
-                        sfui.dungeonjournal.IsQuestPinHidden(q.id, d.id)
+                    local isQuestHidden = isQuestPinHidden and isQuestPinHidden(q.id, d.id)
 
                     if not isQuestHidden and levelEligible and not isDone and not isActive and not insideDungeon then
                         local coords = (questCoords and questCoords[q.id]) or q.coords
@@ -592,9 +695,6 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
             end
         end
     end
-
-    if db.dungeons then for _, d in ipairs(db.dungeons) do ProcessQuestDungeon(d) end end
-    if db.raids then for _, r in ipairs(db.raids) do ProcessQuestDungeon(r) end end
 
     local out = {}
     for _, g in ipairs(groups) do

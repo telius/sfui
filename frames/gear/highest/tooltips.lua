@@ -26,12 +26,12 @@ sfui.highest.GetScanTooltip = GetScanTooltip
 sfui.highest.embellishCache = sfui.highest.embellishCache or {}
 local embellishCache = sfui.highest.embellishCache
 local embellishCacheCount = 0
-local EMBELLISH_CACHE_MAX = 300
+local EMBELLISH_CACHE_MAX = 1500
 
 sfui.highest.pvpIlvlCache = sfui.highest.pvpIlvlCache or {}
 local pvpIlvlCache = sfui.highest.pvpIlvlCache
 local pvpIlvlCacheCount = 0
-local PVP_CACHE_MAX = 200
+local PVP_CACHE_MAX = 800
 
 sfui.highest.boeAttemptedAt = sfui.highest.boeAttemptedAt or {}
 local boeAttemptedAt = sfui.highest.boeAttemptedAt
@@ -206,6 +206,7 @@ sfui.highest.GetWeaponDPS = GetWeaponDPS
 -- Embellishment Scanner
 -- ══════════════════════════════════════════════════════════════════════════════
 local function HasEmbellishment(itemData)
+    if not sfui.isRetail then return false end
     if not itemData or not itemData.link then return false end
     local link = itemData.link
     if embellishCache[link] ~= nil then

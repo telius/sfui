@@ -9,19 +9,24 @@ sfui.tracker.helpers.tooltip = Tooltip
 
 local _G = _G
 local UIParent = _G.UIParent
+local CreateFrame = _G.CreateFrame
+local C_Timer = _G.C_Timer
 local type = type
 local tostring = tostring
 local ipairs = ipairs
 local string_format = string.format
 
 local table_insert = table.insert
-local pcall = pcall
 local select = select
 
 local issecretvalue = sfui.common.issecretvalue
 
 local ICON_CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12:0:0|t "
 local ICON_BULLET = "|cff888888-|r "
+
+local function IsSafeVal(v)
+    return v ~= nil and not (issecretvalue and issecretvalue(v))
+end
 
 local function PickAnchor(owner)
     if not owner then return "ANCHOR_LEFT" end
@@ -33,181 +38,341 @@ local function PickAnchor(owner)
 end
 Tooltip.PickAnchor = PickAnchor
 
-local function SafeGetQuestLogChoiceInfo(i, questID)
-    if not _G.GetQuestLogChoiceInfo then return end
-    if questID then
-        local ok, n, t, c, q, u, id = pcall(_G.GetQuestLogChoiceInfo, i, questID)
-        if ok and n then return n, t, c, q, u, id end
+local MAX_REWARD_REFRESHES = 4
+local rewardLoadFrame = nil
+local activeHoverOwner = nil
+local activeHoverData = nil
+local hoverRefreshCount = 0
+local refreshTimerPending = false
+local isInternalRefresh = false
+
+local function StopPendingRewardWatch()
+    activeHoverOwner = nil
+    activeHoverData = nil
+    refreshTimerPending = false
+    if rewardLoadFrame then
+        rewardLoadFrame:UnregisterAllEvents()
     end
-    local ok, n, t, c, q, u, id = pcall(_G.GetQuestLogChoiceInfo, i)
-    if ok and n then return n, t, c, q, u, id end
 end
 
-local function SafeGetQuestLogRewardInfo(i, questID)
-    if not _G.GetQuestLogRewardInfo then return end
-    if questID then
-        local ok, n, t, c, q, u, id = pcall(_G.GetQuestLogRewardInfo, i, questID)
-        if ok and n then return n, t, c, q, u, id end
+local function RegisterEventIfValid(frame, eventName)
+    if _G.C_EventUtils and _G.C_EventUtils.IsEventValid and not _G.C_EventUtils.IsEventValid(eventName) then
+        return
     end
-    local ok, n, t, c, q, u, id = pcall(_G.GetQuestLogRewardInfo, i)
-    if ok and n then return n, t, c, q, u, id end
+    frame:RegisterEvent(eventName)
 end
 
-local function SafeGetQuestLogItemLink(rewardType, i, questID)
-    if not _G.GetQuestLogItemLink then return nil end
-    if questID then
-        local ok, link = pcall(_G.GetQuestLogItemLink, rewardType, i, questID)
-        if ok and link then return link end
+local function EnsureRewardLoadFrame()
+    if rewardLoadFrame or not CreateFrame then return rewardLoadFrame end
+    rewardLoadFrame = CreateFrame("Frame")
+    rewardLoadFrame:SetScript("OnEvent", function()
+        if not activeHoverOwner or not activeHoverData or refreshTimerPending then return end
+        refreshTimerPending = true
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.05, function()
+                refreshTimerPending = false
+                local owner = activeHoverOwner
+                local data = activeHoverData
+                if not owner or not data then return end
+                if hoverRefreshCount >= MAX_REWARD_REFRESHES then
+                    StopPendingRewardWatch()
+                    return
+                end
+                local tip = sfui.common.get_tooltip()
+                if not tip or not tip:IsShown() or (tip.IsOwned and not tip:IsOwned(owner)) then
+                    StopPendingRewardWatch()
+                    return
+                end
+                hoverRefreshCount = hoverRefreshCount + 1
+                isInternalRefresh = true
+                Tooltip.ShowBlockTooltip(owner, data)
+                isInternalRefresh = false
+            end)
+        end
+    end)
+    return rewardLoadFrame
+end
+
+local function StartPendingRewardWatch(owner, bData)
+    if not owner or not bData then return end
+    local f = EnsureRewardLoadFrame()
+    if not f then return end
+    activeHoverOwner = owner
+    activeHoverData = bData
+    RegisterEventIfValid(f, "ITEM_DATA_LOAD_RESULT")
+    RegisterEventIfValid(f, "GET_ITEM_INFO_RECEIVED")
+    RegisterEventIfValid(f, "QUEST_DATA_LOAD_RESULT")
+    RegisterEventIfValid(f, "QUEST_LOG_UPDATE")
+end
+
+local function ResolveQuestLogIndex(questID, hintIndex)
+    if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
+        local idx = _G.C_QuestLog.GetLogIndexForQuestID(questID)
+        if IsSafeVal(idx) and type(idx) == "number" and idx > 0 then
+            return idx
+        end
     end
-    local ok, link = pcall(_G.GetQuestLogItemLink, rewardType, i)
-    if ok and link then return link end
+    if _G.GetQuestLogIndexByID then
+        local idx = _G.GetQuestLogIndexByID(questID)
+        if IsSafeVal(idx) and type(idx) == "number" and idx > 0 then
+            return idx
+        end
+    end
+
+    if not _G.GetNumQuestLogEntries then
+        return (type(hintIndex) == "number" and hintIndex > 0) and hintIndex or nil
+    end
+
+    local numEntries = _G.GetNumQuestLogEntries()
+    if not IsSafeVal(numEntries) or type(numEntries) ~= "number" or numEntries <= 0 then
+        return nil
+    end
+
+    if _G.C_QuestLog and _G.C_QuestLog.GetInfo then
+        if type(hintIndex) == "number" and hintIndex >= 1 and hintIndex <= numEntries then
+            local info = _G.C_QuestLog.GetInfo(hintIndex)
+            if info and not info.isHeader and info.questID == questID then
+                return hintIndex
+            end
+        end
+        for idx = 1, numEntries do
+            local info = _G.C_QuestLog.GetInfo(idx)
+            if info and not info.isHeader and info.questID == questID then
+                return idx
+            end
+        end
+    elseif _G.GetQuestLogTitle then
+        if type(hintIndex) == "number" and hintIndex >= 1 and hintIndex <= numEntries then
+            local curID = select(8, _G.GetQuestLogTitle(hintIndex))
+            if curID == questID then
+                return hintIndex
+            end
+        end
+        for idx = 1, numEntries do
+            local _, _, _, isHeader, _, _, _, entryID = _G.GetQuestLogTitle(idx)
+            if not isHeader and entryID == questID then
+                return idx
+            end
+        end
+    end
+
     return nil
 end
 
-local function SafeGetNumQuestLogChoices(questID)
-    if not _G.GetNumQuestLogChoices then return 0 end
-    if questID then
-        local ok, count = pcall(_G.GetNumQuestLogChoices, questID)
-        if ok and type(count) == "number" then return count end
+local function BuildRewardItemRecord(rewardType, index, questID, hasModernQuestLog, selectedMatchesQuest)
+    local getter = (rewardType == "choice") and _G.GetQuestLogChoiceInfo or _G.GetQuestLogRewardInfo
+    if not getter then return nil, false end
+
+    if rewardType == "choice" and selectedMatchesQuest and _G.GetQuestLogChoiceInfoLootType then
+        local lootType = _G.GetQuestLogChoiceInfoLootType(index)
+        if IsSafeVal(lootType) and lootType ~= 0 then
+            return nil, false
+        end
     end
-    local ok, count = pcall(_G.GetNumQuestLogChoices)
-    if ok and type(count) == "number" then return count end
+
+    local name, texture, numItems, quality, isUsable, itemID
+    if hasModernQuestLog then
+        name, texture, numItems, quality, isUsable, itemID = getter(index, questID)
+        if not IsSafeVal(name) and not IsSafeVal(itemID) and selectedMatchesQuest then
+            name, texture, numItems, quality, isUsable, itemID = getter(index)
+        end
+    elseif selectedMatchesQuest then
+        name, texture, numItems, quality, isUsable, itemID = getter(index)
+    end
+
+    if not IsSafeVal(name) or name == "" then name = nil end
+    if not IsSafeVal(texture) or texture == "" then texture = nil end
+    if not IsSafeVal(numItems) then numItems = nil end
+    if not IsSafeVal(quality) then quality = nil end
+    if not IsSafeVal(isUsable) then isUsable = nil end
+    if not IsSafeVal(itemID) or type(itemID) ~= "number" or itemID <= 0 then itemID = nil end
+
+    local link = nil
+    if _G.GetQuestLogItemLink then
+        if hasModernQuestLog then
+            link = _G.GetQuestLogItemLink(rewardType, index, questID)
+            if (not IsSafeVal(link) or link == "") and selectedMatchesQuest then
+                link = _G.GetQuestLogItemLink(rewardType, index)
+            end
+        elseif selectedMatchesQuest then
+            link = _G.GetQuestLogItemLink(rewardType, index)
+        end
+        if not IsSafeVal(link) or link == "" then link = nil end
+    end
+
+    local needsItemLoad = false
+    if itemID then
+        if not texture then
+            local instIcon = (sfui.common and sfui.common.get_item_instant_info and select(5, sfui.common.get_item_instant_info(itemID)))
+                or (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(itemID))
+                or (_G.GetItemIcon and _G.GetItemIcon(itemID))
+            if IsSafeVal(instIcon) and instIcon ~= "" and instIcon ~= 0 then
+                texture = instIcon
+            end
+        end
+
+        if not link or not name or not texture or not quality then
+            local getItemInfo = (_G.C_Item and _G.C_Item.GetItemInfo) or _G.GetItemInfo
+            if getItemInfo then
+                local iName, iLink, iQuality, _, _, _, _, _, _, iTexture = getItemInfo(itemID)
+                if not link and IsSafeVal(iLink) and iLink ~= "" then link = iLink end
+                if not name and IsSafeVal(iName) and iName ~= "" then name = iName end
+                if not texture and IsSafeVal(iTexture) and iTexture ~= "" then texture = iTexture end
+                if not quality and IsSafeVal(iQuality) then quality = iQuality end
+            end
+        end
+
+        if not name and not link then
+            needsItemLoad = true
+            if _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
+                _G.C_Item.RequestLoadItemDataByID(itemID)
+            end
+        end
+    end
+
+    if name or link or itemID then
+        return {
+            name     = name,
+            texture  = texture,
+            numItems = numItems or 1,
+            quality  = quality or 1,
+            isUsable = isUsable,
+            itemID   = itemID,
+            link     = link,
+        }, needsItemLoad
+    end
+
+    return nil, needsItemLoad
+end
+
+local function QueryQuestRewardCount(countFn, questID, hasModernQuestLog, selectedMatchesQuest)
+    if not countFn then return 0 end
+    if hasModernQuestLog then
+        local c = countFn(questID)
+        if IsSafeVal(c) and type(c) == "number" and c > 0 then
+            return c
+        end
+        return 0
+    elseif selectedMatchesQuest then
+        local sc = countFn()
+        if IsSafeVal(sc) and type(sc) == "number" and sc > 0 then
+            return sc
+        end
+    end
     return 0
 end
 
-local function SafeGetNumQuestLogRewards(questID)
-    if not _G.GetNumQuestLogRewards then return 0 end
-    if questID then
-        local ok, count = pcall(_G.GetNumQuestLogRewards, questID)
-        if ok and type(count) == "number" then return count end
+local function CollectRewardType(out, rewardType, countFn, questID, hasModernQuestLog, selectedMatchesQuest)
+    local count = QueryQuestRewardCount(countFn, questID, hasModernQuestLog, selectedMatchesQuest)
+    local anyNeedsItemLoad = false
+    for i = 1, count do
+        local record, needsLoad = BuildRewardItemRecord(rewardType, i, questID, hasModernQuestLog, selectedMatchesQuest)
+        if needsLoad then anyNeedsItemLoad = true end
+        if record then table_insert(out, record) end
     end
-    local ok, count = pcall(_G.GetNumQuestLogRewards)
-    if ok and type(count) == "number" then return count end
-    return 0
+    return anyNeedsItemLoad
 end
 
 local function GetQuestRewardItems(questID, questLogIndex)
     local choices = {}
     local rewards = {}
 
-    local qIndex = questLogIndex
-    if questID and _G.GetNumQuestLogEntries and _G.GetQuestLogTitle then
-        local ok, numEntries = pcall(_G.GetNumQuestLogEntries)
-        if ok and type(numEntries) == "number" then
-            local okTitle, curID
-            if not qIndex or qIndex < 1 or qIndex > numEntries then
-                qIndex = nil
-            else
-                okTitle, curID = pcall(function() return select(8, _G.GetQuestLogTitle(qIndex)) end)
-                if not okTitle or curID ~= questID then
-                    qIndex = nil
-                end
-            end
-            if not qIndex then
-                for idx = 1, numEntries do
-                    local okEntry, _, _, _, isHeader, _, _, _, entryID = pcall(_G.GetQuestLogTitle, idx)
-                    if okEntry and not isHeader and entryID == questID then
-                        qIndex = idx
-                        break
-                    end
-                end
-            end
+    if not IsSafeVal(questID) or type(questID) ~= "number" or questID <= 0 then
+        return choices, rewards, false
+    end
+
+    local waitingForQuestData = false
+    if _G.HaveQuestRewardData and not _G.HaveQuestRewardData(questID) then
+        waitingForQuestData = true
+        if _G.C_TaskQuest and _G.C_TaskQuest.RequestPreloadRewardData
+            and _G.C_QuestLog and _G.C_QuestLog.IsWorldQuest and _G.C_QuestLog.IsWorldQuest(questID) then
+            _G.C_TaskQuest.RequestPreloadRewardData(questID)
+        end
+        if _G.C_QuestLog and _G.C_QuestLog.RequestLoadQuestByID then
+            _G.C_QuestLog.RequestLoadQuestByID(questID)
         end
     end
 
-    -- Query choices (pass questID directly to avoid tainting QuestLog selection via SelectQuestLogEntry)
-    local numChoices = SafeGetNumQuestLogChoices(questID)
-    if numChoices > 0 and _G.GetQuestLogChoiceInfo then
-        for i = 1, numChoices do
-            local name, texture, numItems, quality, isUsable, itemID = SafeGetQuestLogChoiceInfo(i, questID)
-            local link = SafeGetQuestLogItemLink("choice", i, questID)
+    local qIndex = ResolveQuestLogIndex(questID, questLogIndex)
+    local hasModernQuestLog = (_G.C_QuestLog and _G.C_QuestLog.SetSelectedQuest and _G.C_QuestLog.GetSelectedQuest) ~= nil
 
-            if (not link or not name or not texture) and itemID and _G.GetItemInfo then
-                local iName, iLink, iQuality, _, _, _, _, _, _, iTexture = _G.GetItemInfo(itemID)
-                if not link then link = iLink end
-                if not name then name = iName end
-                if not texture then texture = iTexture end
-                if not quality then quality = iQuality end
-            end
+    local prevSelectedQuestID = nil
+    local prevSelectedIndex = nil
+    local needRestoreModern = false
+    local needRestoreClassic = false
+    local selectedMatchesQuest = false
 
-            if name or link then
-                table_insert(choices, {
-                    name     = name,
-                    texture  = texture,
-                    numItems = numItems or 1,
-                    quality  = quality or 1,
-                    isUsable = isUsable,
-                    itemID   = itemID,
-                    link     = link,
-                })
+    if qIndex and qIndex > 0 then
+        if hasModernQuestLog then
+            prevSelectedQuestID = _G.C_QuestLog.GetSelectedQuest()
+            if prevSelectedQuestID ~= questID then
+                _G.C_QuestLog.SetSelectedQuest(questID)
+                needRestoreModern = true
             end
+            selectedMatchesQuest = (_G.C_QuestLog.GetSelectedQuest() == questID)
+        elseif _G.SelectQuestLogEntry and _G.GetQuestLogSelection then
+            prevSelectedIndex = _G.GetQuestLogSelection()
+            if prevSelectedIndex ~= qIndex then
+                _G.SelectQuestLogEntry(qIndex)
+                needRestoreClassic = true
+            end
+            selectedMatchesQuest = (_G.GetQuestLogSelection() == qIndex)
         end
+    elseif hasModernQuestLog then
+        selectedMatchesQuest = (_G.C_QuestLog.GetSelectedQuest() == questID)
     end
 
-    -- Query fixed rewards
-    local numRewards = SafeGetNumQuestLogRewards(questID)
-    if numRewards > 0 and _G.GetQuestLogRewardInfo then
-        for i = 1, numRewards do
-            local name, texture, numItems, quality, isUsable, itemID = SafeGetQuestLogRewardInfo(i, questID)
-            local link = SafeGetQuestLogItemLink("reward", i, questID)
+    local choicesNeedLoad = CollectRewardType(
+        choices, "choice", _G.GetNumQuestLogChoices, questID, hasModernQuestLog, selectedMatchesQuest
+    )
+    local rewardsNeedLoad = CollectRewardType(
+        rewards, "reward", _G.GetNumQuestLogRewards, questID, hasModernQuestLog, selectedMatchesQuest
+    )
 
-            if (not link or not name or not texture) and itemID and _G.GetItemInfo then
-                local iName, iLink, iQuality, _, _, _, _, _, _, iTexture = _G.GetItemInfo(itemID)
-                if not link then link = iLink end
-                if not name then name = iName end
-                if not texture then texture = iTexture end
-                if not quality then quality = iQuality end
-            end
-
-            if name or link then
-                table_insert(rewards, {
-                    name     = name,
-                    texture  = texture,
-                    numItems = numItems or 1,
-                    quality  = quality or 1,
-                    isUsable = isUsable,
-                    itemID   = itemID,
-                    link     = link,
-                })
-            end
-        end
+    if needRestoreModern and prevSelectedQuestID and prevSelectedQuestID > 0 then
+        _G.C_QuestLog.SetSelectedQuest(prevSelectedQuestID)
+    end
+    if needRestoreClassic and prevSelectedIndex and prevSelectedIndex > 0 then
+        _G.SelectQuestLogEntry(prevSelectedIndex)
     end
 
-    return choices, rewards
+    return choices, rewards, (waitingForQuestData or choicesNeedLoad or rewardsNeedLoad)
 end
 
 local function FormatItemRewardLine(item)
     if not item then return "" end
 
     local iconStr = ""
-    if item.texture and item.texture ~= "" and not issecretvalue(item.texture) then
+    if IsSafeVal(item.texture) and item.texture ~= "" then
         iconStr = string_format("|T%s:14:14:0:0:64:64:4:60:4:60|t ", tostring(item.texture))
     else
         iconStr = ICON_BULLET
     end
 
     local itemText = ""
-    if item.link and item.link ~= "" and not issecretvalue(item.link) then
+    if IsSafeVal(item.link) and item.link ~= "" then
         itemText = string.gsub(item.link, "(%b[])", function(bracketed)
             return bracketed:lower()
         end)
     else
-        local dName = item.name or "reward item"
-        if not issecretvalue(dName) then
+        local dName = item.name
+        if IsSafeVal(dName) and dName ~= "" then
             dName = tostring(dName):lower()
         else
-            dName = "reward item"
+            dName = item.itemID and "loading..." or "reward item"
         end
         local q = item.quality or 1
         if _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[q] then
             local qc = _G.ITEM_QUALITY_COLORS[q]
-            itemText = string_format("|c%s[%s]|r", qc.hex or "ffffffff", dName)
+            local rawHex = qc.hex or "ffffffff"
+            local colorPrefix = (rawHex:sub(1, 2) == "|c") and rawHex or ("|c" .. rawHex)
+            itemText = string_format("%s[%s]|r", colorPrefix, dName)
         else
             itemText = string_format("[%s]", dName)
         end
     end
 
-    if item.numItems and item.numItems > 1 and not issecretvalue(item.numItems) then
+    if IsSafeVal(item.numItems) and item.numItems > 1 then
         itemText = string_format("%s |cffffffffx%d|r", itemText, item.numItems)
     end
 
@@ -250,6 +415,11 @@ Tooltip.CheckAndAppendAltID = check_and_append_alt_id
 function Tooltip.ShowBlockTooltip(owner, bData)
     local tip = sfui.common.get_tooltip()
     if not tip or not bData then return end
+
+    if not isInternalRefresh then
+        hoverRefreshCount = 0
+        StopPendingRewardWatch()
+    end
 
     local anchor = PickAnchor(owner)
     tip:SetOwner(owner, anchor)
@@ -520,7 +690,12 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         end
 
         -- Quest item rewards (choice items and fixed rewards)
-        local choices, rewards = GetQuestRewardItems(bData.questID, bData.questLogIndex)
+        local choices, rewards, pendingRewardLoad = GetQuestRewardItems(bData.questID, bData.questLogIndex)
+        if pendingRewardLoad and hoverRefreshCount < MAX_REWARD_REFRESHES then
+            StartPendingRewardWatch(owner, bData)
+        else
+            StopPendingRewardWatch()
+        end
         if #choices > 0 or #rewards > 0 then
             if #choices > 0 then
                 tip:AddLine(" ")
@@ -539,8 +714,8 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         end
 
         -- Group Party Progress
-        if not bData.isRemotePeerQuest and _G.IsInGroup and _G.IsInGroup() and tip.SetQuestPartyProgress then
-            pcall(tip.SetQuestPartyProgress, tip, bData.questID)
+        if not bData.isRemotePeerQuest and IsSafeVal(bData.questID) and _G.IsInGroup and _G.IsInGroup() and tip.SetQuestPartyProgress then
+            tip:SetQuestPartyProgress(bData.questID)
         end
 
         -- Synced Party / Linked Peer Progress
@@ -629,6 +804,7 @@ function Tooltip.ShowBlockTooltip(owner, bData)
 end
 
 function Tooltip.HideBlockTooltip(owner, bData)
+    StopPendingRewardWatch()
     local tip = sfui.common.get_tooltip()
     if tip then
         tip._sfuiAltIDAppended = nil

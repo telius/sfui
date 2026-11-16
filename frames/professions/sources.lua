@@ -962,9 +962,21 @@ local itemToLiveVendors = nil
 local spellToLiveTrainers = nil
 local nameToLiveTrainers = nil
 local isLiveIndexDirty = true
+local liveIndexVersion = 0
+local nonHostileSourcesCache = {}
 
 function sfui.recipes.InvalidateLiveIndices()
     isLiveIndexDirty = true
+    liveIndexVersion = liveIndexVersion + 1
+    if _G.wipe then
+        _G.wipe(nonHostileSourcesCache)
+    else
+        nonHostileSourcesCache = {}
+    end
+end
+
+function sfui.recipes.GetLiveIndexVersion()
+    return liveIndexVersion
 end
 
 local function EnsureLiveIndices()
@@ -1011,8 +1023,9 @@ end
 
 --- Get all resolved source locations for a recipe
 --- @param id number spellID, scroll itemID, or output itemID
+--- @param skipBlizzardText? boolean skip C_TradeSkillUI.GetRecipeSourceText fallback when true
 --- @return table? result
-function sfui.recipes.GetSource(id)
+function sfui.recipes.GetSource(id, skipBlizzardText)
     local recipe = sfui.recipes.GetRecipe(id)
     if not recipe then return nil end
 
@@ -1237,7 +1250,7 @@ function sfui.recipes.GetSource(id)
 
 
     -- 4. Blizzard Engine Source Fallback (for uncataloged recipes or client database descriptions)
-    if #result.sources == 0 and spellID and _G.C_TradeSkillUI and _G.C_TradeSkillUI.GetRecipeSourceText then
+    if not skipBlizzardText and #result.sources == 0 and spellID and _G.C_TradeSkillUI and _G.C_TradeSkillUI.GetRecipeSourceText then
         local srcText = _G.C_TradeSkillUI.GetRecipeSourceText(spellID)
         if srcText and srcText ~= "" then
             table_insert(result.sources, {
@@ -1253,12 +1266,18 @@ end
 
 --- Return all non-hostile sources for a recipe record (trainers, vendors, quests, drops)
 --- @param r table
+--- @param skipBlizzardText? boolean skip C_TradeSkillUI.GetRecipeSourceText fallback when true
 --- @return table sources
-function sfui.recipes.GetAllNonHostileSources(r)
+function sfui.recipes.GetAllNonHostileSources(r, skipBlizzardText)
     if not r then return {} end
+    local cacheKey = (not skipBlizzardText) and (not r.isDynamic) and r.id
+    if cacheKey and nonHostileSourcesCache[cacheKey] then
+        return nonHostileSourcesCache[cacheKey]
+    end
+
     local sources = nil
     if sfui.recipes.GetSource and r.id then
-        local res = sfui.recipes.GetSource(r.id)
+        local res = sfui.recipes.GetSource(r.id, skipBlizzardText)
         if res and res.sources and #res.sources > 0 then
             sources = res.sources
         end
@@ -1267,6 +1286,9 @@ function sfui.recipes.GetAllNonHostileSources(r)
         sources = r.sources
     end
     if not sources or #sources == 0 then
+        if cacheKey then
+            nonHostileSourcesCache[cacheKey] = {}
+        end
         return {}
     end
 
@@ -1280,6 +1302,9 @@ function sfui.recipes.GetAllNonHostileSources(r)
                 table_insert(list, s)
             end
         end
+    end
+    if cacheKey then
+        nonHostileSourcesCache[cacheKey] = list
     end
     return list
 end

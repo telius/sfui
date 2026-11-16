@@ -35,7 +35,7 @@ sfui.gear = sfui.gear or {}
 
 local _upgradeEvalCache = {}
 local _upgradeEvalCount = 0
-local UPGRADE_EVAL_CACHE_MAX = 400
+local UPGRADE_EVAL_CACHE_MAX = 3000
 local _evalTargetSlots = {}
 
 local function InvalidateUpgradeEvalCache()
