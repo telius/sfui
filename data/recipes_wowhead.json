@@ -3319,6 +3319,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -3643,6 +3646,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -3673,6 +3679,9 @@
             3713,
             3
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -3705,6 +3714,9 @@
             3
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -3735,6 +3747,9 @@
             3713,
             3
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -3800,6 +3815,9 @@
             3713,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -3899,6 +3917,9 @@
             3713,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -4102,6 +4123,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -4174,8 +4198,8 @@
         "colors": [
           140,
           145,
-          147,
-          150
+          145,
+          145
         ],
         "creates": [
           279957,
@@ -4342,8 +4366,8 @@
         "colors": [
           90,
           95,
-          100,
-          105
+          95,
+          95
         ],
         "creates": [
           279961,
@@ -4373,8 +4397,8 @@
         "colors": [
           200,
           205,
-          212,
-          220
+          205,
+          205
         ],
         "creates": [
           279974,
@@ -6325,6 +6349,17 @@
         "skill": 250,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Deadwind Ogre Mage",
+            "t": 1,
+            "ti": 7379,
+            "z": 41
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -6564,6 +6599,17 @@
         "skill": 275,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Monstrous Plaguebat",
+            "t": 1,
+            "ti": 8602,
+            "z": 139
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -6576,6 +6622,17 @@
         "skill": 275,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Child of Tortolla",
+            "t": 1,
+            "ti": 249224,
+            "z": 616
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -6588,6 +6645,17 @@
         "skill": 275,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Ghostfang Alpha",
+            "t": 1,
+            "ti": 249225,
+            "z": 616
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -6600,6 +6668,17 @@
         "skill": 275,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Rabid Shardtooth",
+            "t": 1,
+            "ti": 7446,
+            "z": 618
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -6632,6 +6711,17 @@
         "skill": 275,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Frostsaber Pride Watcher",
+            "t": 1,
+            "ti": 7434,
+            "z": 618
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -6689,11 +6779,15 @@
         "skill": 275,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sm_checked": true
       },
       {
         "id": 250184,
@@ -6833,6 +6927,17 @@
         "skill": 275,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Spitelash Enchantress",
+            "t": 1,
+            "ti": 7886,
+            "z": 16
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -7105,7 +7210,7 @@
         }
       }
     ],
-    "fetched_at": 1794550138
+    "fetched_at": 1794981734
   },
   "first-aid": {
     "spells": [
@@ -7346,7 +7451,7 @@
           3,
           3
         ],
-        "trainingcost": 250,
+        "trainingcost": 263,
         "reagents": [
           [
             1475,
@@ -7555,8 +7660,8 @@
         "colors": [
           20,
           20,
-          22,
-          25
+          20,
+          20
         ],
         "creates": [
           279968,
@@ -8158,8 +8263,8 @@
         "colors": [
           140,
           140,
-          142,
-          145
+          140,
+          140
         ],
         "creates": [
           279940,
@@ -8584,7 +8689,7 @@
         }
       }
     ],
-    "fetched_at": 1794550140
+    "fetched_at": 1794981736
   },
   "fishing": {
     "spells": [
@@ -9048,7 +9153,9 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16,
+          21
         ],
         "envChange": {
           "status": "unchanged",
@@ -9560,7 +9667,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "updated",
@@ -10963,7 +11071,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -11127,7 +11236,7 @@
           1,
           1
         ],
-        "trainingcost": 5000,
+        "trainingcost": 4500,
         "reagents": [
           [
             8836,
@@ -11185,7 +11294,7 @@
           1,
           1
         ],
-        "trainingcost": 10000,
+        "trainingcost": 9000,
         "reagents": [
           [
             8839,
@@ -11262,7 +11371,7 @@
           1,
           1
         ],
-        "trainingcost": 12000,
+        "trainingcost": 10800,
         "reagents": [
           [
             8839,
@@ -11339,7 +11448,7 @@
           1,
           1
         ],
-        "trainingcost": 12000,
+        "trainingcost": 10800,
         "reagents": [
           [
             8838,
@@ -11629,7 +11738,7 @@
           1,
           1
         ],
-        "trainingcost": 14000,
+        "trainingcost": 12600,
         "reagents": [
           [
             8846,
@@ -11791,7 +11900,7 @@
         "name": "Alchemy",
         "rank": "Artisan",
         "learnedat": 200,
-        "trainingcost": 50000,
+        "trainingcost": 45000,
         "source": [
           6
         ],
@@ -11878,7 +11987,7 @@
           1,
           1
         ],
-        "trainingcost": 10000,
+        "trainingcost": 9000,
         "reagents": [
           [
             8831,
@@ -11972,7 +12081,7 @@
           2,
           2
         ],
-        "trainingcost": 15000,
+        "trainingcost": 13500,
         "reagents": [
           [
             13422,
@@ -12016,6 +12125,9 @@
             8925,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -12185,6 +12297,9 @@
             8925,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -12543,6 +12658,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -12696,6 +12814,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -12838,6 +12959,9 @@
             8925,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -13941,8 +14065,8 @@
         "colors": [
           20,
           20,
-          22,
-          25
+          20,
+          20
         ],
         "creates": [
           279956,
@@ -15659,6 +15783,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -15885,6 +16012,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -16109,6 +16239,9 @@
             8925,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -16336,7 +16469,8 @@
           ]
         ],
         "source": [
-          4
+          4,
+          5
         ],
         "envChange": {
           "status": "new",
@@ -16352,8 +16486,8 @@
         "colors": [
           140,
           140,
-          142,
-          145
+          140,
+          140
         ],
         "creates": [
           279970,
@@ -16412,6 +16546,9 @@
             13463,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -16600,6 +16737,41 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
+      },
+      {
+        "id": 11447,
+        "name": "Draught of Water Walking",
+        "learnedat": 180,
+        "creates": [
+          8827,
+          1,
+          1
+        ],
+        "reagents": [
+          [
+            6370,
+            1
+          ],
+          [
+            3357,
+            1
+          ],
+          [
+            3372,
+            1
+          ]
+        ],
+        "source": [
+          16
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -16632,7 +16804,9 @@
         "level": 15,
         "quality": 2,
         "source": [
-          2
+          2,
+          16,
+          21
         ],
         "envChange": {
           "status": "unchanged",
@@ -16981,7 +17155,8 @@
         "level": 30,
         "quality": 1,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -17016,7 +17191,8 @@
         "level": 42,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -17378,11 +17554,9 @@
         "skill": 275,
         "level": 55,
         "quality": 2,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "icon": "inv_misc_gift_05",
@@ -17391,7 +17565,12 @@
             "t": 3,
             "ti": 15699
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 13482,
@@ -17501,18 +17680,18 @@
         "source": [
           2
         ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "n": "Azuregos",
             "t": 1,
             "ti": 6109
           }
-        ],
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        }
+        ]
       },
       {
         "id": 13488,
@@ -17857,15 +18036,10 @@
         ],
         "sourcemore": [
           {
-            "bd": 1,
             "dd": -1,
-            "n": "Balnazzar",
-            "t": 1,
-            "ti": 10813,
             "z": 2017
           },
           {
-            "bd": 1,
             "n": "Pix Xizzix",
             "t": 1,
             "ti": 227853,
@@ -18148,9 +18322,16 @@
           }
         ],
         "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
+          "status": "updated",
+          "labels": [
+            "renamed",
+            "reworded"
+          ],
+          "lines": [
+            "Renamed from Recipe: Elixir of Greater Firepower",
+            "Effects reworded"
+          ],
+          "notShown": []
         }
       },
       {
@@ -19001,7 +19182,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250388,
@@ -19016,7 +19214,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250389,
@@ -19054,7 +19269,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 476,
+            "n": "Kobold Geomancer",
+            "st": "drop",
+            "z": 12
+          },
+          {
+            "t": 1,
+            "ti": 3115,
+            "n": "Dustwind Harpy",
+            "st": "drop",
+            "z": 14
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250977,
@@ -19069,7 +19301,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 2169,
+            "n": "Blackwood Totemic",
+            "st": "drop",
+            "z": 148
+          },
+          {
+            "t": 1,
+            "ti": 3280,
+            "n": "Witchwing Windcaller",
+            "st": "drop",
+            "z": 17
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250978,
@@ -19084,7 +19333,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250979,
@@ -19120,6 +19386,17 @@
         "skill": 235,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Spitelash Screamer",
+            "t": 1,
+            "ti": 6193,
+            "z": 16
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -19139,7 +19416,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250982,
@@ -19154,7 +19448,38 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 2015,
+            "n": "Bloodfeather Harpy",
+            "st": "drop",
+            "z": 141
+          },
+          {
+            "t": 1,
+            "ti": 2963,
+            "n": "Windfury Wind Witch",
+            "st": "drop",
+            "z": 215
+          },
+          {
+            "t": 1,
+            "ti": 272034,
+            "n": "Hatescreech",
+            "st": "drop",
+            "z": 141
+          },
+          {
+            "t": 1,
+            "ti": 272044,
+            "n": "Windmistress Gaedress",
+            "st": "drop",
+            "z": 141
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250983,
@@ -19192,7 +19517,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250985,
@@ -19228,6 +19570,17 @@
         "skill": 240,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Northspring Roguefeather",
+            "t": 1,
+            "ti": 5363,
+            "z": 357
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -19247,7 +19600,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250988,
@@ -19262,7 +19632,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 1934,
+            "n": "Tirisfal Farmer",
+            "st": "drop",
+            "z": 85
+          },
+          {
+            "t": 1,
+            "ti": 7235,
+            "n": "Gnarlpine Mystic",
+            "st": "drop",
+            "z": 141
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250989,
@@ -19277,7 +19664,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 2180,
+            "n": "Stormscale Siren",
+            "st": "drop",
+            "z": 148
+          },
+          {
+            "t": 1,
+            "ti": 3386,
+            "n": "Theramore Preserver",
+            "st": "drop",
+            "z": 17
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250990,
@@ -19312,6 +19716,17 @@
         "skill": 230,
         "level": 1,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Vilebranch Witch Doctor",
+            "t": 1,
+            "ti": 2640,
+            "z": 47
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -19400,7 +19815,8 @@
         "level": 1,
         "quality": 1,
         "source": [
-          4
+          4,
+          5
         ],
         "sourcemore": [
           {
@@ -19443,6 +19859,18 @@
         "skill": 300,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Ras Frostwhisper",
+            "t": 1,
+            "ti": 10508,
+            "z": 2057
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -19508,9 +19936,6 @@
         ],
         "sourcemore": [
           {
-            "n": "Felguard Sentinel",
-            "t": 1,
-            "ti": 249229,
             "z": 616
           }
         ],
@@ -19525,10 +19950,25 @@
         "name": "Recipe: Draught of Water Walking",
         "skill": 180,
         "level": 1,
-        "quality": 2
+        "quality": 2,
+        "source": [
+          16
+        ],
+        "sourcemore": [
+          {
+            "n": "Mount Hyjal",
+            "t": 7,
+            "ti": 616
+          }
+        ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        }
       }
     ],
-    "fetched_at": 1794550142
+    "fetched_at": 1794981738
   },
   "blacksmithing": {
     "spells": [
@@ -20850,6 +21290,7 @@
         ],
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -20865,8 +21306,8 @@
         "colors": [
           50,
           50,
-          62,
-          75
+          70,
+          90
         ],
         "creates": [
           3478,
@@ -21482,7 +21923,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -22154,7 +22596,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -24202,9 +24645,9 @@
       {
         "id": 10003,
         "name": "The Shatterer",
-        "learnedat": 235,
+        "learnedat": 210,
         "colors": [
-          235,
+          210,
           235,
           247,
           260
@@ -24214,7 +24657,7 @@
           1,
           1
         ],
-        "trainingcost": 13500,
+        "trainingcost": 15000,
         "reagents": [
           [
             3860,
@@ -24244,6 +24687,9 @@
             4304,
             4
           ]
+        ],
+        "source": [
+          6
         ],
         "envChange": {
           "status": "unchanged",
@@ -24304,9 +24750,9 @@
       {
         "id": 10007,
         "name": "Phantom Blade",
-        "learnedat": 245,
+        "learnedat": 220,
         "colors": [
-          245,
+          220,
           245,
           257,
           270
@@ -24316,7 +24762,7 @@
           1,
           1
         ],
-        "trainingcost": 13500,
+        "trainingcost": 15000,
         "reagents": [
           [
             3860,
@@ -24346,6 +24792,9 @@
             4304,
             2
           ]
+        ],
+        "source": [
+          6
         ],
         "envChange": {
           "status": "unchanged",
@@ -24386,6 +24835,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -24395,9 +24847,9 @@
       {
         "id": 10011,
         "name": "Blight",
-        "learnedat": 250,
+        "learnedat": 225,
         "colors": [
-          250,
+          225,
           250,
           262,
           275
@@ -24407,7 +24859,7 @@
           1,
           1
         ],
-        "trainingcost": 13500,
+        "trainingcost": 15000,
         "reagents": [
           [
             3860,
@@ -24429,6 +24881,9 @@
             4304,
             6
           ]
+        ],
+        "source": [
+          6
         ],
         "envChange": {
           "status": "unchanged",
@@ -24485,9 +24940,9 @@
       {
         "id": 10015,
         "name": "Truesilver Champion",
-        "learnedat": 260,
+        "learnedat": 235,
         "colors": [
-          260,
+          235,
           260,
           272,
           285
@@ -24497,7 +24952,7 @@
           1,
           1
         ],
-        "trainingcost": 13500,
+        "trainingcost": 15000,
         "reagents": [
           [
             3860,
@@ -24523,6 +24978,9 @@
             4304,
             6
           ]
+        ],
+        "source": [
+          6
         ],
         "envChange": {
           "status": "unchanged",
@@ -25222,6 +25680,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -25405,6 +25866,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -25439,6 +25903,9 @@
             11185,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -25956,6 +26423,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -26072,6 +26542,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -26176,6 +26649,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -26218,6 +26694,9 @@
             12799,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -26668,6 +27147,9 @@
             8170,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -28767,6 +29249,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -28805,6 +29290,9 @@
             12810,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -29347,8 +29835,8 @@
         "colors": [
           20,
           20,
-          22,
-          25
+          20,
+          20
         ],
         "creates": [
           279944,
@@ -34269,6 +34757,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -34481,6 +34972,9 @@
             20
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -34519,6 +35013,9 @@
             13511,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -34562,6 +35059,9 @@
             12662,
             20
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -35178,6 +35678,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -35256,6 +35759,9 @@
             2
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -35298,6 +35804,9 @@
             12361,
             4
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -35359,8 +35868,8 @@
         "colors": [
           140,
           140,
-          142,
-          145
+          140,
+          140
         ],
         "creates": [
           279988,
@@ -35419,6 +35928,9 @@
             8170,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -37636,6 +38148,7 @@
         "quality": 2,
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -37736,7 +38249,8 @@
         "level": 40,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "updated",
@@ -37936,7 +38450,8 @@
         "level": 30,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "updated",
@@ -38422,6 +38937,18 @@
         }
       },
       {
+        "id": 7994,
+        "name": "Plans: Orcish War Leggings",
+        "skill": 205,
+        "level": 46,
+        "quality": 2,
+        "envChange": {
+          "status": "unconfirmed",
+          "labels": [],
+          "lines": []
+        }
+      },
+      {
         "id": 7995,
         "name": "Plans: Mithril Plate Bracers",
         "skill": 190,
@@ -38456,13 +38983,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "n": "Solid Chest",
-            "t": 2,
-            "ti": 153451
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -38472,7 +38992,14 @@
             "Skill Blacksmithing (220) instead of Blacksmithing (245)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "n": "Solid Chest",
+            "t": 2,
+            "ti": 153451
+          }
+        ]
       },
       {
         "id": 8029,
@@ -38483,11 +39010,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "z": 33
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -38497,7 +39019,12 @@
             "Skill Blacksmithing (200) instead of Blacksmithing (225)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "z": 33
+          }
+        ]
       },
       {
         "id": 8030,
@@ -38847,12 +39374,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "dd": -1,
-            "z": 796
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -38862,7 +39383,13 @@
             "Skill Blacksmithing (165) instead of Blacksmithing (190)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "dd": -1,
+            "z": 796
+          }
+        ]
       },
       {
         "id": 12682,
@@ -38930,6 +39457,9 @@
         "skill": 235,
         "level": 52,
         "quality": 2,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -39054,6 +39584,9 @@
         "skill": 250,
         "level": 55,
         "quality": 2,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -39074,15 +39607,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Nightmare Scalebane",
-            "t": 1,
-            "ti": 5277,
-            "z": 1477
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -39092,7 +39616,16 @@
             "Skill Blacksmithing (255) instead of Blacksmithing (280)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Nightmare Scalebane",
+            "t": 1,
+            "ti": 5277,
+            "z": 1477
+          }
+        ]
       },
       {
         "id": 12694,
@@ -39417,14 +39950,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "n": "Vilebranch Aman'zasi Guard",
-            "t": 1,
-            "ti": 2648,
-            "z": 47
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -39434,7 +39959,15 @@
             "Skill Blacksmithing (290) instead of Blacksmithing (300)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "n": "Vilebranch Aman'zasi Guard",
+            "t": 1,
+            "ti": 2648,
+            "z": 47
+          }
+        ]
       },
       {
         "id": 12713,
@@ -39516,6 +40049,9 @@
         "skill": 300,
         "level": 61,
         "quality": 4,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -39550,6 +40086,17 @@
         "skill": 285,
         "level": 62,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Scarlet Smith",
+            "t": 1,
+            "ti": 1885,
+            "z": 28
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -39559,15 +40106,7 @@
             "Skill Blacksmithing (285) instead of Blacksmithing (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Scarlet Smith",
-            "t": 1,
-            "ti": 1885,
-            "z": 28
-          }
-        ]
+        }
       },
       {
         "id": 12720,
@@ -39575,6 +40114,9 @@
         "skill": 300,
         "level": 62,
         "quality": 4,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -40847,6 +41389,11 @@
         "source": [
           2
         ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "n": "Winterfall Shaman",
@@ -40854,12 +41401,7 @@
             "ti": 7439,
             "z": 618
           }
-        ],
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        }
+        ]
       },
       {
         "id": 22390,
@@ -40867,6 +41409,9 @@
         "skill": 300,
         "level": 63,
         "quality": 4,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -41944,9 +42489,6 @@
         ],
         "sourcemore": [
           {
-            "n": "Syndicate Highwayman",
-            "t": 1,
-            "ti": 2586,
             "z": 45
           }
         ],
@@ -42942,7 +43484,8 @@
           {
             "n": "Plaguebat",
             "t": 1,
-            "ti": 8600
+            "ti": 8600,
+            "z": 139
           }
         ],
         "envChange": {
@@ -42974,9 +43517,6 @@
         ],
         "sourcemore": [
           {
-            "n": "Wormwing Windwitch",
-            "t": 1,
-            "ti": 249221,
             "z": 616
           }
         ],
@@ -43049,6 +43589,18 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Bloodaxe Veteran",
+            "t": 1,
+            "ti": 9583,
+            "z": 1583
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43061,6 +43613,18 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Gordok Brute",
+            "t": 1,
+            "ti": 11441,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43073,6 +43637,18 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Legashi Summoner",
+            "t": 1,
+            "ti": 247248,
+            "z": 16554
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43431,6 +44007,17 @@
         "skill": 300,
         "level": 60,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Meilosh",
+            "t": 1,
+            "ti": 11557,
+            "z": 361
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43443,6 +44030,17 @@
         "skill": 300,
         "level": 60,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Meilosh",
+            "t": 1,
+            "ti": 11557,
+            "z": 361
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -43566,6 +44164,19 @@
         "skill": 300,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "bd": 1,
+            "dd": -1,
+            "n": "Golem Lord Argelmach",
+            "t": 1,
+            "ti": 8983,
+            "z": 1584
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -44683,7 +45294,7 @@
         }
       }
     ],
-    "fetched_at": 1794550144
+    "fetched_at": 1794981740
   },
   "enchanting": {
     "spells": [
@@ -45295,10 +45906,10 @@
         "envChange": {
           "status": "updated",
           "labels": [
-            "values_changed"
+            "reworded"
           ],
           "lines": [
-            "Numbers and wording changed"
+            "Wording changed"
           ],
           "before": {
             "name": "Enchant Cloak - Minor Protection",
@@ -45316,7 +45927,7 @@
             "range": "",
             "cast": "5 sec cast",
             "cooldown": "",
-            "text": "Permanently enchant a cloak to increase armor by 0.",
+            "text": "Permanently enchant a cloak to increase armor by 10.",
             "notShown": []
           }
         }
@@ -45338,8 +45949,7 @@
           ]
         ],
         "source": [
-          2,
-          5
+          2
         ],
         "envChange": {
           "status": "updated",
@@ -45445,6 +46055,7 @@
         ],
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -46084,32 +46695,9 @@
           6
         ],
         "envChange": {
-          "status": "updated",
-          "labels": [
-            "values_changed"
-          ],
-          "lines": [
-            "Value decreased by 100%"
-          ],
-          "before": {
-            "name": "Enchant Cloak - Lesser Protection",
-            "rank": "",
-            "cost": "",
-            "range": "",
-            "cast": "5 sec cast",
-            "cooldown": "",
-            "text": "Permanently enchant a cloak to increase armor by 20."
-          },
-          "after": {
-            "name": "Enchant Cloak - Lesser Protection",
-            "rank": "",
-            "cost": "",
-            "range": "",
-            "cast": "5 sec cast",
-            "cooldown": "",
-            "text": "Permanently enchant a cloak to increase armor by 0.",
-            "notShown": []
-          }
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
         }
       },
       {
@@ -46754,32 +47342,9 @@
           6
         ],
         "envChange": {
-          "status": "updated",
-          "labels": [
-            "values_changed"
-          ],
-          "lines": [
-            "Value decreased by 100%"
-          ],
-          "before": {
-            "name": "Enchant Cloak - Defense",
-            "rank": "",
-            "cost": "",
-            "range": "",
-            "cast": "5 sec cast",
-            "cooldown": "",
-            "text": "Permanently enchant a cloak to give 30 additional armor."
-          },
-          "after": {
-            "name": "Enchant Cloak - Defense",
-            "rank": "",
-            "cost": "",
-            "range": "",
-            "cast": "5 sec cast",
-            "cooldown": "",
-            "text": "Permanently enchant a cloak to give 0 additional armor.",
-            "notShown": []
-          }
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
         }
       },
       {
@@ -47618,7 +48183,7 @@
             "values_changed"
           ],
           "lines": [
-            "Value decreased by 100%"
+            "Value increased by 20%"
           ],
           "before": {
             "name": "Enchant Cloak - Greater Defense",
@@ -47636,7 +48201,7 @@
             "range": "",
             "cast": "5 sec cast",
             "cooldown": "",
-            "text": "Permanently enchant a cloak to give 0 additional armor.",
+            "text": "Permanently enchant a cloak to give 60 additional armor.",
             "notShown": []
           }
         }
@@ -48615,6 +49180,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -48942,6 +49510,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -49043,6 +49614,9 @@
             6
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -49140,6 +49714,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -49188,6 +49765,9 @@
             16204,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "updated",
@@ -49283,32 +49863,9 @@
           5
         ],
         "envChange": {
-          "status": "updated",
-          "labels": [
-            "values_changed"
-          ],
-          "lines": [
-            "Value decreased by 100%"
-          ],
-          "before": {
-            "name": "Enchant Cloak - Superior Defense",
-            "rank": "",
-            "cost": "",
-            "range": "",
-            "cast": "5 sec cast",
-            "cooldown": "",
-            "text": "Permanently enchant a cloak to give 70 additional armor."
-          },
-          "after": {
-            "name": "Enchant Cloak - Superior Defense",
-            "rank": "",
-            "cost": "",
-            "range": "",
-            "cast": "5 sec cast",
-            "cooldown": "",
-            "text": "Permanently enchant a cloak to give 0 additional armor.",
-            "notShown": []
-          }
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
         }
       },
       {
@@ -49426,6 +49983,9 @@
             8
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -49485,6 +50045,9 @@
             10
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -49512,6 +50075,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -49624,6 +50188,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -49649,6 +50216,9 @@
             16204,
             10
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -49738,6 +50308,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -49763,6 +50336,9 @@
             12811,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -51463,8 +52039,8 @@
         "colors": [
           20,
           20,
-          22,
-          25
+          20,
+          20
         ],
         "creates": [
           279976,
@@ -51912,6 +52488,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -52039,6 +52618,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -52068,6 +52650,9 @@
             14344,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -52350,6 +52935,9 @@
             12363,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -53442,6 +54030,9 @@
             3
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -53476,6 +54067,9 @@
             14343,
             3
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -53653,8 +54247,8 @@
         "colors": [
           140,
           140,
-          142,
-          145
+          140,
+          140
         ],
         "creates": [
           279985,
@@ -53709,6 +54303,9 @@
             16203,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -54099,8 +54696,7 @@
         "level": 19,
         "quality": 2,
         "source": [
-          2,
-          5
+          2
         ],
         "sourcemore": [
           {
@@ -54133,6 +54729,7 @@
         "quality": 2,
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -54800,13 +55397,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "n": "Solid Chest",
-            "t": 2,
-            "ti": 153451
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -54816,7 +55406,14 @@
             "Frost Resistance 8 added"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "n": "Solid Chest",
+            "t": 2,
+            "ti": 153451
+          }
+        ]
       },
       {
         "id": 11225,
@@ -54847,17 +55444,17 @@
         "source": [
           2
         ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "dd": -1,
             "z": 1176
           }
-        ],
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        }
+        ]
       },
       {
         "id": 11813,
@@ -55014,6 +55611,14 @@
         "skill": 270,
         "level": 54,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "z": 16
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -55025,15 +55630,7 @@
             "Effects: 10 instead of 7"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Legashi Rogue",
-            "t": 1,
-            "ti": 6201,
-            "z": 16
-          }
-        ]
+        }
       },
       {
         "id": 16220,
@@ -55062,9 +55659,16 @@
         "level": 55,
         "quality": 1,
         "source": [
+          2,
           5
         ],
         "sourcemore": [
+          {
+            "n": "Blackrock Sorcerer",
+            "t": 1,
+            "ti": 7026,
+            "z": 46
+          },
           {
             "n": "Qia",
             "t": 1,
@@ -55118,11 +55722,9 @@
         "skill": 285,
         "level": 57,
         "quality": 2,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "n": "Anguished Highborne",
@@ -55130,7 +55732,12 @@
             "ti": 7524,
             "z": 618
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 16224,
@@ -55223,6 +55830,18 @@
         "skill": 295,
         "level": 59,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Spirestone Mystic",
+            "t": 1,
+            "ti": 9198,
+            "z": 1583
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -55234,16 +55853,7 @@
             "Effects: 10 instead of 7"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Spirestone Mystic",
-            "t": 1,
-            "ti": 9198,
-            "z": 1583
-          }
-        ]
+        }
       },
       {
         "id": 16245,
@@ -55271,6 +55881,17 @@
         "skill": 295,
         "level": 59,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Deadwind Warlock",
+            "t": 1,
+            "ti": 7372,
+            "z": 41
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -55280,15 +55901,7 @@
             "Strength 9 added"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Deadwind Warlock",
-            "t": 1,
-            "ti": 7372,
-            "z": 41
-          }
-        ]
+        }
       },
       {
         "id": 16247,
@@ -55296,11 +55909,9 @@
         "skill": 295,
         "level": 59,
         "quality": 2,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "dd": -1,
@@ -55309,7 +55920,12 @@
             "ti": 10317,
             "z": 1583
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 16248,
@@ -55317,6 +55933,18 @@
         "skill": 295,
         "level": 59,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Thuzadin Shadowcaster",
+            "t": 1,
+            "ti": 10398,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -55328,16 +55956,7 @@
             "Effects reworded"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Thuzadin Shadowcaster",
-            "t": 1,
-            "ti": 10398,
-            "z": 2017
-          }
-        ]
+        }
       },
       {
         "id": 16249,
@@ -55418,6 +56037,17 @@
         "skill": 300,
         "level": 61,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Scarlet Spellbinder",
+            "t": 1,
+            "ti": 4494,
+            "z": 28
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -55430,15 +56060,7 @@
             "Effects changed"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Scarlet Spellbinder",
-            "t": 1,
-            "ti": 4494,
-            "z": 28
-          }
-        ]
+        }
       },
       {
         "id": 16253,
@@ -55446,6 +56068,9 @@
         "skill": 300,
         "level": 62,
         "quality": 2,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -55581,8 +56206,8 @@
             "effects_changed"
           ],
           "lines": [
-            "Spell Power 19 added",
-            "Healing 36 added",
+            "Healing 55 added",
+            "Spell Damage 19 added",
             "Effects changed"
           ],
           "notShown": []
@@ -55682,8 +56307,8 @@
             "effects_changed"
           ],
           "lines": [
-            "Spell Power 8 added",
-            "Healing 16 added",
+            "Healing 24 added",
+            "Spell Damage 8 added",
             "Effects changed"
           ],
           "notShown": []
@@ -55865,8 +56490,8 @@
             "effects_changed"
           ],
           "lines": [
-            "Spell Power 12 added",
-            "Healing 23 added",
+            "Healing 35 added",
+            "Spell Damage 12 added",
             "Effects changed"
           ],
           "notShown": []
@@ -56237,6 +56862,56 @@
             "Nature Resistance 15 added"
           ],
           "notShown": []
+        }
+      },
+      {
+        "id": 234271,
+        "name": "Formula: Scroll: Wrath of the Swarm",
+        "skill": 300,
+        "level": 60,
+        "quality": 2,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Kania",
+            "t": 1,
+            "ti": 15419,
+            "z": 1377
+          }
+        ],
+        "envChange": {
+          "status": "unconfirmed",
+          "labels": [
+            "seasonal"
+          ],
+          "lines": []
+        }
+      },
+      {
+        "id": 234272,
+        "name": "Formula: Enchanted Repellent",
+        "skill": 300,
+        "level": 60,
+        "quality": 2,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Kania",
+            "t": 1,
+            "ti": 15419,
+            "z": 1377
+          }
+        ],
+        "envChange": {
+          "status": "unconfirmed",
+          "labels": [
+            "seasonal"
+          ],
+          "lines": []
         }
       },
       {
@@ -56774,6 +57449,16 @@
         "skill": 215,
         "level": 43,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Dustbelcher Ogre Mage",
+            "t": 1,
+            "ti": 2720
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -56890,6 +57575,18 @@
         "skill": 265,
         "level": 53,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Pyroguard Emberseer",
+            "t": 1,
+            "ti": 9816,
+            "z": 1583
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -56939,6 +57636,18 @@
         "skill": 290,
         "level": 58,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Spectral Tutor",
+            "t": 1,
+            "ti": 10498,
+            "z": 2057
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -56951,6 +57660,18 @@
         "skill": 295,
         "level": 59,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Thuzadin Acolyte",
+            "t": 1,
+            "ti": 10399,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -57143,6 +57864,16 @@
         "skill": 300,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Nanaya",
+            "t": 1,
+            "ti": 261809
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -57383,7 +58114,7 @@
         }
       }
     ],
-    "fetched_at": 1794550146
+    "fetched_at": 1794981742
   },
   "engineering": {
     "spells": [
@@ -58113,7 +58844,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -58532,7 +59264,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -59637,6 +60370,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -60352,7 +61086,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -60642,6 +61377,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -61840,6 +62576,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -61959,6 +62698,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -61997,6 +62739,9 @@
             14047,
             3
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -62193,6 +62938,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -62275,6 +63023,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -62321,6 +63072,9 @@
             12810,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -63103,6 +63857,9 @@
             7191,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -64664,8 +65421,8 @@
         "colors": [
           20,
           20,
-          22,
-          25
+          20,
+          20
         ],
         "creates": [
           279950,
@@ -64768,7 +65525,7 @@
           1,
           1
         ],
-        "trainingcost": 526,
+        "trainingcost": 500,
         "reagents": [
           [
             249425,
@@ -64796,8 +65553,8 @@
         "colors": [
           140,
           140,
-          142,
-          145
+          140,
+          140
         ],
         "creates": [
           279949,
@@ -64852,6 +65609,9 @@
             15994,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -65120,6 +65880,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -65315,6 +66078,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -65387,6 +66153,9 @@
             4234,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -65719,6 +66488,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -65754,6 +66526,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -65784,6 +66559,9 @@
             249429,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -65827,6 +66605,9 @@
             260815,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -65910,6 +66691,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -65941,6 +66725,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -65971,6 +66758,9 @@
             260813,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -66006,6 +66796,9 @@
             260813,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -67625,7 +68418,8 @@
         "level": 24,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -67726,16 +68520,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "bd": 1,
-            "dd": -1,
-            "n": "Mekgineer Thermaplugg",
-            "t": 1,
-            "ti": 7800,
-            "z": 721
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -67745,7 +68529,17 @@
             "Effects reworded"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "bd": 1,
+            "dd": -1,
+            "n": "Mekgineer Thermaplugg",
+            "t": 1,
+            "ti": 7800,
+            "z": 721
+          }
+        ]
       },
       {
         "id": 4416,
@@ -67860,7 +68654,18 @@
         "level": 25,
         "quality": 1,
         "source": [
+          2,
           5
+        ],
+        "sourcemore": [
+          {
+            "bd": 1,
+            "dd": -1,
+            "n": "Mekgineer Thermaplugg",
+            "t": 1,
+            "ti": 7800,
+            "z": 721
+          }
         ],
         "envChange": {
           "status": "updated",
@@ -67871,17 +68676,7 @@
             "Binds when picked up instead of none"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "bd": 1,
-            "dd": -1,
-            "n": "Mekgineer Thermaplugg",
-            "t": 1,
-            "ti": 7800,
-            "z": 721
-          }
-        ]
+        }
       },
       {
         "id": 7561,
@@ -68035,7 +68830,8 @@
         "reqlevel": 5,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -68096,9 +68892,16 @@
         "reqlevel": 10,
         "quality": 1,
         "source": [
+          2,
           5
         ],
         "sourcemore": [
+          {
+            "n": "Dark Iron Sentry",
+            "t": 1,
+            "ti": 8504,
+            "z": 51
+          },
           {
             "n": "Ruppo Zipcoil",
             "t": 1,
@@ -68307,6 +69110,15 @@
         "level": 53,
         "reqlevel": 10,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "z": 2100
+          }
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -68468,17 +69280,17 @@
         "source": [
           2
         ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "dd": -1,
             "z": 2100
           }
-        ],
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        }
+        ]
       },
       {
         "id": 16052,
@@ -68512,11 +69324,9 @@
         "level": 58,
         "reqlevel": 10,
         "quality": 2,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "dd": -1,
@@ -68525,7 +69335,12 @@
             "ti": 8900,
             "z": 1584
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 16054,
@@ -68555,6 +69370,9 @@
         "level": 60,
         "reqlevel": 10,
         "quality": 2,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -68568,11 +69386,9 @@
         "level": 61,
         "reqlevel": 10,
         "quality": 2,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "n": "Mossflayer Shadowhunter",
@@ -68580,7 +69396,12 @@
             "ti": 8561,
             "z": 139
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 17720,
@@ -68866,6 +69687,7 @@
         "sourcemore": [
           {
             "bd": 1,
+            "dd": -1,
             "n": "Gordok Tribute",
             "t": 2,
             "ti": 179564,
@@ -69804,6 +70626,17 @@
         "level": 43,
         "reqlevel": 5,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Dark Iron Geologist",
+            "t": 1,
+            "ti": 5839,
+            "z": 51
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -69969,6 +70802,17 @@
         "level": 55,
         "reqlevel": 10,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Thaurissan Firewalker",
+            "t": 1,
+            "ti": 7037,
+            "z": 46
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -69982,6 +70826,17 @@
         "level": 50,
         "reqlevel": 10,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Firegut Ogre",
+            "t": 1,
+            "ti": 7033,
+            "z": 46
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -69995,6 +70850,17 @@
         "level": 57,
         "reqlevel": 10,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Deadwind Warlock",
+            "t": 1,
+            "ti": 7372,
+            "z": 41
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -70008,6 +70874,17 @@
         "level": 57,
         "reqlevel": 10,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Scourge Guard",
+            "t": 1,
+            "ti": 8527,
+            "z": 139
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -70034,6 +70911,17 @@
         "level": 60,
         "reqlevel": 10,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Jaedenar Legionnaire",
+            "t": 1,
+            "ti": 9862,
+            "z": 361
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -70047,6 +70935,18 @@
         "level": 60,
         "reqlevel": 10,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Spectral Tutor",
+            "t": 1,
+            "ti": 10498,
+            "z": 2057
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -70060,6 +70960,18 @@
         "level": 60,
         "reqlevel": 10,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Crimson Inquisitor",
+            "t": 1,
+            "ti": 10426,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -70073,6 +70985,16 @@
         "level": 60,
         "reqlevel": 10,
         "quality": 1,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Blackmaw Headhunter",
+            "t": 1,
+            "ti": 250027
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -70315,6 +71237,19 @@
         "level": 60,
         "reqlevel": 10,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "bd": 1,
+            "dd": -1,
+            "n": "Ezra Grimm",
+            "t": 1,
+            "ti": 11058,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -70795,7 +71730,7 @@
         }
       }
     ],
-    "fetched_at": 1794550148
+    "fetched_at": 1794981744
   },
   "leatherworking": {
     "spells": [
@@ -71135,6 +72070,7 @@
         ],
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -71453,7 +72389,7 @@
           1,
           1
         ],
-        "trainingcost": 75,
+        "trainingcost": 78,
         "reagents": [
           [
             2318,
@@ -71845,7 +72781,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -72091,7 +73028,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -73459,7 +74397,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          21
         ],
         "envChange": {
           "status": "unchanged",
@@ -74234,6 +75173,9 @@
             4291,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -75456,10 +76398,10 @@
       {
         "id": 10621,
         "name": "Wolfshead Helm",
-        "learnedat": 225,
+        "learnedat": 200,
         "colors": [
-          0,
-          225,
+          200,
+          220,
           230,
           240
         ],
@@ -75503,10 +76445,10 @@
       {
         "id": 10630,
         "name": "Gauntlets of the Sea",
-        "learnedat": 230,
+        "learnedat": 205,
         "colors": [
-          0,
-          230,
+          205,
+          225,
           235,
           245
         ],
@@ -75515,7 +76457,7 @@
           1,
           1
         ],
-        "trainingcost": 9000,
+        "trainingcost": 10000,
         "reagents": [
           [
             4304,
@@ -75538,6 +76480,9 @@
             4
           ]
         ],
+        "source": [
+          6
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -75547,10 +76492,10 @@
       {
         "id": 10632,
         "name": "Helm of Fire",
-        "learnedat": 250,
+        "learnedat": 225,
         "colors": [
-          0,
-          250,
+          225,
+          245,
           255,
           265
         ],
@@ -75559,7 +76504,7 @@
           1,
           1
         ],
-        "trainingcost": 9000,
+        "trainingcost": 10000,
         "reagents": [
           [
             4304,
@@ -75582,6 +76527,9 @@
             4
           ]
         ],
+        "source": [
+          6
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -75591,10 +76539,10 @@
       {
         "id": 10647,
         "name": "Feathered Breastplate",
-        "learnedat": 250,
+        "learnedat": 225,
         "colors": [
-          0,
-          250,
+          225,
+          245,
           255,
           265
         ],
@@ -75906,6 +76854,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -75954,6 +76903,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -76152,6 +77104,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -76609,6 +77562,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -76842,6 +77798,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -76953,6 +77912,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -76987,6 +77949,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -77070,6 +78035,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -77311,7 +78277,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -77563,6 +78530,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -77682,6 +78652,9 @@
             14341,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -77960,6 +78933,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -78091,6 +79067,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -78129,6 +79108,9 @@
             14341,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -78714,6 +79696,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -78760,6 +79745,9 @@
             14341,
             8
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -78808,6 +79796,9 @@
             8
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -78854,6 +79845,9 @@
             14341,
             8
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -78933,6 +79927,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -80452,8 +81447,8 @@
         "colors": [
           20,
           20,
-          22,
-          25
+          20,
+          20
         ],
         "creates": [
           279978,
@@ -80658,6 +81653,9 @@
             20
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -80708,6 +81706,9 @@
             248825,
             20
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -80760,6 +81761,9 @@
             20
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -80811,6 +81815,9 @@
             20
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -80850,6 +81857,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -80884,6 +81894,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -81004,6 +82017,9 @@
             7069,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -81237,6 +82253,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -81664,6 +82683,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -81740,6 +82762,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -82013,6 +83038,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -82617,6 +83645,9 @@
             20
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -82663,6 +83694,9 @@
             248825,
             20
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -82820,6 +83854,9 @@
             20
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -82854,6 +83891,9 @@
             6260,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -82932,6 +83972,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -83006,6 +84049,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -83040,6 +84086,9 @@
             6261,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -83200,6 +84249,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -83234,6 +84286,9 @@
             6261,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -83311,6 +84366,9 @@
             15407,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -88301,9 +89359,9 @@
         "learnedat": 125,
         "colors": [
           125,
-          140,
-          142,
-          145
+          125,
+          125,
+          125
         ],
         "creates": [
           279941,
@@ -88362,6 +89420,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -89746,6 +90807,9 @@
             6
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -89784,6 +90848,9 @@
             14341,
             6
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -89824,6 +90891,9 @@
             6
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -89862,6 +90932,9 @@
             14341,
             6
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -89902,6 +90975,9 @@
             6
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -89940,6 +91016,9 @@
             14341,
             6
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -89980,6 +91059,9 @@
             6
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -90018,6 +91100,9 @@
             14341,
             6
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -90058,6 +91143,9 @@
             6
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -90096,6 +91184,9 @@
             14341,
             6
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -90136,6 +91227,9 @@
             6
           ]
         ],
+        "source": [
+          5
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -90174,6 +91268,9 @@
             14341,
             6
           ]
+        ],
+        "source": [
+          5
         ],
         "envChange": {
           "status": "new",
@@ -92044,6 +93141,7 @@
         "quality": 2,
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -92127,7 +93225,8 @@
         "level": 24,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "updated",
@@ -92219,7 +93318,8 @@
         "level": 35,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "updated",
@@ -92582,7 +93682,8 @@
         "level": 11,
         "quality": 2,
         "source": [
-          2
+          2,
+          21
         ],
         "envChange": {
           "status": "updated",
@@ -92861,15 +93962,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Ancient Treasure",
-            "t": 2,
-            "ti": 141979,
-            "z": 1337
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -92879,7 +93971,16 @@
             "Skill Leatherworking (175) instead of Leatherworking (200)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Ancient Treasure",
+            "t": 2,
+            "ti": 141979,
+            "z": 1337
+          }
+        ]
       },
       {
         "id": 7453,
@@ -93438,6 +94539,7 @@
         "level": 59,
         "quality": 3,
         "source": [
+          2,
           5
         ],
         "sourcemore": [
@@ -93468,6 +94570,18 @@
         "skill": 290,
         "level": 61,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Skeletal Berserker",
+            "t": 1,
+            "ti": 10391,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -93491,15 +94605,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Goraluk Anvilcrack",
-            "t": 1,
-            "ti": 10899,
-            "z": 1583
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -93512,7 +94617,16 @@
             "Spell Elemental Leatherworking instead of Armorsmith"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Goraluk Anvilcrack",
+            "t": 1,
+            "ti": 10899,
+            "z": 1583
+          }
+        ]
       },
       {
         "id": 13287,
@@ -93975,6 +95089,17 @@
         "skill": 250,
         "level": 55,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Blackrock Soldier",
+            "t": 1,
+            "ti": 7025,
+            "z": 46
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -93984,15 +95109,7 @@
             "Skill Leatherworking (250) instead of Leatherworking (275)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Blackrock Soldier",
-            "t": 1,
-            "ti": 7025,
-            "z": 46
-          }
-        ]
+        }
       },
       {
         "id": 15739,
@@ -94115,6 +95232,17 @@
         "skill": 255,
         "level": 56,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Jadefire Trickster",
+            "t": 1,
+            "ti": 7107,
+            "z": 361
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -94124,15 +95252,7 @@
             "Skill Leatherworking (255) instead of Leatherworking (280)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Jadefire Trickster",
-            "t": 1,
-            "ti": 7107,
-            "z": 361
-          }
-        ]
+        }
       },
       {
         "id": 15745,
@@ -94208,6 +95328,17 @@
         "skill": 260,
         "level": 57,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Blackrock Slayer",
+            "t": 1,
+            "ti": 7027,
+            "z": 46
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -94217,15 +95348,7 @@
             "Skill Leatherworking (260) instead of Leatherworking (285)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Blackrock Slayer",
-            "t": 1,
-            "ti": 7027,
-            "z": 46
-          }
-        ]
+        }
       },
       {
         "id": 15749,
@@ -94263,9 +95386,16 @@
         "level": 57,
         "quality": 1,
         "source": [
+          2,
           5
         ],
         "sourcemore": [
+          {
+            "n": "Cliff Walker",
+            "t": 1,
+            "ti": 6148,
+            "z": 16
+          },
           {
             "n": "Blimo Gadgetspring",
             "t": 1,
@@ -94394,7 +95524,8 @@
         "level": 58,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "updated",
@@ -94562,6 +95693,16 @@
         "skill": 270,
         "level": 59,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Cliff Breaker",
+            "t": 1,
+            "ti": 6146
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -94571,14 +95712,7 @@
             "Skill Leatherworking (270) instead of Leatherworking (295)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Cliff Breaker",
-            "t": 1,
-            "ti": 6146
-          }
-        ]
+        }
       },
       {
         "id": 15764,
@@ -94631,6 +95765,18 @@
         "skill": 275,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Ghoul Ravener",
+            "t": 1,
+            "ti": 10406,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -94640,16 +95786,7 @@
             "Skill Leatherworking (275) instead of Leatherworking (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Ghoul Ravener",
-            "t": 1,
-            "ti": 10406,
-            "z": 2017
-          }
-        ]
+        }
       },
       {
         "id": 15770,
@@ -94716,9 +95853,6 @@
         ],
         "sourcemore": [
           {
-            "n": "Primal Ooze",
-            "t": 1,
-            "ti": 6557,
             "z": 490
           }
         ],
@@ -94768,6 +95902,17 @@
         "skill": 280,
         "level": 61,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Blackrock Battlemaster",
+            "t": 1,
+            "ti": 7029,
+            "z": 46
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -94777,15 +95922,7 @@
             "Skill Leatherworking (280) instead of Leatherworking (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Blackrock Battlemaster",
-            "t": 1,
-            "ti": 7029,
-            "z": 46
-          }
-        ]
+        }
       },
       {
         "id": 15775,
@@ -94851,6 +95988,18 @@
         "skill": 285,
         "level": 62,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Crimson Battle Mage",
+            "t": 1,
+            "ti": 10425,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -94860,16 +96009,7 @@
             "Skill Leatherworking (285) instead of Leatherworking (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Crimson Battle Mage",
-            "t": 1,
-            "ti": 10425,
-            "z": 2017
-          }
-        ]
+        }
       },
       {
         "id": 15779,
@@ -95146,6 +96286,18 @@
         "skill": 290,
         "level": 62,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Knot Thimblejack's Cache",
+            "t": 2,
+            "ti": 179501,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -95155,16 +96307,7 @@
             "Skill Leatherworking (290) instead of Leatherworking (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Knot Thimblejack's Cache",
-            "t": 2,
-            "ti": 179501,
-            "z": 2557
-          }
-        ]
+        }
       },
       {
         "id": 18517,
@@ -95172,11 +96315,9 @@
         "skill": 300,
         "level": 62,
         "quality": 4,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "dd": -1,
@@ -95185,7 +96326,12 @@
             "ti": 179501,
             "z": 2557
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 18518,
@@ -95193,11 +96339,9 @@
         "skill": 300,
         "level": 62,
         "quality": 4,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "dd": -1,
@@ -95206,7 +96350,12 @@
             "ti": 179501,
             "z": 2557
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 18519,
@@ -95214,11 +96363,9 @@
         "skill": 300,
         "level": 62,
         "quality": 4,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "dd": -1,
@@ -95227,7 +96374,12 @@
             "ti": 179501,
             "z": 2557
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 18731,
@@ -97930,6 +99082,16 @@
         "skill": 260,
         "level": 57,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Carrion Vulture",
+            "t": 1,
+            "ti": 1809
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -97942,6 +99104,17 @@
         "skill": 260,
         "level": 57,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Scarlet Hunter",
+            "t": 1,
+            "ti": 1831,
+            "z": 28
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98018,6 +99191,17 @@
         "skill": 270,
         "level": 59,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Putrid Gargoyle",
+            "t": 1,
+            "ti": 8534,
+            "z": 139
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98030,6 +99214,17 @@
         "skill": 270,
         "level": 59,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Spitelash Battlemaster",
+            "t": 1,
+            "ti": 7885,
+            "z": 16
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98122,6 +99317,18 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Warpwood Treant",
+            "t": 1,
+            "ti": 11462,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98151,9 +99358,11 @@
         ],
         "sourcemore": [
           {
+            "dd": -1,
             "n": "Blackmaw Druid",
             "t": 1,
-            "ti": 258516
+            "ti": 258516,
+            "z": 16554
           }
         ],
         "envChange": {
@@ -98168,6 +99377,18 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Eldreth Seether",
+            "t": 1,
+            "ti": 11469,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98180,6 +99401,18 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Firebrand Invoker",
+            "t": 1,
+            "ti": 9262,
+            "z": 1583
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98571,18 +99804,18 @@
         "source": [
           2
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "bd": 1,
             "dd": -1,
             "z": 1176
           }
-        ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        ]
       },
       {
         "id": 252919,
@@ -98695,6 +99928,17 @@
         "skill": 255,
         "level": 56,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Jaedenar Adept",
+            "t": 1,
+            "ti": 7115,
+            "z": 361
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98896,6 +100140,17 @@
         "skill": 280,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Plaguehound",
+            "t": 1,
+            "ti": 8597,
+            "z": 139
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98931,6 +100186,18 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Crimson Battle Mage",
+            "t": 1,
+            "ti": 10425,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98943,6 +100210,9 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -98955,6 +100225,18 @@
         "skill": 300,
         "level": 60,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Blackhand Assassin",
+            "t": 1,
+            "ti": 10318,
+            "z": 1583
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99027,7 +100309,6 @@
         "sourcemore": [
           {
             "bd": 1,
-            "dd": -1,
             "n": "Razorclaw the Butcher",
             "t": 1,
             "ti": 3886,
@@ -99046,6 +100327,18 @@
         "skill": 300,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Vectus",
+            "t": 1,
+            "ti": 10432,
+            "z": 2057
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99814,6 +101107,17 @@
         "skill": 285,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99826,6 +101130,17 @@
         "skill": 290,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99838,6 +101153,17 @@
         "skill": 295,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99850,6 +101176,17 @@
         "skill": 285,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99862,6 +101199,17 @@
         "skill": 290,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99874,6 +101222,17 @@
         "skill": 295,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99886,6 +101245,17 @@
         "skill": 285,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99898,6 +101268,17 @@
         "skill": 290,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99910,6 +101291,17 @@
         "skill": 295,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99922,6 +101314,17 @@
         "skill": 285,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99934,6 +101337,17 @@
         "skill": 290,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -99946,6 +101360,17 @@
         "skill": 295,
         "level": 1,
         "quality": 3,
+        "source": [
+          5
+        ],
+        "sourcemore": [
+          {
+            "n": "Aendel Windspear",
+            "t": 1,
+            "ti": 15293,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -100890,7 +102315,7 @@
         }
       }
     ],
-    "fetched_at": 1794550150
+    "fetched_at": 1794981746
   },
   "tailoring": {
     "spells": [
@@ -101093,7 +102518,7 @@
           1,
           1
         ],
-        "trainingcost": 25,
+        "trainingcost": 26,
         "reagents": [
           [
             2996,
@@ -101872,6 +103297,7 @@
         ],
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -103378,6 +104804,7 @@
         ],
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -104462,7 +105889,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -104903,9 +106331,9 @@
       {
         "id": 12052,
         "name": "Shadoweave Pants",
-        "learnedat": 190,
+        "learnedat": 175,
         "colors": [
-          0,
+          175,
           190,
           205,
           220
@@ -104977,9 +106405,9 @@
       {
         "id": 12055,
         "name": "Shadoweave Robe",
-        "learnedat": 195,
+        "learnedat": 180,
         "colors": [
-          0,
+          180,
           195,
           210,
           225
@@ -105405,9 +106833,9 @@
       {
         "id": 12071,
         "name": "Shadoweave Gloves",
-        "learnedat": 205,
+        "learnedat": 190,
         "colors": [
-          0,
+          190,
           205,
           220,
           235
@@ -105591,9 +107019,9 @@
       {
         "id": 12076,
         "name": "Shadoweave Shoulders",
-        "learnedat": 210,
+        "learnedat": 195,
         "colors": [
-          0,
+          195,
           210,
           225,
           240
@@ -105827,9 +107255,9 @@
       {
         "id": 12082,
         "name": "Shadoweave Boots",
-        "learnedat": 215,
+        "learnedat": 200,
         "colors": [
-          0,
+          200,
           215,
           230,
           245
@@ -106372,6 +107800,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -106565,6 +107994,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -106638,6 +108070,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -106676,6 +108111,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -106791,6 +108229,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -107137,6 +108578,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -107222,6 +108666,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -107256,6 +108703,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -107295,6 +108745,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -107568,6 +109021,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -107602,6 +109058,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -107683,6 +109142,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -107768,6 +109230,9 @@
             14341,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -107870,6 +109335,9 @@
             10
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -107920,6 +109388,9 @@
             14341,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -108513,6 +109984,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -108551,6 +110025,9 @@
             14341,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -108591,6 +110068,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -108629,6 +110109,9 @@
             14341,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -110383,8 +111866,8 @@
         "colors": [
           20,
           20,
-          22,
-          25
+          20,
+          20
         ],
         "creates": [
           279972,
@@ -113414,6 +114897,9 @@
             2
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -114837,6 +116323,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -115231,6 +116720,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -115958,6 +117450,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -116074,6 +117569,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -116253,6 +117751,9 @@
             5
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -116267,8 +117768,8 @@
         "colors": [
           140,
           140,
-          142,
-          145
+          140,
+          140
         ],
         "creates": [
           279943,
@@ -116328,6 +117829,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -116342,8 +117846,8 @@
         "colors": [
           20,
           20,
-          22,
-          25
+          20,
+          20
         ],
         "creates": [
           279973,
@@ -118447,6 +119951,7 @@
         "quality": 2,
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -118798,6 +120303,7 @@
         "quality": 2,
         "source": [
           2,
+          16,
           21
         ],
         "envChange": {
@@ -118960,7 +120466,8 @@
         "level": 38,
         "quality": 2,
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "updated",
@@ -119702,6 +121209,17 @@
         "skill": 220,
         "level": 53,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Lingering Highborne",
+            "t": 1,
+            "ti": 7864,
+            "z": 16
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -119711,15 +121229,7 @@
             "Skill Tailoring (220) instead of Tailoring (265)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Lingering Highborne",
-            "t": 1,
-            "ti": 7864,
-            "z": 16
-          }
-        ]
+        }
       },
       {
         "id": 14474,
@@ -119775,6 +121285,9 @@
         "skill": 225,
         "level": 54,
         "quality": 2,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -119832,6 +121345,17 @@
         "skill": 225,
         "level": 55,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Unseen Servant",
+            "t": 1,
+            "ti": 8538,
+            "z": 139
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -119841,15 +121365,7 @@
             "Skill Tailoring (225) instead of Tailoring (275)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Unseen Servant",
-            "t": 1,
-            "ti": 8538,
-            "z": 139
-          }
-        ]
+        }
       },
       {
         "id": 14481,
@@ -120065,6 +121581,17 @@
         "skill": 235,
         "level": 56,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Thaurissan Firewalker",
+            "t": 1,
+            "ti": 7037,
+            "z": 46
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120074,15 +121601,7 @@
             "Skill Tailoring (235) instead of Tailoring (280)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Thaurissan Firewalker",
-            "t": 1,
-            "ti": 7037,
-            "z": 46
-          }
-        ]
+        }
       },
       {
         "id": 14491,
@@ -120093,14 +121612,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "n": "Rotting Cadaver",
-            "t": 1,
-            "ti": 4474,
-            "z": 28
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120110,7 +121621,15 @@
             "Skill Tailoring (240) instead of Tailoring (285)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "n": "Rotting Cadaver",
+            "t": 1,
+            "ti": 4474,
+            "z": 28
+          }
+        ]
       },
       {
         "id": 14492,
@@ -120169,15 +121688,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Atal'ai Slave",
-            "t": 1,
-            "ti": 8318,
-            "z": 1477
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120187,7 +121697,16 @@
             "Skill Tailoring (245) instead of Tailoring (290)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Atal'ai Slave",
+            "t": 1,
+            "ti": 8318,
+            "z": 1477
+          }
+        ]
       },
       {
         "id": 14495,
@@ -120247,13 +121766,6 @@
         "source": [
           2
         ],
-        "sourcemore": [
-          {
-            "n": "Azuregos",
-            "t": 1,
-            "ti": 6109
-          }
-        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120263,7 +121775,14 @@
             "Skill Tailoring (245) instead of Tailoring (290)"
           ],
           "notShown": []
-        }
+        },
+        "sourcemore": [
+          {
+            "n": "Azuregos",
+            "t": 1,
+            "ti": 6109
+          }
+        ]
       },
       {
         "id": 14498,
@@ -120336,6 +121855,9 @@
         "skill": 270,
         "level": 60,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120373,38 +121895,15 @@
         "skill": 260,
         "level": 61,
         "quality": 2,
-        "envChange": {
-          "status": "updated",
-          "labels": [
-            "requirements_changed"
-          ],
-          "lines": [
-            "Skill Tailoring (260) instead of Tailoring (300)"
-          ],
-          "notShown": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "n": "Dark Caster",
             "t": 1,
             "ti": 8526,
             "z": 139
-          }
-        ]
-      },
-      {
-        "id": 14506,
-        "name": "Pattern: Felcloth Robe",
-        "skill": 260,
-        "level": 61,
-        "quality": 2,
-        "source": [
-          2
-        ],
-        "sourcemore": [
-          {
-            "dd": -1,
-            "z": 616
           }
         ],
         "envChange": {
@@ -120419,11 +121918,40 @@
         }
       },
       {
+        "id": 14506,
+        "name": "Pattern: Felcloth Robe",
+        "skill": 260,
+        "level": 61,
+        "quality": 2,
+        "source": [
+          2
+        ],
+        "envChange": {
+          "status": "updated",
+          "labels": [
+            "requirements_changed"
+          ],
+          "lines": [
+            "Skill Tailoring (260) instead of Tailoring (300)"
+          ],
+          "notShown": []
+        },
+        "sourcemore": [
+          {
+            "dd": -1,
+            "z": 616
+          }
+        ]
+      },
+      {
         "id": 14507,
         "name": "Pattern: Mooncloth Shoulders",
         "skill": 275,
         "level": 61,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120461,6 +121989,9 @@
         "skill": 280,
         "level": 62,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120478,6 +122009,9 @@
         "skill": 300,
         "level": 62,
         "quality": 3,
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -120490,6 +122024,18 @@
         "skill": 295,
         "level": 62,
         "quality": 4,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Blackhand Veteran",
+            "t": 1,
+            "ti": 9819,
+            "z": 1583
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120790,6 +122336,18 @@
         "skill": 280,
         "level": 62,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Knot Thimblejack's Cache",
+            "t": 2,
+            "ti": 179501,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120799,16 +122357,7 @@
             "Skill Tailoring (280) instead of Tailoring (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Knot Thimblejack's Cache",
-            "t": 2,
-            "ti": 179501,
-            "z": 2557
-          }
-        ]
+        }
       },
       {
         "id": 18416,
@@ -120816,6 +122365,18 @@
         "skill": 280,
         "level": 62,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Knot Thimblejack's Cache",
+            "t": 2,
+            "ti": 179501,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120825,16 +122386,7 @@
             "Skill Tailoring (280) instead of Tailoring (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Knot Thimblejack's Cache",
-            "t": 2,
-            "ti": 179501,
-            "z": 2557
-          }
-        ]
+        }
       },
       {
         "id": 18417,
@@ -120842,6 +122394,18 @@
         "skill": 280,
         "level": 62,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Knot Thimblejack's Cache",
+            "t": 2,
+            "ti": 179501,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120851,16 +122415,7 @@
             "Skill Tailoring (280) instead of Tailoring (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Knot Thimblejack's Cache",
-            "t": 2,
-            "ti": 179501,
-            "z": 2557
-          }
-        ]
+        }
       },
       {
         "id": 18418,
@@ -120868,6 +122423,18 @@
         "skill": 280,
         "level": 62,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Knot Thimblejack's Cache",
+            "t": 2,
+            "ti": 179501,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -120877,16 +122444,7 @@
             "Skill Tailoring (280) instead of Tailoring (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Knot Thimblejack's Cache",
-            "t": 2,
-            "ti": 179501,
-            "z": 2557
-          }
-        ]
+        }
       },
       {
         "id": 18487,
@@ -123273,6 +124831,17 @@
         "skill": 215,
         "level": 52,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Inferno Elemental",
+            "t": 1,
+            "ti": 5852,
+            "z": 51
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -123413,6 +124982,17 @@
         "skill": 225,
         "level": 54,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Elder Rage Scar",
+            "t": 1,
+            "ti": 5297,
+            "z": 357
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -123729,6 +125309,17 @@
         "skill": 255,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Tortured Druid",
+            "t": 1,
+            "ti": 12178,
+            "z": 1377
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -123799,6 +125390,18 @@
         "skill": 300,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Venom Belcher",
+            "t": 1,
+            "ti": 10417,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -123811,6 +125414,17 @@
         "skill": 185,
         "level": 44,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Maraudine Stormer",
+            "t": 1,
+            "ti": 4658,
+            "z": 405
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -123863,6 +125477,17 @@
         "skill": 200,
         "level": 48,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Firemane Flamecaller",
+            "t": 1,
+            "ti": 4334,
+            "z": 15
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -123875,6 +125500,17 @@
         "skill": 200,
         "level": 49,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Glassweb Spider",
+            "t": 1,
+            "ti": 5856,
+            "z": 51
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -123934,6 +125570,19 @@
         "skill": 300,
         "level": 60,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "bd": 1,
+            "dd": -1,
+            "n": "Baroness Anastari",
+            "t": 1,
+            "ti": 10436,
+            "z": 2017
+          }
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -124887,6 +126536,6 @@
         }
       }
     ],
-    "fetched_at": 1794550152
+    "fetched_at": 1794981748
   }
 }

@@ -2598,7 +2598,7 @@
     "qid": 94975,
     "name": "A Token of Vengeance",
     "dungeon": "Krol'dok Stronghold",
-    "level": 30,
+    "level": 38,
     "side": "Horde",
     "is_pre": true,
     "is_drop": false,
@@ -2618,7 +2618,7 @@
     "qid": 94972,
     "name": "Tome of Twilight",
     "dungeon": "Krol'dok Stronghold",
-    "level": 30,
+    "level": 38,
     "side": "Horde",
     "is_pre": true,
     "is_drop": false,
@@ -2638,7 +2638,7 @@
     "qid": 94968,
     "name": "Eye of Mugg",
     "dungeon": "Krol'dok Stronghold",
-    "level": 30,
+    "level": 38,
     "side": "Horde",
     "is_pre": true,
     "is_drop": false,
@@ -2690,6 +2690,26 @@
     "subzone": "Sen'jin Village",
     "starter_qid": 2933,
     "prereq_text": "Complete 3 quests first, starting with"
+  },
+  "96775": {
+    "qid": 96775,
+    "name": "Zum'rah's Head",
+    "dungeon": "Zul'Farrak",
+    "level": 42,
+    "side": "Horde",
+    "is_pre": false,
+    "is_drop": false,
+    "is_shareable": true,
+    "npc_id": 264074,
+    "npc_name": "Mazu'kon",
+    "coords": [
+      32.0,
+      21.0
+    ],
+    "zone": "Mulgore",
+    "subzone": "Skywatcher Plateau",
+    "starter_qid": null,
+    "prereq_text": ""
   },
   "2991": {
     "qid": 2991,
@@ -2839,7 +2859,7 @@
     "side": "Horde",
     "is_pre": false,
     "is_drop": false,
-    "is_shareable": false,
+    "is_shareable": true,
     "npc_id": 7311,
     "npc_name": "Uthel'nay",
     "coords": [
@@ -2971,40 +2991,6 @@
     "starter_qid": null,
     "prereq_text": ""
   },
-  "7044": {
-    "qid": 7044,
-    "name": "Legends of Maraudon",
-    "dungeon": "Maraudon ",
-    "level": 41,
-    "side": "Both",
-    "is_pre": false,
-    "is_drop": false,
-    "is_shareable": true,
-    "npc_id": 13697,
-    "npc_name": "Cavindra",
-    "coords": null,
-    "zone": "Maraudon",
-    "subzone": "Orange side, outside instance",
-    "starter_qid": null,
-    "prereq_text": ""
-  },
-  "7066": {
-    "qid": 7066,
-    "name": "Seed of Life",
-    "dungeon": "Maraudon ",
-    "level": 39,
-    "side": "Both",
-    "is_pre": false,
-    "is_drop": false,
-    "is_shareable": false,
-    "npc_id": 12238,
-    "npc_name": "Zaetar's Spirit",
-    "coords": null,
-    "zone": "Maraudon",
-    "subzone": "",
-    "starter_qid": null,
-    "prereq_text": ""
-  },
   "7067": {
     "qid": 7067,
     "name": "The Pariah's Instructions",
@@ -3019,6 +3005,23 @@
     "coords": null,
     "zone": "Desolace",
     "subzone": "South of Mannoroc Coven",
+    "starter_qid": null,
+    "prereq_text": ""
+  },
+  "7044": {
+    "qid": 7044,
+    "name": "Legends of Maraudon",
+    "dungeon": "Maraudon ",
+    "level": 41,
+    "side": "Both",
+    "is_pre": false,
+    "is_drop": false,
+    "is_shareable": true,
+    "npc_id": 13697,
+    "npc_name": "Cavindra",
+    "coords": null,
+    "zone": "Maraudon",
+    "subzone": "Orange side, outside instance",
     "starter_qid": null,
     "prereq_text": ""
   },
@@ -3038,6 +3041,23 @@
     "subzone": "Purple side",
     "starter_qid": null,
     "prereq_text": "Complete first"
+  },
+  "7066": {
+    "qid": 7066,
+    "name": "Seed of Life",
+    "dungeon": "Maraudon ",
+    "level": 39,
+    "side": "Both",
+    "is_pre": false,
+    "is_drop": false,
+    "is_shareable": false,
+    "npc_id": 12238,
+    "npc_name": "Zaetar's Spirit",
+    "coords": null,
+    "zone": "Maraudon",
+    "subzone": "",
+    "starter_qid": null,
+    "prereq_text": ""
   },
   "1445": {
     "qid": 1445,
@@ -3215,6 +3235,126 @@
     "subzone": "Steamwheedle Port",
     "starter_qid": 3520,
     "prereq_text": "Complete 3 quests first, starting with"
+  },
+  "96772": {
+    "qid": 96772,
+    "name": "The Dragon's Journal",
+    "dungeon": "Alcaz Prison",
+    "level": 46,
+    "side": "Alliance",
+    "is_pre": false,
+    "is_drop": false,
+    "is_shareable": true,
+    "npc_id": 20735,
+    "npc_name": "Archmage Lan'dalock",
+    "coords": [
+      15.6,
+      73.6
+    ],
+    "zone": "",
+    "subzone": "",
+    "starter_qid": null,
+    "prereq_text": ""
+  },
+  "96381": {
+    "qid": 96381,
+    "name": "A Bit of Wet Work",
+    "dungeon": "Alcaz Prison",
+    "level": 48,
+    "side": "Alliance",
+    "is_pre": true,
+    "is_drop": false,
+    "is_shareable": false,
+    "npc_id": 260271,
+    "npc_name": "Sully McCleary",
+    "coords": [
+      63.4,
+      42.4
+    ],
+    "zone": "",
+    "subzone": "",
+    "starter_qid": null,
+    "prereq_text": "(leads to )"
+  },
+  "95262": {
+    "qid": 95262,
+    "name": "The Secret Prison",
+    "dungeon": "Alcaz Prison",
+    "level": 48,
+    "side": "Alliance",
+    "is_pre": true,
+    "is_drop": false,
+    "is_shareable": false,
+    "npc_id": 260271,
+    "npc_name": "Sully McCleary",
+    "coords": [
+      63.4,
+      42.4
+    ],
+    "zone": "",
+    "subzone": "",
+    "starter_qid": null,
+    "prereq_text": "Starts with  from  in the Old Town of"
+  },
+  "95309": {
+    "qid": 95309,
+    "name": "No Orc Left Behind",
+    "dungeon": "Alcaz Prison",
+    "level": 48,
+    "side": "Horde",
+    "is_pre": true,
+    "is_drop": false,
+    "is_shareable": false,
+    "npc_id": 260383,
+    "npc_name": "Sergeant Ulka",
+    "coords": [
+      33.4,
+      38.0
+    ],
+    "zone": "Theramore",
+    "subzone": "Alcaz Island",
+    "starter_qid": 95283,
+    "prereq_text": "(leads to )"
+  },
+  "96332": {
+    "qid": 96332,
+    "name": "A Little Payback",
+    "dungeon": "Alcaz Prison",
+    "level": 48,
+    "side": "Horde",
+    "is_pre": true,
+    "is_drop": false,
+    "is_shareable": false,
+    "npc_id": 260383,
+    "npc_name": "Sergeant Ulka",
+    "coords": [
+      33.4,
+      38.0
+    ],
+    "zone": "Theramore",
+    "subzone": "Alcaz Island",
+    "starter_qid": 95283,
+    "prereq_text": "Starts from  from  in   \\/way 34.6 38.6"
+  },
+  "96334": {
+    "qid": 96334,
+    "name": "Blood Red Bandanas",
+    "dungeon": "Alcaz Prison",
+    "level": 48,
+    "side": "Horde",
+    "is_pre": true,
+    "is_drop": false,
+    "is_shareable": false,
+    "npc_id": 260383,
+    "npc_name": "Sergeant Ulka",
+    "coords": [
+      33.4,
+      38.0
+    ],
+    "zone": "Theramore",
+    "subzone": "Alcaz Island",
+    "starter_qid": 95283,
+    "prereq_text": "Starts from  from  in   \\/way 34.6 38.6"
   },
   "4081": {
     "qid": 4081,

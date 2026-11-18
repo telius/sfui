@@ -16,6 +16,7 @@ local ipairs = ipairs
 local tonumber = tonumber
 local type = type
 local select = select
+local tostring = tostring
 local table_sort = table.sort
 local table_insert = table.insert
 local math_floor = math.floor
@@ -39,9 +40,12 @@ local previewSlots = {}
 local _liveActive = {}
 local _liveIndex = {}
 local _liveIcon = {}
+local _liveFrames = {}
+local _knownLiveIcon = {}
 local _seen = {}
 local _hookedItems = setmetatable({}, { __mode = "k" })
 local _skinnedItems = setmetatable({}, { __mode = "k" })
+local _anchoredSlot = setmetatable({}, { __mode = "k" })
 
 local isPreviewMode = false
 local previewActive = false
@@ -53,11 +57,93 @@ local pendingTabRefresh = false
 local pendingLayoutPreview = false
 local _buffsDirty = false
 local _pendingBuffsSync = false
+local _iconAssetEpoch = 0
 local ResolveBuffDisplay
 
-local function IsValidTexture(tex)
-    if issecretvalue and issecretvalue(tex) then return true end
-    return tex ~= nil and tex ~= 0 and tex ~= ""
+local FALLBACK_SPELL_CATEGORIES = {
+    [4] = {
+        icon = "Interface/ICONS/INV_POTION_114",
+        name = "combat potion",
+    },
+    [30] = {
+        icon = "Interface/ICONS/INV_POTION_54",
+        name = "health potion",
+    },
+    [1711] = {
+        icon = "Interface/ICONS/Warlock_ Healthstone",
+        name = "healthstone",
+        itemID = 5512,
+    },
+    [2566] = {
+        icon = "Interface/ICONS/Warlock_ Bloodstone",
+        name = "demonic healthstone",
+        itemID = 224464,
+    },
+}
+
+local function IsSecret(v)
+    return (issecretvalue and issecretvalue(v)) == true
+end
+
+local function IsPlainNumber(v)
+    if issecretvalue and issecretvalue(v) then return false end
+    return type(v) == "number"
+end
+
+local function IsPlainPositiveNumber(v)
+    if issecretvalue and issecretvalue(v) then return false end
+    return type(v) == "number" and v > 0
+end
+
+local function IsPlainNonEmptyString(v)
+    if issecretvalue and issecretvalue(v) then return false end
+    return type(v) == "string" and v ~= ""
+end
+
+local function IsPlainTable(v)
+    if issecretvalue and issecretvalue(v) then return false end
+    return type(v) == "table"
+end
+
+local function IsPlainValidTexture(tex)
+    if issecretvalue and issecretvalue(tex) then return false end
+    if tex == nil then return false end
+    local t = type(tex)
+    if t == "number" then
+        return tex > 0
+    elseif t == "string" then
+        return tex ~= "" and tex ~= "0" and tex ~= "FileData ID 0" and tex:lower() ~= "filedata id 0"
+    end
+    return false
+end
+
+local function InspectLiveIconTexture(iconRegion)
+    if not iconRegion or IsSecret(iconRegion) then return false, false, nil end
+    local tex = iconRegion.GetTexture and iconRegion:GetTexture()
+    if IsSecret(tex) then
+        return false, true, nil
+    end
+    if IsPlainValidTexture(tex) then
+        return true, false, tex
+    end
+
+    local fid = iconRegion.GetTextureFileID and iconRegion:GetTextureFileID()
+    if IsSecret(fid) then
+        return false, true, nil
+    end
+    if IsPlainPositiveNumber(fid) then
+        return true, false, fid
+    end
+
+    local atlas = iconRegion.GetAtlas and iconRegion:GetAtlas()
+    if IsSecret(atlas) then
+        return false, true, nil
+    end
+    if IsPlainNonEmptyString(atlas) then
+        return true, false, nil
+    end
+
+    return false, false, nil
 end
 
 local PANDEMIC_GLOW_OPTS = {
@@ -74,7 +160,7 @@ local DEFAULT_PREVIEW_ICONS = {
     136075, -- combustion
 }
 
-local ALL_CDM_CATEGORIES = { 0, 1, 2, 3, 4, 5, 6, 7 }
+local ALL_CDM_CATEGORIES = { 0, 1, 2, 3, 4, 5, 6, 7, 8 }
 
 local CreateSocketContainer -- forward declaration
 local SyncWithBlizzard      -- forward declaration
@@ -86,8 +172,7 @@ local function GetBlizzBuffViewer()
 end
 
 local function GetCooldownInfoSafe(id)
-    if type(id) ~= "number" or id <= 0 then return nil end
-    if issecretvalue and issecretvalue(id) then return nil end
+    if not IsPlainPositiveNumber(id) then return nil end
     local entryMod = sfui.tracking and sfui.tracking.entry
     if entryMod and entryMod.SafeGetCooldownInfo then
         return entryMod.SafeGetCooldownInfo(id)
@@ -157,49 +242,57 @@ end
 
 -- static comparator for active cooldown frame ordering
 local function CompareActiveFrames(a, b)
-    local la = a.layoutIndex or 999
-    local lb = b.layoutIndex or 999
+    local rawLa = a.layoutIndex
+    local rawLb = b.layoutIndex
+    local la = IsPlainNumber(rawLa) and rawLa or 999
+    local lb = IsPlainNumber(rawLb) and rawLb or 999
     if la ~= lb then
         return la < lb
     end
-    local ca = a.cooldownID
-    local cb = b.cooldownID
-    if issecretvalue and ((ca and issecretvalue(ca)) or (cb and issecretvalue(cb))) then
-        return false
-    end
-    return (ca or 0) < (cb or 0)
+    local rawCa = a.cooldownID
+    local rawCb = b.cooldownID
+    local ca = IsPlainNumber(rawCa) and rawCa or 0
+    local cb = IsPlainNumber(rawCb) and rawCb or 0
+    return ca < cb
 end
 
 -- check if blizzard buff item is in pandemic refresh window
 local function IsBlizzardItemInPandemic(blizzFrame)
-    local icon = blizzFrame and blizzFrame.PandemicIcon
-    if not icon or not icon.IsShown then return false end
+    if not blizzFrame or IsSecret(blizzFrame) then return false end
+    local icon = blizzFrame.PandemicIcon
+    if not icon or IsSecret(icon) or not icon.IsShown then return false end
     local shown = icon:IsShown()
-    if issecretvalue and issecretvalue(shown) then return false end
+    if IsSecret(shown) then return false end
+    return shown == true
+end
+
+local function IsBlizzShownPlain(frame)
+    if not frame or IsSecret(frame) or not frame.IsShown then return false end
+    local shown = frame:IsShown()
+    if IsSecret(shown) then return false end
     return shown == true
 end
 
 -- determine if item is currently active without inspecting secret cooldown values
 local function IsItemActive(blizzFrame)
-    if not blizzFrame then return false end
-    local id = blizzFrame.cooldownID
-    if not id or (issecretvalue and issecretvalue(id)) then return false end
+    if not blizzFrame or IsSecret(blizzFrame) then return false end
+    if not IsPlainPositiveNumber(blizzFrame.cooldownID) then return false end
 
     local active = blizzFrame.isActive
+    if IsSecret(active) then
+        return IsBlizzShownPlain(blizzFrame)
+    end
     if active ~= nil then
-        if issecretvalue and issecretvalue(active) then
-            return blizzFrame:IsShown() == true
-        end
         return active == true
     end
     if blizzFrame.IsActive then
         local val = blizzFrame:IsActive()
-        if issecretvalue and issecretvalue(val) then
-            return blizzFrame:IsShown() == true
+        if IsSecret(val) then
+            return IsBlizzShownPlain(blizzFrame)
         end
         return val == true
     end
-    return blizzFrame:IsShown() == true
+    return IsBlizzShownPlain(blizzFrame)
 end
 
 local function DisarmBlizzardItemMouse(blizzFrame)
@@ -215,25 +308,53 @@ local function DisarmBlizzardItemMouse(blizzFrame)
     end
 end
 
+local function DetachFrameToViewer(blizzFrame, viewer, targetParent)
+    local curParent = blizzFrame:GetParent()
+    if _anchoredSlot[blizzFrame] ~= nil
+        or (not IsSecret(curParent) and curParent ~= targetParent and curParent ~= viewer) then
+        blizzFrame:SetParent(targetParent)
+    end
+    _anchoredSlot[blizzFrame] = nil
+end
+
 -- return any previously socketed frame back to blizzard's hidden viewer when inactive
 local function ReturnInactiveFramesToViewer(viewer, returnAll)
     if not viewer or not viewer.itemFramePool then return end
+    local targetParent = (viewer.GetItemContainerFrame and viewer:GetItemContainerFrame()) or viewer
     for blizzFrame in viewer.itemFramePool:EnumerateActive() do
         HookItemFrame(blizzFrame)
-        if (returnAll or not IsItemActive(blizzFrame)) and blizzFrame:GetParent() ~= viewer then
-            blizzFrame:SetParent(viewer)
+        if returnAll or not IsItemActive(blizzFrame) then
+            DetachFrameToViewer(blizzFrame, viewer, targetParent)
+        end
+    end
+end
+
+local function StripIconMasks(iconRegion)
+    if not iconRegion or IsSecret(iconRegion) or not iconRegion.GetNumMaskTextures or not iconRegion.RemoveMaskTexture then
+        return
+    end
+    local count = iconRegion:GetNumMaskTextures()
+    if not IsPlainPositiveNumber(count) then return end
+    for idx = count, 1, -1 do
+        local mask = iconRegion.GetMaskTexture and iconRegion:GetMaskTexture(idx)
+        if mask and not IsSecret(mask) then
+            iconRegion:RemoveMaskTexture(mask)
+            if mask.Hide then
+                mask:Hide()
+            end
         end
     end
 end
 
 local function SkinRegion(blizzFrame, region)
-    if not region then return end
+    if not region or IsSecret(region) then return end
+    local mainIcon = blizzFrame.Icon
     if region:IsObjectType("MaskTexture") then
-        if blizzFrame.Icon and blizzFrame.Icon.RemoveMaskTexture then
-            blizzFrame.Icon:RemoveMaskTexture(region)
+        if mainIcon and not IsSecret(mainIcon) and mainIcon.RemoveMaskTexture then
+            mainIcon:RemoveMaskTexture(region)
         end
         region:Hide()
-    elseif region:IsObjectType("Texture") and region ~= blizzFrame.Icon then
+    elseif region:IsObjectType("Texture") and (IsSecret(mainIcon) or region ~= mainIcon) then
         region:SetAlpha(0)
     end
 end
@@ -273,8 +394,9 @@ local function SkinBlizzardItem(blizzFrame)
     -- strip circular masks and extraneous blizzard overlay textures without table allocation
     SkinRegionsVararg(blizzFrame, blizzFrame:GetRegions())
 
-    -- apply sfui square texcoords
+    -- apply sfui square texcoords and remove any attached circular masks
     if blizzFrame.Icon then
+        StripIconMasks(blizzFrame.Icon)
         blizzFrame.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         blizzFrame.Icon:ClearAllPoints()
         blizzFrame.Icon:SetAllPoints(blizzFrame)
@@ -297,6 +419,9 @@ local function SkinBlizzardItem(blizzFrame)
 
     -- hide debuff border
     if blizzFrame.DebuffBorder then
+        if blizzFrame.DebuffBorder.SetAlpha then
+            blizzFrame.DebuffBorder:SetAlpha(0)
+        end
         blizzFrame.DebuffBorder:Hide()
     end
 end
@@ -310,6 +435,7 @@ local function GetOrCreateSlot(index)
     slot = CreateFrame("Frame", name, socketContainer)
     slot:SetSize(42, 42)
     slot:EnableMouse(false)
+    slot:Hide()
 
     -- 1px solid black border backdrop
     local bg = slot:CreateTexture(nil, "BACKGROUND")
@@ -338,6 +464,7 @@ local function GetOrCreatePreviewSlot(index)
     slot = CreateFrame("Frame", name, socketContainer)
     slot:SetSize(42, 42)
     slot:EnableMouse(false)
+    slot:Hide()
 
     -- 1px solid black border backdrop
     local bg = slot:CreateTexture(nil, "BACKGROUND")
@@ -463,9 +590,12 @@ RenderPreview = function()
         local slot = GetOrCreatePreviewSlot(i)
         slot:SetSize(size, size)
 
-        local iconTexture = (tracked and tracked[i] and tracked[i].icon) or
+        local trackedIcon = tracked and tracked[i] and tracked[i].icon
+        local iconTexture = (IsPlainValidTexture(trackedIcon) and trackedIcon) or
             DEFAULT_PREVIEW_ICONS[((i - 1) % #DEFAULT_PREVIEW_ICONS) + 1]
         slot.icon:SetTexture(iconTexture)
+        slot.icon:SetAlpha(1)
+        slot.icon:Show()
 
         -- dummy stack count on 2nd slot
         if i == 2 then
@@ -825,8 +955,9 @@ end
 
 local function SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
     local inPandemic = IsBlizzardItemInPandemic(blizzFrame)
-    if inPandemic then
-        if blizzFrame.PandemicIcon and blizzFrame.PandemicIcon:GetAlpha() ~= 0 then
+    if inPandemic and blizzFrame.PandemicIcon and blizzFrame.PandemicIcon.GetAlpha then
+        local pAlpha = blizzFrame.PandemicIcon:GetAlpha()
+        if (issecretvalue and issecretvalue(pAlpha)) or pAlpha ~= 0 then
             blizzFrame.PandemicIcon:SetAlpha(0)
         end
     end
@@ -842,6 +973,130 @@ local function SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
         if sfui.glows and sfui.glows.stop_glow then
             sfui.glows.stop_glow(slot)
         end
+    end
+end
+
+local function EnsureBlizzFrameSocketed(slot, blizzFrame)
+    if not slot or not blizzFrame then return end
+
+    local sc = blizzFrame.GetScale and blizzFrame:GetScale()
+    if IsPlainNumber(sc) and sc ~= 1 then
+        blizzFrame:SetScale(1)
+    end
+
+    local curParent = blizzFrame:GetParent()
+    local parentSecret = IsSecret(curParent)
+    local parentMismatch = (not parentSecret) and (curParent ~= slot)
+
+    local numPoints = blizzFrame.GetNumPoints and blizzFrame:GetNumPoints()
+    local pointsPlain = IsPlainNumber(numPoints) and numPoints or nil
+
+    local needsAnchor = (_anchoredSlot[blizzFrame] ~= slot)
+        or parentMismatch
+        or (pointsPlain ~= nil and pointsPlain ~= 2)
+
+    if (_anchoredSlot[blizzFrame] ~= slot) or parentMismatch then
+        blizzFrame:SetParent(slot)
+    end
+    if needsAnchor then
+        blizzFrame:ClearAllPoints()
+        blizzFrame:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
+        blizzFrame:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
+        _anchoredSlot[blizzFrame] = slot
+    end
+
+    local slotLevel = slot.GetFrameLevel and slot:GetFrameLevel()
+    local bfLevel = blizzFrame.GetFrameLevel and blizzFrame:GetFrameLevel()
+    if IsPlainNumber(slotLevel) and IsPlainNumber(bfLevel) and bfLevel <= slotLevel then
+        blizzFrame:SetFrameLevel(slotLevel + 1)
+    end
+
+    local alpha = blizzFrame.GetAlpha and blizzFrame:GetAlpha()
+    if IsPlainNumber(alpha) and alpha ~= 1 then
+        blizzFrame:SetAlpha(1)
+    end
+    local shown = blizzFrame.IsShown and blizzFrame:IsShown()
+    if not IsSecret(shown) and not shown then
+        blizzFrame:Show()
+    end
+
+    local iconRegion = blizzFrame.Icon
+    if iconRegion and not IsSecret(iconRegion) then
+        if iconRegion.GetNumPoints then
+            local iconPts = iconRegion:GetNumPoints()
+            if IsPlainNumber(iconPts) and iconPts == 0 then
+                iconRegion:SetAllPoints(blizzFrame)
+            end
+        end
+        if iconRegion.IsShown then
+            local iconShown = iconRegion:IsShown()
+            if not IsSecret(iconShown) and not iconShown then
+                iconRegion:Show()
+            end
+        end
+        if iconRegion.GetAlpha then
+            local iconAlpha = iconRegion:GetAlpha()
+            if IsPlainNumber(iconAlpha) and iconAlpha ~= 1 then
+                iconRegion:SetAlpha(1)
+            end
+        end
+    end
+end
+
+local function SetSlotFallbackTexture(slot, fbTex)
+    local curFb = slot.fallbackIcon.GetTexture and slot.fallbackIcon:GetTexture()
+    if slot._fallbackTex ~= fbTex or not IsPlainValidTexture(curFb) then
+        slot._fallbackTex = fbTex
+        slot.fallbackIcon:SetTexture(fbTex)
+    end
+    if slot.fallbackIcon:GetAlpha() ~= 1 then
+        slot.fallbackIcon:SetAlpha(1)
+    end
+    if not slot.fallbackIcon:IsShown() then
+        slot.fallbackIcon:Show()
+    end
+end
+
+local function SyncSlotFallbackIcon(slot, blizzFrame)
+    if not slot or not slot.fallbackIcon then return end
+
+    local hasPlainValid, isSecret, plainTex = InspectLiveIconTexture(blizzFrame and blizzFrame.Icon)
+    local cid = blizzFrame and blizzFrame.cooldownID
+    local validCid = IsPlainPositiveNumber(cid)
+
+    if hasPlainValid then
+        if validCid and plainTex ~= nil then
+            _knownLiveIcon[cid] = plainTex
+        end
+        if slot.fallbackIcon:IsShown() then
+            slot.fallbackIcon:Hide()
+        end
+    elseif isSecret then
+        if validCid then
+            if slot._fbCid ~= cid or slot._fbEpoch ~= _iconAssetEpoch then
+                local _, resolvedTex = ResolveBuffDisplay(cid, nil, blizzFrame)
+                slot._fbResolved = resolvedTex
+                slot._fbCid = cid
+                slot._fbEpoch = _iconAssetEpoch
+            end
+            local resolved = slot._fbResolved
+            if IsPlainValidTexture(resolved) and resolved ~= 134400 then
+                SetSlotFallbackTexture(slot, resolved)
+                return
+            end
+        end
+        if slot.fallbackIcon:IsShown() then
+            slot.fallbackIcon:Hide()
+        end
+    else
+        local fbTex = 134400
+        if validCid then
+            local _, resolvedTex = ResolveBuffDisplay(cid, nil, blizzFrame)
+            if IsPlainValidTexture(resolvedTex) then
+                fbTex = resolvedTex
+            end
+        end
+        SetSlotFallbackTexture(slot, fbTex)
     end
 end
 
@@ -893,12 +1148,13 @@ SyncWithBlizzard = function()
     -- collect active frames & return inactive ones to hidden viewer
     wipe(activeFrames)
     if viewer and viewer.itemFramePool then
+        local targetParent = (viewer.GetItemContainerFrame and viewer:GetItemContainerFrame()) or viewer
         for blizzFrame in viewer.itemFramePool:EnumerateActive() do
             HookItemFrame(blizzFrame)
             if IsItemActive(blizzFrame) then
                 table_insert(activeFrames, blizzFrame)
-            elseif blizzFrame:GetParent() ~= viewer then
-                blizzFrame:SetParent(viewer)
+            else
+                DetachFrameToViewer(blizzFrame, viewer, targetParent)
             end
         end
     end
@@ -964,71 +1220,41 @@ SyncWithBlizzard = function()
         end
 
         SkinBlizzardItem(blizzFrame)
-        if blizzFrame:GetScale() ~= 1 then
-            blizzFrame:SetScale(1)
-        end
+        EnsureBlizzFrameSocketed(slot, blizzFrame)
 
-        -- socket blizzard frame into slot
-        if blizzFrame:GetParent() ~= slot then
-            blizzFrame:SetParent(slot)
-            blizzFrame:ClearAllPoints()
-            blizzFrame:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
-            blizzFrame:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
-        end
-        if blizzFrame:GetAlpha() ~= 1 then
-            blizzFrame:SetAlpha(1)
-        end
-        if not blizzFrame:IsShown() then
-            blizzFrame:Show()
-        end
         if blizzFrame.Applications then
-            local baseLevel = blizzFrame:GetFrameLevel() or 0
-            local cdLevel = blizzFrame.Cooldown and blizzFrame.Cooldown.GetFrameLevel and blizzFrame.Cooldown:GetFrameLevel() or baseLevel
-            local targetLevel = (cdLevel > baseLevel and cdLevel or baseLevel) + 5
-            if blizzFrame.Applications:GetFrameLevel() < targetLevel then
-                blizzFrame.Applications:SetFrameLevel(targetLevel)
+            local baseLevel = blizzFrame.GetFrameLevel and blizzFrame:GetFrameLevel() or 0
+            local cdLevel = blizzFrame.Cooldown and blizzFrame.Cooldown.GetFrameLevel and
+                blizzFrame.Cooldown:GetFrameLevel() or baseLevel
+            if IsPlainNumber(baseLevel) and IsPlainNumber(cdLevel) then
+                local targetLevel = (cdLevel > baseLevel and cdLevel or baseLevel) + 5
+                local appLevel = blizzFrame.Applications:GetFrameLevel()
+                if IsPlainNumber(appLevel) and appLevel < targetLevel then
+                    blizzFrame.Applications:SetFrameLevel(targetLevel)
+                end
             end
-            if not blizzFrame.Applications:IsShown() then
+            local appShown = blizzFrame.Applications:IsShown()
+            if not IsSecret(appShown) and not appShown then
                 blizzFrame.Applications:Show()
             end
-            if blizzFrame.Applications:GetAlpha() ~= 1 then
+            local appAlpha = blizzFrame.Applications:GetAlpha()
+            if IsPlainNumber(appAlpha) and appAlpha ~= 1 then
                 blizzFrame.Applications:SetAlpha(1)
             end
             local appFs = blizzFrame.Applications.Applications
             if appFs then
-                if not appFs:IsShown() then
+                local fsShown = appFs:IsShown()
+                if not IsSecret(fsShown) and not fsShown then
                     appFs:Show()
                 end
-                if appFs:GetAlpha() ~= 1 then
+                local fsAlpha = appFs:GetAlpha()
+                if IsPlainNumber(fsAlpha) and fsAlpha ~= 1 then
                     appFs:SetAlpha(1)
                 end
             end
         end
 
-        if slot.fallbackIcon then
-            local liveTex = blizzFrame.Icon and blizzFrame.Icon.GetTexture and blizzFrame.Icon:GetTexture()
-            if IsValidTexture(liveTex) then
-                if slot.fallbackIcon:IsShown() then
-                    slot.fallbackIcon:Hide()
-                end
-            else
-                local cid = blizzFrame.cooldownID
-                local fbTex = 134400
-                if not (issecretvalue and issecretvalue(cid)) and type(cid) == "number" then
-                    local _, resolvedTex = ResolveBuffDisplay(cid)
-                    if IsValidTexture(resolvedTex) then
-                        fbTex = resolvedTex
-                    end
-                end
-                if slot._fallbackTex ~= fbTex then
-                    slot._fallbackTex = fbTex
-                    slot.fallbackIcon:SetTexture(fbTex)
-                end
-                if not slot.fallbackIcon:IsShown() then
-                    slot.fallbackIcon:Show()
-                end
-            end
-        end
+        SyncSlotFallbackIcon(slot, blizzFrame)
 
         -- pandemic / alert glow
         SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
@@ -1087,73 +1313,210 @@ end
 -- inspect blizzard cdm state without mutating any cvars or edit mode settings
 function sfui.trackedbuffs.GetBlizzardStatus()
     if C_CVar and C_CVar.GetCVarBool and not C_CVar.GetCVarBool("cooldownViewerEnabled") then
-        return "cvar_disabled", "blizzard cooldown manager is disabled in game options; enable it so blizzard updates live buff icons."
+        return "cvar_disabled",
+            "blizzard cooldown manager is disabled in game options; enable it so blizzard updates live buff icons."
     end
     local viewer = GetBlizzBuffViewer()
     local visEnum = Enum and Enum.CooldownViewerVisibleSetting
     if viewer and visEnum and viewer.visibleSetting ~= nil then
         if viewer.visibleSetting == visEnum.Hidden then
-            return "viewer_hidden", "blizzard 'tracked buffs' is set to 'hidden' in edit mode; set visibility to 'always' for live updates."
+            return "viewer_hidden",
+                "blizzard 'tracked buffs' is set to 'hidden' in edit mode; set visibility to 'always' for live updates."
         elseif viewer.visibleSetting == visEnum.InCombat then
-            return "viewer_combat_only", "note: blizzard 'tracked buffs' visibility is set to 'in combat' in edit mode (out-of-combat buffs only update in combat)."
+            return "viewer_combat_only",
+                "note: blizzard 'tracked buffs' visibility is set to 'in combat' in edit mode (out-of-combat buffs only update in combat)."
         end
     end
     return "ok", nil
 end
 
-ResolveBuffDisplay = function(id, info)
-    info = info or GetCooldownInfoSafe(id)
+ResolveBuffDisplay = function(id, info, blizzFrame)
+    local validID = IsPlainPositiveNumber(id) and id or nil
+    if blizzFrame and IsSecret(blizzFrame) then
+        blizzFrame = nil
+    end
+    local frameInfo = blizzFrame and blizzFrame.cooldownInfo
+    if not IsPlainTable(frameInfo) then
+        frameInfo = nil
+    end
+    info = info or frameInfo or (validID and GetCooldownInfoSafe(validID)) or nil
+    if not IsPlainTable(info) then
+        info = nil
+    end
+
     local name, icon
 
-    if info then
-        local spellID = (info.overrideSpellID and info.overrideSpellID > 0 and info.overrideSpellID) or info.spellID
-        if spellID and spellID > 0 then
-            name = common.get_spell_name(spellID)
-            local sIcon = common.get_spell_icon(spellID)
-            if IsValidTexture(sIcon) then icon = sIcon end
-        elseif info.itemID and info.itemID > 0 then
-            name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(info.itemID)
-            local iIcon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(info.itemID)
-            if IsValidTexture(iIcon) then
+    local function TrySpell(sid)
+        if not IsPlainPositiveNumber(sid) then return end
+        if not name and common and common.get_spell_name then
+            local sName = common.get_spell_name(sid)
+            if IsPlainNonEmptyString(sName) then
+                name = sName
+            end
+        end
+        if not icon and common and common.get_spell_icon then
+            local sIcon = common.get_spell_icon(sid)
+            if IsPlainValidTexture(sIcon) then
+                icon = sIcon
+            end
+        end
+    end
+
+    local function TryItem(itemID)
+        if not IsPlainPositiveNumber(itemID) then return end
+        if not C_Item then return end
+        if not name and C_Item.GetItemNameByID then
+            local iName = C_Item.GetItemNameByID(itemID)
+            if IsPlainNonEmptyString(iName) then
+                name = iName
+            end
+        end
+        if not icon and C_Item.GetItemIconByID then
+            local iIcon = C_Item.GetItemIconByID(itemID)
+            if IsPlainValidTexture(iIcon) then
                 icon = iIcon
-            elseif C_Item and C_Item.RequestLoadItemDataByID then
-                C_Item.RequestLoadItemDataByID(info.itemID)
-            end
-        end
-        if (not name or not icon) and info.linkedSpellIDs and info.linkedSpellIDs[1] then
-            local linkedID = info.linkedSpellIDs[1]
-            name = name or common.get_spell_name(linkedID)
-            if not icon then
-                local lIcon = common.get_spell_icon(linkedID)
-                if IsValidTexture(lIcon) then icon = lIcon end
+            elseif C_Item.RequestLoadItemDataByID then
+                C_Item.RequestLoadItemDataByID(itemID)
             end
         end
     end
 
-    if not icon and IsValidTexture(_liveIcon[id]) then
-        icon = _liveIcon[id]
-    end
-    if not name then name = common.get_spell_name(id) end
-    if not icon then
-        local fbIcon = common.get_spell_icon(id)
-        if IsValidTexture(fbIcon) then icon = fbIcon end
+    if blizzFrame then
+        TrySpell(blizzFrame.auraSpellID)
+        local td = blizzFrame.totemData
+        if IsPlainTable(td) then
+            local tSlot = td.slot
+            local getTotemInfo = _G.GetTotemInfo
+            if IsPlainPositiveNumber(tSlot) and getTotemInfo then
+                local hasTotem, tName, _, _, tIcon, _, tSpellID = getTotemInfo(tSlot)
+                if not IsSecret(hasTotem) and hasTotem then
+                    if not name and IsPlainNonEmptyString(tName) then
+                        name = tName
+                    end
+                    if not icon and IsPlainValidTexture(tIcon) then
+                        icon = tIcon
+                    end
+                    TrySpell(tSpellID)
+                end
+            end
+            if not name and IsPlainNonEmptyString(td.name) then
+                name = td.name
+            end
+            TrySpell(td.spellID)
+        end
     end
 
-    return name or ("unknown (" .. id .. ")"),
-        (IsValidTexture(icon) and icon) or 134400
+    if info then
+        local eqSlot = info.equipSlot
+        if IsPlainPositiveNumber(eqSlot) then
+            local getInvID = _G.GetInventoryItemID
+            local slotItem = getInvID and getInvID("player", eqSlot)
+            TryItem(slotItem)
+            local getInvTex = _G.GetInventoryItemTexture
+            if not icon and getInvTex then
+                local invTex = getInvTex("player", eqSlot)
+                if IsPlainValidTexture(invTex) then
+                    icon = invTex
+                end
+            end
+            TrySpell(info.linkedSpellID)
+            if (not name or not icon) and IsPlainTable(info.linkedSpellIDs) then
+                for i = 1, #info.linkedSpellIDs do
+                    TrySpell(info.linkedSpellIDs[i])
+                    if name and icon then break end
+                end
+            end
+            if not name then
+                name = (eqSlot == 14 and "trinket 2") or (eqSlot == 13 and "trinket 1") or ("slot " .. tostring(eqSlot))
+            end
+            if not icon and _G.GetInventorySlotInfo then
+                local slotName = (eqSlot == 14 and "Trinket1Slot") or (eqSlot == 13 and "Trinket0Slot") or nil
+                if slotName then
+                    local _, slotTex = _G.GetInventorySlotInfo(slotName)
+                    if IsPlainValidTexture(slotTex) then
+                        icon = slotTex
+                    end
+                end
+            end
+        end
+
+        local catID = info.spellCategoryID
+        if IsPlainNumber(catID) then
+            local catMeta = (sfui.tracking and sfui.tracking.SPELL_CATEGORY_METADATA) or FALLBACK_SPELL_CATEGORIES
+            local catEntry = (catMeta and catMeta[catID]) or FALLBACK_SPELL_CATEGORIES[catID]
+            if not icon and IsPlainValidTexture(info.lastItemIDForCategoryIcon) then
+                icon = info.lastItemIDForCategoryIcon
+            end
+            local catItemID = info.lastItemIDForCategory
+            if not IsPlainPositiveNumber(catItemID) then
+                catItemID = catEntry and (catEntry.fallbackItemID or catEntry.itemID)
+            end
+            TryItem(catItemID)
+            if IsPlainTable(catEntry) then
+                if not icon and IsPlainValidTexture(catEntry.icon) then
+                    icon = catEntry.icon
+                end
+                if not name then
+                    if IsPlainNonEmptyString(catEntry.tooltipTitle) then
+                        name = catEntry.tooltipTitle
+                    elseif IsPlainNonEmptyString(catEntry.name) then
+                        name = catEntry.name
+                    end
+                end
+            end
+        end
+
+        if not name or not icon then
+            TrySpell(info.linkedSpellID)
+            TrySpell(info.overrideTooltipSpellID)
+            TrySpell(info.overrideSpellID)
+            TrySpell(info.spellID)
+            if (not name or not icon) and IsPlainTable(info.linkedSpellIDs) then
+                for i = 1, #info.linkedSpellIDs do
+                    TrySpell(info.linkedSpellIDs[i])
+                    if name and icon then break end
+                end
+            end
+        end
+
+        if not name or not icon then
+            TryItem(info.itemID)
+        end
+
+        if not name and IsPlainNumber(catID) then
+            name = "category " .. tostring(catID)
+        end
+    end
+
+    if not icon and validID then
+        if IsPlainValidTexture(_liveIcon[validID]) then
+            icon = _liveIcon[validID]
+        elseif IsPlainValidTexture(_knownLiveIcon[validID]) then
+            icon = _knownLiveIcon[validID]
+        end
+    end
+
+    if info == nil and validID and (not name or not icon) then
+        TrySpell(validID)
+    end
+
+    return name or ("unknown (" .. (validID and tostring(validID) or "?") .. ")"),
+        (IsPlainValidTexture(icon) and icon) or 134400
 end
 
 local function IsHideByDefault(info)
-    if not info or not bit_band or not info.flags then return false end
+    if not IsPlainTable(info) or not bit_band then return false end
+    local flags = info.flags
+    if not IsPlainNumber(flags) then return false end
     local hideFlag = Enum and Enum.CooldownSetSpellFlags and Enum.CooldownSetSpellFlags.HideByDefault
-    if not hideFlag then return false end
-    return bit_band(info.flags, hideFlag) ~= 0
+    if not IsPlainNumber(hideFlag) then return false end
+    return bit_band(flags, hideFlag) ~= 0
 end
 
 local function AppendBuffResult(result, id, info, orderIdx)
     if _seen[id] then return end
     _seen[id] = true
-    local name, icon = ResolveBuffDisplay(id, info)
+    local name, icon = ResolveBuffDisplay(id, info, _liveFrames[id])
     table_insert(result, {
         id = id,
         name = name,
@@ -1176,6 +1539,7 @@ function sfui.trackedbuffs.GetTrackedBuffs()
     wipe(_liveActive)
     wipe(_liveIndex)
     wipe(_liveIcon)
+    wipe(_liveFrames)
     wipe(_seen)
 
     local viewer = GetBlizzBuffViewer()
@@ -1183,14 +1547,17 @@ function sfui.trackedbuffs.GetTrackedBuffs()
         for blizzFrame in viewer.itemFramePool:EnumerateActive() do
             HookItemFrame(blizzFrame)
             local id = blizzFrame.cooldownID
-            if type(id) == "number" and (not issecretvalue or not issecretvalue(id)) then
+            if IsPlainPositiveNumber(id) then
                 _liveActive[id] = IsItemActive(blizzFrame)
-                if blizzFrame.layoutIndex then
-                    _liveIndex[id] = blizzFrame.layoutIndex
+                _liveFrames[id] = blizzFrame
+                local lIdx = blizzFrame.layoutIndex
+                if IsPlainNumber(lIdx) then
+                    _liveIndex[id] = lIdx
                 end
-                local tex = blizzFrame.Icon and blizzFrame.Icon.GetTexture and blizzFrame.Icon:GetTexture()
-                if (not issecretvalue or not issecretvalue(tex)) and IsValidTexture(tex) then
-                    _liveIcon[id] = tex
+                local hasPlainValid, _, plainTex = InspectLiveIconTexture(blizzFrame.Icon)
+                if hasPlainValid and plainTex then
+                    _liveIcon[id] = plainTex
+                    _knownLiveIcon[id] = plainTex
                 end
             end
         end
@@ -1206,9 +1573,18 @@ function sfui.trackedbuffs.GetTrackedBuffs()
     if dd and dd.orderedCooldownIDs and dd.cooldownInfoByID then
         resolvedFromLayout = true
         for idx, id in ipairs(dd.orderedCooldownIDs) do
-            local info = dd.cooldownInfoByID[id]
-            if info and not info.isInvisible and info.category == cat and info.isKnown ~= false then
-                AppendBuffResult(result, id, info, idx)
+            if IsPlainPositiveNumber(id) then
+                local info = dd.cooldownInfoByID[id]
+                if IsPlainTable(info) then
+                    local isInv = info.isInvisible
+                    local infoCat = info.category
+                    local isKnown = info.isKnown
+                    if not IsSecret(isInv) and not isInv
+                        and IsPlainNumber(infoCat) and infoCat == cat
+                        and not IsSecret(isKnown) and isKnown ~= false then
+                        AppendBuffResult(result, id, info, idx)
+                    end
+                end
             end
         end
     else
@@ -1223,16 +1599,19 @@ function sfui.trackedbuffs.GetTrackedBuffs()
             local orderCounter = 0
 
             local function checkLayoutID(id)
-                if _seen[id] then return end
+                if not IsPlainPositiveNumber(id) or _seen[id] then return end
                 local info = GetCooldownInfoSafe(id)
-                if not info or info.isInvisible or info.isKnown == false then return end
+                if not IsPlainTable(info) then return end
+                local isInv = info.isInvisible
+                local isKnown = info.isKnown
+                if IsSecret(isInv) or isInv or IsSecret(isKnown) or isKnown == false then return end
                 local block = overrides and overrides[id]
                 local effCat
-                if block and block.category ~= nil then
+                if IsPlainTable(block) and not IsSecret(block.category) and block.category ~= nil then
                     effCat = tonumber(block.category)
                 elseif IsHideByDefault(info) then
                     effCat = -2
-                else
+                elseif IsPlainNumber(info.category) then
                     effCat = info.category
                 end
                 if effCat == cat then
@@ -1264,9 +1643,12 @@ function sfui.trackedbuffs.GetTrackedBuffs()
         local ids = C_CooldownViewer.GetCooldownViewerCategorySet(cat, false)
         if ids then
             for idx, id in ipairs(ids) do
-                local info = GetCooldownInfoSafe(id)
-                if info and not info.isInvisible and not IsHideByDefault(info) then
-                    AppendBuffResult(result, id, info, idx)
+                if IsPlainPositiveNumber(id) then
+                    local info = GetCooldownInfoSafe(id)
+                    if IsPlainTable(info) and not IsSecret(info.isInvisible) and not info.isInvisible
+                        and not IsHideByDefault(info) then
+                        AppendBuffResult(result, id, info, idx)
+                    end
                 end
             end
         end
@@ -1276,8 +1658,8 @@ function sfui.trackedbuffs.GetTrackedBuffs()
     if viewer and viewer.itemFramePool then
         for blizzFrame in viewer.itemFramePool:EnumerateActive() do
             local id = blizzFrame.cooldownID
-            if type(id) == "number" and (not issecretvalue or not issecretvalue(id)) and not _seen[id] then
-                AppendBuffResult(result, id, nil, blizzFrame.layoutIndex or 999)
+            if IsPlainPositiveNumber(id) and not _seen[id] then
+                AppendBuffResult(result, id, nil, _liveIndex[id] or 999)
             end
         end
     end
@@ -1286,16 +1668,22 @@ function sfui.trackedbuffs.GetTrackedBuffs()
         table_sort(result, CompareBuffResults)
     end
 
+    wipe(_liveFrames)
     return result
 end
 
--- hook only transition-level OnActiveStateChanged (never Show/HidePandemicStateFrame, which OnUpdate runs per-frame!)
+-- hook only transition-level item frame methods (never Show/HidePandemicStateFrame, which OnUpdate runs per-frame!)
 HookItemFrame = function(blizzFrame)
     if not blizzFrame or _hookedItems[blizzFrame] or not hooksecurefunc then return end
     _hookedItems[blizzFrame] = true
 
     if blizzFrame.OnActiveStateChanged then
         hooksecurefunc(blizzFrame, "OnActiveStateChanged", function()
+            RequestBuffsSync(false)
+        end)
+    end
+    if blizzFrame.RefreshSpellTexture then
+        hooksecurefunc(blizzFrame, "RefreshSpellTexture", function()
             RequestBuffsSync(false)
         end)
     end
@@ -1321,6 +1709,8 @@ local function OnTrackedBuffsTick()
         end
         local slot = slots[i]
         if slot and slot:IsShown() then
+            EnsureBlizzFrameSocketed(slot, blizzFrame)
+            SyncSlotFallbackIcon(slot, blizzFrame)
             SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
         end
     end
@@ -1344,7 +1734,9 @@ local function HookBlizzardViewer()
         end
 
         hooksecurefunc(viewer, "RefreshLayout", function()
-            RequestBuffsSync(true)
+            wipe(_anchoredSlot)
+            SyncWithBlizzard()
+            ScheduleBuffsTabRefresh(true)
         end)
         hooksecurefunc(viewer, "RefreshData", function()
             RequestBuffsSync(false)
@@ -1375,10 +1767,12 @@ local function RegisterEvents()
         SyncWithBlizzard()
     end
     local function onLayoutEvent()
+        _iconAssetEpoch = _iconAssetEpoch + 1
         HookBlizzardViewer()
         RequestBuffsSync(true)
     end
     local function onIconAssetLoaded()
+        _iconAssetEpoch = _iconAssetEpoch + 1
         RequestBuffsSync(false)
     end
 
@@ -1388,9 +1782,11 @@ local function RegisterEvents()
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onLayoutEvent)
     sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", onLayoutEvent)
     sfui.events.RegisterEvent("SPELLS_CHANGED", onLayoutEvent)
+    sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", onLayoutEvent)
     sfui.events.RegisterEvent("SPELL_UPDATE_ICON", onIconAssetLoaded)
     sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", onIconAssetLoaded)
     sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", onIconAssetLoaded)
+    sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", onIconAssetLoaded)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", onStateEvent)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", onStateEvent)
     sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", onStateEvent)
@@ -1417,6 +1813,10 @@ end
 -- lifecycle hooks
 function sfui.trackedbuffs.OnInit()
     if not isSupportedClient then return end
+    if not InCombatLockdown() and common and common.is_addon_loaded and common.ensure_addon_loaded
+        and not common.is_addon_loaded("Blizzard_CooldownViewer") then
+        common.ensure_addon_loaded("Blizzard_CooldownViewer")
+    end
     CreateSocketContainer()
     HookBlizzardViewer()
     RegisterEvents()

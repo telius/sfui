@@ -121,8 +121,8 @@ local function SafeGetCategorySet(cat, allowUnlearned)
 end
 
 local function SafeGetCooldownInfo(cdID)
-    if type(cdID) ~= "number" or cdID <= 0 then return nil end
     if common and common.issecretvalue and common.issecretvalue(cdID) then return nil end
+    if type(cdID) ~= "number" or cdID <= 0 then return nil end
     local entryHelper = sfui.tracking and sfui.tracking.entry
     if entryHelper and entryHelper.SafeGetCooldownInfo then
         return entryHelper.SafeGetCooldownInfo(cdID)

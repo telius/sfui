@@ -58,6 +58,7 @@ local CONSUMABLES = {
         name = "stone / oil (main hand)",
         type = "weapon_enchant",
         slot = 16,
+        enchantFilter = "temporary",
         threshold = 300,
         fallbackIcon = "Interface\\Icons\\INV_Stone_SharpeningStone_04",
         isConsumable = true,
@@ -67,6 +68,7 @@ local CONSUMABLES = {
         name = "stone / oil (off hand)",
         type = "weapon_enchant",
         slot = 17,
+        enchantFilter = "temporary",
         threshold = 300,
         fallbackIcon = "Interface\\Icons\\INV_Stone_SharpeningStone_04",
         isConsumable = true,
@@ -76,6 +78,7 @@ local CONSUMABLES = {
         name = "fishing lure",
         type = "weapon_enchant",
         slot = 16,
+        enchantFilter = "temporary",
         isFishingLure = true,
         threshold = 60,
         fallbackIcon = "Interface\\Icons\\INV_Misc_Fish_02",
@@ -109,8 +112,8 @@ function sfui.buffs.consumables.GetActiveConsumableEntries()
 
     if db.trackWeaponOil then
         local pClass = sfui.buffs.playerClass
-        -- Rogue and Shaman already track class-specific weapon enchants (poisons & weapon imbues)
-        if pClass ~= "ROGUE" and pClass ~= "SHAMAN" then
+        -- Rogue poisons are temporary enchants; Camelot Shamans can stack weapon oils/stones alongside imbues
+        if pClass ~= "ROGUE" and (sfui.isCamelot or pClass ~= "SHAMAN") then
             result[#result + 1] = CONSUMABLES.weapon_oil_mh
             result[#result + 1] = CONSUMABLES.weapon_oil_oh
         end

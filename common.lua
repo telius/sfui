@@ -487,7 +487,7 @@ end
 local primaryResourcesCache = {
     DEATHKNIGHT = Enum.PowerType.RunicPower,
     DEMONHUNTER = Enum.PowerType.Fury,
-    DRUID = { [0] = Enum.PowerType.Mana, [1] = Enum.PowerType.Energy, [5] = Enum.PowerType.Rage, [27] = Enum.PowerType.Mana, [31] = Enum.PowerType.LunarPower, [35] = Enum.PowerType.LunarPower, [1484] = Enum.PowerType.Mana },
+    DRUID = { [0] = Enum.PowerType.Mana, [1] = Enum.PowerType.Energy, [5] = Enum.PowerType.Rage, [8] = Enum.PowerType.Rage, [27] = Enum.PowerType.Mana, [31] = Enum.PowerType.LunarPower, [35] = Enum.PowerType.LunarPower, [1484] = Enum.PowerType.Mana },
     EVOKER = Enum.PowerType.Mana,
     HUNTER = Enum.PowerType.Focus,
     MAGE = Enum.PowerType.Mana,
@@ -503,7 +503,7 @@ local primaryResourcesCache = {
 local secondaryResourcesCache = {
     DEATHKNIGHT = Enum.PowerType.Runes,
     DEMONHUNTER = nil,
-    DRUID = { [1] = Enum.PowerType.ComboPoints, [5] = Enum.PowerType.Mana },
+    DRUID = { [1] = Enum.PowerType.ComboPoints, [5] = Enum.PowerType.Mana, [8] = Enum.PowerType.Mana },
     EVOKER = Enum.PowerType.Essence,
     HUNTER = nil,
     MAGE = { [62] = Enum.PowerType.ArcaneCharges },
@@ -515,6 +515,27 @@ local secondaryResourcesCache = {
     WARLOCK = Enum.PowerType.SoulShards,
     WARRIOR = nil
 }
+
+--- Check whether a shapeshift form ID corresponds to Bear/Dire Bear Form across clients.
+--- @param form number|nil
+--- @return boolean
+function sfui.common.is_druid_bear_form(form)
+    if not form or (issecretvalue and issecretvalue(form)) then return false end
+    return form == 5 or form == 8 or (_G.DRUID_BEAR_FORM ~= nil and form == _G.DRUID_BEAR_FORM)
+end
+
+--- Check whether a spellID is the highest known rank via native C_ActionBar API when available.
+--- @param spellID number
+--- @return boolean|nil isHighest nil when native API is unavailable
+function sfui.common.is_highest_spell_rank(spellID)
+    if not spellID or (issecretvalue and issecretvalue(spellID)) or type(spellID) ~= "number" or spellID <= 0 then
+        return true
+    end
+    if _G.C_ActionBar and type(_G.C_ActionBar.IsHighestSpellRank) == "function" then
+        return _G.C_ActionBar.IsHighestSpellRank(spellID) ~= false
+    end
+    return nil
+end
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Trailing-Edge Debounce & Unified Out-of-Combat Queue Delegation
@@ -863,7 +884,7 @@ function sfui.common.get_secondary_resource()
         if isCamelotOrClassic then
             if form == 1 then
                 res = Enum.PowerType.ComboPoints
-            elseif form == 5 or (UnitPowerType and UnitPowerType("player") ~= Enum.PowerType.Mana) then
+            elseif sfui.common.is_druid_bear_form(form) or (UnitPowerType and UnitPowerType("player") ~= Enum.PowerType.Mana) then
                 res = Enum.PowerType.Mana
             end
         else

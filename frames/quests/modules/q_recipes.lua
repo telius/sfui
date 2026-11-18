@@ -24,6 +24,11 @@ local RECRAFT_MODES = { false, true }
 
 local GetQLState = sfui.questlog.GetState
 
+local function HasNoReagentCost(recipeID)
+    return C_TradeSkillUI and C_TradeSkillUI.HasNoReagentCost
+        and type(recipeID) == "number" and C_TradeSkillUI.HasNoReagentCost(recipeID) == true
+end
+
 sfui.recipes = sfui.recipes or {}
 
 if not sfui.recipes.GetPinnedReagentDeficits then
@@ -36,7 +41,7 @@ if not sfui.recipes.GetPinnedReagentDeficits then
             local tracked = C_TradeSkillUI.GetRecipesTracked(isRecraft)
             if tracked then
                 for _, recipeID in ipairs(tracked) do
-                    if type(recipeID) == "number" and recipeID > 0 then
+                    if type(recipeID) == "number" and recipeID > 0 and not HasNoReagentCost(recipeID) then
                         local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, isRecraft)
                         if schematic and schematic.reagentSlotSchematics then
                             for _, slot in ipairs(schematic.reagentSlotSchematics) do
@@ -84,6 +89,7 @@ local RecipesModule = {
         "TRACKED_RECIPE_UPDATE",
         "BAG_UPDATE_DELAYED",
         "CURRENCY_DISPLAY_UPDATE",
+        "PLAYER_TALENT_UPDATE",
     },
 }
 
@@ -111,13 +117,14 @@ function RecipesModule:BuildBlocks(container)
                 if type(recipeID) == "number" and recipeID > 0 then
                     local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, isRecraft)
                     if schematic and schematic.name and schematic.name ~= "" then
+                        local noReagentCost = HasNoReagentCost(recipeID)
                         local lines = {}
                         local allReagentsMet = true
                         local hasAnyReagent = false
                         local key = "rec_" .. tostring(recipeID) .. (isRecraft and "_r" or "")
                         local isExpanded = (expandedBlocks[key] ~= false)
 
-                        if schematic.reagentSlotSchematics then
+                        if not noReagentCost and schematic.reagentSlotSchematics then
                             for _, slot in ipairs(schematic.reagentSlotSchematics) do
                                 local req = slot.quantityRequired or 1
                                 local reagent = slot.reagents and slot.reagents[1]
@@ -170,7 +177,7 @@ function RecipesModule:BuildBlocks(container)
                             end
                         end
 
-                        local isComplete = (hasAnyReagent and allReagentsMet)
+                        local isComplete = noReagentCost or (hasAnyReagent and allReagentsMet)
                         local recPrefix = isComplete and "[ready] " or (isRecraft and "[recraft] " or "[recipe] ")
 
                         table_insert(blocks, {

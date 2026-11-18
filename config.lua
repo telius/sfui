@@ -1155,6 +1155,7 @@ sfui.config = {
         showHotkeys        = true,
         showCounts         = true,
         showMacroNames     = false,
+        showLowRankBadge   = true,
         outOfRangeColoring = "button", -- "button", "hotkey", "none"
         restingAlpha       = 0,
         activeAlpha        = 1,

@@ -517,7 +517,19 @@ local followBrokenTicker   = nil
 local lastFollowLostSent   = 0
 local lastCombatEndTime    = 0
 local lastGraceTime        = 0
+local shardTransferUntil   = 0
 local followHookInstalled  = false
+
+local function is_shard_transfer_active()
+    if _G.GetEvictionTimeRemaining then
+        local rem = _G.GetEvictionTimeRemaining()
+        if not is_secret(rem) and type(rem) == "number" and rem > 0 then
+            return true
+        end
+    end
+    local now = (GetTime and GetTime()) or 0
+    return now < shardTransferUntil
+end
 
 local function get_current_subzone()
     local sub = GetSubZoneText and GetSubZoneText()
@@ -534,6 +546,7 @@ local function should_suppress_follow_alert(leaderUnit, leaderName)
     if sync.IsAway() then return true end
     if leaderName and sync.IsAway(leaderName) then return true end
     if InCombatLockdown and InCombatLockdown() then return true end
+    if is_shard_transfer_active() then return true end
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return true end
     if UnitOnTaxi and UnitOnTaxi("player") then return true end
     if UnitCastingInfo and UnitCastingInfo("player") then return true end
@@ -730,12 +743,19 @@ function sync.FormSyncedParty()
     end
 end
 
-local function on_party_invite_request(_, inviterName)
+local function on_party_invite_request(_, inviterName, _isTank, _isHealer, _isDamage, _isNativeRealm, isCrossShard)
     local s = sync.GetSettings and sync.GetSettings()
     if not s or not s.enabled or s.mbAutoInvite == false then return end
     if sync.IsAway() then return end
     if IsShiftKeyDown and IsShiftKeyDown() then return end
     if not inviterName or not multibox.IsSyncedCharacter(inviterName) then return end
+
+    local crossShard = (not is_secret(isCrossShard)) and (isCrossShard == true)
+    if crossShard then
+        local now = (GetTime and GetTime()) or 0
+        lastGraceTime = now
+        shardTransferUntil = now + 15.0
+    end
 
     if _G.AcceptGroup then
         _G.AcceptGroup()
@@ -745,7 +765,8 @@ local function on_party_invite_request(_, inviterName)
         _G.StaticPopup_Hide("PARTY_INVITE_XREALM")
     end
     if sfui.common and sfui.common.print then
-        sfui.common.print("sync: auto-accepted party invite from |cff00ffff" .. clean_key(inviterName) .. "|r.")
+        local suffix = crossShard and " (cross-shard)" or ""
+        sfui.common.print("sync: auto-accepted party invite from |cff00ffff" .. clean_key(inviterName) .. "|r" .. suffix .. ".")
     end
 end
 
@@ -1291,6 +1312,19 @@ if sfui.events and sfui.events.RegisterEvent then
         multibox.UpdatePartySyncState()
     end)
     sfui.events.RegisterEvent("PARTY_INVITE_REQUEST", on_party_invite_request)
+    sfui.events.RegisterEvent("SHARD_TRANSFER_IMMINENT", function()
+        shardTransferUntil = ((GetTime and GetTime()) or 0) + 15.0
+        cancel_follow_timers()
+    end)
+    sfui.events.RegisterEvent("SHARD_TRANSFER", function()
+        local now = (GetTime and GetTime()) or 0
+        lastGraceTime = now
+        shardTransferUntil = now + 20.0
+        cancel_follow_timers()
+    end)
+    sfui.events.RegisterEvent("SHARD_TRANSFER_CANCELLED", function()
+        shardTransferUntil = 0
+    end)
 end
 
 if sfui.events and sfui.events.RegisterMessage then

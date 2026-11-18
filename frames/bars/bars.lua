@@ -443,7 +443,7 @@ do
                 local hasAura = costInfo.hasRequiredAura
                 if not (reqAura and reqAura > 0 and hasAura == false) then
                     local cost = costInfo.cost or costInfo.minCost or costInfo.costPercent or costInfo.costPerSec or 0
-                    if (type(cost) == "number" and cost > 0) or (common.issecretvalue and common.issecretvalue(cost)) then
+                    if (common.issecretvalue and common.issecretvalue(cost)) or (type(cost) == "number" and cost > 0) then
                         return true
                     end
                 end
@@ -597,7 +597,7 @@ do
         local pClass = common.get_player_class()
         if pClass == "DRUID" then
             local form = (GetShapeshiftFormID and GetShapeshiftFormID()) or 0
-            if resource == Enum.PowerType.Rage or form == 5 then
+            if resource == Enum.PowerType.Rage or (common.is_druid_bear_form and common.is_druid_bear_form(form)) or form == 5 or form == 8 then
                 color = common.get_spec_color_table(14844)
             elseif resource == Enum.PowerType.Energy or form == 1 then
                 color = common.get_spec_color_table(14842)
@@ -1246,7 +1246,7 @@ do
             local form = (GetShapeshiftFormID and GetShapeshiftFormID()) or 0
             if resource == Enum.PowerType.ComboPoints or form == 1 then
                 color = common.get_spec_color_table(14842)
-            elseif resource == Enum.PowerType.Rage or form == 5 then
+            elseif resource == Enum.PowerType.Rage or (common.is_druid_bear_form and common.is_druid_bear_form(form)) or form == 5 or form == 8 then
                 color = common.get_spec_color_table(14844)
             elseif resource == 0 or resource == Enum.PowerType.Mana then
                 local sID = common.get_current_spec_id()

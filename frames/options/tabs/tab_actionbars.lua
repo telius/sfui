@@ -359,6 +359,24 @@ sfui.options.RegisterTab({
         end, "tints the button red when your target is out of range.")
         range_cb:SetPoint("TOPLEFT", macros_cb, "BOTTOMLEFT", 0, -8)
 
+        local lowrank_cb
+        if not sfui.isRetail then
+            lowrank_cb = create_checkbox(panel, "mark downranked spells", function()
+                local cfg = get_mod_cfg()
+                return cfg.showLowRankBadge ~= false
+            end, function(val)
+                local cfg = get_mod_cfg()
+                cfg.showLowRankBadge = val
+                if sfui.db and sfui.db.Set then
+                    sfui.db.Set("actionbars", "showLowRankBadge", val)
+                end
+                if sfui.actionbars and sfui.actionbars.UpdateRankBadges then
+                    sfui.actionbars.UpdateRankBadges()
+                end
+            end, "shows a compact amber rank badge (e.g. r1) in the top-left corner of spells when a higher rank is known.")
+            lowrank_cb:SetPoint("TOPLEFT", range_cb, "BOTTOMLEFT", 0, -8)
+        end
+
         -- ─────────────────────────────────────────────────────────────────────
         --  COLUMN 2: Bar Layout Controls (Bars 1-6) (Right Column, x = 295, width = 250)
         -- ─────────────────────────────────────────────────────────────────────
@@ -629,6 +647,10 @@ sfui.options.RegisterTab({
             if all_mouseover_cb and all_mouseover_cb.SetChecked then
                 local cfg = get_mod_cfg()
                 all_mouseover_cb:SetChecked(cfg.allBarsMouseover == true)
+            end
+            if lowrank_cb and lowrank_cb.SetChecked then
+                local cfg = get_mod_cfg()
+                lowrank_cb:SetChecked(cfg.showLowRankBadge ~= false)
             end
             if mover_btn and mover_btn.SetText then
                 local unlocked = is_movers_unlocked()

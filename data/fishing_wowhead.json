@@ -1383,7 +1383,7 @@
       "name": "Badlands",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557180
+      "fetched_at": 1794989284
     },
     "1419": {
       "uimap": 1419,
@@ -3515,7 +3515,7 @@
       "name": "Searing Gorge",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557182
+      "fetched_at": 1794989285
     },
     "1428": {
       "uimap": 1428,
@@ -13547,12 +13547,12 @@
       "uimap": 2521,
       "wh_zone_id": 16593,
       "name": "Zephras Isle",
-      "total_count": 10351,
+      "total_count": 18717,
       "items": [
         {
           "id": 118,
           "name": "minor healing potion",
-          "count": 36,
+          "count": 61,
           "classs": 0,
           "subclass": 1,
           "quality": 1,
@@ -13570,7 +13570,7 @@
         {
           "id": 774,
           "name": "malachite",
-          "count": 3,
+          "count": 4,
           "classs": 7,
           "subclass": 11,
           "quality": 2,
@@ -13579,10 +13579,19 @@
         {
           "id": 2455,
           "name": "minor mana potion",
-          "count": 30,
+          "count": 56,
           "classs": 0,
           "subclass": 1,
           "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 2555,
+          "name": "recipe: swiftness potion",
+          "count": 1,
+          "classs": 9,
+          "subclass": 6,
+          "quality": 2,
           "slot": 0
         },
         {
@@ -13595,9 +13604,27 @@
           "slot": 0
         },
         {
+          "id": 4560,
+          "name": "fine scimitar",
+          "count": 1,
+          "classs": 2,
+          "subclass": 7,
+          "quality": 1,
+          "slot": 13
+        },
+        {
+          "id": 4562,
+          "name": "severing axe",
+          "count": 1,
+          "classs": 2,
+          "subclass": 1,
+          "quality": 2,
+          "slot": 17
+        },
+        {
           "id": 4565,
           "name": "simple dagger",
-          "count": 1,
+          "count": 2,
           "classs": 2,
           "subclass": 15,
           "quality": 1,
@@ -13642,7 +13669,7 @@
         {
           "id": 6289,
           "name": "raw longjaw mud snapper",
-          "count": 4142,
+          "count": 7441,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13651,7 +13678,7 @@
         {
           "id": 6291,
           "name": "raw brilliant smallfish",
-          "count": 6416,
+          "count": 11587,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13660,7 +13687,7 @@
         {
           "id": 6292,
           "name": "10 pound mud snapper",
-          "count": 94,
+          "count": 160,
           "classs": 4,
           "subclass": -5,
           "quality": 1,
@@ -13669,7 +13696,7 @@
         {
           "id": 6294,
           "name": "12 pound mud snapper",
-          "count": 55,
+          "count": 83,
           "classs": 4,
           "subclass": -5,
           "quality": 1,
@@ -13678,16 +13705,25 @@
         {
           "id": 6295,
           "name": "15 pound mud snapper",
-          "count": 9,
+          "count": 12,
           "classs": 4,
           "subclass": -5,
           "quality": 1,
           "slot": 23
         },
         {
+          "id": 6514,
+          "name": "disciple's cloak",
+          "count": 1,
+          "classs": 4,
+          "subclass": -6,
+          "quality": 1,
+          "slot": 16
+        },
+        {
           "id": 6643,
           "name": "bloated brilliant smallfish",
-          "count": 17,
+          "count": 22,
           "classs": 15,
           "subclass": 4,
           "quality": 2,
@@ -13703,9 +13739,18 @@
           "slot": 17
         },
         {
+          "id": 8178,
+          "name": "training sword",
+          "count": 1,
+          "classs": 2,
+          "subclass": 8,
+          "quality": 2,
+          "slot": 17
+        },
+        {
           "id": 8179,
           "name": "cadet's bow",
-          "count": 2,
+          "count": 3,
           "classs": 2,
           "subclass": 2,
           "quality": 1,
@@ -13721,26 +13766,333 @@
           "slot": 15
         }
       ],
-      "fetched_at": 1794557183
+      "fetched_at": 1794989287
     },
     "2482": {
       "uimap": 2482,
       "wh_zone_id": 616,
       "name": "Mount Hyjal",
-      "total_count": 0,
-      "items": [],
-      "fetched_at": 1794557182
+      "total_count": 896,
+      "items": [
+        {
+          "id": 3820,
+          "name": "stranglekelp",
+          "count": 2,
+          "classs": 7,
+          "subclass": 9,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 4234,
+          "name": "heavy leather",
+          "count": 1,
+          "classs": 7,
+          "subclass": 6,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 4304,
+          "name": "thick leather",
+          "count": 1,
+          "classs": 7,
+          "subclass": 6,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6359,
+          "name": "firefin snapper",
+          "count": 39,
+          "classs": 7,
+          "subclass": 11,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 6643,
+          "name": "bloated brilliant smallfish",
+          "count": 1,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 2,
+          "slot": 0
+        },
+        {
+          "id": 6647,
+          "name": "bloated bristle whisker catfish",
+          "count": 1,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 2,
+          "slot": 0
+        },
+        {
+          "id": 7070,
+          "name": "elemental water",
+          "count": 111,
+          "classs": 7,
+          "subclass": 10,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 7079,
+          "name": "globe of water",
+          "count": 104,
+          "classs": 7,
+          "subclass": 10,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 7080,
+          "name": "essence of water",
+          "count": 102,
+          "classs": 7,
+          "subclass": 10,
+          "quality": 2,
+          "slot": 0
+        },
+        {
+          "id": 8171,
+          "name": "rugged hide",
+          "count": 1,
+          "classs": 7,
+          "subclass": 6,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 8366,
+          "name": "bloated mithril head trout",
+          "count": 1,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 2,
+          "slot": 0
+        },
+        {
+          "id": 8839,
+          "name": "blindweed",
+          "count": 1,
+          "classs": 7,
+          "subclass": 9,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 10286,
+          "name": "heart of the wild",
+          "count": 1,
+          "classs": 7,
+          "subclass": 10,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 10620,
+          "name": "thorium ore",
+          "count": 1,
+          "classs": 7,
+          "subclass": 7,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13443,
+          "name": "superior mana potion",
+          "count": 9,
+          "classs": 0,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13446,
+          "name": "major healing potion",
+          "count": 7,
+          "classs": 0,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13757,
+          "name": "lightning eel",
+          "count": 329,
+          "classs": 7,
+          "subclass": 11,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13758,
+          "name": "raw redgill",
+          "count": 148,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13759,
+          "name": "raw nightfin snapper",
+          "count": 235,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13760,
+          "name": "raw sunscale salmon",
+          "count": 510,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13889,
+          "name": "raw whitescale salmon",
+          "count": 993,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13890,
+          "name": "raw plated armorfish",
+          "count": 302,
+          "classs": 12,
+          "subclass": 0,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 13891,
+          "name": "bloated whitescale salmon",
+          "count": 7,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 2,
+          "slot": 0
+        },
+        {
+          "id": 13901,
+          "name": "15 pound salmon",
+          "count": 2,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 13902,
+          "name": "18 pound salmon",
+          "count": 2,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 13903,
+          "name": "22 pound salmon",
+          "count": 2,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 13904,
+          "name": "25 pound salmon",
+          "count": 1,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 13905,
+          "name": "29 pound salmon",
+          "count": 1,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 14047,
+          "name": "runecloth",
+          "count": 2,
+          "classs": 7,
+          "subclass": 5,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 14227,
+          "name": "ironweb spider silk",
+          "count": 1,
+          "classs": 7,
+          "subclass": 5,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 15757,
+          "name": "pattern: wicked leather pants",
+          "count": 1,
+          "classs": 9,
+          "subclass": 1,
+          "quality": 2,
+          "slot": 0
+        },
+        {
+          "id": 21164,
+          "name": "bloated rockscale cod",
+          "count": 1,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 2,
+          "slot": 0
+        },
+        {
+          "id": 21228,
+          "name": "mithril bound trunk",
+          "count": 5,
+          "classs": 15,
+          "subclass": 4,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 288206,
+          "name": "recipe: draught of water walking",
+          "count": 1,
+          "classs": 9,
+          "subclass": 6,
+          "quality": 2,
+          "slot": 0
+        }
+      ],
+      "fetched_at": 1794989286
     },
     "2548": {
       "uimap": 2548,
       "wh_zone_id": 16591,
       "name": "Riverglades",
-      "total_count": 1494,
+      "total_count": 8724,
       "items": [
         {
           "id": 1710,
           "name": "greater healing potion",
-          "count": 1,
+          "count": 4,
           "classs": 0,
           "subclass": 1,
           "quality": 1,
@@ -13749,7 +14101,7 @@
         {
           "id": 3820,
           "name": "stranglekelp",
-          "count": 59,
+          "count": 272,
           "classs": 7,
           "subclass": 9,
           "quality": 1,
@@ -13758,7 +14110,7 @@
         {
           "id": 3827,
           "name": "mana potion",
-          "count": 1,
+          "count": 2,
           "classs": 0,
           "subclass": 1,
           "quality": 1,
@@ -13767,7 +14119,7 @@
         {
           "id": 4603,
           "name": "raw spotted yellowtail",
-          "count": 104,
+          "count": 770,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13776,7 +14128,7 @@
         {
           "id": 6308,
           "name": "raw bristle whisker catfish",
-          "count": 126,
+          "count": 477,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13785,6 +14137,24 @@
         {
           "id": 6309,
           "name": "17 pound catfish",
+          "count": 4,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 6310,
+          "name": "19 pound catfish",
+          "count": 2,
+          "classs": 4,
+          "subclass": -5,
+          "quality": 1,
+          "slot": 23
+        },
+        {
+          "id": 6311,
+          "name": "22 pound catfish",
           "count": 1,
           "classs": 4,
           "subclass": -5,
@@ -13794,7 +14164,7 @@
         {
           "id": 6355,
           "name": "sturdy locked chest",
-          "count": 3,
+          "count": 19,
           "classs": 15,
           "subclass": 4,
           "quality": 1,
@@ -13803,7 +14173,7 @@
         {
           "id": 6357,
           "name": "sealed crate",
-          "count": 4,
+          "count": 21,
           "classs": 15,
           "subclass": 4,
           "quality": 1,
@@ -13812,7 +14182,7 @@
         {
           "id": 6358,
           "name": "oily blackmouth",
-          "count": 222,
+          "count": 1349,
           "classs": 7,
           "subclass": 11,
           "quality": 1,
@@ -13821,7 +14191,7 @@
         {
           "id": 6359,
           "name": "firefin snapper",
-          "count": 171,
+          "count": 1252,
           "classs": 7,
           "subclass": 11,
           "quality": 1,
@@ -13830,7 +14200,7 @@
         {
           "id": 6362,
           "name": "raw rockscale cod",
-          "count": 295,
+          "count": 2187,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13839,7 +14209,7 @@
         {
           "id": 8365,
           "name": "raw mithril head trout",
-          "count": 178,
+          "count": 815,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13857,16 +14227,25 @@
         {
           "id": 13422,
           "name": "stonescale eel",
-          "count": 228,
+          "count": 1059,
           "classs": 7,
           "subclass": 11,
           "quality": 1,
           "slot": 0
         },
         {
+          "id": 17058,
+          "name": "fish oil",
+          "count": 1,
+          "classs": 15,
+          "subclass": 1,
+          "quality": 1,
+          "slot": 0
+        },
+        {
           "id": 21150,
           "name": "iron bound trunk",
-          "count": 17,
+          "count": 158,
           "classs": 15,
           "subclass": 4,
           "quality": 1,
@@ -13875,7 +14254,7 @@
         {
           "id": 21151,
           "name": "rumsey rum black label",
-          "count": 30,
+          "count": 159,
           "classs": 0,
           "subclass": 5,
           "quality": 1,
@@ -13884,7 +14263,7 @@
         {
           "id": 21153,
           "name": "raw greater sagefish",
-          "count": 254,
+          "count": 1588,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13893,7 +14272,7 @@
         {
           "id": 21228,
           "name": "mithril bound trunk",
-          "count": 94,
+          "count": 550,
           "classs": 15,
           "subclass": 4,
           "quality": 1,
@@ -13902,14 +14281,23 @@
         {
           "id": 21243,
           "name": "bloated glossy mightfish",
-          "count": 1,
+          "count": 4,
           "classs": 15,
           "subclass": 4,
           "quality": 2,
           "slot": 0
+        },
+        {
+          "id": 267266,
+          "name": "mudfin murloc head",
+          "count": 1,
+          "classs": 12,
+          "subclass": 0,
+          "quality": 1,
+          "slot": 0
         }
       ],
-      "fetched_at": 1794557184
+      "fetched_at": 1794989288
     },
     "100718": {
       "uimap": 100718,
@@ -13917,7 +14305,7 @@
       "name": "Wailing Caverns",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557186
+      "fetched_at": 1794989290
     },
     "100719": {
       "uimap": 100719,
@@ -13925,7 +14313,7 @@
       "name": "Blackfathom Deeps",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557187
+      "fetched_at": 1794989291
     },
     "100796": {
       "uimap": 100796,
@@ -13933,7 +14321,7 @@
       "name": "Scarlet Monastery",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557188
+      "fetched_at": 1794989292
     },
     "101477": {
       "uimap": 101477,
@@ -13941,7 +14329,7 @@
       "name": "Sunken Temple",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557189
+      "fetched_at": 1794989293
     },
     "101977": {
       "uimap": 101977,
@@ -13949,7 +14337,7 @@
       "name": "Zul'Gurub",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557191
+      "fetched_at": 1794989295
     },
     "102017": {
       "uimap": 102017,
@@ -13957,7 +14345,7 @@
       "name": "Stratholme",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557192
+      "fetched_at": 1794989296
     },
     "102057": {
       "uimap": 102057,
@@ -13965,7 +14353,7 @@
       "name": "Scholomance",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557192
+      "fetched_at": 1794989297
     },
     "102100": {
       "uimap": 102100,
@@ -13973,7 +14361,7 @@
       "name": "Maraudon",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557193
+      "fetched_at": 1794989298
     },
     "102557": {
       "uimap": 102557,
@@ -13981,15 +14369,34 @@
       "name": "Dire Maul",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794557194
+      "fetched_at": 1794989299
     },
     "2652": {
       "uimap": 2652,
       "wh_zone_id": 16651,
       "name": "Shen'dralas",
-      "total_count": 0,
-      "items": [],
-      "fetched_at": 1794557185
+      "total_count": 35,
+      "items": [
+        {
+          "id": 6308,
+          "name": "raw bristle whisker catfish",
+          "count": 15,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        },
+        {
+          "id": 8365,
+          "name": "raw mithril head trout",
+          "count": 20,
+          "classs": 7,
+          "subclass": 8,
+          "quality": 1,
+          "slot": 0
+        }
+      ],
+      "fetched_at": 1794989289
     }
   },
   "species": {
@@ -14080,9 +14487,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 104,
-          "outof": 1494,
-          "share": 7.0
+          "count": 770,
+          "outof": 8724,
+          "share": 8.8
         },
         {
           "uimap": 2548,
@@ -14094,13 +14501,6 @@
         {
           "uimap": 101977,
           "name": "zul'gurub",
-          "count": 240,
-          "outof": 1000,
-          "share": 24.0
-        },
-        {
-          "uimap": 2652,
-          "name": "shen'dralas",
           "count": 240,
           "outof": 1000,
           "share": 24.0
@@ -14305,9 +14705,9 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 4142,
-          "outof": 10351,
-          "share": 40.0
+          "count": 7441,
+          "outof": 18717,
+          "share": 39.8
         },
         {
           "uimap": 2521,
@@ -14488,9 +14888,9 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 6416,
-          "outof": 10351,
-          "share": 62.0
+          "count": 11587,
+          "outof": 18717,
+          "share": 61.9
         },
         {
           "uimap": 2521,
@@ -14566,8 +14966,8 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 94,
-          "outof": 10351,
+          "count": 160,
+          "outof": 18717,
           "share": 0.9
         }
       ]
@@ -14630,9 +15030,9 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 55,
-          "outof": 10351,
-          "share": 0.5
+          "count": 83,
+          "outof": 18717,
+          "share": 0.4
         }
       ]
     },
@@ -14673,8 +15073,8 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 9,
-          "outof": 10351,
+          "count": 12,
+          "outof": 18717,
           "share": 0.1
         }
       ]
@@ -15041,9 +15441,16 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 126,
-          "outof": 1494,
-          "share": 8.4
+          "count": 477,
+          "outof": 8724,
+          "share": 5.5
+        },
+        {
+          "uimap": 2652,
+          "name": "shen'dralas",
+          "count": 15,
+          "outof": 35,
+          "share": 42.9
         },
         {
           "uimap": 2548,
@@ -15199,13 +15606,6 @@
           "count": 47,
           "outof": 21972,
           "share": 0.2
-        },
-        {
-          "uimap": 2548,
-          "name": "riverglades",
-          "count": 1,
-          "outof": 1494,
-          "share": 0.1
         }
       ]
     },
@@ -15554,8 +15954,8 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 3,
-          "outof": 1494,
+          "count": 19,
+          "outof": 8724,
           "share": 0.2
         }
       ]
@@ -15626,9 +16026,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 4,
-          "outof": 1494,
-          "share": 0.3
+          "count": 21,
+          "outof": 8724,
+          "share": 0.2
         }
       ]
     },
@@ -15788,9 +16188,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 222,
-          "outof": 1494,
-          "share": 14.9
+          "count": 1349,
+          "outof": 8724,
+          "share": 15.5
         },
         {
           "uimap": 2548,
@@ -15920,11 +16320,18 @@
           "share": 3.3
         },
         {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 39,
+          "outof": 896,
+          "share": 4.4
+        },
+        {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 171,
-          "outof": 1494,
-          "share": 11.4
+          "count": 1252,
+          "outof": 8724,
+          "share": 14.4
         },
         {
           "uimap": 2548,
@@ -16078,9 +16485,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 295,
-          "outof": 1494,
-          "share": 19.7
+          "count": 2187,
+          "outof": 8724,
+          "share": 25.1
         },
         {
           "uimap": 2548,
@@ -16205,11 +16612,18 @@
           "share": 0.1
         },
         {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 1,
+          "outof": 896,
+          "share": 0.1
+        },
+        {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 17,
-          "outof": 10351,
-          "share": 0.2
+          "count": 22,
+          "outof": 18717,
+          "share": 0.1
         }
       ]
     },
@@ -16421,9 +16835,16 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 178,
-          "outof": 1494,
-          "share": 11.9
+          "count": 815,
+          "outof": 8724,
+          "share": 9.3
+        },
+        {
+          "uimap": 2652,
+          "name": "shen'dralas",
+          "count": 20,
+          "outof": 35,
+          "share": 57.1
         },
         {
           "uimap": 2548,
@@ -16514,20 +16935,13 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 228,
-          "outof": 1494,
-          "share": 15.3
+          "count": 1059,
+          "outof": 8724,
+          "share": 12.1
         },
         {
           "uimap": 102100,
           "name": "maraudon",
-          "count": 70,
-          "outof": 1000,
-          "share": 7.0
-        },
-        {
-          "uimap": 2652,
-          "name": "shen'dralas",
           "count": 70,
           "outof": 1000,
           "share": 7.0
@@ -16581,13 +16995,6 @@
           "count": 100,
           "outof": 1000,
           "share": 10.0
-        },
-        {
-          "uimap": 2652,
-          "name": "shen'dralas",
-          "count": 50,
-          "outof": 1000,
-          "share": 5.0
         }
       ]
     },
@@ -16791,6 +17198,13 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
+          "count": 329,
+          "outof": 896,
+          "share": 36.7
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
           "count": 38,
           "outof": 1000,
           "share": 3.8
@@ -16939,6 +17353,13 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
+          "count": 148,
+          "outof": 896,
+          "share": 16.5
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
           "count": 120,
           "outof": 1000,
           "share": 12.0
@@ -16977,13 +17398,6 @@
           "count": 380,
           "outof": 1000,
           "share": 38.0
-        },
-        {
-          "uimap": 2652,
-          "name": "shen'dralas",
-          "count": 320,
-          "outof": 1000,
-          "share": 32.0
         }
       ]
     },
@@ -17115,6 +17529,13 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
+          "count": 235,
+          "outof": 896,
+          "share": 26.2
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
           "count": 210,
           "outof": 1000,
           "share": 21.0
@@ -17160,13 +17581,6 @@
           "count": 220,
           "outof": 1000,
           "share": 22.0
-        },
-        {
-          "uimap": 2652,
-          "name": "shen'dralas",
-          "count": 160,
-          "outof": 1000,
-          "share": 16.0
         }
       ]
     },
@@ -17305,6 +17719,13 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
+          "count": 510,
+          "outof": 896,
+          "share": 56.9
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
           "count": 195,
           "outof": 1000,
           "share": 19.5
@@ -17350,13 +17771,6 @@
           "count": 220,
           "outof": 1000,
           "share": 22.0
-        },
-        {
-          "uimap": 2652,
-          "name": "shen'dralas",
-          "count": 160,
-          "outof": 1000,
-          "share": 16.0
         }
       ]
     },
@@ -17713,6 +18127,13 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
+          "count": 993,
+          "outof": 896,
+          "share": 110.8
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
           "count": 425,
           "outof": 1000,
           "share": 42.5
@@ -17808,6 +18229,13 @@
           "count": 5325,
           "outof": 35300,
           "share": 15.1
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 302,
+          "outof": 896,
+          "share": 33.7
         }
       ]
     },
@@ -17859,6 +18287,13 @@
           "count": 40,
           "outof": 35300,
           "share": 0.1
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 2,
+          "outof": 896,
+          "share": 0.2
         }
       ]
     },
@@ -17902,6 +18337,13 @@
           "count": 47,
           "outof": 35300,
           "share": 0.1
+        },
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 2,
+          "outof": 896,
+          "share": 0.2
         }
       ]
     },
@@ -18270,9 +18712,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 17,
-          "outof": 1494,
-          "share": 1.1
+          "count": 158,
+          "outof": 8724,
+          "share": 1.8
         },
         {
           "uimap": 2482,
@@ -18306,9 +18748,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 254,
-          "outof": 1494,
-          "share": 17.0
+          "count": 1588,
+          "outof": 8724,
+          "share": 18.2
         },
         {
           "uimap": 2548,
@@ -18354,10 +18796,17 @@
           "share": 1.5
         },
         {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 5,
+          "outof": 896,
+          "share": 0.6
+        },
+        {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 94,
-          "outof": 1494,
+          "count": 550,
+          "outof": 8724,
           "share": 6.3
         },
         {
@@ -18398,10 +18847,10 @@
       "icon": "inv_misc_fish_02",
       "zones": [
         {
-          "uimap": 2548,
-          "name": "riverglades",
-          "count": 2,
-          "outof": 1494,
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 1,
+          "outof": 896,
           "share": 0.1
         }
       ]
@@ -18417,6 +18866,96 @@
           "name": "riverglades",
           "count": 1,
           "outof": 1494,
+          "share": 0.1
+        }
+      ]
+    },
+    "6647": {
+      "name": "bloated bristle whisker catfish",
+      "kind": "c",
+      "quality": 2,
+      "icon": "inv_misc_fish_30",
+      "zones": [
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 1,
+          "outof": 896,
+          "share": 0.1
+        }
+      ]
+    },
+    "13891": {
+      "name": "bloated whitescale salmon",
+      "kind": "c",
+      "quality": 2,
+      "icon": "inv_misc_fish_20",
+      "zones": [
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 7,
+          "outof": 896,
+          "share": 0.8
+        }
+      ]
+    },
+    "13903": {
+      "name": "22 pound salmon",
+      "kind": "t",
+      "quality": 1,
+      "icon": "inv_misc_fish_02",
+      "zones": [
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 2,
+          "outof": 896,
+          "share": 0.2
+        }
+      ]
+    },
+    "13904": {
+      "name": "25 pound salmon",
+      "kind": "t",
+      "quality": 1,
+      "icon": "inv_misc_fish_02",
+      "zones": [
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 1,
+          "outof": 896,
+          "share": 0.1
+        }
+      ]
+    },
+    "13905": {
+      "name": "29 pound salmon",
+      "kind": "t",
+      "quality": 1,
+      "icon": "inv_misc_fish_02",
+      "zones": [
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 1,
+          "outof": 896,
+          "share": 0.1
+        }
+      ]
+    },
+    "21164": {
+      "name": "bloated rockscale cod",
+      "kind": "c",
+      "quality": 2,
+      "icon": "inv_misc_fish_04",
+      "zones": [
+        {
+          "uimap": 2482,
+          "name": "mount hyjal",
+          "count": 1,
+          "outof": 896,
           "share": 0.1
         }
       ]

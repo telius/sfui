@@ -932,6 +932,9 @@ function sfui.actionbars.CreateBars()
             if sfui.actionbars.style and sfui.actionbars.style.UpdateGrid then
                 sfui.actionbars.style.UpdateGrid(button)
             end
+            if not sfui.isRetail and sfui.actionbars.style and sfui.actionbars.style.UpdateRankBadge then
+                sfui.actionbars.style.UpdateRankBadge(button)
+            end
         end
         LAB.RegisterCallback(sfui.actionbars, "OnButtonUpdate", on_button_changed)
         LAB.RegisterCallback(sfui.actionbars, "OnButtonContentsChanged", on_button_changed)
@@ -1381,4 +1384,40 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("PLAYER_FARSIGHT_FOCUS_CHANGED", on_pet_event)
     sfui.events.RegisterEvent("SPELLS_CHANGED", on_pet_event)
     sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_pet_event)
+end
+
+function sfui.actionbars.UpdateRankBadges()
+    if sfui.isRetail then return end
+    local styleMod = sfui.actionbars.style
+    if not (styleMod and styleMod.UpdateRankBadge) then return end
+    local bars = sfui.actionbars.bars
+    if not bars then return end
+    local modCfg = (sfui.db and sfui.db.Get and sfui.db.Get("actionbars")) or (sfui.config and sfui.config.actionbars) or {}
+    for barIdx = 1, 10 do
+        local bar = bars[barIdx]
+        if bar and bar.buttons then
+            for btnIdx = 1, #bar.buttons do
+                styleMod.UpdateRankBadge(bar.buttons[btnIdx], modCfg)
+            end
+        end
+    end
+end
+
+if not sfui.isRetail and sfui.events then
+    local function request_rank_badge_refresh()
+        if sfui.common and sfui.common.debounce then
+            sfui.common.debounce("sfui_ab_rank_badges", 0.15, sfui.actionbars.UpdateRankBadges)
+        else
+            sfui.actionbars.UpdateRankBadges()
+        end
+    end
+    if sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("SPELLS_CHANGED", request_rank_badge_refresh)
+        sfui.events.RegisterEvent("ACTIONBAR_SLOT_CHANGED", request_rank_badge_refresh)
+        sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", request_rank_badge_refresh)
+        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", request_rank_badge_refresh)
+    end
+    if sfui.events.RegisterMessage then
+        sfui.events.RegisterMessage("SFUI_SPELLS_RANK_UPDATED", request_rank_badge_refresh)
+    end
 end

@@ -448,6 +448,7 @@ if sfui.events then
     sfui.events.RegisterEvent("SKILL_LINES_CHANGED", OnDataChanged)
     sfui.events.RegisterEvent("NEW_RECIPE_LEARNED", OnDataChanged)
     sfui.events.RegisterEvent("SPELLS_CHANGED", OnDataChanged)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", OnDataChanged)
     if sfui.events.RegisterMessage then
         sfui.events.RegisterMessage("SFUI_ALT_SYNCED", OnDataChanged)
         sfui.events.RegisterMessage("SFUI_RECIPE_KNOWN_UPDATED", OnDataChanged)

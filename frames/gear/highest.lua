@@ -37,6 +37,9 @@ local _upgradeEvalCache = {}
 local _upgradeEvalCount = 0
 local UPGRADE_EVAL_CACHE_MAX = 3000
 local _evalTargetSlots = {}
+local CAMELOT_EXEMPT_UPGRADE_ITEMS = {
+    [264908] = true, -- Ancient heirloom
+}
 
 local function InvalidateUpgradeEvalCache()
     wipe(_upgradeEvalCache)
@@ -358,6 +361,13 @@ function sfui.gear.EvaluateItemUpgrade(itemLinkOrID, explicitSpecID, ignorePlaye
         itemLink = resolved or ("item:" .. tostring(itemLinkOrID))
     elseif type(itemLinkOrID) ~= "string" or itemLinkOrID == "" then
         return nil
+    end
+
+    if sfui.isCamelot then
+        local checkID = type(itemLinkOrID) == "number" and itemLinkOrID or common.get_item_id(itemLink)
+        if checkID and CAMELOT_EXEMPT_UPGRADE_ITEMS[checkID] then
+            return nil
+        end
     end
 
     local name = GetItemInfo(itemLink)

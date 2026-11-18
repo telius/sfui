@@ -353,12 +353,12 @@ local function GetSFApplications(specCfg)
         for i = 1, #ACTION_DISPLAY_SPELLS do
             local sID = ACTION_DISPLAY_SPELLS[i]
             local dc = C_Spell.GetSpellDisplayCount(sID)
-            if dc ~= nil then
-                if type(dc) == "number" and dc > 0 then
-                    return dc
-                elseif restricted and issecretvalue(dc) then
+            if issecretvalue(dc) then
+                if restricted then
                     return dc
                 end
+            elseif dc ~= nil and type(dc) == "number" and dc > 0 then
+                return dc
             end
         end
     end
@@ -391,14 +391,14 @@ local function GetSoulFragmentStacks()
 
     local apps = GetSFApplications(specCfg)
 
-    if apps == nil then
-        -- Engine restriction active and no source spoke -> HOLD last known
-        return lastKnownStacks, specCfg.cap
-    end
-
     if issecretvalue(apps) then
         lastKnownStacks = apps
         return apps, specCfg.cap
+    end
+
+    if apps == nil then
+        -- Engine restriction active and no source spoke -> HOLD last known
+        return lastKnownStacks, specCfg.cap
     end
 
     local n = type(apps) == "number" and apps or (tonumber(apps) or 0)

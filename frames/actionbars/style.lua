@@ -550,6 +550,83 @@ function style.SkinButton(button)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
+--  Dynamic Downrank Badge (`C_ActionBar.IsHighestSpellRank`)
+-- ─────────────────────────────────────────────────────────────────────────────
+local _rankLabelCache = {}
+
+local function GetShortRankLabel(spellID)
+    local cached = _rankLabelCache[spellID]
+    if cached ~= nil then
+        return cached ~= false and cached or "r-"
+    end
+    local sub = (_G.C_Spell and _G.C_Spell.GetSpellSubtext and _G.C_Spell.GetSpellSubtext(spellID))
+        or (_G.GetSpellSubtext and _G.GetSpellSubtext(spellID))
+    if type(sub) == "string" and sub ~= "" then
+        local num = sub:match("(%d+)")
+        if num then
+            local label = "r" .. num
+            _rankLabelCache[spellID] = label
+            return label
+        end
+        _rankLabelCache[spellID] = false
+    end
+    return "r-"
+end
+
+function style.UpdateRankBadge(button, cfg)
+    if not button then return end
+    local badge = button._sfuiRankBadge
+    local cAB = _G.C_ActionBar
+    if sfui.isRetail or not (cAB and type(cAB.IsHighestSpellRank) == "function") then
+        if badge then badge:Hide() end
+        return
+    end
+
+    cfg = cfg or (sfui.db and sfui.db.Get and sfui.db.Get("actionbars")) or (sfui.config and sfui.config.actionbars) or {}
+    if cfg.showLowRankBadge == false then
+        if badge then badge:Hide() end
+        return
+    end
+
+    local action = button._state_action or (button.barIndex and button.action)
+    if type(action) ~= "number" or action <= 0 or not _G.GetActionInfo then
+        if badge then badge:Hide() end
+        return
+    end
+
+    local aType, id = _G.GetActionInfo(action)
+    local isSecret = sfui.common and sfui.common.issecretvalue
+    if aType ~= "spell" or type(id) ~= "number" or id <= 0 or (isSecret and isSecret(id)) then
+        if badge then badge:Hide() end
+        return
+    end
+
+    if not cAB.IsHighestSpellRank(id) then
+        if not badge then
+            local hotkeyFont = (sfui.config and sfui.config.fontFile)
+                or (_G.NumberFontNormalSmallGray and _G.NumberFontNormalSmallGray:GetFont())
+                or (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
+                or "Fonts\\ARIALN.TTF"
+            badge = button:CreateFontString(nil, "OVERLAY")
+            badge:SetFont(hotkeyFont, 9, "OUTLINE")
+            badge:SetShadowOffset(0, 0)
+            badge:SetShadowColor(0, 0, 0, 0)
+            badge:SetTextColor(1.0, 0.68, 0.15, 0.95)
+            badge:ClearAllPoints()
+            badge:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+            badge:SetJustifyH("LEFT")
+            badge:SetJustifyV("TOP")
+            badge:SetDrawLayer("OVERLAY", 2)
+            button._sfuiRankBadge = badge
+        end
+        badge:SetText(GetShortRankLabel(id))
+        badge:Show()
+    elseif badge then
+        badge:Hide()
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
 --  Dynamic Config Sync (Toggling Hotkeys, Counts, Macros, Grid)
 -- ─────────────────────────────────────────────────────────────────────────────
 function style.UpdateElements(button, cfg)
@@ -609,6 +686,7 @@ function style.UpdateElements(button, cfg)
     end
 
     style.UpdateGrid(button, cfg)
+    style.UpdateRankBadge(button, cfg)
 end
 
 function style.UpdateGrid(button, cfg)

@@ -28,6 +28,7 @@ local UnitCreatureFamily = _G.UnitCreatureFamily
 local UnitName         = _G.UnitName
 local C_Spell          = _G.C_Spell
 local C_SpellBook      = _G.C_SpellBook
+local C_ActionBar      = _G.C_ActionBar
 local C_Timer          = _G.C_Timer
 local Enum             = _G.Enum
 local tonumber         = _G.tonumber
@@ -48,6 +49,7 @@ local hasModernLowRank = (C_SpellBook
     and C_SpellBook.GetNumSpellBookSkillLines
     and C_SpellBook.GetSpellBookSkillLineInfo
     and C_SpellBook.GetSpellBookItemInfo) and true or false
+local hasIsHighestSpellRank = (C_ActionBar and _G.type(C_ActionBar.IsHighestSpellRank) == "function") and true or false
 
 local pendingPlayer = {} -- oldSpellID -> newSpellID
 local pendingPet    = {} -- oldSpellID -> newSpellID
@@ -143,7 +145,9 @@ local function CollectPlayerBook(highestByName, lowRanksByName)
                     local info = C_SpellBook.GetSpellBookItemInfo(slot, BANK_PLAYER)
                     if info and not info.isPassive
                         and info.itemType == SPELL_ITEM_TYPE and info.spellID and info.name then
-                        if C_SpellBook.IsSpellBookItemLowRank(slot, BANK_PLAYER) then
+                        local isLow = C_SpellBook.IsSpellBookItemLowRank(slot, BANK_PLAYER)
+                            or (hasIsHighestSpellRank and not C_ActionBar.IsHighestSpellRank(info.spellID))
+                        if isLow then
                             local list = lowRanksByName[info.name]
                             if not list then
                                 list = {}
@@ -171,33 +175,48 @@ local function CollectPlayerBook(highestByName, lowRanksByName)
                 local slotType, spellID = _G.GetSpellBookItemInfo(slot, bookType)
                 local spellName, subName = _G.GetSpellBookItemName(slot, bookType)
                 if slotType == "SPELL" and spellID and spellName then
-                    local rank = ParseRankNumber(subName or GetSpellSubtextSafe(spellID))
-                    if rank > 0 then
-                        local list = allByName[spellName]
-                        if not list then
-                            list = {}
-                            allByName[spellName] = list
-                        end
-                        list[spellID] = true
-                        if not bestRankByName[spellName] or rank > bestRankByName[spellName] then
-                            bestRankByName[spellName] = rank
+                    if hasIsHighestSpellRank then
+                        if C_ActionBar.IsHighestSpellRank(spellID) then
                             highestByName[spellName] = spellID
+                        else
+                            local list = lowRanksByName[spellName]
+                            if not list then
+                                list = {}
+                                lowRanksByName[spellName] = list
+                            end
+                            list[spellID] = true
+                        end
+                    else
+                        local rank = ParseRankNumber(subName or GetSpellSubtextSafe(spellID))
+                        if rank > 0 then
+                            local list = allByName[spellName]
+                            if not list then
+                                list = {}
+                                allByName[spellName] = list
+                            end
+                            list[spellID] = true
+                            if not bestRankByName[spellName] or rank > bestRankByName[spellName] then
+                                bestRankByName[spellName] = rank
+                                highestByName[spellName] = spellID
+                            end
                         end
                     end
                 end
             end
         end
-        for name, bestID in pairs(highestByName) do
-            local allIDs = allByName[name]
-            if allIDs then
-                local lowList = {}
-                for sid in pairs(allIDs) do
-                    if sid ~= bestID then
-                        lowList[sid] = true
+        if not hasIsHighestSpellRank then
+            for name, bestID in pairs(highestByName) do
+                local allIDs = allByName[name]
+                if allIDs then
+                    local lowList = {}
+                    for sid in pairs(allIDs) do
+                        if sid ~= bestID then
+                            lowList[sid] = true
+                        end
                     end
-                end
-                if next(lowList) then
-                    lowRanksByName[name] = lowList
+                    if next(lowList) then
+                        lowRanksByName[name] = lowList
+                    end
                 end
             end
         end
@@ -378,17 +397,21 @@ local function UpgradeBars()
     local hasPet = (C_SpellBook and C_SpellBook.HasPetSpells and C_SpellBook.HasPetSpells())
         or (_G.HasPetSpells and _G.HasPetSpells())
 
+    local upgradedAny = false
     for action = 1, MAX_ACTION_SLOT do
         local actionType, id = GetActionInfo(action)
         if actionType == "spell" and id and id > 0 then
             local newID = pendingPlayer[id]
-            if newID and newID ~= id and IsPlayerSpellKnown(newID) then
+            local canUpgradePlayer = newID and newID ~= id and IsPlayerSpellKnown(newID)
+                and ((not hasIsHighestSpellRank) or (not C_ActionBar.IsHighestSpellRank(id) and C_ActionBar.IsHighestSpellRank(newID)))
+            if canUpgradePlayer then
                 ClearCursor()
                 PickupPlayerSpell(newID)
                 if GetCursorInfo and GetCursorInfo() == "spell" then
                     PlaceAction(action)
                     ClearCursor()
                     ReportUpgrade(GetSpellNameSafe(newID), action)
+                    upgradedAny = true
                 else
                     ClearCursor()
                 end
@@ -400,6 +423,7 @@ local function UpgradeBars()
                         PlaceAction(action)
                         ClearCursor()
                         ReportUpgrade(GetSpellNameSafe(petNew), action)
+                        upgradedAny = true
                     else
                         ClearCursor()
                     end
@@ -411,6 +435,10 @@ local function UpgradeBars()
     for k in pairs(pendingPlayer) do pendingPlayer[k] = nil end
     if not hasPet or not petDirty then
         for k in pairs(pendingPet) do pendingPet[k] = nil end
+    end
+
+    if upgradedAny and sfui.events and sfui.events.SendMessage then
+        sfui.events.SendMessage("SFUI_SPELLS_RANK_UPDATED")
     end
 end
 
@@ -491,11 +519,19 @@ sfui.rankup.OnSettingsChanged = function()
     SetActive(not (_G.SfuiDB and _G.SfuiDB.autoRankUp == false))
 end
 
+function sfui.rankup.IsLowRankSpell(spellID)
+    if not hasIsHighestSpellRank or _G.type(spellID) ~= "number" or spellID <= 0 then
+        return false
+    end
+    return not C_ActionBar.IsHighestSpellRank(spellID)
+end
+
 local _rankDebug = {}
 function sfui.rankup_debug_info()
     _rankDebug.enabled = (_G.SfuiDB and _G.SfuiDB.autoRankUp ~= false) or false
     _rankDebug.isScanning = (scanTimer ~= nil)
     _rankDebug.modernAPI = hasModernLowRank
+    _rankDebug.hasIsHighestSpellRank = hasIsHighestSpellRank
     return _rankDebug
 end
 sfui.rankup.GetDebugInfo = sfui.rankup_debug_info

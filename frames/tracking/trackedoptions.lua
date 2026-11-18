@@ -315,7 +315,7 @@ function sfui.trackedoptions.toggle_viewer()
             -- Default to Assignments tab
             select_tab(frame, 1)
 
-            if sfui.isRetail and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
+            if (sfui.isRetail or sfui.isCamelot) and not sfui.common.is_addon_loaded("Blizzard_CooldownViewer") then
                 sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
             end
         end)
@@ -1294,7 +1294,16 @@ function sfui.trackedoptions.RefreshBuffsList(parent)
             local row = AcquireBuffRow(parent, sec2c, i, rowWidth)
             row:ClearAllPoints()
             row:SetPoint("TOPLEFT", 0, ly)
-            row.iconTex:SetTexture(info.icon)
+            local iconVal = info.icon
+            if common.issecretvalue and common.issecretvalue(iconVal) then
+                row.iconTex:SetTexture(iconVal)
+            else
+                local valid = (type(iconVal) == "number" and iconVal > 0)
+                    or (type(iconVal) == "string" and iconVal ~= "" and iconVal ~= "0" and iconVal:lower() ~= "filedata id 0")
+                row.iconTex:SetTexture(valid and iconVal or 134400)
+            end
+            row.iconTex:SetAlpha(1)
+            row.iconTex:Show()
             row.lName:SetText(info.name and info.name:lower() or ("unknown (" .. tostring(info.id) .. ")"))
             row.lID:SetText("id: " .. tostring(info.id))
             if info.active then

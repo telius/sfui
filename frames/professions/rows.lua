@@ -329,7 +329,12 @@ function B.CreateRow(parent, index)
         end
 
         -- Reagents breakdown with live bag availability
-        if r.reagents and next(r.reagents) then
+        local noReagentCost = _G.C_TradeSkillUI and _G.C_TradeSkillUI.HasNoReagentCost
+            and r.id and _G.C_TradeSkillUI.HasNoReagentCost(r.id) == true
+        if noReagentCost then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cff88ddffno reagents required|r", 0.5, 0.85, 1)
+        elseif r.reagents and next(r.reagents) then
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("|cffffd100reagents:|r", 1, 1, 1)
             for matID, count in pairs(r.reagents) do

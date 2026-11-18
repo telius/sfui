@@ -392,6 +392,8 @@ sfui.ring.register_provider("utility", {
         local slots = u.get_spec_slots(playerClass, specID)
 
         local seen = {}
+        local seenNameSlot = {}
+        local highestAtSlot = {}
         for i = 1, 12 do
             local item = slots[i]
             if item and item.type and item.id then
@@ -408,18 +410,35 @@ sfui.ring.register_provider("utility", {
                         local name, icon = get_spell_details(spellID)
                         local sName = (name or item.name or tostring(spellID)):lower()
                         local key = "spell:" .. tostring(spellID)
-                        if not seen[key] then
+                        local nameKey = (sfui.isCamelot or sfui.isClassic) and sName ~= "" and sName or nil
+                        local isHighest = sfui.common and sfui.common.is_highest_spell_rank and sfui.common.is_highest_spell_rank(spellID)
+                        local existingIdx = nameKey and seenNameSlot[nameKey]
+                        local sliceData = {
+                            id      = "util_spell_" .. tostring(spellID),
+                            spellID = tonumber(spellID),
+                            label   = sName,
+                            icon    = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                            attrs   = {
+                                type  = "spell",
+                                spell = ((sfui.isCamelot or sfui.isClassic) and name and name ~= "" and name) or spellID,
+                            },
+                        }
+                        if existingIdx then
+                            if isHighest == true and not highestAtSlot[existingIdx] then
+                                seen[key] = true
+                                out[existingIdx] = sliceData
+                                highestAtSlot[existingIdx] = true
+                            end
+                        elseif not seen[key] then
                             seen[key] = true
-                            out[#out + 1] = {
-                                id      = "util_spell_" .. tostring(spellID),
-                                spellID = tonumber(spellID),
-                                label   = sName,
-                                icon    = icon or item.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                                attrs   = {
-                                    type  = "spell",
-                                    spell = ((sfui.isCamelot or sfui.isClassic) and name and name ~= "" and name) or spellID,
-                                },
-                            }
+                            local idx = #out + 1
+                            out[idx] = sliceData
+                            if nameKey then
+                                seenNameSlot[nameKey] = idx
+                            end
+                            if isHighest == true then
+                                highestAtSlot[idx] = true
+                            end
                         end
                     end
                 elseif item.type == "item" then

@@ -1320,6 +1320,7 @@ local CLASS_BUFFS = {
             name = "main hand weapon imbue",
             type = "weapon_enchant",
             slot = 16,
+            enchantFilter = "imbue",
             threshold = 300,
             spellIDs = {
                 -- Rockbiter Weapon (Ranks 1 - 9)
@@ -1349,6 +1350,7 @@ local CLASS_BUFFS = {
             name = "off hand weapon imbue",
             type = "weapon_enchant",
             slot = 17,
+            enchantFilter = "imbue",
             threshold = 300,
             spellIDs = {
                 -- Rockbiter Weapon (Ranks 1 - 9)

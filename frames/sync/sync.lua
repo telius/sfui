@@ -532,9 +532,45 @@ function sync.CommandName(nameOrFull)
     return shortName .. "-" .. realm
 end
 
+local bnetWhisperTargets = {}
+
+local function is_same_wow_project(gameInfo)
+    if not (gameInfo and gameInfo.isOnline and gameInfo.clientProgram == "WoW") then
+        return false
+    end
+    local curProject = _G.WOW_PROJECT_ID
+    if curProject and gameInfo.wowProjectID and gameInfo.wowProjectID ~= curProject then
+        return false
+    end
+    return true
+end
+
+local function cache_bnet_title_whisper(friendIndex, charName)
+    if not charName or charName == "" then return end
+    if not (C_BattleNet and C_BattleNet.GetDefaultTitleWhisperTarget and C_BattleNet.GetFriendAccountInfo) then
+        return
+    end
+    local acct = C_BattleNet.GetFriendAccountInfo(friendIndex)
+    local bnetID = acct and acct.bnetAccountID
+    if not bnetID then return end
+    local wt = C_BattleNet.GetDefaultTitleWhisperTarget(bnetID)
+    if wt and not (issecretvalue and issecretvalue(wt)) and wt ~= "" then
+        bnetWhisperTargets[string_lower(charName)] = wt
+        local shortName = string_match(charName, "^([^%-]+)")
+        if shortName and shortName ~= "" then
+            bnetWhisperTargets[string_lower(shortName)] = wt
+        end
+    end
+end
+
 local function get_whisper_target(nameOrFull, peer)
     local _, shortName, realm = normalize_peer_key(nameOrFull, peer and peer.realm)
     if not shortName then return nameOrFull end
+    local mapped = bnetWhisperTargets[string_lower(shortName)]
+        or (nameOrFull and bnetWhisperTargets[string_lower(nameOrFull)])
+    if mapped and mapped ~= "" then
+        return mapped
+    end
     local curRealm = get_current_realm()
     if not sfui.isRetail or not realm or realm == "" or string_lower(realm) == string_lower(curRealm) then
         return shortName
@@ -853,7 +889,8 @@ local function build_live_online_map()
             local numGameAccounts = (C_BattleNet.GetFriendNumGameAccounts and C_BattleNet.GetFriendNumGameAccounts(i)) or 0
             for j = 1, numGameAccounts do
                 local gameInfo = C_BattleNet.GetFriendGameAccountInfo(i, j)
-                if gameInfo and gameInfo.isOnline and gameInfo.clientProgram == "WoW" and gameInfo.characterName then
+                if is_same_wow_project(gameInfo) and gameInfo.characterName then
+                    cache_bnet_title_whisper(i, gameInfo.characterName)
                     local _, shortName = normalize_peer_key(gameInfo.characterName)
                     local lower = string_lower(shortName or gameInfo.characterName)
                     map[lower] = true
@@ -1173,7 +1210,8 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
             local numGameAccounts = (C_BattleNet.GetFriendNumGameAccounts and C_BattleNet.GetFriendNumGameAccounts(i)) or 0
             for j = 1, numGameAccounts do
                 local gameInfo = C_BattleNet.GetFriendGameAccountInfo(i, j)
-                if gameInfo and gameInfo.isOnline and gameInfo.clientProgram == "WoW" and gameInfo.gameAccountID then
+                if is_same_wow_project(gameInfo) and gameInfo.gameAccountID then
+                    cache_bnet_title_whisper(i, gameInfo.characterName)
                     local charName = gameInfo.characterName
                     local peer = charName and not is_self_character(charName) and sync.FindPeer(charName)
                     if peer then

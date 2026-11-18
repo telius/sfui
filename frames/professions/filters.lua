@@ -1432,4 +1432,5 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("SKILL_LINES_CHANGED", InvalidateLearnedCache)
     sfui.events.RegisterEvent("CRAFT_SHOW", InvalidateLearnedCache)
     sfui.events.RegisterEvent("SPELLS_CHANGED", InvalidateLearnedCache)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", InvalidateLearnedCache)
 end

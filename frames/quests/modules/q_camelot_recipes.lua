@@ -58,6 +58,11 @@ local function GetPinnedStorage()
     return SfuiDB.pinned_recipes
 end
 
+local function HasNoReagentCost(spellID)
+    return C_TradeSkillUI and C_TradeSkillUI.HasNoReagentCost
+        and type(spellID) == "number" and C_TradeSkillUI.HasNoReagentCost(spellID) == true
+end
+
 function sfui.recipes.GetPinnedRecipes()
     return GetPinnedStorage()
 end
@@ -87,7 +92,8 @@ function sfui.recipes.TogglePinRecipe(spellID)
     if isPinned then
         pinned[spellID] = true
         pinned[tostring(spellID)] = nil
-        if C_TradeSkillUI and C_TradeSkillUI.SetRecipeTracked and C_TradeSkillUI.IsRecipeProfessionLearned then
+        if C_TradeSkillUI and C_TradeSkillUI.SetRecipeTracked and C_TradeSkillUI.IsRecipeProfessionLearned
+            and not HasNoReagentCost(spellID) then
             if C_TradeSkillUI.IsRecipeProfessionLearned(spellID) then
                 pcall(C_TradeSkillUI.SetRecipeTracked, spellID, true, false)
             end
@@ -302,6 +308,9 @@ local function ExtractRecipeReagents(spellID, rData, isRecraft, fallbackReqs)
     local schematic = nil
     if C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic then
         schematic = C_TradeSkillUI.GetRecipeSchematic(spellID, isRecraft or false)
+    end
+    if HasNoReagentCost(spellID) then
+        return out, schematic
     end
 
     if schematic and schematic.reagentSlotSchematics and #schematic.reagentSlotSchematics > 0 then
@@ -627,6 +636,7 @@ CamelotRecipesModule = {
         "TRACKED_RECIPE_UPDATE",
         "CURRENCY_DISPLAY_UPDATE",
         "TRADE_SKILL_SHOW",
+        "PLAYER_TALENT_UPDATE",
     },
 }
 

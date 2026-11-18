@@ -1149,7 +1149,20 @@ local function UpdateLure()
 
     local hasLure, expSec = false, 0
     if sfui.buffs and sfui.buffs.scan and sfui.buffs.scan.GetSlotWeaponEnchant then
-        hasLure, expSec = sfui.buffs.scan.GetSlotWeaponEnchant(16)
+        hasLure, expSec = sfui.buffs.scan.GetSlotWeaponEnchant(16, "temporary")
+    elseif _G.C_Item and _G.C_Item.GetWeaponEnchantInfo and _G.Enum and _G.Enum.WeaponSlot then
+        local enchants = _G.C_Item.GetWeaponEnchantInfo(_G.Enum.WeaponSlot.MainHand)
+        if _G.type(enchants) == "table" then
+            local tempType = _G.Enum.ItemEnchantType and _G.Enum.ItemEnchantType.Temporary
+            local imbueType = _G.Enum.ItemEnchantType and _G.Enum.ItemEnchantType.Imbue
+            for _, ench in pairs(enchants) do
+                if ench and ench.hasEnchant and ((tempType and ench.enchantType == tempType) or (not tempType and (not imbueType or ench.enchantType ~= imbueType))) then
+                    hasLure = true
+                    expSec = ench.timeLeft and (ench.timeLeft / 1000) or 0
+                    break
+                end
+            end
+        end
     elseif _G.GetWeaponEnchantInfo then
         local hasMH, expMH = _G.GetWeaponEnchantInfo()
         if hasMH then

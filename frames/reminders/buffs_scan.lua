@@ -320,35 +320,68 @@ local ENCHANT_ID_TO_NAME = {
     [6498] = "Earthliving Weapon",
 }
 
-local function GetSlotWeaponEnchant(slot)
-    -- slot is 16 (main hand) or 17 (off hand)
-    -- 1. Modern C_PaperDollInfo API (authoritative native engine API on Camelot 1.60.1 and Retail)
-    local cPaperDoll = _G.C_PaperDollInfo
-    if cPaperDoll and cPaperDoll.GetTemporaryEnchantmentInfo then
-        local info = cPaperDoll.GetTemporaryEnchantmentInfo(slot)
-        if info then
-            local expSec = (info.remainingTimeMs or 0) / 1000
-            local charges = info.chargesRemaining or 0
-            local enchantID = info.enchantID
-            return true, expSec, charges, enchantID
-        end
+local function MatchesWeaponEnchantFilter(filterKind, enchantType, enchantID)
+    local enumTypes = _G.Enum and _G.Enum.ItemEnchantType
+    local noneType = enumTypes and enumTypes.None
+    local permType = enumTypes and enumTypes.Permanent
+    if enchantType ~= nil and ((noneType and enchantType == noneType) or (permType and enchantType == permType)) then
+        return false
     end
+    if not filterKind then
+        return true
+    end
+    local imbueType = enumTypes and enumTypes.Imbue
+    local tempType = enumTypes and enumTypes.Temporary
+    if filterKind == "imbue" then
+        if imbueType and enchantType ~= nil then
+            return enchantType == imbueType
+        end
+        return enchantID ~= nil and ENCHANT_ID_TO_NAME[enchantID] ~= nil
+    elseif filterKind == "temporary" then
+        if imbueType and enchantType == imbueType then
+            return false
+        end
+        if tempType and enchantType ~= nil then
+            return enchantType == tempType
+        end
+        return not (enchantID and ENCHANT_ID_TO_NAME[enchantID])
+    end
+    return true
+end
 
-    -- 2. C_Item.GetWeaponEnchantInfo (TOC 11.0+ / 1.60.1)
+local function GetSlotWeaponEnchant(slot, filterKind)
+    -- slot is 16 (main hand) or 17 (off hand)
+    -- 1. C_Item.GetWeaponEnchantInfo (Camelot 1.60.1 / 11.0+: returns all enchant slots so imbues do not mask temporary enchants)
     local cItem = _G.C_Item
     local enumTable = _G.Enum
     if cItem and cItem.GetWeaponEnchantInfo and enumTable and enumTable.WeaponSlot then
         local weaponSlot = (slot == 17) and enumTable.WeaponSlot.OffHand or enumTable.WeaponSlot.MainHand
         local enchants = cItem.GetWeaponEnchantInfo(weaponSlot)
-        if enchants then
+        if type(enchants) == "table" then
             for _, ench in pairs(enchants) do
-                if ench.hasEnchant then
+                if ench and ench.hasEnchant and MatchesWeaponEnchantFilter(filterKind, ench.enchantType, ench.enchantID) then
                     local expSec = ench.timeLeft and (ench.timeLeft / 1000) or 0
                     local charges = ench.charges or 0
                     local enchantID = ench.enchantID
-                    return true, expSec, charges, enchantID
+                    return true, expSec, charges, enchantID, ench.enchantIconID
                 end
             end
+            return false, 0, 0, nil
+        end
+    end
+
+    -- 2. Modern C_PaperDollInfo API (fallback when C_Item.GetWeaponEnchantInfo is unavailable)
+    local cPaperDoll = _G.C_PaperDollInfo
+    if cPaperDoll and cPaperDoll.GetTemporaryEnchantmentInfo then
+        local info = cPaperDoll.GetTemporaryEnchantmentInfo(slot)
+        if info then
+            local enchantID = info.enchantID
+            if MatchesWeaponEnchantFilter(filterKind, nil, enchantID) then
+                local expSec = (info.remainingTimeMs or 0) / 1000
+                local charges = info.chargesRemaining or 0
+                return true, expSec, charges, enchantID
+            end
+            return false, 0, 0, nil
         end
     end
 
@@ -357,11 +390,15 @@ local function GetSlotWeaponEnchant(slot)
     if getWepEnchant then
         local hasMH, expMH, chargesMH, idMH, hasOH, expOH, chargesOH, idOH = getWepEnchant()
         if slot == 16 and hasMH then
-            local expSec = expMH and (expMH / 1000) or 0
-            return true, expSec, chargesMH or 0, idMH
+            if MatchesWeaponEnchantFilter(filterKind, nil, idMH) then
+                local expSec = expMH and (expMH / 1000) or 0
+                return true, expSec, chargesMH or 0, idMH
+            end
         elseif slot == 17 and hasOH then
-            local expSec = expOH and (expOH / 1000) or 0
-            return true, expSec, chargesOH or 0, idOH
+            if MatchesWeaponEnchantFilter(filterKind, nil, idOH) then
+                local expSec = expOH and (expOH / 1000) or 0
+                return true, expSec, chargesOH or 0, idOH
+            end
         end
     end
 
@@ -474,7 +511,7 @@ local function ScanWeaponEnchant(entry)
         if not isPole then
             return true, 0, 0, 0, nil
         end
-        local hasMH, expSec, chargesMH = GetSlotWeaponEnchant(16)
+        local hasMH, expSec, chargesMH = GetSlotWeaponEnchant(16, "temporary")
         local skillRank = (sfui.fishing and sfui.fishing.GetSkill and sfui.fishing.GetSkill()) or 0
         local bestLure = sfui.fishing_data and sfui.fishing_data.FindBestLureInBags and sfui.fishing_data.FindBestLureInBags(skillRank)
         local lureIcon = nil
@@ -504,7 +541,7 @@ local function ScanWeaponEnchant(entry)
     end
 
     if slot == 16 then
-        local hasMH, expSec, chargesMH, idMH = GetSlotWeaponEnchant(16)
+        local hasMH, expSec, chargesMH, idMH = GetSlotWeaponEnchant(16, entry.enchantFilter)
         local activeEnchant = hasMH and GetActiveWeaponEnchantName(16, idMH)
         local _, castIcon = data.GetBestCastSpell(entry, activeEnchant)
 
@@ -531,12 +568,12 @@ local function ScanWeaponEnchant(entry)
             return true, 0, 0, 0, nil
         end
 
-        -- If player is Shaman on Classic / Camelot, Shamans cannot dual wield
-        if pClass == "SHAMAN" and (sfui.isCamelot or sfui.isClassic) then
+        -- Shamans cannot dual wield in Classic / Camelot, so skip OH imbue tracking there
+        if pClass == "SHAMAN" and entry.enchantFilter == "imbue" and (sfui.isCamelot or sfui.isClassic) then
             return true, 0, 0, 0, nil
         end
 
-        local hasOH, expSec, chargesOH, idOH = GetSlotWeaponEnchant(17)
+        local hasOH, expSec, chargesOH, idOH = GetSlotWeaponEnchant(17, entry.enchantFilter)
         local activeEnchant = hasOH and GetActiveWeaponEnchantName(17, idOH)
         local _, castIcon = data.GetBestCastSpell(entry, activeEnchant)
 
