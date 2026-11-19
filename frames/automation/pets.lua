@@ -42,7 +42,7 @@ local math_random             = math.random
 local table_insert            = table.insert
 local table_remove            = table.remove
 local table_sort              = table.sort
-local wipe                    = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
+local wipe                    = sfui.common.wipe
 local pairs                   = _G.pairs
 
 -- ─── Configuration & Defaults ───────────────────────────────────────────────

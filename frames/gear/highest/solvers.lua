@@ -237,10 +237,23 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
         end
 
         local isDualWield = bestOH and (bestOH.itemEquipLoc == "INVTYPE_WEAPON" or bestOH.itemEquipLoc == "INVTYPE_WEAPONOFFHAND" or (bestOH.itemEquipLoc == "INVTYPE_2HWEAPON" and rule.weaps["2H_Dual"]))
+        local isClassicCaster = sfui.highest.IsClassicCasterContext and sfui.highest.IsClassicCasterContext(rule, context) or false
         local score2H = best2H and best2H.score or 0
-        local scoreDual = 0
-
-        if isClassicSpec and not isTank and not isHeal and bestOH and not isDualWield then
+        local scoreDual
+        if isClassicCaster and bestOH and not isDualWield then
+            -- Classic casters & healers comparing 2H staff vs 1H + off-hand/shield:
+            -- ScoreItem uses minimal ilvl tie-breaking (0.05x) and omits melee DPS and quality padding
+            -- on caster stat-stick slots, so compare cleanly on stats + symmetric ilvl tie-breaker.
+            -- For caster DPS (e.g. Elemental Shaman) with a shield, ignore shield armor/block inflation.
+            if best2H then
+                score2H = score2H + ((best2H.ilvl or 0) * 0.05)
+            end
+            if not isHeal and bestOH.itemEquipLoc == "INVTYPE_SHIELD" then
+                scoreDual = (best1H and best1H.score or 0) + ((bestOH.ilvl or 0) * 0.05) + (bestOH.statScore or 0)
+            else
+                scoreDual = (best1H and best1H.score or 0) + (bestOH and bestOH.score or 0)
+            end
+        elseif isClassicSpec and not isTank and not isHeal and bestOH and not isDualWield then
             -- For Classic physical DPS (Ret Paladin, Arms Warrior, Enhancement/leveling Shaman) considering 1H + Shield/Offhand vs 2H:
             -- An off-hand shield or frill does not deal weapon damage; evaluate based purely on weapon DPS and stats on the items.
             local ohStatScore = bestOH.statScore or 0
@@ -259,7 +272,7 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
             scoreDual = (best1H and best1H.score or 0) + (bestOH and bestOH.score or 0)
         end
 
-        local prioMH_OH = (specID == 62 or specID == 63 or specID == 64 or specID == 265 or specID == 266 or specID == 267 or specID == 258) or (isClassicSpec and isHeal)
+        local prioMH_OH = (specID == 62 or specID == 63 or specID == 64 or specID == 265 or specID == 266 or specID == 267 or specID == 258) or isClassicCaster or (isClassicSpec and isHeal)
         local choose2H = false
 
         if not isClassicSpec and specID == 70 then
@@ -286,8 +299,9 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
                     choose2H = (score2H > scoreDual)
                 end
             elseif prioMH_OH then
-                -- For Mage, Warlock & Shadow Priest or Classic Healers: prioritize MH + OH if stats/score are equal or better
-                if score2H > (scoreDual + 1.0) then
+                -- For Mage, Warlock & Shadow Priest or Classic Casters/Healers: prioritize MH + OH if stats/score are equal or better
+                local tieMargin = isClassicCaster and 0.05 or 1.0
+                if score2H > (scoreDual + tieMargin) then
                     choose2H = true
                 else
                     choose2H = false
@@ -346,7 +360,7 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
                 local can1HGoOffHand = (best1H.itemEquipLoc == "INVTYPE_WEAPON" or best1H.itemEquipLoc == "INVTYPE_WEAPONOFFHAND" or (best1H.itemEquipLoc == "INVTYPE_2HWEAPON" and rule.weaps["2H_Dual"]))
 
                 if canOHGoMainHand and can1HGoOffHand then
-                    local preferOHinMH = false
+                    local preferOHinMH
                     if isRogueWeap then
                         -- Rogue Weapon Assignment:
                         local usesBackstab = sfui.highest.DoesRogueUseBackstab(specID)

@@ -29,11 +29,13 @@ local ipairs             = _G.ipairs
 local pcall              = _G.pcall
 local tostring           = _G.tostring
 local type               = _G.type
-local wipe               = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local wipe               = sfui.common.wipe
 local math_ceil          = _G.math.ceil
 local math_max           = _G.math.max
 local string_format      = _G.string.format
 local table_concat       = _G.table.concat
+
+local issecretvalue      = sfui.safety.issecretvalue
 
 local theme              = sfui.theme
 local common             = sfui.common
@@ -54,51 +56,14 @@ local lastSelectedQuestBtn = nil
 local currentPeerSnapshot  = nil
 local currentQuestRewardSet = {}
 
--- ─── Player Faction Helper ────────────────────────────────────────────────────
-local function GetPlayerFaction()
-    local _, faction = sfui.common.get_player_faction()
-    return faction == "horde" and "horde" or "alliance"
-end
-
--- ─── Database & State Access ──────────────────────────────────────────────────
-local function DJ_DB()
-    if sfui.dungeonjournal and sfui.dungeonjournal.GetDB then
-        return sfui.dungeonjournal.GetDB()
-    end
-    _G.SfuiDB = _G.SfuiDB or {}
-    _G.SfuiDB.dungeonjournal = _G.SfuiDB.dungeonjournal or {}
-    return _G.SfuiDB.dungeonjournal
-end
-
-local function GetCurrentDungeon()
-    return sfui.dungeonjournal and sfui.dungeonjournal.GetCurrentDungeon and sfui.dungeonjournal.GetCurrentDungeon()
-end
-
--- ─── Quality Color Helper ─────────────────────────────────────────────────────
-local function GetQualityColor(quality)
-    if sfui.dungeonjournal and sfui.dungeonjournal.GetQualityColor then
-        return sfui.dungeonjournal.GetQualityColor(quality)
-    end
-    if common and common.get_item_quality_color then
-        return common.get_item_quality_color(quality)
-    end
-    return 0.8, 0.8, 0.8
-end
-
--- ─── Quest Status & Live Helpers ──────────────────────────────────────────────
-local function IsQuestCompleted(questID)
-    if sfui.dungeonjournal and sfui.dungeonjournal.IsQuestCompleted then
-        return sfui.dungeonjournal.IsQuestCompleted(questID)
-    end
-    if common and common.is_quest_completed then
-        return common.is_quest_completed(questID)
-    end
-    return false
-end
-
-local function IsQuestInLog(questID)
-    return (sfui.dungeonjournal and sfui.dungeonjournal.IsQuestActive and sfui.dungeonjournal.IsQuestActive(questID)) or false
-end
+-- ─── Shared Dungeon Journal & Status Aliases ─────────────────────────────────
+local dj                 = sfui.dungeonjournal
+local GetPlayerFaction   = dj.GetPlayerFaction
+local DJ_DB              = dj.GetDB
+local GetCurrentDungeon  = dj.GetCurrentDungeon
+local GetQualityColor    = dj.GetQualityColor
+local IsQuestCompleted   = dj.IsQuestCompleted
+local IsQuestInLog       = dj.IsQuestActive
 
 local function IsQuestShareable(questID, quest)
     if quest and quest.shareable ~= nil then
@@ -344,7 +309,7 @@ local function AcquireRewardButton(pool, parent)
     local iconTex = iconBtn:CreateTexture(nil, "ARTWORK")
     btn.iconTex = iconTex
     iconTex:SetAllPoints()
-    iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(iconTex)
 
     -- Item Name
     local nameText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -379,11 +344,7 @@ local function AcquireRewardButton(pool, parent)
     return btn
 end
 
-local function ReleaseAll(pool)
-    if sfui.dungeonjournal and sfui.dungeonjournal.ReleaseAll then
-        sfui.dungeonjournal.ReleaseAll(pool)
-    end
-end
+local ReleaseAll = dj.ReleaseAll
 
 -- ─── Render Quest Detail ──────────────────────────────────────────────────────
 RenderQuestDetail = function(quest, dungeon, peerSnapshot)
@@ -575,31 +536,31 @@ RenderQuestDetail = function(quest, dungeon, peerSnapshot)
             end
         end)
 
+        local function NormalizeCoordPair(x, y)
+            if x and x > 1 then x = x / 100 end
+            if y and y > 1 then y = y / 100 end
+            return x, y
+        end
+
         -- Helper to resolve mapID and coordinates for any quest
-        local function ResolveQuestMapCoords(quest)
-            if not quest or not quest.id then return nil end
+        local function ResolveQuestMapCoords(q)
+            if not q or not q.id then return nil end
             local db = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
 
             -- 0. Prerequisite chain step: point to the current step the player is on
             if sfui.dungeonjournal and sfui.dungeonjournal.GetQuestChainInfo then
-                local steps, currentStep = sfui.dungeonjournal.GetQuestChainInfo(quest)
+                local steps, currentStep = sfui.dungeonjournal.GetQuestChainInfo(q)
                 if steps and currentStep then
                     if currentStep.pickedUpInDungeon then
                         local ec = currentStep.entranceCoords
                         if ec and ec.mapID then
-                            local x = ec.x
-                            local y = ec.y
-                            if x and x > 1 then x = x / 100 end
-                            if y and y > 1 then y = y / 100 end
+                            local x, y = NormalizeCoordPair(ec.x, ec.y)
                             return ec.mapID, x, y, "entrance", currentStep, ec.detail
                         end
-                        local dungeon = GetCurrentDungeon()
-                        if dungeon and dungeon.entrance and dungeon.entrance.mapID then
-                            local ent = dungeon.entrance
-                            local x = ent.x
-                            local y = ent.y
-                            if x and x > 1 then x = x / 100 end
-                            if y and y > 1 then y = y / 100 end
+                        local curDungeon = GetCurrentDungeon()
+                        if curDungeon and curDungeon.entrance and curDungeon.entrance.mapID then
+                            local ent = curDungeon.entrance
+                            local x, y = NormalizeCoordPair(ent.x, ent.y)
                             return ent.mapID, x, y, "entrance", currentStep
                         end
                         return nil
@@ -607,48 +568,39 @@ RenderQuestDetail = function(quest, dungeon, peerSnapshot)
                     local c = currentStep.coords or
                     (db and ((db.GetQuestCoords and db.GetQuestCoords(currentStep.id)) or (db.questCoords and db.questCoords[currentStep.id])))
                     if c and c.mapID then
-                        local x = c.x
-                        local y = c.y
-                        if x and x > 1 then x = x / 100 end
-                        if y and y > 1 then y = y / 100 end
+                        local x, y = NormalizeCoordPair(c.x, c.y)
                         return c.mapID, x, y, "chain_step", currentStep, c.detail
                     end
                 end
             end
 
             -- 1. Explicit quest coordinates from database (skip outdoor coords if quest starts inside dungeon)
-            local c = (not quest.pickedUpInDungeon) and db and
-            ((db.GetQuestCoords and db.GetQuestCoords(quest.id)) or (db.questCoords and db.questCoords[quest.id])) or nil
+            local c = (not q.pickedUpInDungeon) and db and
+            ((db.GetQuestCoords and db.GetQuestCoords(q.id)) or (db.questCoords and db.questCoords[q.id])) or nil
             if c and c.mapID then
-                local x = c.x
-                local y = c.y
-                if x and x > 1 then x = x / 100 end
-                if y and y > 1 then y = y / 100 end
+                local x, y = NormalizeCoordPair(c.x, c.y)
                 return c.mapID, x, y, "quest", nil, c.detail
             end
 
             -- 2. Quest log API map (if quest is in log)
             if C_QuestLog and C_QuestLog.GetQuestUiMapID then
-                local ok, qMap = pcall(C_QuestLog.GetQuestUiMapID, quest.id)
-                if ok and qMap and qMap > 0 then
+                local qMap = C_QuestLog.GetQuestUiMapID(q.id)
+                if not issecretvalue(qMap) and type(qMap) == "number" and qMap > 0 then
                     return qMap, nil, nil, "questlog"
                 end
             end
 
             -- 3. Dungeon entrance coordinates
-            local dungeon = GetCurrentDungeon()
-            if dungeon and dungeon.entrance and dungeon.entrance.mapID then
-                local ent = dungeon.entrance
-                local x = ent.x
-                local y = ent.y
-                if x and x > 1 then x = x / 100 end
-                if y and y > 1 then y = y / 100 end
+            local curDungeon = GetCurrentDungeon()
+            if curDungeon and curDungeon.entrance and curDungeon.entrance.mapID then
+                local ent = curDungeon.entrance
+                local x, y = NormalizeCoordPair(ent.x, ent.y)
                 return ent.mapID, x, y, "entrance"
             end
 
             -- 4. Dungeon zoneMapID or mapID
-            if dungeon and (dungeon.zoneMapID or dungeon.mapID) then
-                return dungeon.zoneMapID or dungeon.mapID, nil, nil, "dungeon"
+            if curDungeon and (curDungeon.zoneMapID or curDungeon.mapID) then
+                return curDungeon.zoneMapID or curDungeon.mapID, nil, nil, "dungeon"
             end
 
             return nil
@@ -901,7 +853,7 @@ RenderQuestDetail = function(quest, dungeon, peerSnapshot)
     info.pText:ClearAllPoints()
     info.pText:SetPoint("TOPLEFT", info, "TOPLEFT", 0, -currY)
     info.pText:SetPoint("TOPRIGHT", info, "TOPRIGHT", 0, -currY)
-    local pickupStatusStr = ""
+    local pickupStatusStr
     if isDone then
         pickupStatusStr = "  |cff00ff00[completed]|r"
     elseif isActive then
@@ -954,8 +906,8 @@ RenderQuestDetail = function(quest, dungeon, peerSnapshot)
             for i, s in ipairs(steps) do
                 local sDone = s.id and IsQuestCompleted(s.id)
                 local sActive = s.id and IsQuestInLog(s.id)
-                local statusBadge = ""
-                local titleColor = "|cffffffff"
+                local statusBadge
+                local titleColor
                 local numColor = "|cff888888"
 
                 if sDone then
@@ -1053,7 +1005,7 @@ RenderQuestDetail = function(quest, dungeon, peerSnapshot)
         local sLines = {}
         for _, peer in ipairs(peerStatuses) do
             local pTag = peer.inParty and " |cff88ccff(party)|r" or ""
-            local stBadge = ""
+            local stBadge
             if peer.status == "completed" then
                 stBadge = "|cff00ff00[completed]|r"
             elseif peer.status == "ready" then

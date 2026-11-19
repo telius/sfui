@@ -1215,7 +1215,10 @@ function merge.ScanActiveQuestsDelta(turnedInMap, acceptedMap)
     SfuiDB.alts = SfuiDB.alts or {}
     local alt = SfuiDB.alts[myGUID]
     if type(alt) ~= "table" then
-        local uName, uArg2 = _G.UnitName and _G.UnitName("player")
+        local uName, uArg2
+        if _G.UnitName then
+            uName, uArg2 = _G.UnitName("player")
+        end
         alt = {
             name    = uName or nil,
             surname = (sfui.isCamelot and uArg2 and uArg2 ~= "") and uArg2 or nil,
@@ -1578,7 +1581,10 @@ function merge.ScanLocalQuestsAndDJ(justCompletedQuestID, acceptedMap)
     SfuiDB.alts = SfuiDB.alts or {}
     local alt = SfuiDB.alts[myGUID]
     if type(alt) ~= "table" then
-        local uName, uArg2 = _G.UnitName and _G.UnitName("player")
+        local uName, uArg2
+        if _G.UnitName then
+            uName, uArg2 = _G.UnitName("player")
+        end
         alt = {
             name    = uName or nil,
             surname = (sfui.isCamelot and uArg2 and uArg2 ~= "") and uArg2 or nil,

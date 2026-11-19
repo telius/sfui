@@ -469,7 +469,7 @@ function sfui.trackedicons.ApplyIconBorderStyle(icon, panelConfig)
     icon._lastSquareIcons = squareIcons
 
     if squareIcons then
-        icon.texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.common.set_square_icon_coords(icon.texture)
     else
         icon.texture:SetTexCoord(0, 1, 0, 1)
     end

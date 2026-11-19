@@ -391,7 +391,7 @@ local function GetColoredCharacterName(name, className, realm, altData, guid)
     end
 
     local hex = (col and col.GenerateHexColor and col:GenerateHexColor()) or
-                (col and string.format("ff%02x%02x%02x", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255)) or
+                (col and ("ff" .. sfui.colors.rgb_to_hex(col.r, col.g, col.b))) or
                 "ffffffff"
 
     if not isCamelotNames and realm and realm ~= "" and myRealm and myRealm ~= "" then
@@ -440,7 +440,10 @@ local function CheckActivePlayerKnownStatus(itemID)
         return true, true
     end
 
-    local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
+    local _, itemLink
+    if C_Item_GetItemInfo then
+        _, itemLink = C_Item_GetItemInfo(itemID)
+    end
     if not itemLink then
         if C_Item_RequestLoadItemDataByID then
             C_Item_RequestLoadItemDataByID(itemID)
@@ -784,7 +787,10 @@ local function GetRecipeStatus(itemID)
     end
 
     -- 3. Check if current player or any alt can learn it
-    local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
+    local _, itemLink
+    if C_Item_GetItemInfo then
+        _, itemLink = C_Item_GetItemInfo(itemID)
+    end
     local reqProf, reqRank = ExtractRecipeRequirement(itemID, itemLink, subclassID)
     if not reqProf and skillID and SKILL_ID_TO_NAME[skillID] then
         reqProf = SKILL_ID_TO_NAME[skillID]
@@ -1209,7 +1215,10 @@ function sfui.recipes.AddAltKnowledgeLines(tooltip, itemOrRecipe)
         if C_Item_GetItemInfoInstant then
             subclassID = select(7, C_Item_GetItemInfoInstant(itemID))
         end
-        local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
+        local _, itemLink
+        if C_Item_GetItemInfo then
+            _, itemLink = C_Item_GetItemInfo(itemID)
+        end
         profName, minSkill = ExtractRecipeRequirement(itemID, itemLink, subclassID)
     end
 
@@ -1689,7 +1698,10 @@ function sfui.recipes.FindBestAltForRecipe(itemID)
     local skillID = r and r.skillID
     local minSkill = r and (r.minSkill or (r.colors and r.colors[1]))
     local outputItemID = r and r.output
-    local _, itemLink = C_Item_GetItemInfo and C_Item_GetItemInfo(itemID)
+    local _, itemLink
+    if C_Item_GetItemInfo then
+        _, itemLink = C_Item_GetItemInfo(itemID)
+    end
     local reqProf, reqRank = ExtractRecipeRequirement(itemID, itemLink, subclassID)
     if not reqProf and skillID and SKILL_ID_TO_NAME[skillID] then
         reqProf = SKILL_ID_TO_NAME[skillID]

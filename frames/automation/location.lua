@@ -34,8 +34,8 @@ end
 
 local cyan    = sfui_config.colors.cyan
 local purple  = sfui_config.colors.purple
-local cc      = string.format("|cff%02x%02x%02x", cyan[1] * 255, cyan[2] * 255, cyan[3] * 255)
-local pc      = string.format("|cff%02x%02x%02x", purple[1] * 255, purple[2] * 255, purple[3] * 255)
+local cc      = "|cff" .. sfui.colors.rgb_to_hex(cyan[1], cyan[2], cyan[3])
+local pc      = "|cff" .. sfui.colors.rgb_to_hex(purple[1], purple[2], purple[3])
 local reset_c = "|r"
 
 -- -------------------------------------------------------
@@ -278,7 +278,7 @@ local function print_instance_status()
             specName = isDefault and (sName .. " (default)") or sName
         end
         local r, g, b = sfui.common.get_spec_color(specID)
-        specColor = string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
+        specColor = "|cff" .. sfui.colors.rgb_to_hex(r, g, b)
     end
 
     local diffBadge = ""

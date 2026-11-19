@@ -19,7 +19,7 @@ local IsShiftKeyDown      = _G.IsShiftKeyDown
 local ipairs              = _G.ipairs
 local pairs               = _G.pairs
 local tostring            = _G.tostring
-local wipe                = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local wipe                = sfui.common.wipe
 local string_format       = string.format
 local table_insert        = _G.table.insert
 
@@ -37,14 +37,7 @@ local questPinCacheSig    = nil
 local djPinCacheRev       = 0
 
 -- ─── Helper: DB Access ────────────────────────────────────────────────────────
-local function DJ_DB()
-    if sfui.dungeonjournal and sfui.dungeonjournal.GetDB then
-        return sfui.dungeonjournal.GetDB()
-    end
-    SfuiDB = SfuiDB or {}
-    SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
-    return SfuiDB.dungeonjournal
-end
+local DJ_DB = sfui.dungeonjournal.GetDB
 
 local function GetOption(key)
     if sfui.dungeonjournal and sfui.dungeonjournal.GetOption and sfui.dungeonjournal.GetOption ~= GetOption then
@@ -312,7 +305,7 @@ local function OnEnterQuestGroup(pin, tooltip, pinData)
             local q = item.quest
             local d = item.dungeon
             local minLvl = item.minLevel or q.minLevel or 1
-            local statusBadge = ""
+            local statusBadge
             if playerLevel < minLvl then
                 statusBadge = string_format(" |cffff4444[req lvl %d]|r", minLvl)
             else

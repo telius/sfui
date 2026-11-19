@@ -55,6 +55,8 @@ local stats = sfui.stats
 local gear = sfui.gear
 local num = stats.num
 local issecretvalue = sfui.common.issecretvalue
+local set_square_icon_coords = (common and common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 
 local CharacterFrame = _G.CharacterFrame
 
@@ -981,7 +983,7 @@ function panelModule.CreateToggleButton()
     toggleButton:SetNormalTexture("Interface\\Icons\\Ability_Warrior_OffensiveStance")
     toggleButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     if toggleButton:GetNormalTexture() then
-        toggleButton:GetNormalTexture():SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        set_square_icon_coords(toggleButton:GetNormalTexture())
     end
 
     local mult = sfui.pixelScale or 1

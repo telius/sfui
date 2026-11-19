@@ -10,10 +10,7 @@ local tonumber = _G.tonumber
 local table_sort = table.sort
 local InCombatLockdown = _G.InCombatLockdown
 
-local issecretvalue = (sfui.safety and sfui.safety.issecretvalue)
-    or (sfui.common and sfui.common.issecretvalue)
-    or _G.issecretvalue
-    or function() return false end
+local issecretvalue = sfui.safety.issecretvalue
 
 local itemProviders = {}
 local spellProviders = {}

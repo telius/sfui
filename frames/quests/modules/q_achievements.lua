@@ -234,8 +234,7 @@ function AchievementsModule:BuildBlocks(container)
     for _, achID in ipairs(trackedIDs) do
         local name, points, completed, description, wasEarnedByMe
         if GetAchievementInfo then
-            local _1, _3, _4, _5, _6, _7, _8, _9
-            _1, name, points, completed, _3, _4, _5, description, _6, _7, _8, _9, wasEarnedByMe = GetAchievementInfo(achID)
+            _, name, points, completed, _, _, _, description, _, _, _, _, wasEarnedByMe = GetAchievementInfo(achID)
         end
 
         -- Check filters: Only hide if completed by the current character.

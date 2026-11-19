@@ -24,14 +24,13 @@ local pairs = _G.pairs
 local table = _G.table
 local math = _G.math
 local tonumber = _G.tonumber
-local wipe = _G.wipe or function(t)
-    for k in pairs(t) do t[k] = nil end
-    return t
-end
+local wipe = (sfui.common and sfui.common.wipe) or _G.wipe or table.wipe
 
 local show_tooltip = sfui.gear.show_tooltip -- defined in engine.lua
 
 local hide_tooltip = sfui.common.hide_tooltip
+local set_square_icon_coords = (sfui.common and sfui.common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 
 -- -------------------------------------------------------------------------
 -- CENTRALIZED ROLE & NAKED ICON PARAMETERS
@@ -836,7 +835,7 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
             local t = rBtn:CreateTexture(nil, "ARTWORK")
             t:SetAllPoints()
             t:SetTexture(rIcon)
-            t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            set_square_icon_coords(t)
             rBtn.tex = t
             rBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
@@ -881,7 +880,7 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
     local t = btnNaked:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints()
     t:SetTexture("Interface\\Icons\\inv_chest_cloth_17")
-    t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    set_square_icon_coords(t)
     btnNaked.tex = t
     btnNaked:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
     local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
@@ -949,7 +948,7 @@ function sfui.gear.UpdateCollapsedRoleBar(gearFrame)
             local t = rBtn:CreateTexture(nil, "ARTWORK")
             t:SetAllPoints()
             t:SetTexture(sfui.gear.GetClassicRoleIcon(classID, rKey))
-            t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            set_square_icon_coords(t)
             rBtn.tex = t
             rBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             rBtn.roleKey = rKey
@@ -999,7 +998,7 @@ function sfui.gear.UpdateCollapsedRoleBar(gearFrame)
         local t = btnNaked:CreateTexture(nil, "ARTWORK")
         t:SetAllPoints()
         t:SetTexture("Interface\\Icons\\inv_chest_cloth_17")
-        t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        set_square_icon_coords(t)
         btnNaked.tex = t
         btnNaked:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
         btnNaked:SetScript("OnClick", function()

@@ -32,6 +32,7 @@ local math_pi          = math.pi
 local type             = type
 
 local is_secret        = (sfui.safety and sfui.safety.issecretvalue)
+    or (sfui.common and sfui.common.issecretvalue)
     or _G.issecretvalue
     or function() return false end
 
@@ -70,13 +71,11 @@ local appliedAlpha     = nil
 local expLayoutHooked  = false
 local hookedExpFrames  = setmetatable({}, { __mode = "k" })
 
-local function round_num(val, dec)
-    if sfui.common and sfui.common.round then
-        return sfui.common.round(val, dec)
+local round_num = (sfui.common and sfui.common.round)
+    or function(val, dec)
+        local mult = 10 ^ (dec or 0)
+        return math_floor(val * mult + 0.5) / mult
     end
-    local mult = 10 ^ (dec or 0)
-    return math_floor(val * mult + 0.5) / mult
-end
 
 local function ensure_db()
     if not _G.SfuiDB then return DEFAULTS end
@@ -168,25 +167,26 @@ local function resolve_fallback_uiparent_point()
     return pt, UIParent, relPt, pos.x or 0, (pos.y or 4) + h + 2
 end
 
-local function can_modify_region(f)
-    if not f then return false end
-    if not (InCombatLockdown and InCombatLockdown()) then
+local can_modify_region = (sfui.safety and sfui.safety.CanModifyRegion)
+    or function(f)
+        if not f then return false end
+        if not (InCombatLockdown and InCombatLockdown()) then
+            return true
+        end
+        if f.IsProtected then
+            local prot = f:IsProtected()
+            if is_secret(prot) or prot then
+                return false
+            end
+        end
+        if f.IsAnchoringRestricted then
+            local rest = f:IsAnchoringRestricted()
+            if is_secret(rest) or rest then
+                return false
+            end
+        end
         return true
     end
-    if f.IsProtected then
-        local prot = f:IsProtected()
-        if is_secret(prot) or prot then
-            return false
-        end
-    end
-    if f.IsAnchoringRestricted then
-        local rest = f:IsAnchoringRestricted()
-        if is_secret(rest) or rest then
-            return false
-        end
-    end
-    return true
-end
 
 local function resolve_theme_tokens()
     local themeMod = sfui.theme

@@ -444,7 +444,7 @@ local function InitToggleHook()
     toggleBtn:SetNormalTexture("Interface\\Icons\\inv_misc_gear_01")
     toggleBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     if toggleBtn:GetNormalTexture() then
-        toggleBtn:GetNormalTexture():SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.common.set_square_icon_coords(toggleBtn:GetNormalTexture())
     end
 
     local mult = sfui.pixelScale or 1

@@ -75,10 +75,10 @@ local function rgb_to_hex(col, dr, dg, db)
     if type(col) ~= "table" or not col[1] then
         if type(dr) == "string" then return dr end
     end
-    local r = math_floor(math_max(0, math_min(1, tonumber(col and col[1]) or tonumber(dr) or 1)) * 255 + 0.5)
-    local g = math_floor(math_max(0, math_min(1, tonumber(col and col[2]) or tonumber(dg) or 1)) * 255 + 0.5)
-    local b = math_floor(math_max(0, math_min(1, tonumber(col and col[3]) or tonumber(db) or 1)) * 255 + 0.5)
-    return string_format("%02x%02x%02x", r, g, b)
+    local r = math_max(0, math_min(1, tonumber(col and col[1]) or tonumber(dr) or 1))
+    local g = math_max(0, math_min(1, tonumber(col and col[2]) or tonumber(dg) or 1))
+    local b = math_max(0, math_min(1, tonumber(col and col[3]) or tonumber(db) or 1))
+    return sfui.colors.rgb_to_hex(r, g, b)
 end
 
 local HEADER_TOOLTIP_LINES = {

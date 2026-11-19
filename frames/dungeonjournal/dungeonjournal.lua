@@ -43,6 +43,8 @@ local UIParent                      = _G.UIParent
 local GetTime                       = _G.GetTime
 local InCombatLockdown              = _G.InCombatLockdown
 local pairs, ipairs, next           = _G.pairs, _G.ipairs, _G.next
+local set_square_icon_coords        = (sfui.common and sfui.common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 local pcall, type, tostring, tonumber = _G.pcall, _G.type, _G.tostring, _G.tonumber
 local math_floor, math_max          = math.floor, math.max
 local string_format                 = string.format
@@ -290,7 +292,9 @@ function sfui.dungeonjournal.GetWishlistCharacters(itemID)
                         local classToken = (alt and alt.class) or (guid == myGUID and select(2, _G.UnitClass("player")))
                         local cTbl = classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken]
                         if cTbl then
-                            local hex = cTbl.colorStr or string.format("ff%02x%02x%02x", math.floor((cTbl.r or 1) * 255), math.floor((cTbl.g or 1) * 255), math.floor((cTbl.b or 1) * 255))
+                            local rgbHex = (sfui.colors and sfui.colors.rgb_to_hex) and sfui.colors.rgb_to_hex(cTbl.r, cTbl.g, cTbl.b)
+                                or string.format("%02x%02x%02x", math.floor((cTbl.r or 1) * 255), math.floor((cTbl.g or 1) * 255), math.floor((cTbl.b or 1) * 255))
+                            local hex = cTbl.colorStr or ("ff" .. rgbHex)
                             clean = "|c" .. hex .. clean .. "|r"
                         end
                         names = names or {}
@@ -575,8 +579,8 @@ local function ResolveItemLink(btn, fallbackItemID)
         local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
         local quality = common.get_item_quality(itemID) or 1
         local r, g, b = GetQualityColor(quality)
-        local hex = string_format("ff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5),
-            math_floor((b or 1) * 255 + 0.5))
+        local hex = "ff" .. ((sfui.colors and sfui.colors.rgb_to_hex) and sfui.colors.rgb_to_hex(r, g, b)
+            or string_format("%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5), math_floor((b or 1) * 255 + 0.5)))
         itemLink = string_format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
         if btn then
             btn.link = itemLink
@@ -662,6 +666,12 @@ local function ReleaseAll(pool)
     end
 end
 sfui.dungeonjournal.ReleaseAll = ReleaseAll
+
+local function GetPlayerFaction()
+    local _, faction = sfui.common.get_player_faction()
+    return faction == "horde" and "horde" or "alliance"
+end
+sfui.dungeonjournal.GetPlayerFaction = GetPlayerFaction
 
 local cachedPlayerClass = nil
 local cachedPlayerRace  = nil
@@ -997,7 +1007,7 @@ function sfui.dungeonjournal.IsDungeonTrivial(dungeon, playerLevel)
         end
     end
     if not maxLvl then return false end
-    local grayDiff = 0
+    local grayDiff
     if pLvl <= 5 then
         grayDiff = 0
     elseif pLvl <= 39 then
@@ -1573,42 +1583,15 @@ local function SetMode(mode)
     SyncActivePanel()
 end
 
-local function SetTab(tab)
-    if EXTERNAL_TAB_DEFS[tab] then
-        if HasExternalTab(tab) then
-            if EnsureExternalTabButtons and frame then
-                EnsureExternalTabButtons()
-            end
-            if EnsureExternalPanelMounted and frame then
-                EnsureExternalPanelMounted(tab)
-            end
-            selectedTab = tab
-            DJ_DB().lastTab = tab
-            SyncActivePanel()
-            return
-        end
-        tab = "dungeons"
+local function EnsureValidDungeonSelection(db)
+    local currentEntry, currentTab
+    if selectedDungeonID then
+        currentEntry, currentTab = FindDungeon(selectedDungeonID)
     end
-
-    selectedTab = (tab == "raids") and "raids" or "dungeons"
-    lastJournalTab = selectedTab
-    DJ_DB().lastTab = selectedTab
-
-    -- Only reset selectedDungeonID if it does not belong to the newly selected tab
-    local currentEntry = selectedDungeonID and FindDungeon(selectedDungeonID)
     local list = GetList()
-    local isValidInTab = false
-    local showAll = DJ_DB().showAllDungeons == true
-    if currentEntry then
-        for _, entry in ipairs(list) do
-            if entry.id == selectedDungeonID then
-                if showAll or sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-                    isValidInTab = true
-                end
-                break
-            end
-        end
-    end
+    local showAll = db.showAllDungeons == true
+    local isValidInTab = (currentEntry ~= nil) and (currentTab == selectedTab)
+        and (showAll or sfui.dungeonjournal.IsDungeonInLevelRange(currentEntry))
     if not isValidInTab then
         local fallbackID = nil
         if not showAll and list then
@@ -1620,8 +1603,34 @@ local function SetTab(tab)
             end
         end
         selectedDungeonID = fallbackID or (list and list[1] and list[1].id) or nil
-        DJ_DB().lastDungeon = selectedDungeonID
+        db.lastDungeon = selectedDungeonID
     end
+end
+
+local function SetTab(tab)
+    local db = DJ_DB()
+    if EXTERNAL_TAB_DEFS[tab] then
+        if HasExternalTab(tab) then
+            if EnsureExternalTabButtons and frame then
+                EnsureExternalTabButtons()
+            end
+            if EnsureExternalPanelMounted and frame then
+                EnsureExternalPanelMounted(tab)
+            end
+            selectedTab = tab
+            db.lastTab = tab
+            SyncActivePanel()
+            return
+        end
+        tab = "dungeons"
+    end
+
+    selectedTab = (tab == "raids") and "raids" or "dungeons"
+    lastJournalTab = selectedTab
+    db.lastTab = selectedTab
+
+    -- Only reset selectedDungeonID if it does not belong to the newly selected tab
+    EnsureValidDungeonSelection(db)
 
     if RefreshSidebar then RefreshSidebar() end
     SyncActivePanel()
@@ -1743,25 +1752,26 @@ sfui.dungeonjournal.GetCurrentInstanceDungeon = GetCurrentInstanceDungeon
 
 -- ─── Public SelectDungeon & Navigation ───────────────────────────────────────
 function sfui.dungeonjournal.SelectDungeon(dungeonID, mode, forceShowAll)
+    local db = DJ_DB()
     local entry, tab = FindDungeon(dungeonID)
     if tab and tab ~= selectedTab then
         selectedTab = tab
         lastJournalTab = tab
-        DJ_DB().lastTab = tab
+        db.lastTab = tab
     elseif IsExternalTab() then
         selectedTab = (lastJournalTab == "raids") and "raids" or "dungeons"
-        DJ_DB().lastTab = selectedTab
+        db.lastTab = selectedTab
     end
 
     if mode and (mode == "map" or mode == "bosses" or mode == "quests") then
         selectedMode = mode
-        DJ_DB().lastMode = mode
+        db.lastMode = mode
     end
 
-    selectedDungeonID   = dungeonID
-    DJ_DB().lastDungeon = dungeonID
-    DJ_DB().lastBoss    = 1
-    DJ_DB().lastQuest   = 1
+    selectedDungeonID = dungeonID
+    db.lastDungeon = dungeonID
+    db.lastBoss    = 1
+    db.lastQuest   = 1
 
     if forceShowAll and entry and sfui.dungeonjournal.IsDungeonInLevelRange and not sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
         sfui.dungeonjournal.SetOption("showAllDungeons", true)
@@ -1843,10 +1853,11 @@ function sfui.dungeonjournal.GetSelectedDungeonID()
 end
 
 function sfui.dungeonjournal.SetSelectedDungeonID(dungeonID)
+    local db = DJ_DB()
     selectedDungeonID = dungeonID
-    DJ_DB().lastDungeon = dungeonID
-    DJ_DB().lastBoss    = 1
-    DJ_DB().lastQuest   = 1
+    db.lastDungeon = dungeonID
+    db.lastBoss    = 1
+    db.lastQuest   = 1
     SyncActivePanel()
 end
 
@@ -1965,7 +1976,7 @@ function sfui.dungeonjournal.CreateFrame()
     mapIco:SetSize(14, 14)
     mapIco:SetPoint("CENTER")
     mapIco:SetTexture("Interface\\Icons\\INV_Misc_Map02")
-    mapIco:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    set_square_icon_coords(mapIco)
 
     local mapHi = mapOptBtn:CreateTexture(nil, "HIGHLIGHT")
     mapHi:SetAllPoints()
@@ -2047,7 +2058,7 @@ function sfui.dungeonjournal.CreateFrame()
     showMapIco:SetSize(14, 14)
     showMapIco:SetPoint("CENTER")
     showMapIco:SetTexture("Interface\\Icons\\INV_Misc_Map08")
-    showMapIco:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    set_square_icon_coords(showMapIco)
 
     local showMapHi = showMapBtn:CreateTexture(nil, "HIGHLIGHT")
     showMapHi:SetAllPoints()
@@ -2439,20 +2450,21 @@ end
 local function OpenJournalFromHidden()
     frame:Show()
 
+    local db = DJ_DB()
     -- In-Instance Auto-Detection
     local activeFloor = nil
     local autoDetected = false
-    if DJ_DB().autoDetectInstance ~= false then
+    if db.autoDetectInstance ~= false then
         local activeDungeon, flIdx = GetCurrentInstanceDungeon()
         if activeDungeon then
-            autoDetected        = true
-            selectedDungeonID   = activeDungeon.id
-            activeFloor         = flIdx
-            selectedTab         = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
+            autoDetected      = true
+            selectedDungeonID = activeDungeon.id
+            activeFloor       = flIdx
+            selectedTab       = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
                 "raids" or "dungeons"
-            lastJournalTab      = selectedTab
-            DJ_DB().lastDungeon = selectedDungeonID
-            DJ_DB().lastTab     = selectedTab
+            lastJournalTab    = selectedTab
+            db.lastDungeon    = selectedDungeonID
+            db.lastTab        = selectedTab
         end
     end
 
@@ -2464,40 +2476,14 @@ local function OpenJournalFromHidden()
     if not IsValidTab(selectedTab) then
         selectedTab = "dungeons"
         lastJournalTab = "dungeons"
-        DJ_DB().lastTab = "dungeons"
+        db.lastTab = "dungeons"
     end
 
-    local list = GetList()
-    local currentEntry = selectedDungeonID and FindDungeon(selectedDungeonID)
-    local isValidInTab = false
-    local showAll = DJ_DB().showAllDungeons == true
-    if currentEntry then
-        for _, entry in ipairs(list) do
-            if entry.id == selectedDungeonID then
-                if showAll or sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-                    isValidInTab = true
-                end
-                break
-            end
-        end
-    end
-    if not isValidInTab then
-        local fallbackID = nil
-        if not showAll and list then
-            for _, entry in ipairs(list) do
-                if sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-                    fallbackID = entry.id
-                    break
-                end
-            end
-        end
-        selectedDungeonID = fallbackID or (list and list[1] and list[1].id) or nil
-        DJ_DB().lastDungeon = selectedDungeonID
-    end
+    EnsureValidDungeonSelection(db)
 
     -- Default to map tab when opening a mapped dungeon
     selectedMode = "map"
-    DJ_DB().lastMode = "map"
+    db.lastMode = "map"
 
     if RefreshSidebar then RefreshSidebar() end
     SyncActivePanel(activeFloor)

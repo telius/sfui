@@ -2,8 +2,8 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.common = sfui.common or {}
 
-local issecretvalue = _G.issecretvalue or function() return false end
-sfui.common.issecretvalue = issecretvalue
+local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or _G.issecretvalue or function() return false end
+sfui.common.issecretvalue = sfui.common.issecretvalue or issecretvalue
 
 function sfui.common.print(msg, ...)
     local prefix = (sfui.config and sfui.config.prefix) or "|cff6600ffsfui:|r"
@@ -53,9 +53,22 @@ end
 
 --- Returns a valid font file path for FontString:SetFont (never passes a FontObject name)
 function sfui.common.get_font_file()
-    return (sfui.config and sfui.config.fontFile)
-        or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
-        or "Fonts\\FRIZQT__.TTF"
+    local cfg = sfui.config
+    if cfg then
+        local f = cfg.fontFile
+        if f and f ~= "" and f ~= "GameFontNormal" then
+            return f
+        end
+        local fp = cfg.font_path
+        if fp and fp ~= "" and fp ~= "GameFontNormal" then
+            return fp
+        end
+    end
+    local gf = _G.GameFontNormal and _G.GameFontNormal.GetFont and _G.GameFontNormal:GetFont()
+    if gf and gf ~= "" and gf ~= "GameFontNormal" then
+        return gf
+    end
+    return _G.STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 end
 
 --- Rounds a number to the specified number of decimal places (default 0)
@@ -1013,14 +1026,14 @@ function sfui.common.is_spell_known(spellID)
         end
     end
 
-    local C_Spell = _G.C_Spell
-    if C_Spell then
-        if C_Spell.IsSpellKnown then
-            local ok, known = pcall(C_Spell.IsSpellKnown, sID)
+    local spellApi = _G.C_Spell
+    if spellApi then
+        if spellApi.IsSpellKnown then
+            local ok, known = pcall(spellApi.IsSpellKnown, sID)
             if ok and known then return true end
         end
-        if C_Spell.IsSpellKnownOrOverridesKnown then
-            local ok, known = pcall(C_Spell.IsSpellKnownOrOverridesKnown, sID)
+        if spellApi.IsSpellKnownOrOverridesKnown then
+            local ok, known = pcall(spellApi.IsSpellKnownOrOverridesKnown, sID)
             if ok and known then return true end
         end
     end
@@ -1495,7 +1508,10 @@ function sfui.common.get_player_display_name()
             end
         end
     end
-    local name, arg2 = _G.UnitName and _G.UnitName("player")
+    local name, arg2
+    if _G.UnitName then
+        name, arg2 = _G.UnitName("player")
+    end
     if name and name ~= "" and name ~= "Unknown Entity" and name ~= "Unknown" then
         if (sfui.isCamelot or (_G.RegionalUniqueNamesEnabled and _G.RegionalUniqueNamesEnabled())) and arg2 and arg2 ~= "" and not name:find(" ", 1, true) then
             local r1 = _G.GetRealmName and _G.GetRealmName()

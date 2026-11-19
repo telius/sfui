@@ -484,7 +484,7 @@ local function create_hammer_popup()
     icon:SetPoint("TOPLEFT", 2, -2)
     icon:SetPoint("BOTTOMRIGHT", -2, 2)
     icon:SetTexture(134376)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     hammerPopup.icon = icon
 
     local highlight = hammerPopup:CreateTexture(nil, "HIGHLIGHT")

@@ -123,41 +123,11 @@ sfui.options.RegisterTab({
             sfui.questlog.reset_position()
         end)
 
-        local function is_movers_unlocked()
-            return (sfui.movers and sfui.movers.isUnlocked)
-                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
-                or false
-        end
-
-        local toggle_movers_btn = CreateFlatButton(p, is_movers_unlocked() and "lock ui" or "unlock / move ui", 120, 22)
+        local toggle_movers_btn = sfui.options.create_movers_toggle_button(p, {
+            combat_guard = true,
+            register_panel_refresh = true,
+        })
         toggle_movers_btn:SetPoint("LEFT", reset_ql_pos_btn, "RIGHT", 10, 0)
-        toggle_movers_btn:SetScript("OnClick", function(self)
-            if _G.InCombatLockdown and _G.InCombatLockdown() then return end
-            local currentlyUnlocked = is_movers_unlocked()
-            if currentlyUnlocked then
-                if sfui.movers and sfui.movers.Toggle then
-                    sfui.movers.Toggle(false)
-                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
-                    sfui.actionbars.ToggleMovers(false)
-                end
-                self:SetText("unlock / move ui")
-            else
-                if sfui.options and sfui.options.Toggle then
-                    sfui.options.Toggle()
-                end
-                if sfui.movers and sfui.movers.Toggle then
-                    sfui.movers.Toggle(true)
-                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
-                    sfui.actionbars.ToggleMovers(true)
-                end
-                self:SetText("lock ui")
-            end
-        end)
-        p._refreshMoversBtn = function()
-            if toggle_movers_btn and toggle_movers_btn.SetText then
-                toggle_movers_btn:SetText(is_movers_unlocked() and "lock ui" or "unlock / move ui")
-            end
-        end
         yOff = yOff - 36
 
         -- ── Section: Dungeon Journal & World Map Pins (Classic & Camelot) ────

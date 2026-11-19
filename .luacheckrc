@@ -32,8 +32,6 @@ ignore = {
     "211",      -- Unused local variable
     "212",      -- Unused argument
     "213",      -- Unused loop variable
-    "221",      -- Variable is never accessed
-    "231",      -- Variable is never accessed / set but not read
     "311",      -- Value assigned to variable is unused
     "312",      -- Value of argument is modified but never used
     "313",      -- Value of loop variable is modified but never used

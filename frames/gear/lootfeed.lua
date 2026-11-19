@@ -46,10 +46,7 @@ local UnitName                                = _G.UnitName
 local UnitGUID                                = _G.UnitGUID
 local GetMoney                                = _G.GetMoney
 
-local wipe                                    = _G.wipe or function(t)
-    for k in pairs(t) do t[k] = nil end
-    return t
-end
+local wipe                                    = sfui.common.wipe
 
 local function IsSecret(v)
     if v == nil then return false end
@@ -308,7 +305,7 @@ local function CreateRowFrame(parent)
     local icon = row:CreateTexture(nil, "ARTWORK", nil, 1)
     icon:SetSize(iconSize, iconSize)
     icon:SetPoint("LEFT", row, "LEFT", 5, 0)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     row.icon = icon
 
     -- 4. Icon Quality Border / Bezel Overlay (Option A: UI-Character-Info-OutfitIcon-Frame)

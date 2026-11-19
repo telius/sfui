@@ -156,33 +156,7 @@ sfui.options.RegisterTab({
         end, "prevents abilities from dragging unless holding shift, preventing accidental casts while moving abilities.")
         lock_cb:SetPoint("TOPLEFT", enable_cb, "BOTTOMLEFT", 0, -8)
 
-        local function is_movers_unlocked()
-            return (sfui.movers and sfui.movers.isUnlocked)
-                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
-                or false
-        end
-
-        local mover_btn = CreateFlatButton(panel, is_movers_unlocked() and "lock ui" or "unlock / move ui", 125, 22, function(self)
-            local currentlyUnlocked = is_movers_unlocked()
-            if currentlyUnlocked then
-                if sfui.movers and sfui.movers.Toggle then
-                    sfui.movers.Toggle(false)
-                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
-                    sfui.actionbars.ToggleMovers(false)
-                end
-                self:SetText("unlock / move ui")
-            else
-                if sfui.options and sfui.options.Toggle then
-                    sfui.options.Toggle()
-                end
-                if sfui.movers and sfui.movers.Toggle then
-                    sfui.movers.Toggle(true)
-                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
-                    sfui.actionbars.ToggleMovers(true)
-                end
-                self:SetText("lock ui")
-            end
-        end)
+        local mover_btn = sfui.options.create_movers_toggle_button(panel, { width = 125 })
         mover_btn:SetPoint("TOPLEFT", lock_cb, "BOTTOMLEFT", 0, -8)
 
         local keybind_btn = CreateFlatButton(panel, "quick keybind mode", 125, 22, function()
@@ -652,9 +626,8 @@ sfui.options.RegisterTab({
                 local cfg = get_mod_cfg()
                 lowrank_cb:SetChecked(cfg.showLowRankBadge ~= false)
             end
-            if mover_btn and mover_btn.SetText then
-                local unlocked = is_movers_unlocked()
-                mover_btn:SetText(unlocked and "lock ui" or "unlock / move ui")
+            if mover_btn and mover_btn.RefreshMoversText then
+                mover_btn:RefreshMoversText()
             end
             update_pill_highlights()
         end

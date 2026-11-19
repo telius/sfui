@@ -67,7 +67,7 @@ local function AcquireItemSlot(parent)
         local icon = btn:CreateTexture(nil, "ARTWORK")
         icon:SetPoint("TOPLEFT", 2, -2)
         icon:SetPoint("BOTTOMRIGHT", -2, 2)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        common.set_square_icon_coords(icon)
         btn.icon = icon
 
         local del = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -579,7 +579,7 @@ RefreshUI = function()
                 local tex = iconBtn:CreateTexture(nil, "ARTWORK")
                 tex:SetPoint("TOPLEFT", 1, -1)
                 tex:SetPoint("BOTTOMRIGHT", -1, 1)
-                tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                common.set_square_icon_coords(tex)
                 iconBtn.texture = tex
 
                 local rankText = iconBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

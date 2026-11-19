@@ -20,6 +20,8 @@ local B = sfui.recipes.browser
 local common = sfui.common
 local theme  = sfui.theme
 local GameTooltip = sfui.common.get_tooltip()
+local set_square_icon_coords = (common and common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 
 --- Dynamically refresh profession tabs based only on character's learned professions
 function B.UpdateProfessionTabs()
@@ -544,13 +546,10 @@ end
 
 --- Apply the active sfui theme palette to the recipe browser panel
 --- @param pal table?
-function B.ApplyTheme(pal)
+function B.ApplyTheme()
     local ui = B.ui
     local f = ui and ui.frame
     if not f then return end
-    if not pal and theme and theme.GetPalette then
-        pal = theme.GetPalette()
-    end
     if not ui.mounted then
         if theme and theme.ApplyWindowStyle then
             theme.ApplyWindowStyle(f)
@@ -1268,7 +1267,7 @@ local function HookBlizzardFrames()
         icon:SetPoint("CENTER", btn, "CENTER", 0, 0)
         icon:SetSize(14, 14)
         icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        set_square_icon_coords(icon)
 
         btn:SetScript("OnClick", function()
             local prof = getProfFunc and getProfFunc()

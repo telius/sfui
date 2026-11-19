@@ -204,7 +204,7 @@ local function OddsColor(skill, need)
 end
 
 local function Hex(r, g, b)
-    return string_format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
+    return "|cff" .. sfui.colors.rgb_to_hex(r, g, b)
 end
 
 local function RewriteMinimapLine(text)

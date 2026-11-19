@@ -272,7 +272,6 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
 
     -- Classic Role Weapon & Stat Override: Warrior/Paladin tanks & Paladin/Shaman/Druid/Priest healers
     local isTank = false
-    local isHeal = false
     if isClassic then
         local b = sfui.talents.SPEC_BRIDGE[specID]
         local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
@@ -281,7 +280,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         isTank = (specDB and (specDB.is_tank or specDB.armor_ilvl_prio))
             or (cRoleLower == "tank" or cRoleLower == "bear" or cRoleLower == "prot")
             or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
-        isHeal = (specDB and specDB.is_healer)
+        local isHeal = (specDB and specDB.is_healer)
             or (cRoleLower == "heal" or cRoleLower == "resto" or cRoleLower == "holy" or cRoleLower == "disc")
             or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
 

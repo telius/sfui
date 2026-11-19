@@ -152,7 +152,10 @@ end
 
 -- ── 1. Smart Quest Reward Scoring & Selection (`Mama/Loot.lua:118-216`) ──────
 local function get_expected_armor_subclass()
-    local _, classToken = UnitClass and UnitClass("player")
+    local _, classToken
+    if UnitClass then
+        _, classToken = UnitClass("player")
+    end
     local base = classToken and CLASS_ARMOR_SUBCLASS[classToken] or 1
     if not sfui.isRetail then
         local lvl = (UnitLevel and UnitLevel("player")) or 1

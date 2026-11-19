@@ -30,7 +30,7 @@ local function AcquireIconButton(parent)
         local icon = btn:CreateTexture(nil, "ARTWORK")
         icon:SetPoint("TOPLEFT", 1, -1)
         icon:SetPoint("BOTTOMRIGHT", -1, 1)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        common.set_square_icon_coords(icon)
         btn.icon = icon
 
         local fontFile = common.get_font_file()

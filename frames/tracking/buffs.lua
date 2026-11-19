@@ -397,7 +397,7 @@ local function SkinBlizzardItem(blizzFrame)
     -- apply sfui square texcoords and remove any attached circular masks
     if blizzFrame.Icon then
         StripIconMasks(blizzFrame.Icon)
-        blizzFrame.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.common.set_square_icon_coords(blizzFrame.Icon)
         blizzFrame.Icon:ClearAllPoints()
         blizzFrame.Icon:SetAllPoints(blizzFrame)
     end
@@ -447,7 +447,7 @@ local function GetOrCreateSlot(index)
     local fallbackIcon = slot:CreateTexture(nil, "ARTWORK")
     fallbackIcon:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
     fallbackIcon:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
-    fallbackIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(fallbackIcon)
     fallbackIcon:Hide()
     slot.fallbackIcon = fallbackIcon
 
@@ -476,7 +476,7 @@ local function GetOrCreatePreviewSlot(index)
     local icon = slot:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
     icon:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     slot.icon = icon
 
     -- preview cooldown frame (created before appFrame so stack count renders above swipe/countdown)

@@ -112,19 +112,7 @@ function sfui.target.SetBarTexture(texturePath)
 end
 
 -- ─── Font Path Resolver ───────────────────────────────────────────────────────
-local function GetFontPath()
-    local f = sfui.config and sfui.config.fontFile
-    if f and f ~= "" and f ~= "GameFontNormal" then
-        return f
-    end
-    if _G.GameFontNormal and _G.GameFontNormal.GetFont then
-        local blizzFont = _G.GameFontNormal:GetFont()
-        if blizzFont and blizzFont ~= "" and blizzFont ~= "GameFontNormal" then
-            return blizzFont
-        end
-    end
-    return "Fonts\\FRIZQT__.TTF"
-end
+local GetFontPath = sfui.common.get_font_file
 
 -- ─── Health Color Resolver ───────────────────────────────────────────────────
 local cachedHealthR, cachedHealthG, cachedHealthB
@@ -223,10 +211,7 @@ local CLASSIC_DEBUFF_COLORS = {
     None    = { 0.80, 0.00, 0.00 },
 }
 
-local function IsValidTexture(tex)
-    if issecretvalue and issecretvalue(tex) then return true end
-    return tex ~= nil and tex ~= 0 and tex ~= ""
-end
+local IsValidTexture = sfui.common.is_valid_texture
 
 local function GetClassicAuraByIndex(unit, index, filter)
     if _G.C_Secrets and _G.C_Secrets.ShouldAurasBeSecret and _G.C_Secrets.ShouldAurasBeSecret() then
@@ -296,7 +281,7 @@ local function CreateClassicAuraContainer(name, parent, unit, filter, maxCount, 
         local icon = btn:CreateTexture(nil, "ARTWORK")
         icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
         icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.common.set_square_icon_coords(icon)
         btn.icon = icon
 
         local count = btn:CreateFontString(nil, "OVERLAY")
@@ -418,7 +403,7 @@ local function InitializeBuffButton(frame)
     local icon = frame:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
     icon:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     frame:SetIcon(icon)
 
     local count = frame:CreateFontString(nil, "OVERLAY")
@@ -446,7 +431,7 @@ local function InitializeDebuffButton(frame)
     local icon = frame:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
     icon:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     frame:SetIcon(icon)
 
     local count = frame:CreateFontString(nil, "OVERLAY")
@@ -766,12 +751,7 @@ local function GetDifficultyColorRGB(lvl)
 end
 
 -- ─── Target Classification & Level Cache ─────────────────────────────────────
-local cachedLvlPrefix
 local lastBarR, lastBarG, lastBarB
-
-local function InvalidateTargetLevelCache()
-    cachedLvlPrefix = nil
-end
 
 -- ─── Unit Data Refresh (Matching bars.lua HealthBar Logic) ────────────────────
 local function UpdateTargetHealth()
@@ -1416,7 +1396,6 @@ end
 
 InvalidateTargetCaches = function()
     InvalidateHealthColorCache()
-    InvalidateTargetLevelCache()
     InvalidatePowerCache()
     lastQuestState = nil
     lastRaidIndex = nil
@@ -1465,9 +1444,6 @@ local function OnTargetUnitEvent(event, unit)
         end
         if event == "UNIT_FACTION" then
             InvalidateHealthColorCache()
-        end
-        if event == "UNIT_LEVEL" or event == "UNIT_CLASSIFICATION_CHANGED" then
-            InvalidateTargetLevelCache()
         end
         UpdateTargetInfo()
         UpdateTargetHealth()

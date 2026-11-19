@@ -1737,7 +1737,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 local errCol = (sfui.config.appearance and sfui.config.appearance.errorColor) or
                 { 1, 0.2, 0.2 }
                 local r, g, b = unpack(errCol)
-                local colorCode = string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
+                local colorCode = "|cff" .. sfui.colors.rgb_to_hex(r, g, b)
                 displayText = displayText ..
                     string.format("|T%s:12:12:0:0|t %s%s|r", tostring(itemConfig.icon or 134400), colorCode, displayVal)
             else

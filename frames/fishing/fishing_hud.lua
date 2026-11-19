@@ -16,6 +16,8 @@ sfui.fishing.hud = sfui.fishing.hud or {}
 
 local HUD = sfui.fishing.hud
 local common = sfui.common
+local set_square_icon_coords = (common and common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 local theme = sfui.theme
 local events = sfui.events
 local data = sfui.fishing_data
@@ -622,7 +624,7 @@ local function CreateSpeciesRow(parent, index)
     local icon = row:CreateTexture(nil, "ARTWORK")
     icon:SetSize(14, 14)
     icon:SetPoint("LEFT", row, "LEFT", 2, 0)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    set_square_icon_coords(icon)
     row.icon = icon
 
     local totalText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -797,7 +799,7 @@ local function CreateHudFrame()
     local contIcon = containerBtn:CreateTexture(nil, "ARTWORK")
     contIcon:SetPoint("TOPLEFT", containerBtn, "TOPLEFT", 1, -1)
     contIcon:SetPoint("BOTTOMRIGHT", containerBtn, "BOTTOMRIGHT", -1, 1)
-    contIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    set_square_icon_coords(contIcon)
     containerBtn.icon = contIcon
 
     local contHl = containerBtn:CreateTexture(nil, "HIGHLIGHT")
@@ -850,7 +852,7 @@ local function CreateHudFrame()
     local lureIcon = lureBtn:CreateTexture(nil, "ARTWORK")
     lureIcon:SetSize(13, 13)
     lureIcon:SetPoint("LEFT", lureBtn, "LEFT", 2, 0)
-    lureIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    set_square_icon_coords(lureIcon)
     lureIcon:Hide()
     lureBtn.icon = lureIcon
 

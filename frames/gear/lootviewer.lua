@@ -1421,11 +1421,11 @@ local function AddSpecLinesToTooltip(item)
             local specInfo = playerSpecs[specID]
             if specInfo and specInfo.name and specInfo.name ~= "" then
                 local r, g, b = GetSpecColor(specID)
-                local colStr = string.format("|cff%02x%02x%02x%s|r",
-                    math.min(255, math.max(0, math.floor(r * 255 + 0.5))),
-                    math.min(255, math.max(0, math.floor(g * 255 + 0.5))),
-                    math.min(255, math.max(0, math.floor(b * 255 + 0.5))),
-                    specInfo.name)
+                local colStr = "|cff" .. sfui.colors.rgb_to_hex(
+                    math.min(1, math.max(0, r or 1)),
+                    math.min(1, math.max(0, g or 1)),
+                    math.min(1, math.max(0, b or 1))
+                ) .. specInfo.name .. "|r"
                 specNames[#specNames + 1] = colStr
             end
         end

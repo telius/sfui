@@ -172,11 +172,7 @@ sfui.options.RegisterTab({
                 local pal = (sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette())
                 local hexAccent = "ffcc00"
                 if pal and pal.accentColor then
-                    hexAccent = string.format("%02x%02x%02x",
-                        math.floor(pal.accentColor[1] * 255),
-                        math.floor(pal.accentColor[2] * 255),
-                        math.floor(pal.accentColor[3] * 255)
-                    )
+                    hexAccent = sfui.colors.rgb_to_hex(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3])
                 end
 
                 for _, btn in ipairs(lootfeedStyleButtons) do

@@ -17,10 +17,7 @@ local providers = sfui.buffs.providers
 local FormatTime = providers and providers.FormatTime
 local issecretvalue = sfui.common.issecretvalue
 
-local function IsValidTexture(tex)
-    if issecretvalue and issecretvalue(tex) then return true end
-    return tex ~= nil and tex ~= 0 and tex ~= ""
-end
+local IsValidTexture = sfui.common.is_valid_texture
 
 -- Default settings
 local DEFAULT_SIZE = 36
@@ -85,7 +82,7 @@ local function CreateBuffIcon(index, parent)
     local tex = btn:CreateTexture(nil, "ARTWORK")
     tex:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
     tex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-    tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(tex)
     btn.texture = tex
 
     -- Highlight texture on mouseover

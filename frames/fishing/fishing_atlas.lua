@@ -843,10 +843,11 @@ local function UpdateZoneDetail(mapID)
 
             local itemID = entry[1]
             local share = entry[2]
-            local myCount, count = 0, caughtCounts[itemID] or 0
+            local myCount, count
             if sfui.fishing and sfui.fishing.GetZoneFishCharBreakdown then
                 myCount, count = sfui.fishing.GetZoneFishCharBreakdown(mapID, itemID)
             else
+                count = caughtCounts[itemID] or 0
                 myCount = count
             end
 
@@ -981,12 +982,13 @@ local function RenderVisibleAtlasCards(force, scrollOffset)
         card.ico:SetTexture(texture or "Interface\\Icons\\INV_Misc_Fish_02")
         card.nameFs:SetText(displayText)
 
-        local myCount, count = 0, (savedSpecies[item.itemID] and savedSpecies[item.itemID].n) or 0
+        local myCount, count
         if sfui.fishing and sfui.fishing.GetSpeciesCounts then
             myCount, count = sfui.fishing.GetSpeciesCounts(item.itemID)
         elseif sfui.fishing and sfui.fishing.GetSpeciesCharBreakdown then
             myCount, count = sfui.fishing.GetSpeciesCharBreakdown(item.itemID)
         else
+            count = (savedSpecies[item.itemID] and savedSpecies[item.itemID].n) or 0
             myCount = count
         end
         if count > 0 then

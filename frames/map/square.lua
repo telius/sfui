@@ -39,7 +39,6 @@ local MASK_ROUND_ATLAS = "ui-hud-minimap-frame-generic-mask"
 local MASK_ROUND_PATH = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local MASK_ROUND_LEGACY = 186178
 
-local isInitialized = false
 local pendingApply = false
 local backdropFrame = nil
 
@@ -572,7 +571,6 @@ end
 -- Lifecycle Initialization
 -- ------------------------------------------------------------------------------
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-    isInitialized = true
     if is_overlay_active() then
         hide_square_visuals_for_overlay()
         return

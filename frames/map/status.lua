@@ -89,7 +89,7 @@ local function skin_weather_button(button, icon)
         local iconSize = math_floor(size * 0.70)
         icon:SetSize(iconSize, iconSize)
         icon:SetDrawLayer("ARTWORK", 1)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.common.set_square_icon_coords(icon)
         if not icon.hasRoundMask and button.mask then
             icon:AddMaskTexture(button.mask)
             icon.hasRoundMask = true

@@ -29,6 +29,24 @@ local pairs, ipairs           = _G.pairs, _G.ipairs
 local math_floor              = math.floor
 local table_insert            = table.insert
 
+--- Short text format for money (e.g. 1g 20s, 45s, 80c)
+local function FormatMoneyShort(copper)
+    if common and common.format_money_short then
+        return common.format_money_short(copper, { nil_on_zero = true })
+    end
+    if not copper or type(copper) ~= "number" or copper <= 0 then return nil end
+    local g = math_floor(copper / 10000)
+    local s = math_floor(copper / 100) % 100
+    local c = copper % 100
+    if g > 0 then
+        return s > 0 and string.format("%dg %ds", g, s) or string.format("%dg", g)
+    elseif s > 0 then
+        return c > 0 and string.format("%ds %dc", s, c) or string.format("%ds", s)
+    end
+    return string.format("%dc", c)
+end
+sfui.recipes.FormatMoneyShort = FormatMoneyShort
+
 --- Format copper amount to coin icons or text
 local function FormatMoney(copper)
     if not copper or type(copper) ~= "number" or copper <= 0 then return nil end
@@ -38,40 +56,9 @@ local function FormatMoney(copper)
     if GetCoinTextureString then
         return GetCoinTextureString(copper)
     end
-    local g = math_floor(copper / 10000)
-    local s = math_floor(copper / 100) % 100
-    local c = copper % 100
-    local str = ""
-    if g > 0 then str = str .. g .. "g " end
-    if s > 0 then str = str .. s .. "s " end
-    if c > 0 or str == "" then str = str .. c .. "c" end
-    return str:gsub("%s+$", "")
+    return FormatMoneyShort(copper)
 end
 sfui.recipes.FormatMoney = FormatMoney
-
---- Short text format for money (e.g. 1g 20s, 45s, 80c)
-local function FormatMoneyShort(copper)
-    if not copper or type(copper) ~= "number" or copper <= 0 then return nil end
-    local g = math_floor(copper / 10000)
-    local s = math_floor(copper / 100) % 100
-    local c = copper % 100
-    if g > 0 then
-        if s > 0 then
-            return string.format("%dg %ds", g, s)
-        else
-            return string.format("%dg", g)
-        end
-    elseif s > 0 then
-        if c > 0 then
-            return string.format("%ds %dc", s, c)
-        else
-            return string.format("%ds", s)
-        end
-    else
-        return string.format("%dc", c)
-    end
-end
-sfui.recipes.FormatMoneyShort = FormatMoneyShort
 
 --- Curated set of known limited-stock vendor recipes (Classic / Camelot)
 -- Note: Drops, quest rewards, and trainer recipes must NEVER be included here.
@@ -1380,7 +1367,7 @@ function sfui.recipes.FormatSourceLine(s, recipe)
     end
 
     local st = s.type
-    local line = ""
+    local line
 
     if st == "trainer" then
         local nameStr = s.name

@@ -62,7 +62,7 @@ local events = _G.CreateFrame("Frame")
 
 local function GetAccentPrefix()
     local cyan = (sfui.config and sfui.config.colors and sfui.config.colors.cyan) or { 0, 1, 1 }
-    return string_format("|cff%02x%02x%02x", (cyan[1] or 0) * 255, (cyan[2] or 1) * 255, (cyan[3] or 1) * 255)
+    return "|cff" .. sfui.colors.rgb_to_hex(cyan[1] or 0, cyan[2] or 1, cyan[3] or 1)
 end
 
 local function GetSpellNameSafe(spellID)

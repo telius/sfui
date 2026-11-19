@@ -382,7 +382,7 @@ local function EnsureBar()
     icon:SetPoint("TOPLEFT", 1, -1)
     icon:SetPoint("BOTTOMRIGHT", -1, 1)
     icon:SetTexture(EXIT_ICON)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     exitBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     exitBtn:SetScript("OnClick", function()
         if RequestEarlyLanding then RequestEarlyLanding() end

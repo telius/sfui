@@ -17,10 +17,7 @@ local QUESTION_MARK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 P.QUESTION_MARK_ICON = QUESTION_MARK_ICON
 local issecretvalue = sfui.common.issecretvalue
 
-local function IsValidTexture(tex)
-    if issecretvalue and issecretvalue(tex) then return true end
-    return tex ~= nil and tex ~= 0 and tex ~= ""
-end
+local IsValidTexture = sfui.common.is_valid_texture
 P.IsValidTexture = IsValidTexture
 
 local providersById = {}

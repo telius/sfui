@@ -1277,7 +1277,7 @@ do
         texture:SetAllPoints()
         local spellTexture = common.get_spell_icon(spellID)
         texture:SetTexture(spellTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
-        texture:SetTexCoord(0.08, 0.92, 0.08, 0.92) -- Zoom in slightly to remove borders
+        sfui.common.set_square_icon_coords(texture)
         frame.texture = texture
 
         local cd = CreateFrame("Cooldown", name .. "Cooldown", frame, "CooldownFrameTemplate")

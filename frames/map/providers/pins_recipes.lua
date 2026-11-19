@@ -18,7 +18,7 @@ local IsControlKeyDown    = _G.IsControlKeyDown
 local ipairs              = _G.ipairs
 local pairs               = _G.pairs
 local tostring            = _G.tostring
-local wipe                = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local wipe                = sfui.common.wipe
 local string_format       = string.format
 local table_insert        = _G.table.insert
 local table_sort          = _G.table.sort

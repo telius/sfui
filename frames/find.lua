@@ -22,10 +22,7 @@ local string_format = string.format
 local table_sort = table.sort
 local math_min = math.min
 local math_max = math.max
-local wipe = _G.wipe or function(t)
-    for k in pairs(t) do t[k] = nil end
-    return t
-end
+local wipe = sfui.common.wipe
 
 local F = sfui.find
 local common = sfui.common
@@ -902,7 +899,7 @@ local function CreateFindFrame()
         local ico = row:CreateTexture(nil, "ARTWORK")
         ico:SetSize(20, 20)
         ico:SetPoint("LEFT", row, "LEFT", 6, 0)
-        ico:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        common.set_square_icon_coords(ico)
         row.icon = ico
 
         local badgeFs = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")

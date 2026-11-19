@@ -20,7 +20,7 @@ local C_Item            = _G.C_Item
 local C_ChallengeMode   = _G.C_ChallengeMode
 local tinsert           = _G.tinsert
 local unpack            = _G.unpack
-local table_wipe        = _G.table.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local table_wipe        = sfui.common.wipe
 
 local ICON_SIZE         = p.ICON_SIZE
 local ICON_SPACING_X    = p.ICON_SPACING_X
@@ -109,7 +109,7 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
 
     local tex = frame:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
-    tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(tex)
 
     local cd = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
     cd:SetAllPoints()

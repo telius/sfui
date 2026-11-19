@@ -494,3 +494,92 @@ function QuestCommon.AppendSyncedQuestLines(lines, syncInfo)
         })
     end
 end
+
+--- Open quest in the Dungeon Journal if it is a known dungeon quest.
+--- @return boolean handled
+function QuestCommon.OpenDungeonJournalQuest(questID, questLogIndex, isDungeonQuestFn)
+    if not questID or not (sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest) then
+        return false
+    end
+    local isDJ = (sfui.dj_camelot and sfui.dj_camelot.IsDungeonQuest and sfui.dj_camelot.IsDungeonQuest(questID))
+        or (isDungeonQuestFn and isDungeonQuestFn(questID, questLogIndex))
+        or (sfui.questlog and sfui.questlog.IsDungeonQuest and sfui.questlog.IsDungeonQuest(questID, questLogIndex))
+    if isDJ and sfui.dungeonjournal.SelectQuest(nil, questID) then
+        return true
+    end
+    return false
+end
+
+--- Abandon a quest via C_QuestLog / StaticPopup with combat guard.
+function QuestCommon.AbandonQuest(questID, questTitle, prepareSelection)
+    if InCombatLockdown and InCombatLockdown() then return end
+    if C_QuestLog and C_QuestLog.CanAbandonQuest and C_QuestLog.CanAbandonQuest(questID) then
+        if prepareSelection then
+            if C_QuestLog.SetSelectedQuest then
+                C_QuestLog.SetSelectedQuest(questID)
+            end
+            if C_QuestLog.SetAbandonQuest then
+                C_QuestLog.SetAbandonQuest()
+            end
+        end
+        if _G.QuestMapQuestOptions_AbandonQuest then
+            _G.QuestMapQuestOptions_AbandonQuest(questID)
+            return
+        end
+
+        local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or "Quest"
+        local items = (C_QuestLog.GetAbandonQuestItems and C_QuestLog.GetAbandonQuestItems()) or nil
+        if items and _G.StaticPopup_Show then
+            _G.StaticPopup_Show("ABANDON_QUEST_WITH_ITEMS", title, items)
+        elseif _G.StaticPopup_Show then
+            _G.StaticPopup_Show("ABANDON_QUEST", title)
+        elseif C_QuestLog.AbandonQuest then
+            C_QuestLog.AbandonQuest()
+        end
+    else
+        sfui.common.print("quest cannot be abandoned.")
+    end
+end
+
+--- Share a quest with the player's group with combat & pushability guards.
+function QuestCommon.ShareQuest(questID, questLogIndex, questTitle)
+    if InCombatLockdown and InCombatLockdown() then return end
+    local inGroup = (_G.IsInGroup and _G.IsInGroup())
+        or (_G.GetNumGroupMembers and _G.GetNumGroupMembers() > 0)
+        or (_G.GetNumSubgroupMembers and _G.GetNumSubgroupMembers() > 0)
+    if not inGroup then
+        sfui.common.print("you are not in a group.")
+        return
+    end
+
+    local canPush = true
+    if sfui.api and sfui.api.IsQuestPushable then
+        canPush = sfui.api.IsQuestPushable(questID, questLogIndex)
+    elseif C_QuestLog and C_QuestLog.IsPushableQuest then
+        local ok, res = pcall(C_QuestLog.IsPushableQuest, questID)
+        if ok and res ~= nil then canPush = res end
+    end
+
+    if not canPush then
+        sfui.common.print("quest cannot be shared.")
+        return
+    end
+
+    local shared = false
+    if sfui.api and sfui.api.ShareQuest then
+        shared = sfui.api.ShareQuest(questID, questLogIndex)
+    elseif _G.QuestUtil and _G.QuestUtil.ShareQuest then
+        shared = pcall(_G.QuestUtil.ShareQuest, questID)
+    elseif _G.QuestLogPushQuest then
+        if questLogIndex and _G.SelectQuestLogEntry then
+            pcall(_G.SelectQuestLogEntry, questLogIndex)
+        end
+        shared = pcall(_G.QuestLogPushQuest, questLogIndex) or pcall(_G.QuestLogPushQuest)
+    end
+
+    if shared then
+        sfui.common.print("shared quest: " .. (questTitle or "quest"))
+    else
+        sfui.common.print("quest cannot be shared.")
+    end
+end

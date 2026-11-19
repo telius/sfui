@@ -135,7 +135,10 @@ function sfui.items.populate_slots_for_invtype(targetTable, equipLoc, canDualWie
 end
 sfui.common.populate_slots_for_invtype = sfui.items.populate_slots_for_invtype
 
-local issecretvalue = (sfui.safety and sfui.safety.issecretvalue) or _G.issecretvalue
+local issecretvalue = (sfui.safety and sfui.safety.issecretvalue)
+    or (sfui.common and sfui.common.issecretvalue)
+    or _G.issecretvalue
+    or function() return false end
 
 local function normalize_item_arg(item)
     if not item then return nil end
@@ -693,7 +696,7 @@ function sfui.items.get_weapon_stats(itemLink)
                                 or cleanLeft:match("([%d%.,]+)%s+[Dd][Pp][Ss]")
                         end
                         if m then
-                            local val = 0
+                            local val
                             if m:find(",") and m:find("%.") then
                                 if m:find(",") < m:find("%.") then
                                     val = tonumber((m:gsub(",", ""))) or 0

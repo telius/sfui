@@ -11,7 +11,7 @@ sfui.state = sfui.state or {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local _G = _G
-local wipe = _G.wipe or table.wipe
+local wipe = sfui.safety.wipe
 local InCombatLockdown = _G.InCombatLockdown
 local UnitAffectingCombat = _G.UnitAffectingCombat
 local IsMounted = _G.IsMounted
@@ -28,7 +28,7 @@ local C_PetBattles = _G.C_PetBattles
 local C_PlayerInfo = _G.C_PlayerInfo
 local C_UnitAuras = _G.C_UnitAuras
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.safety.issecretvalue
 
 local S = sfui.state
 S.hidden = true

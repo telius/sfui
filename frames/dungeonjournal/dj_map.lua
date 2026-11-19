@@ -64,7 +64,7 @@ local WAYPOINT_TEXTS = {
 
 -- ─── Helpers ──────────────────────────────────────────────────────────────────
 
-local wipe = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local wipe = sfui.common.wipe
 local mapArtCache = {}
 
 local function ApplyBackdrop(f, bgR, bgG, bgB, bgA, brR, brG, brB, brA)
@@ -107,6 +107,8 @@ end
 
 local function IsQuestCompleted(questID)
     if not questID then return false end
+    local dj = sfui.dungeonjournal
+    if dj and dj.IsQuestCompleted then return dj.IsQuestCompleted(questID) end
     local qs = sfui.queststate
     if qs and qs.IsCompleted then return qs.IsCompleted(questID) end
     if C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted) == "function" then
@@ -121,6 +123,8 @@ end
 
 local function IsQuestInLog(questID)
     if not questID then return false end
+    local dj = sfui.dungeonjournal
+    if dj and dj.IsQuestActive then return dj.IsQuestActive(questID) end
     local qs = sfui.queststate
     if qs and qs.IsActive then return qs.IsActive(questID) end
     if C_QuestLog and type(C_QuestLog.IsOnQuest) == "function" then
@@ -509,8 +513,12 @@ function MapHandlers.BossEnter(s)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("wishlisted drops:", 0.66, 0.40, 1.0)
         for _, itemID in ipairs(wishItems) do
-            local itemName, itemLink = (sfui.common and sfui.common.get_item_info and sfui.common.get_item_info(itemID))
-                or GetItemInfo(itemID)
+            local itemName, itemLink
+            if sfui.common and sfui.common.get_item_info then
+                itemName, itemLink = sfui.common.get_item_info(itemID)
+            elseif GetItemInfo then
+                itemName, itemLink = GetItemInfo(itemID)
+            end
             GameTooltip:AddLine("  • " .. (itemLink or (itemName and itemName:lower()) or ("item #" .. itemID)), 1, 1, 1)
         end
     end
@@ -2332,7 +2340,10 @@ local function SyncWorldMapOverlay()
         return
     end
 
-    local dID, flIdx = sfui.dj_camelot and sfui.dj_camelot.GetCurrentInstanceDungeon and sfui.dj_camelot.GetCurrentInstanceDungeon()
+    local dID, flIdx
+    if sfui.dj_camelot and sfui.dj_camelot.GetCurrentInstanceDungeon then
+        dID, flIdx = sfui.dj_camelot.GetCurrentInstanceDungeon()
+    end
     local d = dID and sfui.dj_camelot.GetDungeonByName(dID)
     if not d or not dj_map.HasMap(d) then
         wmLastInstanceDungeon = nil

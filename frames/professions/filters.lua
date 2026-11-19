@@ -920,13 +920,12 @@ end
 function B.IsRecipeLearned(recipeOrSpellID, rOrGUID, optionalRealm)
     if not recipeOrSpellID then return false end
 
-    local spellID, r, targetGUID, targetRealm
+    local spellID, r, targetGUID
     if type(recipeOrSpellID) == "table" then
         r = recipeOrSpellID
         spellID = r.id
         if type(rOrGUID) == "string" then
             targetGUID = rOrGUID
-            targetRealm = optionalRealm
         end
     elseif type(recipeOrSpellID) == "number" then
         spellID = recipeOrSpellID
@@ -937,7 +936,6 @@ function B.IsRecipeLearned(recipeOrSpellID, rOrGUID, optionalRealm)
             end
         elseif type(rOrGUID) == "string" then
             targetGUID = rOrGUID
-            targetRealm = optionalRealm
         end
     end
 

@@ -19,16 +19,15 @@ local tonumber = _G.tonumber
 local tostring = _G.tostring
 local select = _G.select
 local next = _G.next
-local wipe = _G.wipe or function(t)
-    for k in pairs(t) do t[k] = nil end
-    return t
-end
+local wipe = (sfui.common and sfui.common.wipe) or _G.wipe
 local GetInventoryItemLink = sfui.common.get_inventory_item_link
 local GetItemInfoInstant = sfui.common.get_item_instant_info
 local GetItemInfo = sfui.common.get_item_info
 local IsShiftKeyDown = _G.IsShiftKeyDown
 
 local show_tooltip = sfui.gear.show_tooltip -- defined in engine.lua
+local set_square_icon_coords = (sfui.common and sfui.common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 
 local function show_item_tooltip(owner, itemID, anchor, extraLines)
     local tip = sfui.common.get_tooltip()
@@ -1111,7 +1110,7 @@ gearFrame:SetScript("OnShow", function(self)
         ico.forPvP = forPvP
         local t = ico:CreateTexture(nil, "ARTWORK")
         t:SetAllPoints()
-        t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        set_square_icon_coords(t)
         ico.tex = t
 
         ico:SetScript("OnEnter", function(b)
@@ -1247,13 +1246,18 @@ gearFrame:SetScript("OnShow", function(self)
                     local sdb = SfuiDB and SfuiDB.gear and SfuiDB.gear[id]
                     local pveL = iid and sdb and sdb.locked_items_pve and sdb.locked_items_pve[iid]
                     local pvpL = iid and sdb and sdb.locked_items_pvp and sdb.locked_items_pvp[iid]
+                    local function format_tag(c, label)
+                        local hex = (sfui.colors and sfui.colors.rgb_to_hex) and sfui.colors.rgb_to_hex(c[1], c[2], c[3])
+                            or string.format("%02x%02x%02x", c[1] * 255, c[2] * 255, c[3] * 255)
+                        return "|cff" .. hex .. label .. "|r "
+                    end
                     local tag = ""
                     if pveL and pvpL then
-                        tag = string.format("|cff%02x%02x%02x[pve+pvp]|r ", BOTH_COLOR[1] * 255, BOTH_COLOR[2] * 255, BOTH_COLOR[3] * 255)
+                        tag = format_tag(BOTH_COLOR, "[pve+pvp]")
                     elseif pveL then
-                        tag = string.format("|cff%02x%02x%02x[pve]|r ", PVE_COLOR[1] * 255, PVE_COLOR[2] * 255, PVE_COLOR[3] * 255)
+                        tag = format_tag(PVE_COLOR, "[pve]")
                     elseif pvpL then
-                        tag = string.format("|cff%02x%02x%02x[pvp]|r ", PVP_COLOR[1] * 255, PVP_COLOR[2] * 255, PVP_COLOR[3] * 255)
+                        tag = format_tag(PVP_COLOR, "[pvp]")
                     end
                     show_tooltip(b, "ANCHOR_TOP", tag .. (itemName and itemName:lower() or link or ""), {
                         { "click = toggle pve lock",       PVE_COLOR[1], PVE_COLOR[2], PVE_COLOR[3] },

@@ -226,7 +226,7 @@ sfui.options.RegisterTab({
                     iconTex:SetPoint("TOPLEFT", prevAnchor, "BOTTOMLEFT", 0, -8)
                 end
                 iconTex:SetTexture(icon)
-                iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                common.set_square_icon_coords(iconTex)
 
                 local specText = main_panel:CreateFontString(nil, "OVERLAY", g.font)
                 specText:SetPoint("LEFT", iconTex, "RIGHT", 6, 0)

@@ -26,24 +26,14 @@ local theme  = sfui.theme
 local common = sfui.common
 
 -- ─── DB & Hidden Dungeons Storage ─────────────────────────────────────────────
-local function DJ_DB()
-    return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
-end
-
-local function IsDungeonHidden(dungeonID)
-    return (sfui.dungeonjournal and sfui.dungeonjournal.IsDungeonHidden and sfui.dungeonjournal.IsDungeonHidden(dungeonID)) or false
-end
+local dj                    = sfui.dungeonjournal
+local DJ_DB                 = dj.GetDB
+local IsDungeonHidden       = dj.IsDungeonHidden
+local IsDungeonInLevelRange = dj.IsDungeonInLevelRange
 
 -- Forward declaration of RefreshSidebar & search query
-local RefreshSidebar = nil
+local RefreshSidebar
 local currentSearchFilter = nil
-
-local function IsDungeonInLevelRange(dungeon, playerLevel)
-    if sfui.dungeonjournal and sfui.dungeonjournal.IsDungeonInLevelRange then
-        return sfui.dungeonjournal.IsDungeonInLevelRange(dungeon, playerLevel)
-    end
-    return true
-end
 
 local sidebarFrame   = nil
 local scrollFrame    = nil
@@ -65,7 +55,7 @@ local function GetLevelColorHex(level, playerLevel)
     if _G.GetQuestDifficultyColor then
         local ok, color = pcall(_G.GetQuestDifficultyColor, level)
         if ok and color and color.r and color.g and color.b then
-            return string.format("ff%02x%02x%02x", math.floor(color.r * 255 + 0.5), math.floor(color.g * 255 + 0.5), math.floor(color.b * 255 + 0.5))
+            return "ff" .. sfui.colors.rgb_to_hex(color.r, color.g, color.b)
         end
     end
     -- Fallback difficulty formula matching standard Blizzard curves
@@ -169,10 +159,7 @@ local function GetDungeonSearchBlob(dungeon)
 end
 
 -- ─── Player Faction & Quest Progress Helpers ─────────────────────────────────
-local function GetPlayerFaction()
-    local _, faction = sfui.common.get_player_faction()
-    return faction == "horde" and "horde" or "alliance"
-end
+local GetPlayerFaction = dj.GetPlayerFaction
 
 local questProgressCache = {}
 local function InvalidateQuestProgressCache()
@@ -666,7 +653,7 @@ local function AcquireButton(pool, parent)
     btn.icon = ico
     ico:SetSize(ICON_SZ, ICON_SZ)
     ico:SetPoint("LEFT", 6, 0)
-    ico:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    common.set_square_icon_coords(ico)
 
     -- Wishlist gem icon on the right side of the dungeon button
     local wishIcon = btn:CreateTexture(nil, "OVERLAY")
@@ -708,11 +695,7 @@ local function AcquireButton(pool, parent)
     return btn
 end
 
-local function ReleaseAll(pool)
-    if sfui.dungeonjournal and sfui.dungeonjournal.ReleaseAll then
-        sfui.dungeonjournal.ReleaseAll(pool)
-    end
-end
+local ReleaseAll = dj.ReleaseAll
 
 -- ─── Main Refresh ─────────────────────────────────────────────────────────────
 local isRefreshing = false
@@ -730,15 +713,15 @@ local function RefreshSidebarImpl()
 
     ReleaseAll(sidebarButtons)
 
-    local dj         = sfui.dungeonjournal
-    local list       = dj and dj.GetItemHelpers and dj.GetItemHelpers().GetList() or {}
-    local selectedID = dj and dj.GetSelectedDungeonID and dj.GetSelectedDungeonID()
-    local pal        = theme.GetPalette()
-    local accent     = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
-    local playerLevel= UnitLevel("player") or 1
+    local db          = DJ_DB()
+    local list        = dj and dj.GetItemHelpers and dj.GetItemHelpers().GetList() or {}
+    local selectedID  = dj and dj.GetSelectedDungeonID and dj.GetSelectedDungeonID()
+    local pal         = theme.GetPalette()
+    local accent      = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
+    local playerLevel = UnitLevel("player") or 1
 
     local isFiltering = (currentSearchFilter ~= nil and currentSearchFilter ~= "")
-    local showAll     = DJ_DB().showAllDungeons == true
+    local showAll     = db.showAllDungeons == true
     local currentInst = (not showAll) and dj and dj.GetCurrentInstanceDungeon and dj.GetCurrentInstanceDungeon() or nil
 
     local displayList = list
@@ -763,7 +746,7 @@ local function RefreshSidebarImpl()
         displayList = matched
     end
 
-    local showHidden = DJ_DB().showHiddenInSidebar == true
+    local showHidden = db.showHiddenInSidebar == true
 
     -- Auto-select first visible dungeon if currently selected is not in results
     if #displayList > 0 then
@@ -789,7 +772,7 @@ local function RefreshSidebarImpl()
                 if dj and dj.SetSelectedDungeonID then
                     dj.SetSelectedDungeonID(selectedID)
                 else
-                    DJ_DB().lastDungeon = selectedID
+                    db.lastDungeon = selectedID
                 end
             end
         end

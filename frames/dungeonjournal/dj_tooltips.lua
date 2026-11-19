@@ -21,9 +21,7 @@ local tonumber, tostring   = _G.tonumber, _G.tostring
 local math_floor           = _G.math.floor
 local string_format        = _G.string.format
 
-local function DJ_DB()
-    return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
-end
+local DJ_DB = sfui.dungeonjournal.GetDB
 
 local function RenderDropSource(tooltip, ctx)
     if not tooltip or DJ_DB().showItemTooltips == false then return end
@@ -40,10 +38,7 @@ local function RenderDropSource(tooltip, ctx)
     local a1, a2, a3 = (accent and accent[1]) or 1, (accent and accent[2]) or 0.82, (accent and accent[3]) or 0.2
 
     if not source.tooltipLine or source.accent1 ~= a1 or source.accent2 ~= a2 or source.accent3 ~= a3 then
-        local r = math_floor(a1 * 255)
-        local g = math_floor(a2 * 255)
-        local b = math_floor(a3 * 255)
-        local hex = string_format("%02x%02x%02x", r, g, b)
+        local hex = sfui.colors.rgb_to_hex(a1, a2, a3)
         local bossName    = tostring(source.bossName or "encounter"):lower()
         local dungeonName = tostring(source.dungeonName or "dungeon"):lower()
         source.accent1 = a1

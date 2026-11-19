@@ -21,6 +21,7 @@ sfui.highest.TANK_SPECS = TANK_SPECS
 local STATIC_CLASSIC_FALLBACK_ORDER = { "AP", "SP", "Hit", "Crit", "Str", "Agi", "Int", "Stam" }
 local STATIC_RETAIL_FALLBACK_ORDER  = { "H", "M", "V", "C" }
 local STATIC_DEFAULT_EQUALS         = { true, false, false }
+local CLASSIC_CASTER_RANK_WEIGHTS   = { 10.0, 9.5, 8.5, 3.5, 2.5, 1.2, 1.0, 0.5 }
 
 local ARMOR_SLOTS = {
     [1]  = true, -- Head
@@ -78,6 +79,8 @@ function sfui.highest.ResolveStatWeights(specID, rule, specDB)
             or cRoleLower == "arc" or cRoleLower == "fire" or cRoleLower == "frost"
             or cRoleLower == "aff" or cRoleLower == "demo" or cRoleLower == "destro")
         local isMeleeDps = (cRoleLower == "cat" or cRoleLower == "arms" or cRoleLower == "fury" or cRoleLower == "ret" or cRoleLower == "enh")
+        local isClassicHealer = isClassicSpec and (isHealRole or (rule.stat == 4 and not isCasterDps and not isMeleeDps and cRoleLower ~= "dps"))
+        local isClassicCasterDps = isClassicSpec and not isClassicHealer and not isTankRole and not isMeleeDps and (rule.stat == 4 or isCasterDps)
 
         local order = (hd and hd.stat_order) or (specDB and specDB.stat_order) or
             (sfui.gear and sfui.gear.GetDefaultStats and sfui.gear.GetDefaultStats(specID, classicRole)) or
@@ -97,7 +100,7 @@ function sfui.highest.ResolveStatWeights(specID, rule, specDB)
         local classID = isClassicSpec and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or nil
 
         if isClassicSpec then
-            if isHealRole or (rule.stat == 4 and not isCasterDps and not isMeleeDps and cRoleLower ~= "dps") then
+            if isClassicHealer then
                 statWeights["ITEM_MOD_INTELLECT_SHORT"] = 2.0
                 statWeights["ITEM_MOD_SPELL_POWER_SHORT"] = 2.5
                 statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = 2.5
@@ -130,7 +133,7 @@ function sfui.highest.ResolveStatWeights(specID, rule, specDB)
                 -- In Classic Era (Vanilla), bonus healing gives 0 spell damage.
                 statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] = isCamelot and (2.5 / 3) or 0
                 statWeights["ITEM_MOD_SPIRIT_SHORT"] = 1.0
-                statWeights["ITEM_MOD_MANA_REGENERATION_SHORT"] = 2.0
+                statWeights["ITEM_MOD_MANA_REGENERATION_SHORT"] = 1.0
                 statWeights["ITEM_MOD_STAMINA_SHORT"] = 1.0
             end
         else
@@ -139,7 +142,7 @@ function sfui.highest.ResolveStatWeights(specID, rule, specDB)
             statWeights["ITEM_MOD_STRENGTH_SHORT"] = 6.0
         end
 
-        local isTankForWeights = false
+        local isTankForWeights
         if isClassicSpec then
             isTankForWeights = isTankRole
                 or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB))
@@ -152,23 +155,39 @@ function sfui.highest.ResolveStatWeights(specID, rule, specDB)
         local curWeight = isClassicSpec and (numStats * 1.0) or 4.0
         local step = 1.0
 
-        for i = 1, numStats do
-            local stat = order[i]
-            if stat and statKeys[stat] then
-                if not isTankForWeights and (stat == "Def" or stat == "Defense" or stat == "Dodge" or stat == "Parry" or stat == "Block" or stat == "BlockVal" or stat == "BlockValue" or stat == "Arm" or stat == "Armor") then
-                    statWeights[statKeys[stat]] = 0
-                else
-                    statWeights[statKeys[stat]] = (statWeights[statKeys[stat]] or 0) + curWeight
+        if isClassicCasterDps then
+            local prevWeight = CLASSIC_CASTER_RANK_WEIGHTS[1]
+            for i = 1, numStats do
+                local stat = order[i]
+                local rankWeight = (i > 1 and equals[i - 1]) and prevWeight or (CLASSIC_CASTER_RANK_WEIGHTS[i] or 0.5)
+                prevWeight = rankWeight
+                if stat and statKeys[stat] then
+                    if not isTankForWeights and (stat == "Def" or stat == "Defense" or stat == "Dodge" or stat == "Parry" or stat == "Block" or stat == "BlockVal" or stat == "BlockValue" or stat == "Arm" or stat == "Armor") then
+                        statWeights[statKeys[stat]] = 0
+                    else
+                        statWeights[statKeys[stat]] = rankWeight
+                    end
                 end
             end
-            if i < numStats and not equals[i] then
-                curWeight = math.max(0.5, curWeight - step)
+        else
+            for i = 1, numStats do
+                local stat = order[i]
+                if stat and statKeys[stat] then
+                    if not isTankForWeights and (stat == "Def" or stat == "Defense" or stat == "Dodge" or stat == "Parry" or stat == "Block" or stat == "BlockVal" or stat == "BlockValue" or stat == "Arm" or stat == "Armor") then
+                        statWeights[statKeys[stat]] = 0
+                    else
+                        statWeights[statKeys[stat]] = (statWeights[statKeys[stat]] or 0) + curWeight
+                    end
+                end
+                if i < numStats and not equals[i] then
+                    curWeight = math.max(0.5, curWeight - step)
+                end
             end
         end
 
         -- Spell Power parity & healing conversion reconciliation
         if isClassicSpec then
-            if isHealRole or (rule.stat == 4 and not isCasterDps and not isMeleeDps and cRoleLower ~= "dps") then
+            if isClassicHealer then
                 -- Healers: 1 Spell Power = 1 Healing (100% 1:1 parity)
                 local healW = statWeights["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0
                 local spW = statWeights["ITEM_MOD_SPELL_POWER_SHORT"] or 0
@@ -199,6 +218,20 @@ function sfui.highest.GetClassicQualityBonus(q)
     return 0
 end
 
+function sfui.highest.IsClassicCasterContext(rule, context)
+    if not (context and context.isClassicSpec and rule and rule.stat == 4) then
+        return false
+    end
+    local classID = context.classID
+    if not context.isHeal and (classID == 1489 or classID == 1484 or classID == 1486) then
+        local playerLvl = (UnitLevel and UnitLevel("player")) or 1
+        if playerLvl < 20 then
+            return false
+        end
+    end
+    return true
+end
+
 function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights, context)
     if itm.isLockedItem then
         itm.score = 9000000 + (itm.ilvl or 0)
@@ -220,10 +253,14 @@ function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights
     local equipLoc = itm.itemEquipLoc
     local isAccessory = (equipLoc == "INVTYPE_CLOAK" or equipLoc == "INVTYPE_NECK" or equipLoc == "INVTYPE_FINGER")
     local isCombatCore = isWeapon or equipLoc == "INVTYPE_SHIELD" or equipLoc == "INVTYPE_TRINKET" or equipLoc == "INVTYPE_RELIC" or equipLoc == "INVTYPE_AMMO"
+    local isClassicCaster = sfui.highest.IsClassicCasterContext(rule, context)
+    local isClassicCasterStatSlot = isClassicCaster and (slotID == 16 or slotID == 17) and equipLoc ~= "INVTYPE_SHIELD"
 
     local baseMultiplier
     if isClassicSpec then
-        if isAccessory then
+        if isClassicCasterStatSlot then
+            baseMultiplier = 0.05
+        elseif isAccessory then
             baseMultiplier = 1
         elseif isCombatCore then
             baseMultiplier = isPvP and 20 or 10
@@ -246,7 +283,7 @@ function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights
                 local isPhysical = (rule.stat == 1 or rule.stat == 2)
                 local isCaster = (rule.stat == 4)
 
-                local dpsWeight = 0
+                local dpsWeight
                 if isHeal then
                     dpsWeight = (slotID == 18 and 25) or 0 -- Wand DPS for wand users, 0 weapon melee damage for healers
                 elseif isHunterSpec then
@@ -264,22 +301,21 @@ function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights
                 elseif isCaster then
                     if slotID == 18 then
                         dpsWeight = 25 -- Wand DPS is very valuable for leveling casters
+                    elseif not isClassicCaster then
+                        dpsWeight = 40 -- In Classic, wandless hybrid casters (Shaman/Druid/Paladin) melee aggressively at low level
                     else
-                        local playerLvl = isClassicSpec and (UnitLevel("player") or 1) or 99
-                        if isClassicSpec and playerLvl < 20 and (classID == 1489 or classID == 1484 or classID == 1486) then
-                            dpsWeight = 40 -- In Classic, wandless hybrid casters (Shaman/Druid/Paladin) melee aggressively at low level
-                        else
-                            dpsWeight = 5 -- Caster melee weapon
-                        end
+                        dpsWeight = 0 -- Caster weapons are stat sticks; melee DPS does not scale spell output
                     end
                 else
                     dpsWeight = 15
                 end
 
-                score = score + (wDps * dpsWeight)
+                if dpsWeight > 0 then
+                    score = score + (wDps * dpsWeight)
+                end
 
                 -- Slower 2H weapons hit much harder for Ret Paladin, Arms Warrior & Shaman (Windfury, Rockbiter, Seal of Command, Mortal Strike)
-                if not isHeal and itm.is2H and wSpeed and wSpeed > 2.0 and (classID == 1486 or classID == 1491 or classID == 1489) then
+                if not isHeal and not isClassicCaster and itm.is2H and wSpeed and wSpeed > 2.0 and (classID == 1486 or classID == 1491 or classID == 1489) then
                     score = score + (wSpeed * 15)
                 end
 
@@ -520,7 +556,7 @@ function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights
             end
         end
     end
-    if isClassicSpec then
+    if isClassicSpec and not isClassicCasterStatSlot then
         local qBonus = sfui.highest.GetClassicQualityBonus(itm.quality or 1)
         if isCombatCore or statScore > 0 then
             score = score + qBonus

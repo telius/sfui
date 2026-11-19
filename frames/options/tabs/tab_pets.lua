@@ -10,7 +10,7 @@ local CreateFrame                     = _G.CreateFrame
 local InCombatLockdown                = _G.InCombatLockdown
 local C_PetJournal_GetPetInfoByPetID  = _G.C_PetJournal and _G.C_PetJournal.GetPetInfoByPetID
 local C_PetJournal_GetSummonedPetGUID = _G.C_PetJournal and _G.C_PetJournal.GetSummonedPetGUID
-local wipe                            = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
+local wipe                            = sfui.common.wipe
 local ipairs                          = _G.ipairs
 local pairs                           = _G.pairs
 local table_insert                    = table.insert

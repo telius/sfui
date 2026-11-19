@@ -46,14 +46,16 @@ local math_cos            = math.cos
 local math_sin            = math.sin
 local math_min            = math.min
 local tostring            = tostring
-local wipe                = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
-local issecretvalue       = _G.issecretvalue
+local wipe                = sfui.common.wipe
+local issecretvalue       = sfui.safety.issecretvalue
 
 local DEFAULT_BORDER_COLOR = { 0, 0, 0, 1 }
 local OUTDOOR_RADIUS       = { [0] = 116.666, [1] = 100, [2] = 83.333, [3] = 66.666, [4] = 50, [5] = 33.333 }
 local INDOOR_RADIUS        = { [0] = 50, [1] = 40, [2] = 33.333, [3] = 25, [4] = 16.666, [5] = 10 }
 
 local common              = sfui.common
+local set_square_icon_coords = (common and common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 
 local function can_modify_pin(pin)
     if not pin then return false end
@@ -332,7 +334,7 @@ local function AcquirePin(parent, defaultSize)
             pin:SetParent(parent)
             pin:SetSize(defaultSize, defaultSize)
             pin.baseSize = defaultSize
-            pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            set_square_icon_coords(pin.icon)
             pin.icon:SetDesaturated(false)
             pin.icon:SetVertexColor(1, 1, 1, 1)
             if pin.SetRoundBorderColor then
@@ -613,7 +615,7 @@ local function SetupPinVisuals(pin, p)
         local tc = p.texCoord
         pin.icon:SetTexCoord(tc[1] or 0, tc[2] or 1, tc[3] or 0, tc[4] or 1)
     else
-        pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        set_square_icon_coords(pin.icon)
     end
 
     if p.desaturated ~= nil then
@@ -864,7 +866,7 @@ local function AcquireMinimapPin(parent, defaultSize)
                 pin:SetSize(defaultSize, defaultSize)
             end
             pin.baseSize = defaultSize
-            pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            set_square_icon_coords(pin.icon)
             pin.icon:SetDesaturated(false)
             pin.icon:SetVertexColor(1, 1, 1, 1)
             if pin.SetRoundBorderColor then
@@ -1161,7 +1163,7 @@ local function RenderMinimapPins(force, extMapID, extFacing, extRadius, extRotat
                     local pinRadius = pinSize * 0.5
                     local margin = pinRadius + 1
 
-                    local inBounds = false
+                    local inBounds
                     if isSquare then
                         inBounds = math_abs(pixelX) <= (halfW - margin) and math_abs(pixelY) <= (halfH - margin)
                     else

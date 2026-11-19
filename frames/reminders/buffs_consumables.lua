@@ -128,10 +128,7 @@ end
 
 local issecretvalue = sfui.common.issecretvalue
 
-local function IsValidTexture(tex)
-    if issecretvalue and issecretvalue(tex) then return true end
-    return tex ~= nil and tex ~= "" and tex ~= 0
-end
+local IsValidTexture = sfui.common.is_valid_texture
 
 local function ResolveItemIcon(itemID, itemLink, texture, info, fallback)
     if IsValidTexture(texture) then

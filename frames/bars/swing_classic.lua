@@ -226,7 +226,6 @@ sfui.swing._classicTimer = {
 
 local playerGUID = nil
 local lastMainHandSpeed = nil
-local lastOffHandSpeed  = nil
 local lastRangedSpeed   = nil
 local lastRangedTriggerTime = 0
 
@@ -241,7 +240,6 @@ local function GetMainAndOffHandSpeeds()
     if not UnitAttackSpeed then return nil, nil end
     local mh, oh = UnitAttackSpeed("player")
     if mh and mh > 0 then lastMainHandSpeed = mh end
-    if oh and oh > 0 then lastOffHandSpeed = oh else lastOffHandSpeed = nil end
     return mh or lastMainHandSpeed, oh
 end
 

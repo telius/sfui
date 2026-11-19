@@ -12,12 +12,12 @@ sfui.queststate = sfui.queststate or {}
 local _G = _G
 local pairs = _G.pairs
 local type = _G.type
-local wipe = _G.wipe or table.wipe
+local wipe = sfui.safety.wipe
 local string_lower = string.lower
 local C_QuestLog = _G.C_QuestLog
 local C_Timer = _G.C_Timer
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.safety.issecretvalue
 
 local QS = sfui.queststate
 QS.hidden = true

@@ -14,7 +14,7 @@ local C_Timer = _G.C_Timer
 local InCombatLockdown = _G.InCombatLockdown
 local ipairs, pairs = _G.ipairs, _G.pairs
 local table_insert, table_sort = _G.table.insert, _G.table.sort
-local wipe = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
+local wipe = sfui.common.wipe
 
 local Tracker = sfui.tracker
 local Layout  = sfui.tracker.layout

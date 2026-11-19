@@ -3122,7 +3122,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
             if row.icon then
                 row.icon:ClearAllPoints()
                 row.icon:SetPoint("LEFT", row, "LEFT", 7, 0)
-                row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                sfui.common.set_square_icon_coords(row.icon)
             end
 
             if row.iconBorder then
@@ -3239,7 +3239,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
             if row.icon then
                 row.icon:ClearAllPoints()
                 row.icon:SetPoint("LEFT", row, "LEFT", 7, 0)
-                row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                sfui.common.set_square_icon_coords(row.icon)
             end
 
             if row.iconSlot then
@@ -3334,7 +3334,7 @@ function sfui.theme.ApplyLootfeedRowStyle(row, color, quality, isOther)
         if row.icon then
             row.icon:ClearAllPoints()
             row.icon:SetPoint("LEFT", row, "LEFT", 5, 0)
-            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            sfui.common.set_square_icon_coords(row.icon)
         end
 
         if row.badge then

@@ -13,7 +13,7 @@ sfui.inventory = sfui.inventory or {}
 local _G = _G
 local pairs = _G.pairs
 local type = _G.type
-local wipe = _G.wipe or table.wipe
+local wipe = sfui.safety.wipe
 local C_Container = _G.C_Container
 local C_Item = _G.C_Item
 local GetInventoryItemID = _G.GetInventoryItemID
@@ -21,7 +21,7 @@ local GetInventoryItemLink = _G.GetInventoryItemLink
 local GetInventoryItemTexture = _G.GetInventoryItemTexture
 local GetInventoryItemQuality = _G.GetInventoryItemQuality
 
-local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
+local issecretvalue = sfui.safety.issecretvalue
 
 local INV = sfui.inventory
 INV.hidden = true

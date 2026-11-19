@@ -574,7 +574,7 @@ function sfui.merchant.create_utility_bar(frame)
     local grIcon = guildRepairBtn:CreateTexture(nil, "ARTWORK")
     grIcon:SetAllPoints()
     grIcon:SetTexture("Interface\\Icons\\INV_Misc_Coin_02") -- Coin icon
-    grIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(grIcon)
     if not hasGuildBankRepair then
         guildRepairBtn:Hide()
     end
@@ -624,7 +624,7 @@ function sfui.merchant.create_utility_bar(frame)
     local rIcon = repairBtn:CreateTexture(nil, "ARTWORK")
     rIcon:SetAllPoints()
     rIcon:SetTexture("Interface\\Icons\\Trade_BlackSmithing") -- Anvil/Hammer
-    rIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(rIcon)
 
     repairBtn:SetScript("OnEnter", function(self)
         if not GameTooltip then return end

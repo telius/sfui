@@ -196,7 +196,7 @@ local function get_or_create_popup()
     local icon = card:CreateTexture(nil, "ARTWORK")
     icon:SetSize(32, 32)
     icon:SetPoint("LEFT", card, "LEFT", 5, 0)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     card.icon = icon
 
     -- Cooldown Sweep

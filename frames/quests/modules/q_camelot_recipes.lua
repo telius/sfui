@@ -206,7 +206,7 @@ local function FormatColoredName(name, classToken)
     end
     if classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken] then
         local c = _G.RAID_CLASS_COLORS[classToken]
-        local hex = c.colorStr or string_format("ff%02x%02x%02x", math.floor((c.r or 1) * 255), math.floor((c.g or 1) * 255), math.floor((c.b or 1) * 255))
+        local hex = c.colorStr or ("ff" .. sfui.colors.rgb_to_hex(c.r, c.g, c.b))
         return "|c" .. hex .. clean .. "|r"
     end
     return clean
@@ -474,7 +474,10 @@ local function BroadcastPinnedRecipes(force, isInit)
         table_insert(sigParts, string_format("m:%d=%d", itemID, cnt))
     end
 
-    local _, classToken = UnitClass and UnitClass("player")
+    local _, classToken
+    if UnitClass then
+        _, classToken = UnitClass("player")
+    end
     local sig = tostring(classToken or "") .. "|" .. table_concat(sigParts, ",")
     if not force and sig == lastSentRecipesSig then
         return
@@ -709,7 +712,10 @@ function CamelotRecipesModule:BuildBlocks(container)
     local myFull = (sfui.sync and sfui.sync.FullName and sfui.sync.FullName("player"))
         or (UnitName and UnitName("player"))
         or "player"
-    local _, myClass = UnitClass and UnitClass("player")
+    local _, myClass
+    if UnitClass then
+        _, myClass = UnitClass("player")
+    end
     local myColoredName = FormatColoredName(myFull, myClass)
 
     for _, entry in pairs(trackedMap) do

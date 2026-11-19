@@ -45,7 +45,6 @@ local GetNumQuestLogEntries                   = _G.GetNumQuestLogEntries
 local GetQuestProgressBarPercent              = _G.GetQuestProgressBarPercent
 local GetRealZoneText                         = _G.GetRealZoneText
 local GetZoneText                             = _G.GetZoneText
-local IsInGroup                               = _G.IsInGroup
 local InCombatLockdown                        = _G.InCombatLockdown
 local IsShiftKeyDown                          = _G.IsShiftKeyDown
 local IsControlKeyDown                        = _G.IsControlKeyDown
@@ -66,10 +65,7 @@ local Items                                   = sfui.tracker.helpers.items
 local FindGroup                               = sfui.tracker.helpers.findgroup
 local QuestCommon                             = sfui.tracker.helpers.quest
 
-local wipe                                    = _G.wipe or function(t)
-    for k in pairs(t) do t[k] = nil end
-    return t
-end
+local wipe                                    = sfui.common.wipe
 
 -- ─────────────────────────────────────────────────────────
 --  EXPANSION & WATCH CACHE
@@ -240,13 +236,8 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
 
     -- 0. Middle-Click or Shift-Right-Click: Open in Dungeon Journal for dungeon quests
     if mouseButton == "MiddleButton" or (mouseButton == "RightButton" and IsShiftKeyDown and IsShiftKeyDown()) then
-        if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
-            local isDJ = (sfui.dj_camelot and sfui.dj_camelot.IsDungeonQuest and sfui.dj_camelot.IsDungeonQuest(questID))
-                or IsDungeonQuest(questID, questLogIndex)
-            if isDJ then
-                local ok = sfui.dungeonjournal.SelectQuest(nil, questID)
-                if ok then return end
-            end
+        if QuestCommon.OpenDungeonJournalQuest(questID, questLogIndex, IsDungeonQuest) then
+            return
         end
     end
 
@@ -278,76 +269,13 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
 
     -- 3. Ctrl-Click: Abandon Quest
     if IsControlKeyDown and IsControlKeyDown() then
-        if InCombatLockdown and InCombatLockdown() then return end
-        if C_QuestLog and C_QuestLog.CanAbandonQuest and C_QuestLog.CanAbandonQuest(questID) then
-            if C_QuestLog.SetSelectedQuest then
-                C_QuestLog.SetSelectedQuest(questID)
-            end
-            if C_QuestLog.SetAbandonQuest then
-                C_QuestLog.SetAbandonQuest()
-            end
-            if _G.QuestMapQuestOptions_AbandonQuest then
-                _G.QuestMapQuestOptions_AbandonQuest(questID)
-                return
-            end
-
-            local title = questTitle or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)) or
-            "Quest"
-            local items = (C_QuestLog.GetAbandonQuestItems and C_QuestLog.GetAbandonQuestItems()) or nil
-            if items and _G.StaticPopup_Show then
-                _G.StaticPopup_Show("ABANDON_QUEST_WITH_ITEMS", title, items)
-            elseif _G.StaticPopup_Show then
-                _G.StaticPopup_Show("ABANDON_QUEST", title)
-            elseif C_QuestLog.AbandonQuest then
-                C_QuestLog.AbandonQuest()
-            end
-        else
-            sfui.common.print("quest cannot be abandoned.")
-        end
+        QuestCommon.AbandonQuest(questID, questTitle, true)
         return
     end
 
     -- 4. Alt-Click: Share Quest with Party
     if IsAltKeyDown and IsAltKeyDown() then
-        if InCombatLockdown and InCombatLockdown() then return end
-        local inGroup = (IsInGroup and IsInGroup())
-            or (_G.GetNumGroupMembers and _G.GetNumGroupMembers() > 0)
-            or (_G.GetNumSubgroupMembers and _G.GetNumSubgroupMembers() > 0)
-        if not inGroup then
-            sfui.common.print("you are not in a group.")
-            return
-        end
-
-        local canPush = true
-        if sfui.api and sfui.api.IsQuestPushable then
-            canPush = sfui.api.IsQuestPushable(questID, questLogIndex)
-        elseif C_QuestLog and C_QuestLog.IsPushableQuest then
-            local ok, res = pcall(C_QuestLog.IsPushableQuest, questID)
-            if ok and res ~= nil then canPush = res end
-        end
-
-        if not canPush then
-            sfui.common.print("quest cannot be shared.")
-            return
-        end
-
-        local shared = false
-        if sfui.api and sfui.api.ShareQuest then
-            shared = sfui.api.ShareQuest(questID, questLogIndex)
-        elseif _G.QuestUtil and _G.QuestUtil.ShareQuest then
-            shared = pcall(_G.QuestUtil.ShareQuest, questID)
-        elseif _G.QuestLogPushQuest then
-            if questLogIndex and _G.SelectQuestLogEntry then
-                pcall(_G.SelectQuestLogEntry, questLogIndex)
-            end
-            shared = pcall(_G.QuestLogPushQuest, questLogIndex) or pcall(_G.QuestLogPushQuest)
-        end
-
-        if shared then
-            sfui.common.print("shared quest: " .. (questTitle or "quest"))
-        else
-            sfui.common.print("quest cannot be shared.")
-        end
+        QuestCommon.ShareQuest(questID, questLogIndex, questTitle)
         return
     end
 

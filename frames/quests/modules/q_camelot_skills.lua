@@ -589,7 +589,10 @@ local function BroadcastTrackedSkills(force, isInit)
     local cg = math_floor((sc[2] or 0.58) * 255 + 0.5)
     local cb = math_floor((sc[3] or 0.98) * 255 + 0.5)
     local specID = (sfui.talents and sfui.talents.get_current_spec_id and sfui.talents.get_current_spec_id()) or 0
-    local _, classToken = UnitClass and UnitClass("player")
+    local _, classToken
+    if UnitClass then
+        _, classToken = UnitClass("player")
+    end
 
     local sig = string_format("%d:%d:%d:%d|%s", specID, cr, cg, cb, table_concat(sigParts, ","))
     if not force and sig == lastSentSkillsSig then
@@ -796,7 +799,10 @@ function CamelotSkillsModule:BuildBlocks(container)
 
     local localSpecColor = GetLocalSpecColor()
     local myName = (UnitName and UnitName("player")) or "player"
-    local _, myClass = UnitClass and UnitClass("player")
+    local _, myClass
+    if UnitClass then
+        _, myClass = UnitClass("player")
+    end
     local myColoredName = FormatColoredName(myName, myClass)
 
     if tracked then

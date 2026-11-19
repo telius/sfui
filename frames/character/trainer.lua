@@ -217,21 +217,7 @@ end
 
 local function FormatMoney(copper)
     if not copper or copper <= 0 then return nil end
-    if common and common.SafeGetCoinTextureString then
-        return common.SafeGetCoinTextureString(copper)
-    end
-    if _G.GetCoinTextureString then
-        return _G.GetCoinTextureString(copper)
-    end
-    local g = math_floor(copper / 10000)
-    local s = math_floor((copper % 10000) / 100)
-    local c = copper % 100
-    if g > 0 then
-        return string_format("%dg %ds", g, s)
-    elseif s > 0 then
-        return string_format("%ds %dc", s, c)
-    end
-    return string_format("%dc", c)
+    return common.SafeGetCoinTextureString(copper)
 end
 
 local function RequestSpellLoadOnce(spellID)
@@ -1281,7 +1267,7 @@ local function AcquireRow()
         local icon = row:CreateTexture(nil, "ARTWORK")
         icon:SetSize(16, 16)
         icon:SetPoint("LEFT", row, "LEFT", 4, 0)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        common.set_square_icon_coords(icon)
         row.icon = icon
 
         local value = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1892,7 +1878,7 @@ local function AcquireSbCard(parentView)
             icon:AddMaskTexture(mask)
             card.iconMask = mask
         else
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            common.set_square_icon_coords(icon)
         end
 
         local border = iconHolder:CreateTexture(nil, "OVERLAY")
@@ -2655,7 +2641,7 @@ local function CreateSpellBookTrainerPage(sbf)
         maskIcon:AddMaskTexture(sqMask)
         maskHl:AddMaskTexture(sqMask)
     else
-        maskIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        common.set_square_icon_coords(maskIcon)
     end
 
     if HasAtlas("spellbook-Tab-Frame-C60") then
@@ -2889,7 +2875,7 @@ local function CreateSpellBookTrainerTab(sbf)
         hl:AddMaskTexture(iconMask)
         tabBtn.iconMask = iconMask
     else
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        common.set_square_icon_coords(icon)
     end
 
     if HasAtlas("spellbook-Tab-Frame-C60") then
@@ -3453,7 +3439,7 @@ local function CreateSquareHeaderButton(name, parent, tooltipContext)
     btn:SetNormalTexture(BOOK_ICON)
     btn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     if btn:GetNormalTexture() then
-        btn:GetNormalTexture():SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        common.set_square_icon_coords(btn:GetNormalTexture())
     end
 
     local mult = sfui.pixelScale or 1

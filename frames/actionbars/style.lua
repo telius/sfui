@@ -438,7 +438,7 @@ function style.SkinButton(button)
     -- Icon styling: zoom / crop edges to remove rounded Blizzard border
     local icon = button.icon or button.Icon
     if icon then
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.common.set_square_icon_coords(icon)
         icon:ClearAllPoints()
         icon:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
         icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)

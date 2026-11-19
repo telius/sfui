@@ -135,6 +135,71 @@ function sfui.options.notify_spec_colors_updated()
     sfui.events.SendMessage("SFUI_SPEC_COLORS_UPDATED")
 end
 
+--- Return whether frame movers / edit mode is currently unlocked.
+function sfui.options.is_movers_unlocked(includeExperience)
+    return (sfui.movers and sfui.movers.isUnlocked)
+        or (sfui.actionbars and sfui.actionbars.moversUnlocked)
+        or (includeExperience and sfui.experience and sfui.experience.IsUnlocked and sfui.experience.IsUnlocked())
+        or false
+end
+
+--- Create a standardized "unlock / move ui" / "lock ui" toggle button.
+function sfui.options.create_movers_toggle_button(parent, opts)
+    local width = (opts and opts.width) or 120
+    local combatGuard = opts and opts.combat_guard
+    local useExperienceFallback = opts and opts.experience_fallback
+    local onAfterToggle = opts and opts.on_toggle
+
+    local function is_unlocked()
+        return sfui.options.is_movers_unlocked(useExperienceFallback)
+    end
+
+    local btn = common.create_flat_button(parent, is_unlocked() and "lock ui" or "unlock / move ui", width, 22)
+    btn:SetScript("OnClick", function(self)
+        if combatGuard and _G.InCombatLockdown and _G.InCombatLockdown() then return end
+        local currentlyUnlocked = is_unlocked()
+        if currentlyUnlocked then
+            if sfui.movers and sfui.movers.Toggle then
+                sfui.movers.Toggle(false)
+            elseif useExperienceFallback and sfui.experience and sfui.experience.ToggleUnlock then
+                sfui.experience.ToggleUnlock()
+            elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                sfui.actionbars.ToggleMovers(false)
+            end
+            self:SetText("unlock / move ui")
+        else
+            if sfui.options and sfui.options.Toggle then
+                sfui.options.Toggle()
+            end
+            if sfui.movers and sfui.movers.Toggle then
+                sfui.movers.Toggle(true)
+            elseif useExperienceFallback and sfui.experience and sfui.experience.ToggleUnlock then
+                sfui.experience.ToggleUnlock()
+            elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
+                sfui.actionbars.ToggleMovers(true)
+            end
+            self:SetText("lock ui")
+        end
+        if onAfterToggle then
+            onAfterToggle(self)
+        end
+    end)
+
+    function btn:RefreshMoversText()
+        if self.SetText then
+            self:SetText(is_unlocked() and "lock ui" or "unlock / move ui")
+        end
+    end
+
+    if opts and opts.register_panel_refresh and parent then
+        parent._refreshMoversBtn = function()
+            btn:RefreshMoversText()
+        end
+    end
+
+    return btn
+end
+
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Tab Icon Palette: Dark Purple / Blueish Duotone Theme
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -295,7 +360,7 @@ function sfui.create_options_panel()
     addon_icon:SetSize(28, 28)
     addon_icon:SetPoint("LEFT", headerFrame, "LEFT", 10, 0)
     addon_icon:SetTexture("Interface\\Icons\\Spell_shadow_deathcoil")
-    addon_icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    common.set_square_icon_coords(addon_icon)
     headerFrame.icon = addon_icon
 
     local close_button = common.create_close_button(frame)
@@ -419,7 +484,7 @@ function sfui.create_options_panel()
         local icon = tab_button:CreateTexture(nil, "ARTWORK")
         icon:SetSize(18, 18)
         icon:SetPoint("CENTER", iconBg, "CENTER", 0, 0)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        common.set_square_icon_coords(icon)
         local iconPath = (tabDef and tabDef.icon) or default_tab_icons[id] or "Interface\\Icons\\Spell_Shadow_Shadowform"
         icon:SetTexture(iconPath)
         icon:SetDesaturated(true)

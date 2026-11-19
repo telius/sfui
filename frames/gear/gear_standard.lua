@@ -39,7 +39,7 @@ function sfui.gear.SetupHeaderTabs(gearFrame, specIDs)
             local t = btn:CreateTexture(nil, "ARTWORK")
             t:SetAllPoints()
             t:SetTexture(icon)
-            t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            sfui.common.set_square_icon_coords(t)
             btn.tex = t
             btn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
             btn:SetBackdropColor(0, 0, 0, 0.7)

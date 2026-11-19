@@ -428,8 +428,8 @@ function petModule.Create()
         sfui.widgets.apply_round_icon_style(portraitFrame, portraitTexture, 1.2, { 0, 0, 0, 0.9 })
     elseif sfui.widgets and sfui.widgets.set_round_icon_coords then
         sfui.widgets.set_round_icon_coords(portraitTexture)
-    else
-        portraitTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    elseif sfui.common and sfui.common.set_square_icon_coords then
+        sfui.common.set_square_icon_coords(portraitTexture)
     end
 
     -- Training points counter anchored immediately to the right of the portrait

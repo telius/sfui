@@ -546,7 +546,7 @@ sfui.options.RegisterTab({
                 if p.class and common.get_class_color then
                     local r, gCol, b = common.get_class_color(p.class)
                     if r and gCol and b then
-                        nameDisplay = string_format("|cff%02x%02x%02x%s|r", r * 255, gCol * 255, b * 255, nameDisplay)
+                        nameDisplay = "|cff" .. sfui.colors.rgb_to_hex(r, gCol, b) .. nameDisplay .. "|r"
                     end
                 end
                 if p.accountLabel and p.accountLabel ~= "" then

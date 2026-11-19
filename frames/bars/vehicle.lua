@@ -144,7 +144,7 @@ for i = 1, MAX_BUTTONS do
 
     -- Custom square icon — flat and borderless
     btn.icon = btn:CreateTexture(nil, "ARTWORK")
-    btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(btn.icon)
     btn.icon:SetAllPoints(btn)
 
     -- Cooldown (anchored to inset icon)

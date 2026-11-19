@@ -28,11 +28,7 @@ local GetProfessions                = _G.GetProfessions
 local GetProfessionInfo             = _G.GetProfessionInfo
 local C_SpellBook                   = _G.C_SpellBook
 local ipairs, pairs                 = _G.ipairs, _G.pairs
-local wipe                          = _G.wipe or table.wipe or
-    function(t)
-        for k in pairs(t) do t[k] = nil end
-        return t
-    end
+local wipe                          = (sfui.common and sfui.common.wipe) or _G.wipe or table.wipe
 
 local function EquipItemByName(itemInfo, slotID)
     if not itemInfo then return end
@@ -1860,7 +1856,7 @@ local function restore_sound_defaults()
     local master = safe_get_cvar("Sound_MasterVolume")
     local mus = safe_get_cvar("Sound_MusicVolume")
 
-    local defaults = {
+    local soundDefaults = {
         Sound_MasterVolume = (master == "1" or master == 1) and "0.6" or (master or "0.6"),
         Sound_SFXVolume = "1",
         Sound_EnableAmbience = "1",
@@ -1870,7 +1866,7 @@ local function restore_sound_defaults()
         Sound_EnableSFX = "1",
     }
 
-    for cvar, val in pairs(defaults) do
+    for cvar, val in pairs(soundDefaults) do
         _state.soundCache[cvar] = tostring(val)
         if SfuiDB then
             SfuiDB.soundBaseline = SfuiDB.soundBaseline or {}

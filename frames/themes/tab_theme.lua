@@ -44,29 +44,24 @@ sfui.options.RegisterTab({
             local supported = isCamelotSupported and "|cff00ff00available|r" or "|cffff3333restricted to camelot|r"
             local palName = tostring(pal.name or activeID):lower()
 
+            local headerHex = sfui.colors.rgb_to_hex(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
             if not isCamelotSupported then
-                status_text:SetText(string.format("current style: |cff%02x%02x%02x%s|r  •  client: |cffffffff%s|r  •  bronze: %s",
-                    math.floor(pal.headerColor[1] * 255),
-                    math.floor(pal.headerColor[2] * 255),
-                    math.floor(pal.headerColor[3] * 255),
+                status_text:SetText(string.format("current style: |cff%s%s|r  •  client: |cffffffff%s|r  •  bronze: %s",
+                    headerHex,
                     palName,
                     clientName,
                     supported
                 ))
             elseif mode == "auto" then
-                status_text:SetText(string.format("current style: |cff%02x%02x%02x%s|r  •  auto-detected: |cffffffff%s|r  •  bronze: %s",
-                    math.floor(pal.headerColor[1] * 255),
-                    math.floor(pal.headerColor[2] * 255),
-                    math.floor(pal.headerColor[3] * 255),
+                status_text:SetText(string.format("current style: |cff%s%s|r  •  auto-detected: |cffffffff%s|r  •  bronze: %s",
+                    headerHex,
                     palName,
                     clientName,
                     supported
                 ))
             else
-                status_text:SetText(string.format("current style: |cff%02x%02x%02x%s|r (forced %s)  •  client: |cffffffff%s|r",
-                    math.floor(pal.headerColor[1] * 255),
-                    math.floor(pal.headerColor[2] * 255),
-                    math.floor(pal.headerColor[3] * 255),
+                status_text:SetText(string.format("current style: |cff%s%s|r (forced %s)  •  client: |cffffffff%s|r",
+                    headerHex,
                     palName,
                     tostring(mode):lower(),
                     clientName
@@ -519,11 +514,7 @@ sfui.options.RegisterTab({
             end
 
             -- Update Dynamically Created Toggle Buttons
-            local hexAccent = string.format("%02x%02x%02x",
-                math.floor(pal.accentColor[1] * 255),
-                math.floor(pal.accentColor[2] * 255),
-                math.floor(pal.accentColor[3] * 255)
-            )
+            local hexAccent = sfui.colors.rgb_to_hex(pal.accentColor[1], pal.accentColor[2], pal.accentColor[3])
 
             for _, btn in ipairs(toggleButtons) do
                 local isSelected = (btn.themeMode == savedMode) or

@@ -1,8 +1,8 @@
-local addonName, addon = ...
-local sfui = _G.sfui or {}
-sfui.abundance = sfui.abundance or {}
-sfui.tracker = sfui.tracker or {}
-sfui.questlog = sfui.questlog or {}
+local addonName, addon        = ...
+local sfui                    = _G.sfui or {}
+sfui.abundance                = sfui.abundance or {}
+sfui.tracker                  = sfui.tracker or {}
+sfui.questlog                 = sfui.questlog or {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 --  sfui/frames/quests/modules/q_abundance.lua
@@ -19,41 +19,44 @@ sfui.questlog = sfui.questlog or {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- ─── Localize Globals for Zero-Taint & High Performance ─────────────────────
-local _G                     = _G
-local C_Scenario             = _G.C_Scenario
-local C_ScenarioInfo         = _G.C_ScenarioInfo
-local C_UIWidgetManager      = _G.C_UIWidgetManager
-local C_UnitAuras            = _G.C_UnitAuras
-local C_TooltipInfo          = _G.C_TooltipInfo
-local Enum                   = _G.Enum
-local InCombatLockdown       = _G.InCombatLockdown
-local ipairs, type = _G.ipairs, _G.type
-local tonumber = _G.tonumber
-local math_floor, math_max   = _G.math.floor, _G.math.max
-local string_format          = _G.string.format
-local table_insert           = _G.table.insert
-local table_concat           = _G.table.concat
-local issecretvalue = sfui.common.issecretvalue
+local _G                      = _G
+local C_Scenario              = _G.C_Scenario
+local C_ScenarioInfo          = _G.C_ScenarioInfo
+local C_UIWidgetManager       = _G.C_UIWidgetManager
+local C_UnitAuras             = _G.C_UnitAuras
+local C_TooltipInfo           = _G.C_TooltipInfo
+local Enum                    = _G.Enum
+local InCombatLockdown        = _G.InCombatLockdown
+local ipairs, type            = _G.ipairs, _G.type
+local tonumber                = _G.tonumber
+local math_floor, math_max    = _G.math.floor, _G.math.max
+local string_format           = _G.string.format
+local table_insert            = _G.table.insert
+local table_concat            = _G.table.concat
+local issecretvalue           = sfui.common.issecretvalue
 
 -- ─── Constants & Spell IDs ──────────────────────────────────────────────────
-local BLESSING_SPELL_ID      = 1229266 -- Blessing of Abundance (Dundun's buff)
-local SCENARIO_TOP_WIDGET_SET= 514     -- SCENARIO_TRACKER_TOP_WIDGET_SET
+local BLESSING_SPELL_ID       = 1229266 -- Blessing of Abundance (Dundun's buff)
+local SCENARIO_TOP_WIDGET_SET = 514     -- SCENARIO_TRACKER_TOP_WIDGET_SET
 
 -- Widget visualization type constants
-local TYPE_STATUS_BAR        = (Enum and Enum.UIWidgetVisualizationType and Enum.UIWidgetVisualizationType.StatusBar) or 2
-local TYPE_SCENARIO_TIMER    = (Enum and Enum.UIWidgetVisualizationType and Enum.UIWidgetVisualizationType.ScenarioHeaderTimer) or 20
-local TYPE_UNIT_POWER_BAR    = (Enum and Enum.UIWidgetVisualizationType and Enum.UIWidgetVisualizationType.UnitPowerBar) or 23
+local TYPE_STATUS_BAR         = (Enum and Enum.UIWidgetVisualizationType and Enum.UIWidgetVisualizationType.StatusBar) or
+    2
+local TYPE_SCENARIO_TIMER     = (Enum and Enum.UIWidgetVisualizationType and Enum.UIWidgetVisualizationType.ScenarioHeaderTimer) or
+    20
+local TYPE_UNIT_POWER_BAR     = (Enum and Enum.UIWidgetVisualizationType and Enum.UIWidgetVisualizationType.UnitPowerBar) or
+    23
 
 -- Default carrying capacity thresholds by scenario stage
-local STAGE_CAPACITIES       = {
+local STAGE_CAPACITIES        = {
     [1] = 1500,
     [2] = 2500,
     [3] = 5000,
 }
 
-local COLOR_ABUNDANCE_GOLD   = { 1.00, 0.78, 0.15, 0.95 }
-local COLOR_ABUNDANCE_FULL   = { 1.00, 0.25, 0.20, 0.95 }
-local COLOR_SECTION_HEADER   = { 1.00, 0.78, 0.15 }
+local COLOR_ABUNDANCE_GOLD    = { 1.00, 0.78, 0.15, 0.95 }
+local COLOR_ABUNDANCE_FULL    = { 1.00, 0.25, 0.20, 0.95 }
+local COLOR_SECTION_HEADER    = { 1.00, 0.78, 0.15 }
 
 -- ─── Scenario Active Detection ──────────────────────────────────────────────
 function sfui.abundance.IsActive()
@@ -223,24 +226,25 @@ function AbundanceModule:BuildBlocks(container)
     local inCombat = InCombatLockdown and InCombatLockdown()
 
     -- 1. Query Scenario Base Information
-    local name, currentStage, numStages, scenarioType = nil, nil, nil, nil
+    local name, currentStage, numStages = nil, nil, nil
     if C_ScenarioInfo and C_ScenarioInfo.GetScenarioInfo then
         local sInfo = C_ScenarioInfo.GetScenarioInfo()
         if sInfo then
             name = sInfo.name
             currentStage = sInfo.currentStage
             numStages = sInfo.numStages
-            scenarioType = sInfo.scenarioType
         end
     elseif C_Scenario and C_Scenario.GetInfo then
-        name, currentStage, numStages, _, _, _, _, _, _, scenarioType = C_Scenario.GetInfo()
+        name, currentStage, numStages = C_Scenario.GetInfo()
     end
 
-    currentStage = (currentStage and not issecretvalue(currentStage) and type(currentStage) == "number") and currentStage or 1
-    numStages    = (numStages and not issecretvalue(numStages) and type(numStages) == "number") and numStages or 1
+    currentStage                                        = (currentStage and not issecretvalue(currentStage) and type(currentStage) == "number") and
+        currentStage or 1
+    numStages                                           = (numStages and not issecretvalue(numStages) and type(numStages) == "number") and
+        numStages or 1
 
     local stageName, stageDesc, numCriteria, stepFailed = nil, nil, 0, false
-    local widgetSetID = nil
+    local widgetSetID                                   = nil
     if C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
         local stepInfo = C_ScenarioInfo.GetScenarioStepInfo()
         if stepInfo then
@@ -252,9 +256,9 @@ function AbundanceModule:BuildBlocks(container)
         end
     elseif C_Scenario and C_Scenario.GetStepInfo then
         local _, _, nCrit, sFailed, _, _, _, _, _, _, _, wSet = C_Scenario.GetStepInfo()
-        numCriteria = nCrit or 0
-        stepFailed  = sFailed
-        widgetSetID = wSet
+        numCriteria                                           = nCrit or 0
+        stepFailed                                            = sFailed
+        widgetSetID                                           = wSet
     end
 
     -- 2. Build Stage Header & Title
@@ -332,7 +336,8 @@ function AbundanceModule:BuildBlocks(container)
 
     -- A. Countdown Timer Display
     if timerInfo then
-        local isTimeSec = issecretvalue(timerInfo.timerValue) or issecretvalue(timerInfo.timerMin) or issecretvalue(timerInfo.timerMax)
+        local isTimeSec = issecretvalue(timerInfo.timerValue) or issecretvalue(timerInfo.timerMin) or
+            issecretvalue(timerInfo.timerMax)
         if isTimeSec or inCombat then
             table_insert(lines, {
                 text      = "|cffffcc00time remaining:|r active",
@@ -389,7 +394,8 @@ function AbundanceModule:BuildBlocks(container)
     end
 
     -- C. Dundun's Blessing of Abundance (Spell 1229266)
-    local blessingAura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and C_UnitAuras.GetPlayerAuraBySpellID(BLESSING_SPELL_ID)
+    local blessingAura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and
+        C_UnitAuras.GetPlayerAuraBySpellID(BLESSING_SPELL_ID)
     if blessingAura then
         if inCombat then
             table_insert(lines, {
@@ -436,7 +442,8 @@ function AbundanceModule:BuildBlocks(container)
             local isMaxed = (capacityInfo.isCurrencyMaxed == true)
             progressBar = {
                 min   = (not isMinSec and capacityInfo.barMin) or 0,
-                max   = (not isMaxSec and capacityInfo.barMax and capacityInfo.barMax > 0 and capacityInfo.barMax) or defaultCap,
+                max   = (not isMaxSec and capacityInfo.barMax and capacityInfo.barMax > 0 and capacityInfo.barMax) or
+                    defaultCap,
                 value = capacityInfo.barValue,
                 text  = safeBarText,
                 color = isMaxed and COLOR_ABUNDANCE_FULL or COLOR_ABUNDANCE_GOLD,

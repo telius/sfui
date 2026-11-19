@@ -19,7 +19,7 @@ local tostring                = _G.tostring
 local select                  = _G.select
 local pcall                   = _G.pcall
 local table_sort              = table.sort
-local table_wipe              = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local table_wipe              = sfui.common.wipe
 
 -- ── 1. Static Reference Tables & Whitelists ───────────────────────────────────
 

@@ -1684,7 +1684,7 @@ local function BuildAffixRow(affixes)
             frame:EnableMouse(true)
             local icon = frame:CreateTexture(nil, "ARTWORK")
             icon:SetAllPoints(frame)
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            sfui.common.set_square_icon_coords(icon)
 
             local border = frame:CreateTexture(nil, "OVERLAY")
             border:SetTexture("Interface/Buttons/WHITE8X8")

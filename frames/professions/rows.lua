@@ -15,6 +15,8 @@ local B = sfui.recipes.browser
 local common = sfui.common
 local GameTooltip = sfui.common.get_tooltip()
 local C_Item_GetItemInfoInstant = sfui.common.get_item_instant_info
+local set_square_icon_coords = (common and common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 
 local TAG_PINNED = " |cffffd100[pinned]|r"
 local TAG_ALT_SINGLE = " |cff80c0ff[alt]|r"
@@ -265,7 +267,7 @@ function B.CreateRow(parent, index)
 
     row.icon = icoFrame:CreateTexture(nil, "ARTWORK")
     row.icon:SetAllPoints()
-    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    set_square_icon_coords(row.icon)
 
     -- [ Recipe Link ] text
     row.linkText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -622,7 +624,7 @@ function B.UpdateList()
                 row.lastRecipeID = r.id
             end
 
-            local firstSource = nil
+            local firstSource
             if #row.availableSources > 0 then
                 firstSource = row.availableSources[row.activeSourceIndex]
             else
@@ -776,7 +778,6 @@ function B.UpdateList()
                         local blizzSrc = _G.C_TradeSkillUI.GetRecipeSourceText(r.id)
                         if blizzSrc and blizzSrc ~= "" then
                             dropTarget = blizzSrc:lower():gsub("^drop:%s*", "")
-                            isGeneric = false
                         end
                     end
 

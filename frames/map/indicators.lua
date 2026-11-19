@@ -11,27 +11,9 @@ local InCombatLockdown = _G.InCombatLockdown
 local hooksecurefunc = _G.hooksecurefunc
 local UIParent = _G.UIParent
 local MinimapCluster = _G.MinimapCluster
-local issecretvalue = _G.issecretvalue
+local issecretvalue = sfui.safety.issecretvalue
 
-local function can_modify_region(f)
-    if not f then return false end
-    if not (InCombatLockdown and InCombatLockdown()) then
-        return true
-    end
-    if f.IsProtected then
-        local prot = f:IsProtected()
-        if (issecretvalue and issecretvalue(prot)) or prot then
-            return false
-        end
-    end
-    if f.IsAnchoringRestricted then
-        local rest = f:IsAnchoringRestricted()
-        if (issecretvalue and issecretvalue(rest)) or rest then
-            return false
-        end
-    end
-    return true
-end
+local can_modify_region = sfui.safety.CanModifyRegion
 
 -- ------------------------------------------------------------------------------
 -- Mail & Crafting Order Indicator Management

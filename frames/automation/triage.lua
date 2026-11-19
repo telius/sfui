@@ -43,7 +43,7 @@ local table_sort               = table.sort
 local table_insert             = table.insert
 local ipairs                   = ipairs
 local string_format            = string.format
-local wipe                     = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
+local wipe                     = sfui.common.wipe
 
 local UnitCastingInfo          = _G.UnitCastingInfo
 local UnitChannelInfo          = _G.UnitChannelInfo
@@ -883,7 +883,7 @@ local function create_triage_prompt()
     local iconTex = iconFrame:CreateTexture(nil, "ARTWORK")
     iconTex:SetPoint("TOPLEFT", 2, -2)
     iconTex:SetPoint("BOTTOMRIGHT", -2, 2)
-    iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(iconTex)
     f.iconTex = iconTex
 
     local countText = iconFrame:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")

@@ -44,7 +44,6 @@ local math_sqrt  = math.sqrt
 local math_atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
 local math_pi    = math.pi
 local math_floor = math.floor
-local math_ceil  = math.ceil
 local math_min   = math.min
 local math_max   = math.max
 local string_format = string.format
@@ -59,6 +58,7 @@ local pcall      = pcall
 local setmetatable = setmetatable
 
 local is_secret = (sfui.safety and sfui.safety.issecretvalue)
+    or (sfui.common and sfui.common.issecretvalue)
     or _G.issecretvalue
     or function() return false end
 
@@ -100,33 +100,32 @@ local AUTO_HIDE_PANELS = {
     "GameMenuFrame", "SettingsPanel", "InterfaceOptionsFrame",
 }
 
-local function round_num(val, dec)
-    if sfui.common and sfui.common.round then
-        return sfui.common.round(val, dec)
+local round_num = (sfui.common and sfui.common.round)
+    or function(val, dec)
+        local mult = 10 ^ (dec or 0)
+        return math_floor(val * mult + 0.5) / mult
     end
-    local mult = 10 ^ (dec or 0)
-    return math_floor(val * mult + 0.5) / mult
-end
 
-local function can_modify_region(f)
-    if not f then return false end
-    if not (InCombatLockdown and InCombatLockdown()) then
+local can_modify_region = (sfui.safety and sfui.safety.CanModifyRegion)
+    or function(f)
+        if not f then return false end
+        if not (InCombatLockdown and InCombatLockdown()) then
+            return true
+        end
+        if f.IsProtected then
+            local prot = f:IsProtected()
+            if is_secret(prot) or prot then
+                return false
+            end
+        end
+        if f.IsAnchoringRestricted then
+            local rest = f:IsAnchoringRestricted()
+            if is_secret(rest) or rest then
+                return false
+            end
+        end
         return true
     end
-    if f.IsProtected then
-        local prot = f:IsProtected()
-        if is_secret(prot) or prot then
-            return false
-        end
-    end
-    if f.IsAnchoringRestricted then
-        local rest = f:IsAnchoringRestricted()
-        if is_secret(rest) or rest then
-            return false
-        end
-    end
-    return true
-end
 
 local function is_alt_down_clean()
     local rawAlt = IsAltKeyDown and IsAltKeyDown()
@@ -265,7 +264,6 @@ local viewCache = {
     draws     = 0,
 }
 
-local lastFacingForPins = 0
 local _debugInfo        = {}
 
 local update_view
@@ -3137,7 +3135,10 @@ function overlay:HandleSlash(msg)
         hbdFilterDirty = true
         self:RefreshLayout()
     elseif sub == "diag" then
-        local ux, uy = UnitPosition and UnitPosition("player")
+        local ux, uy
+        if UnitPosition then
+            ux, uy = UnitPosition("player")
+        end
         local coordState
         if is_secret(ux) or is_secret(uy) then
             coordState = "secret"

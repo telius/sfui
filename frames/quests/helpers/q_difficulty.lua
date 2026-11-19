@@ -39,7 +39,7 @@ function Difficulty.GetDifficultyColorCode(questLevel, questID)
         if diff then
             local c = GetDifficultyColor(diff)
             if c and c.r and c.g and c.b then
-                return string_format("|cff%02x%02x%02x", math_floor(c.r * 255 + 0.5), math_floor(c.g * 255 + 0.5), math_floor(c.b * 255 + 0.5))
+                return "|cff" .. sfui.colors.rgb_to_hex(c.r, c.g, c.b)
             end
         end
     end
@@ -50,7 +50,7 @@ function Difficulty.GetDifficultyColorCode(questLevel, questID)
     if DifficultyUtil and DifficultyUtil.GetRelativeDifficultyColor and questLevel and questLevel > 0 then
         local c = DifficultyUtil.GetRelativeDifficultyColor(playerLevel, questLevel)
         if c and c.r and c.g and c.b then
-            return string_format("|cff%02x%02x%02x", math_floor(c.r * 255 + 0.5), math_floor(c.g * 255 + 0.5), math_floor(c.b * 255 + 0.5))
+            return "|cff" .. sfui.colors.rgb_to_hex(c.r, c.g, c.b)
         end
     end
 

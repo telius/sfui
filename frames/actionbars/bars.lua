@@ -630,7 +630,7 @@ function sfui.actionbars.ApplyPetBarLayout()
                     icon:ClearAllPoints()
                     icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
                     icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-                    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                    sfui.common.set_square_icon_coords(icon)
                     icon:SetDrawLayer("ARTWORK", 0)
                 end
                 if btn.AutoCastOverlay then

@@ -205,7 +205,10 @@ local function BuildScoredItemObj(link, slotID, specID, st, isEquipped)
     return obj
 end
 
-local function GetTwoHandPairBonus(itm, isClassicSpec, isPvP)
+local function GetTwoHandPairBonus(itm, isClassicSpec, isPvP, isClassicCaster)
+    if isClassicCaster then
+        return (itm.ilvl or 1) * 0.05
+    end
     local mult = isClassicSpec and 10 or (isPvP and 100 or 1000)
     local bonus = (itm.ilvl or 1) * mult
     if isClassicSpec then
@@ -268,6 +271,7 @@ local function EvaluateCandidateAgainstSpec(itemLink, specID, ignorePlayerLevel,
     local bestSlot = nil
     local requiresHigherLevel = false
     local playerLvl = _G.UnitLevel and _G.UnitLevel("player") or 1
+    local isClassicCaster = sfui.highest.IsClassicCasterContext and sfui.highest.IsClassicCasterContext(st.rule, st.context) or false
 
     for i = 1, numSlots do
         local slotID = _evalTargetSlots[i]
@@ -276,8 +280,8 @@ local function EvaluateCandidateAgainstSpec(itemLink, specID, ignorePlayerLevel,
             local candValidScore = candObj and (candObj.score or 0) > 0
             if candValidScore and st.context.isClassicSpec then
                 local eqLoc = candObj.itemEquipLoc
-                local isCombatCoreCand = (slotID == 16 or slotID == 17 or slotID == 18
-                    or eqLoc == "INVTYPE_SHIELD" or eqLoc == "INVTYPE_TRINKET"
+                local isCombatCoreCand = (((slotID == 16 or slotID == 17) and not (isClassicCaster and eqLoc ~= "INVTYPE_SHIELD"))
+                    or slotID == 18 or eqLoc == "INVTYPE_SHIELD" or eqLoc == "INVTYPE_TRINKET"
                     or eqLoc == "INVTYPE_RELIC" or eqLoc == "INVTYPE_AMMO")
                 if not isCombatCoreCand then
                     if common.is_random_enchant_item and common.is_random_enchant_item(itemLink) and (candObj.statScore or 0) <= 0 then
@@ -305,8 +309,11 @@ local function EvaluateCandidateAgainstSpec(itemLink, specID, ignorePlayerLevel,
                         local eq17Link = GetEquippedSlotLink(17)
                         local eq17 = eq17Link and BuildScoredItemObj(eq17Link, 17, specID, st, true)
                         if eq16 and eq17 and not eq16.is2H then
-                            candEff = candEff + GetTwoHandPairBonus(candObj, st.context.isClassicSpec, false)
-                            eqEff = (eq16.score or 0) + (eq17.score or 0)
+                            candEff = candEff + GetTwoHandPairBonus(candObj, st.context.isClassicSpec, false, isClassicCaster)
+                            local eq17Eff = (isClassicCaster and not st.context.isHeal and eq17.itemEquipLoc == "INVTYPE_SHIELD")
+                                and (((eq17.ilvl or 0) * 0.05) + (eq17.statScore or 0))
+                                or (eq17.score or 0)
+                            eqEff = (eq16.score or 0) + eq17Eff
                             eqIlvl = ((eq16.ilvl or 0) + (eq17.ilvl or 0)) * 0.5
                         elseif eq16 then
                             eqEff = eq16.score or 0
@@ -316,7 +323,7 @@ local function EvaluateCandidateAgainstSpec(itemLink, specID, ignorePlayerLevel,
                         local eq16Link = GetEquippedSlotLink(16)
                         local eq16 = eq16Link and BuildScoredItemObj(eq16Link, 16, specID, st, true)
                         if eq16 and eq16.is2H then
-                            eqEff = ((eq16.score or 0) + GetTwoHandPairBonus(eq16, st.context.isClassicSpec, false)) * 0.5
+                            eqEff = ((eq16.score or 0) + GetTwoHandPairBonus(eq16, st.context.isClassicSpec, false, isClassicCaster)) * 0.5
                             eqIlvl = eq16.ilvl or 0
                         elseif eqLink then
                             local eqObj = BuildScoredItemObj(eqLink, slotID, specID, st, true)
@@ -512,6 +519,12 @@ if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
     end)
 end
 
+local function compare_slot_candidates(a, b)
+    if a.score ~= b.score then return a.score > b.score end
+    if a.isEquipped ~= b.isEquipped then return a.isEquipped == true end
+    return (a.physId or 0) < (b.physId or 0)
+end
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Best Items Engine Coordinator
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -547,7 +560,7 @@ function sfui.highest.GetBestItems(isPvP)
     end
 
     local b = sfui.talents.SPEC_BRIDGE[specID]
-    local specDB = nil
+    local specDB
     if isClassicSpec then
         specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
     else
@@ -720,7 +733,7 @@ function sfui.highest.GetBestItems(isPvP)
             end
         end
 
-        local numSlots = 0
+        local numSlots
         if slotOverride then
             numSlots = 1
             pooledTargetSlots[1] = slotOverride
@@ -854,11 +867,7 @@ function sfui.highest.GetBestItems(isPvP)
 
     -- Sort candidates per slot
     for slotID, items in pairs(best) do
-        table.sort(items, function(a, b)
-            if a.score ~= b.score then return a.score > b.score end
-            if a.isEquipped ~= b.isEquipped then return a.isEquipped == true end
-            return (a.physId or 0) < (b.physId or 0)
-        end)
+        table.sort(items, compare_slot_candidates)
         if _G.SFUI_DEBUG_SLOT and slotID == _G.SFUI_DEBUG_SLOT then
             dbgSlotPrint("=== Slot " .. slotID .. " candidates after scoring ===")
             for rank, itm in ipairs(items) do

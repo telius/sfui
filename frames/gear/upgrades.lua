@@ -41,10 +41,7 @@ local type            = _G.type
 local tonumber        = _G.tonumber
 local tostring        = _G.tostring
 local select          = _G.select
-local wipe            = _G.wipe or function(t)
-    for k in pairs(t) do t[k] = nil end
-    return t
-end
+local wipe            = (sfui.common and sfui.common.wipe) or _G.wipe
 
 local issecretvalue = (sfui.safety and sfui.safety.issecretvalue)
     or (sfui.common and sfui.common.issecretvalue)
@@ -483,6 +480,9 @@ local function GetTSMBuyoutCopper(itemID)
 end
 
 local function FormatCopperShort(copper)
+    if common and common.format_money_short then
+        return common.format_money_short(copper, { compact_gold = true, omit_copper_with_silver = true })
+    end
     if type(copper) ~= "number" or copper <= 0 then return "0c" end
     local total = math.floor(copper + 0.5)
     local g = math.floor(total / 10000)
@@ -499,9 +499,32 @@ local function FormatCopperShort(copper)
     return tostring(c) .. "c"
 end
 
+local function GetTooltip()
+    return (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
+end
+
+local function HideTooltip()
+    if common and common.hide_tooltip then
+        common.hide_tooltip()
+    elseif _G.GameTooltip and _G.GameTooltip.Hide then
+        _G.GameTooltip:Hide()
+    end
+end
+
+local function SetSquareIconCoords(tex)
+    if common and common.set_square_icon_coords then
+        common.set_square_icon_coords(tex)
+    elseif tex and tex.SetTexCoord then
+        tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+end
+
 local function IsQuestCompleted(questID)
     if not questID or issecretvalue(questID) or type(questID) ~= "number" or questID <= 0 then
         return false
+    end
+    if sfui.queststate and sfui.queststate.IsCompleted then
+        return sfui.queststate.IsCompleted(questID) == true
     end
     if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
         local done = C_QuestLog.IsQuestFlaggedCompleted(questID)
@@ -510,9 +533,6 @@ local function IsQuestCompleted(questID)
         end
     elseif _G.IsQuestFlaggedCompleted then
         return _G.IsQuestFlaggedCompleted(questID) == true
-    end
-    if sfui.queststate and sfui.queststate.IsCompleted then
-        return sfui.queststate.IsCompleted(questID) == true
     end
     return false
 end
@@ -2139,6 +2159,7 @@ local function StartScan(force)
         and (sfui.recipes_camelot ~= nil) and (type(sfui.recipes_camelot.outputs) == "table")
     local needQuestieCo = HasQuestieDB() and (db.sources.quest or db.sources.vendor or (db.sources.ah and HasTSM()))
 
+    local visible = IsPanelVisible()
     if needStageACo or needCraftedAHCo or needQuestieCo then
         state.isScanning = true
         state.scanPhase = "scanning"
@@ -2217,7 +2238,7 @@ local function StartScan(force)
                 RunQuestiePass(serial, ctx, db, minLvl, maxLvl, equipOnly, djQuestSeen, yieldState)
             end
         end)
-        if IsPanelVisible() then
+        if visible then
             EnsureDriverFrame():Show()
         end
     else
@@ -2228,7 +2249,7 @@ local function StartScan(force)
         end
     end
 
-    if RefreshUI and IsPanelVisible() then
+    if RefreshUI and visible then
         RefreshUI()
     end
 end
@@ -2345,37 +2366,10 @@ local function ExecuteSourceAction(src, mouseButton)
 end
 
 -- ─── Theme & Visual Styling ───────────────────────────────────────────────────
-local function GetFontPath()
-    return (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
-end
-
-local function ApplyRowTheme(frame, pal)
-    if not frame or not pal then return end
-    local acc = pal.accentColor or { 0.85, 0.72, 0.42 }
-    if ui.contextLabel and ui.contextLabel.SetTextColor then
-        ui.contextLabel:SetTextColor(acc[1], acc[2], acc[3], 1)
+local GetFontPath = (sfui.common and sfui.common.get_font_file)
+    or function()
+        return (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
     end
-    for _, pane in ipairs({ ui.leftRail, ui.rightPane }) do
-        if pane and theme and theme.ApplyContainerStyle then
-            theme.ApplyContainerStyle(pane)
-        end
-    end
-    local db = DB()
-    local hasQDB = HasQuestieDB()
-    local hasTSM = HasTSM()
-    if ui.sourceBtns then
-        for kind, btn in pairs(ui.sourceBtns) do
-            local on = (db.sources[kind] == true)
-            local available = (kind == "dungeon") or (kind == "quest") or (kind == "ah" and hasTSM) or (kind == "vendor" and hasQDB)
-            if theme and theme.SetButtonSelected then
-                theme.SetButtonSelected(btn, on and available)
-            end
-        end
-    end
-    if ui.hiddenBtn and theme and theme.SetButtonSelected then
-        theme.SetButtonSelected(ui.hiddenBtn, db.showHidden == true)
-    end
-end
 
 local function UpdateFilterVisuals()
     local db = DB()
@@ -2421,6 +2415,20 @@ local function UpdateFilterVisuals()
     end
 end
 
+local function ApplyRowTheme(frame, pal)
+    if not frame or not pal then return end
+    local acc = pal.accentColor or { 0.85, 0.72, 0.42 }
+    if ui.contextLabel and ui.contextLabel.SetTextColor then
+        ui.contextLabel:SetTextColor(acc[1], acc[2], acc[3], 1)
+    end
+    for _, pane in ipairs({ ui.leftRail, ui.rightPane }) do
+        if pane and theme and theme.ApplyContainerStyle then
+            theme.ApplyContainerStyle(pane)
+        end
+    end
+    UpdateFilterVisuals()
+end
+
 local function AcquireRow(idx)
     if ui.rowPool[idx] then
         return ui.rowPool[idx]
@@ -2445,7 +2453,7 @@ local function AcquireRow(idx)
     local ico = icoFrame:CreateTexture(nil, "ARTWORK")
     ico:SetPoint("TOPLEFT", icoFrame, "TOPLEFT", 1, -1)
     ico:SetPoint("BOTTOMRIGHT", icoFrame, "BOTTOMRIGHT", -1, 1)
-    ico:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    SetSquareIconCoords(ico)
     row.icoFrame = icoFrame
     row.icon = ico
 
@@ -2472,8 +2480,10 @@ local function AcquireRow(idx)
     end
     row.actionBtn = actionBtn
 
+    local fontPath = GetFontPath()
+
     local pctFS = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pctFS:SetFont(GetFontPath(), 12, "")
+    pctFS:SetFont(fontPath, 12, "")
     pctFS:SetShadowOffset(0, 0)
     pctFS:SetPoint("RIGHT", actionBtn, "LEFT", -8, 0)
     pctFS:SetJustifyH("RIGHT")
@@ -2481,7 +2491,7 @@ local function AcquireRow(idx)
     row.pctText = pctFS
 
     local nameFS = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    nameFS:SetFont(GetFontPath(), 11, "")
+    nameFS:SetFont(fontPath, 11, "")
     nameFS:SetShadowOffset(0, 0)
     nameFS:SetPoint("TOPLEFT", icoFrame, "TOPRIGHT", 8, -3)
     nameFS:SetPoint("RIGHT", pctFS, "LEFT", -6, 0)
@@ -2490,7 +2500,7 @@ local function AcquireRow(idx)
     row.nameText = nameFS
 
     local srcFS = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    srcFS:SetFont(GetFontPath(), 10, "")
+    srcFS:SetFont(fontPath, 10, "")
     srcFS:SetShadowOffset(0, 0)
     srcFS:SetPoint("BOTTOMLEFT", icoFrame, "BOTTOMRIGHT", 8, 3)
     srcFS:SetPoint("RIGHT", pctFS, "LEFT", -6, 0)
@@ -2505,7 +2515,7 @@ local function AcquireRow(idx)
         if not entry then return end
         if mouseBtn == "RightButton" then
             SetItemHidden(entry.itemID, not IsItemHidden(entry.itemID))
-            if common and common.hide_tooltip then common.hide_tooltip() end
+            HideTooltip()
             return
         end
         if IsShiftKeyDown and IsShiftKeyDown() and entry.link and _G.ChatEdit_InsertLink then
@@ -2516,7 +2526,7 @@ local function AcquireRow(idx)
     row:SetScript("OnEnter", function(self)
         local entry = self.entry
         if not entry or not entry.itemID then return end
-        local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
+        local tip = GetTooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_RIGHT")
         if entry.link and entry.link:find("|H", 1, true) and tip.SetHyperlink then
@@ -2547,7 +2557,7 @@ local function AcquireRow(idx)
         tip:Show()
     end)
     row:SetScript("OnLeave", function()
-        if common and common.hide_tooltip then common.hide_tooltip() end
+        HideTooltip()
     end)
 
     starBtn:SetScript("OnEnter", function(self)
@@ -2555,7 +2565,7 @@ local function AcquireRow(idx)
         if not isWish and self.starIcon then
             self.starIcon:SetAlpha(0.7)
         end
-        local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
+        local tip = GetTooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_RIGHT")
         if isWish then
@@ -2573,7 +2583,7 @@ local function AcquireRow(idx)
         if not self.isWishlisted and self.starIcon then
             self.starIcon:SetAlpha(0.25)
         end
-        if common and common.hide_tooltip then common.hide_tooltip() end
+        HideTooltip()
     end)
     starBtn:SetScript("OnClick", function(self)
         local entry = row.entry
@@ -2594,7 +2604,7 @@ local function AcquireRow(idx)
                     row:SetBackdropBorderColor(0.14, 0.14, 0.18, 0.7)
                 end
             end
-            local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
+            local tip = GetTooltip()
             if tip and tip.IsOwned and tip:IsOwned(self) then
                 self:GetScript("OnEnter")(self)
             end
@@ -2611,7 +2621,7 @@ local function AcquireRow(idx)
     actionBtn:SetScript("OnEnter", function(self)
         local src = self.src
         if not src then return end
-        local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
+        local tip = GetTooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_TOP")
         if self.actionKind == "boss" then
@@ -2638,7 +2648,7 @@ local function AcquireRow(idx)
         tip:Show()
     end)
     actionBtn:SetScript("OnLeave", function()
-        if common and common.hide_tooltip then common.hide_tooltip() end
+        HideTooltip()
     end)
 
     ui.rowPool[idx] = row
@@ -2751,9 +2761,9 @@ RenderVisibleRows = function()
         end
         row.icoFrame:SetBackdropBorderColor(qr, qg, qb, 0.95)
 
-        local title = string.format("|cff%02x%02x%02x%s|r",
-            math.floor(qr * 255), math.floor(qg * 255), math.floor(qb * 255),
-            entry.name or ("item #" .. tostring(entry.itemID)))
+        local titleHex = (sfui.colors and sfui.colors.rgb_to_hex) and sfui.colors.rgb_to_hex(qr, qg, qb)
+            or string.format("%02x%02x%02x", math.floor(qr * 255), math.floor(qg * 255), math.floor(qb * 255))
+        local title = "|cff" .. titleHex .. (entry.name or ("item #" .. tostring(entry.itemID))) .. "|r"
 
         if showSlotTag then
             local slotDef = SLOT_KEY_TO_DEF[entry.slotKey]
@@ -2973,6 +2983,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
 
     local db = DB()
     local baseLevel = container:GetFrameLevel() or 1
+    local fontPath = GetFontPath()
 
     -- ── Filter Bar ──
     local filterBar = CreateFrame("Frame", nil, container)
@@ -2982,7 +2993,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
     filterBar:SetFrameLevel(baseLevel + 5)
 
     local contextLabel = filterBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    contextLabel:SetFont(GetFontPath(), 11, "")
+    contextLabel:SetFont(fontPath, 11, "")
     contextLabel:SetShadowOffset(0, 0)
     contextLabel:SetPoint("LEFT", filterBar, "LEFT", 2, 0)
     ui.contextLabel = contextLabel
@@ -3036,7 +3047,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
             end
         end)
         sBtn:SetScript("OnEnter", function(self)
-            local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
+            local tip = GetTooltip()
             if not tip then return end
             tip:SetOwner(self, "ANCHOR_TOP")
             tip:AddLine(sDef.kind .. " source", 1, 0.82, 0.2)
@@ -3049,7 +3060,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
             tip:Show()
         end)
         sBtn:SetScript("OnLeave", function()
-            if common and common.hide_tooltip then common.hide_tooltip() end
+            HideTooltip()
         end)
         ui.sourceBtns[sDef.kind] = sBtn
         anchorRight = sBtn
@@ -3069,7 +3080,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
         end
     end)
     hiddenBtn:SetScript("OnEnter", function(self)
-        local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
+        local tip = GetTooltip()
         if not tip then return end
         tip:SetOwner(self, "ANCHOR_TOP")
         tip:AddLine("hidden items", 1, 0.82, 0.2)
@@ -3078,13 +3089,13 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
         tip:Show()
     end)
     hiddenBtn:SetScript("OnLeave", function()
-        if common and common.hide_tooltip then common.hide_tooltip() end
+        HideTooltip()
     end)
     ui.hiddenBtn = hiddenBtn
 
     -- ── Status Line ──
     local statusLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    statusLabel:SetFont(GetFontPath(), 10, "")
+    statusLabel:SetFont(fontPath, 10, "")
     statusLabel:SetShadowOffset(0, 0)
     statusLabel:SetPoint("TOPLEFT", container, "TOPLEFT", insetX + 4, topY - 30)
     statusLabel:SetPoint("TOPRIGHT", container, "TOPRIGHT", -(insetX + 4), topY - 30)
@@ -3124,26 +3135,26 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
             local ico = sBtn:CreateTexture(nil, "ARTWORK")
             ico:SetSize(18, 18)
             ico:SetPoint("LEFT", sBtn, "LEFT", 5, 0)
-            ico:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                SetSquareIconCoords(ico)
             sBtn.icon = ico
         end
 
         local badge = sBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        badge:SetFont(GetFontPath(), 10, "")
+        badge:SetFont(fontPath, 10, "")
         badge:SetShadowOffset(0, 0)
         badge:SetPoint("RIGHT", sBtn, "RIGHT", -6, 0)
         badge:SetJustifyH("RIGHT")
         sBtn.badgeText = badge
 
         local ilvlFS = sBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        ilvlFS:SetFont(GetFontPath(), 10, "")
+        ilvlFS:SetFont(fontPath, 10, "")
         ilvlFS:SetShadowOffset(0, 0)
         ilvlFS:SetPoint("RIGHT", badge, "LEFT", -6, 0)
         ilvlFS:SetTextColor(0.55, 0.55, 0.60, 1)
         sBtn.ilvlText = ilvlFS
 
         local lbl = sBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        lbl:SetFont(GetFontPath(), 11, "")
+        lbl:SetFont(fontPath, 11, "")
         lbl:SetShadowOffset(0, 0)
         if sBtn.icon then
             lbl:SetPoint("LEFT", sBtn.icon, "RIGHT", 6, 0)
@@ -3172,7 +3183,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
             RenderVisibleRows()
         end)
         sBtn:SetScript("OnEnter", function(self)
-            local tip = (common and common.get_tooltip and common.get_tooltip()) or _G.GameTooltip
+            local tip = GetTooltip()
             if not tip then return end
             tip:SetOwner(self, "ANCHOR_RIGHT")
             if def.key == "all" or not def.slotIDs then
@@ -3201,7 +3212,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
             tip:Show()
         end)
         sBtn:SetScript("OnLeave", function()
-            if common and common.hide_tooltip then common.hide_tooltip() end
+            HideTooltip()
         end)
 
         ui.slotBtns[def.key] = sBtn
@@ -3242,7 +3253,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
     ui.scrollChild = scrollChild
 
     local emptyText = rightPane:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    emptyText:SetFont(GetFontPath(), 11, "")
+    emptyText:SetFont(fontPath, 11, "")
     emptyText:SetShadowOffset(0, 0)
     emptyText:SetPoint("CENTER", rightPane, "CENTER", 0, 0)
     emptyText:SetTextColor(0.55, 0.55, 0.60, 1)
@@ -3351,18 +3362,26 @@ end
 
 function U.MarkDirty()
     state.isDirty = true
-    if IsPanelVisible() and not state.rescanPending then
+    if not IsPanelVisible() then return end
+    local run = function()
+        if IsPanelVisible() then
+            StartScan(true)
+        end
+    end
+    if common and common.debounce then
+        common.debounce("upgrades_rescan", 0.20, run)
+        return
+    end
+    if not state.rescanPending then
         state.rescanPending = true
-        local run = function()
+        local fallbackRun = function()
             state.rescanPending = false
-            if IsPanelVisible() then
-                StartScan(true)
-            end
+            run()
         end
         if C_Timer and C_Timer.After then
-            C_Timer.After(0.20, run)
+            C_Timer.After(0.20, fallbackRun)
         else
-            run()
+            fallbackRun()
         end
     end
 end

@@ -95,17 +95,6 @@ sfui.options.RegisterTab({
         -- ─────────────────────────────────────────────────────────────────────
         -- Quick Action Buttons
         -- ─────────────────────────────────────────────────────────────────────
-        local function is_movers_unlocked()
-            return (sfui.movers and sfui.movers.isUnlocked)
-                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
-                or (sfui.experience and sfui.experience.IsUnlocked and sfui.experience.IsUnlocked())
-                or false
-        end
-
-        local function getUnlockText()
-            return is_movers_unlocked() and "lock ui" or "unlock / move ui"
-        end
-
         local function getModeText()
             local mode = (sfui.experience and sfui.experience.GetBarMode and sfui.experience.GetBarMode()) or "XP"
             if mode == "DUAL" then
@@ -119,30 +108,16 @@ sfui.options.RegisterTab({
             end
         end
 
-        local unlock_btn = CreateFlatButton(exp_panel, getUnlockText(), 120, 22)
+        local unlock_btn = sfui.options.create_movers_toggle_button(exp_panel, {
+            width = 120,
+            experience_fallback = true,
+            on_toggle = function()
+                if refreshTabUI then
+                    refreshTabUI()
+                end
+            end,
+        })
         unlock_btn:SetPoint("TOPLEFT", tips, "BOTTOMLEFT", 0, -12)
-        unlock_btn:SetScript("OnClick", function(self)
-            local currentlyUnlocked = is_movers_unlocked()
-            if currentlyUnlocked then
-                if sfui.movers and sfui.movers.Toggle then
-                    sfui.movers.Toggle(false)
-                elseif sfui.experience and sfui.experience.ToggleUnlock then
-                    sfui.experience.ToggleUnlock()
-                end
-            else
-                if sfui.options and sfui.options.Toggle then
-                    sfui.options.Toggle()
-                end
-                if sfui.movers and sfui.movers.Toggle then
-                    sfui.movers.Toggle(true)
-                elseif sfui.experience and sfui.experience.ToggleUnlock then
-                    sfui.experience.ToggleUnlock()
-                end
-            end
-            if refreshTabUI then
-                refreshTabUI()
-            end
-        end)
 
         local reset_pos_btn = CreateFlatButton(exp_panel, "reset position", 120, 22)
         reset_pos_btn:SetPoint("LEFT", unlock_btn, "RIGHT", 10, 0)
@@ -259,7 +234,6 @@ sfui.options.RegisterTab({
         end, "displays estimated time until next level on the left side of the bar."))
         ttl_cb:SetPoint("TOPLEFT", rate_cb, "BOTTOMLEFT", 0, -8)
 
-        local lastCol1Anchor = ttl_cb
         if isHunterClass and isCamelotOrClassic then
             local pet_header = exp_panel:CreateFontString(nil, "OVERLAY", g.font)
             pet_header:SetPoint("TOPLEFT", ttl_cb, "BOTTOMLEFT", 0, -16)
@@ -272,7 +246,6 @@ sfui.options.RegisterTab({
                 sfui.db.Set("experience", "petBarAlwaysShow", checked)
             end, "keeps the pet status bar visible even when your pet is at capped xp, max loyalty, and 0 unspent training points."))
             pet_always_cb:SetPoint("TOPLEFT", pet_header, "BOTTOMLEFT", 0, -10)
-            lastCol1Anchor = pet_always_cb
         end
 
         -- ─────────────────────────────────────────────────────────────────────
@@ -466,8 +439,8 @@ sfui.options.RegisterTab({
             if format_dropdown and format_dropdown.SetSelectedValue then
                 format_dropdown:SetSelectedValue(sfui.db.Get("experience", "textFormat", "PERCENT_CURRENT"))
             end
-            if unlock_btn and unlock_btn.SetText then
-                unlock_btn:SetText(getUnlockText())
+            if unlock_btn and unlock_btn.RefreshMoversText then
+                unlock_btn:RefreshMoversText()
             end
             if toggle_mode_btn and toggle_mode_btn.SetText then
                 toggle_mode_btn:SetText(getModeText())

@@ -281,7 +281,7 @@ local function GetOrCreateBoonsFrame()
 
     local icon = iconFrame:CreateTexture(nil, "ARTWORK")
     icon:SetAllPoints()
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     iconFrame.texture = icon
     f.iconFrame = iconFrame
 

@@ -325,40 +325,10 @@ sfui.options.RegisterTab({
             sfui.minimap.update_position(defX, defY, defPoint, defPoint)
         end)
 
-        local function is_movers_unlocked()
-            return (sfui.movers and sfui.movers.isUnlocked)
-                or (sfui.actionbars and sfui.actionbars.moversUnlocked)
-                or false
-        end
-
-        local edit_mode_btn = CreateFlatButton(minimap_panel, is_movers_unlocked() and "lock ui" or "unlock / move ui", 120, 22)
+        local edit_mode_btn = (sfui.options and sfui.options.create_movers_toggle_button)
+            and sfui.options.create_movers_toggle_button(minimap_panel, { register_panel_refresh = true })
+            or CreateFlatButton(minimap_panel, "unlock / move ui", 120, 22)
         edit_mode_btn:SetPoint("LEFT", reset_map_pos_btn, "RIGHT", 10, 0)
-        edit_mode_btn:SetScript("OnClick", function(self)
-            local currentlyUnlocked = is_movers_unlocked()
-            if currentlyUnlocked then
-                if sfui.movers and sfui.movers.Toggle then
-                    sfui.movers.Toggle(false)
-                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
-                    sfui.actionbars.ToggleMovers(false)
-                end
-                self:SetText("unlock / move ui")
-            else
-                if sfui.options and sfui.options.Toggle then
-                    sfui.options.Toggle()
-                end
-                if sfui.movers and sfui.movers.Toggle then
-                    sfui.movers.Toggle(true)
-                elseif sfui.actionbars and sfui.actionbars.ToggleMovers then
-                    sfui.actionbars.ToggleMovers(true)
-                end
-                self:SetText("lock ui")
-            end
-        end)
-        minimap_panel._refreshMoversBtn = function()
-            if edit_mode_btn and edit_mode_btn.SetText then
-                edit_mode_btn:SetText(is_movers_unlocked() and "lock ui" or "unlock / move ui")
-            end
-        end
 
         local bar_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
         bar_header:SetPoint("TOPLEFT", reset_map_pos_btn, "BOTTOMLEFT", 0, -18)

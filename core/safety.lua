@@ -24,6 +24,16 @@ end
 sfui.safety.issecretvalue = issecretvalue
 sfui.common.issecretvalue = issecretvalue
 
+local wipe = _G.wipe or (_G.table and _G.table.wipe) or function(t)
+    if type(t) ~= "table" then return t end
+    for k in pairs(t) do
+        t[k] = nil
+    end
+    return t
+end
+sfui.safety.wipe = wipe
+sfui.common.wipe = wipe
+
 -- Robust helper to check if an aura/ID is present, even if it's a secret value
 function sfui.safety.HasAuraInstanceID(value)
     if issecretvalue(value) then return true end
@@ -301,6 +311,37 @@ sfui.common.FormatCoinString = FormatCoinString
 sfui.safety.format_money = FormatCoinString
 sfui.common.format_money = FormatCoinString
 
+--- Format copper amount into compact plain text (e.g. "12g 34s", "45s", "80c")
+--- @param copper number?
+--- @param opts table?
+--- @return string?
+function sfui.safety.FormatMoneyShort(copper, opts)
+    local nilOnZero = opts and opts.nil_on_zero
+    if copper == nil or issecretvalue(copper) or type(copper) ~= "number" or copper <= 0 then
+        if nilOnZero then return nil end
+        return "0c"
+    end
+    local total = math.floor(copper + 0.5)
+    local g = math.floor(total / 10000)
+    local s = math.floor((total % 10000) / 100)
+    local c = total % 100
+    if g > 0 then
+        if s == 0 or (opts and opts.compact_gold and g >= 100) then
+            return string.format("%dg", g)
+        end
+        return string.format("%dg %ds", g, s)
+    elseif s > 0 then
+        if c > 0 and not (opts and opts.omit_copper_with_silver) then
+            return string.format("%ds %dc", s, c)
+        end
+        return string.format("%ds", s)
+    end
+    return string.format("%dc", c)
+end
+sfui.safety.format_money_short = sfui.safety.FormatMoneyShort
+sfui.common.FormatMoneyShort = sfui.safety.FormatMoneyShort
+sfui.common.format_money_short = sfui.safety.FormatMoneyShort
+
 -- Safely get a coin texture string
 function sfui.safety.SafeGetCoinTextureString(amount)
     if amount == nil then return "" end
@@ -383,6 +424,30 @@ function sfui.safety.copy(t)
     return res
 end
 sfui.common.copy = sfui.safety.copy
+
+--- Return true if frame can safely have regions/points modified right now
+function sfui.safety.CanModifyRegion(f)
+    if not f then return false end
+    local icl = _G.InCombatLockdown
+    if not (icl and icl()) then
+        return true
+    end
+    if f.IsProtected then
+        local prot = f:IsProtected()
+        if issecretvalue(prot) or prot then
+            return false
+        end
+    end
+    if f.IsAnchoringRestricted then
+        local rest = f:IsAnchoringRestricted()
+        if issecretvalue(rest) or rest then
+            return false
+        end
+    end
+    return true
+end
+sfui.common.CanModifyRegion = sfui.safety.CanModifyRegion
+sfui.common.can_modify_region = sfui.safety.CanModifyRegion
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Priority-Budgeted Out-of-Combat Execution Queue (P0 / P1 / P2)

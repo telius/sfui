@@ -112,7 +112,7 @@ local hookAttempted = false
 local waiter
 
 local function HexColor(r, g, b)
-    return string_format("|cff%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5), math_floor((b or 1) * 255 + 0.5))
+    return "|cff" .. sfui.colors.rgb_to_hex(r, g, b)
 end
 
 local function IsLevelsEnabled()

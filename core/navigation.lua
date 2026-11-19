@@ -8,7 +8,7 @@ sfui.nav = sfui.nav or {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local _G = _G
-local issecretvalue = _G.issecretvalue or function() return false end
+local issecretvalue = (sfui.common and sfui.common.issecretvalue) or _G.issecretvalue or function() return false end
 local type = _G.type
 local tonumber = _G.tonumber
 local pairs = _G.pairs

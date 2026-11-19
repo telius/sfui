@@ -235,19 +235,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Helper: Font Path Resolver
 -- ---------------------------------------------------------------------------
-local function GetFontPath()
-    local f = sfui.config and (sfui.config.fontFile or sfui.config.font_path)
-    if f and f ~= "" and f ~= "GameFontNormal" then
-        return f
-    end
-    if _G.GameFontNormal and _G.GameFontNormal.GetFont then
-        local ok, blizzFont = pcall(_G.GameFontNormal.GetFont, _G.GameFontNormal)
-        if ok and blizzFont and blizzFont ~= "" and blizzFont ~= "GameFontNormal" then
-            return blizzFont
-        end
-    end
-    return _G.STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-end
+local GetFontPath = sfui.common.get_font_file
 
 -- ---------------------------------------------------------------------------
 -- Helper: SmartTotem-Style Infallible Totem Icon Resolver
@@ -489,7 +477,7 @@ local function SkinTotemButton(btn, iconTex, r, g, b)
     local icon = btn:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
     icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(icon)
     if iconTex then
         icon:SetTexture(iconTex)
     end

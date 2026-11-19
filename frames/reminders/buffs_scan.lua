@@ -19,10 +19,7 @@ local C_UnitAuras = _G.C_UnitAuras
 local C_Secrets = _G.C_Secrets
 local issecretvalue = sfui.common.issecretvalue
 
-local function IsValidTexture(tex)
-    if issecretvalue and issecretvalue(tex) then return true end
-    return tex ~= nil and tex ~= 0 and tex ~= ""
-end
+local IsValidTexture = sfui.common.is_valid_texture
 
 local function AreAurasSecret()
     if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then

@@ -25,7 +25,7 @@ local GetAddOnMemoryUsage = GetAddOnMemoryUsage
 local CreateFrame = CreateFrame
 local UIParent = UIParent
 local C_Timer = C_Timer
-local wipe = table.wipe or _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local wipe = (sfui.common and sfui.common.wipe) or _G.wipe or table.wipe
 
 local PREFIX = "|cff6600ff[sfui memory]|r "
 

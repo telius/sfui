@@ -107,10 +107,20 @@ function sfui.widgets.create_border(frame, thickness, color, g, b, a)
 end
 sfui.common.create_border = sfui.widgets.create_border
 
+sfui.widgets.SQUARE_ICON_ZOOM = 0.08
+sfui.common.SQUARE_ICON_ZOOM = sfui.widgets.SQUARE_ICON_ZOOM
+
+function sfui.widgets.set_square_icon_coords(texture, zoom)
+    if not texture or not texture.SetTexCoord then return end
+    local z = zoom or sfui.widgets.SQUARE_ICON_ZOOM or 0.08
+    texture:SetTexCoord(z, 1 - z, z, 1 - z)
+end
+sfui.common.set_square_icon_coords = sfui.widgets.set_square_icon_coords
+
 function sfui.widgets.apply_square_icon_style(frame, texture)
     if not frame or not texture then return end
 
-    texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.widgets.set_square_icon_coords(texture)
     texture:ClearAllPoints()
     texture:SetAllPoints(frame)
     texture:SetDrawLayer("ARTWORK", 1)
@@ -502,7 +512,7 @@ function sfui.widgets.set_button_mail_icon(btn, iconSize)
         icon:SetAtlas("ui-hud-minimap-mail-up")
     else
         icon:SetTexture("Interface\\Icons\\INV_Letter_15")
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.widgets.set_square_icon_coords(icon)
     end
 
     btn:HookScript("OnMouseDown", function()
@@ -541,7 +551,7 @@ function sfui.widgets.set_button_settings_icon(btn, iconSize)
         icon:SetAtlas("questlog-icon-setting")
     else
         icon:SetTexture("Interface\\Icons\\INV_Misc_Gear_01")
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.widgets.set_square_icon_coords(icon)
     end
 
     if not btn._sfuiSettingsIconHooked then
@@ -577,7 +587,7 @@ function sfui.widgets.set_button_alts_icon(btn, iconSize)
         icon:SetAtlas("ui-hud-minimap-guild-up")
     else
         icon:SetTexture("Interface\\Icons\\INV_Misc_GroupNeedMore")
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        sfui.widgets.set_square_icon_coords(icon)
     end
 
     btn:HookScript("OnMouseDown", function()

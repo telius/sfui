@@ -577,7 +577,7 @@ local function make_spell_icon(parent, spellID, label, x, y)
         local iconID = sfui.common.get_spell_icon(spellID)
         if iconID then
             tex:SetTexture(iconID)
-            tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            sfui.common.set_square_icon_coords(tex)
         end
     end
     update_icon()
@@ -604,7 +604,7 @@ local function make_spell_icon(parent, spellID, label, x, y)
     specBadge:SetFrameLevel(frame:GetFrameLevel() + 5)
     local specIcon = specBadge:CreateTexture(nil, "ARTWORK")
     specIcon:SetAllPoints()
-    specIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(specIcon)
     specBadge:Hide()
     frame.specBadge = specBadge
 
@@ -719,7 +719,7 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
     local ic = frame:CreateTexture(nil, "ARTWORK")
     ic:SetSize(14, 14)
     ic:SetPoint("LEFT", 4, 0)
-    ic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(ic)
 
     local label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     label:SetPoint("LEFT", 22, 0)
@@ -849,7 +849,7 @@ local function make_toy_icon(parent, toyID, label, x, y)
 
     local tex = frame:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
-    tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    sfui.common.set_square_icon_coords(tex)
     local function update_icon()
         local iconID = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(toyID)
         if iconID then tex:SetTexture(iconID) end

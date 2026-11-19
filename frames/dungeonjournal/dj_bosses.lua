@@ -408,13 +408,9 @@ local function IsItemMatchingFilter(filterKey, itemID, classID, subclassID, equi
 end
 
 -- ─── Database & State Access ──────────────────────────────────────────────────
-local function DJ_DB()
-    return (sfui.dungeonjournal and sfui.dungeonjournal.GetDB and sfui.dungeonjournal.GetDB()) or {}
-end
-
-local function GetCurrentDungeon()
-    return sfui.dungeonjournal and sfui.dungeonjournal.GetCurrentDungeon and sfui.dungeonjournal.GetCurrentDungeon()
-end
+local dj                = sfui.dungeonjournal
+local DJ_DB             = dj.GetDB
+local GetCurrentDungeon = dj.GetCurrentDungeon
 
 local function GetEncounterList(dungeon)
     if not dungeon then return {} end
@@ -460,12 +456,7 @@ local function GetEncounterList(dungeon)
 end
 
 -- ─── Quality Color Helper ─────────────────────────────────────────────────────
-local function GetQualityColor(quality)
-    if sfui.dungeonjournal and sfui.dungeonjournal.GetQualityColor then
-        return sfui.dungeonjournal.GetQualityColor(quality)
-    end
-    return 0.8, 0.8, 0.8
-end
+local GetQualityColor = dj.GetQualityColor
 
 -- ─── Wishlist Detection Helpers ───────────────────────────────────────────────
 local function GetBossWishlistInfo(boss)
@@ -746,7 +737,7 @@ local function AcquireLootButton(pool, parent)
     local iconTex = iconBtn:CreateTexture(nil, "ARTWORK")
     btn.iconTex = iconTex
     iconTex:SetAllPoints()
-    iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    common.set_square_icon_coords(iconTex)
 
     -- Wishlist diamond button on the far right
     local starBtn = CreateFrame("Button", nil, btn)
@@ -852,17 +843,7 @@ local function AcquireLootButton(pool, parent)
     return btn
 end
 
-local function ReleaseAll(pool)
-    if sfui.dungeonjournal and sfui.dungeonjournal.ReleaseAll then
-        sfui.dungeonjournal.ReleaseAll(pool)
-    end
-end
-
-local function ResolveItemLink(btn, fallbackItemID)
-    if sfui.dungeonjournal and sfui.dungeonjournal.ResolveItemLink then
-        return sfui.dungeonjournal.ResolveItemLink(btn, fallbackItemID)
-    end
-end
+local ReleaseAll = dj.ReleaseAll
 
 local function GetItemNumericDropRate(itemEntry, itemID, boss)
     local dropRate = (type(itemEntry) == "table" and (itemEntry.dropRate or itemEntry.rate or itemEntry[2]))
@@ -875,7 +856,7 @@ local function GetItemNumericDropRate(itemEntry, itemID, boss)
     end
     if not dropRate then return 0, nil end
     local numRate = tonumber(dropRate)
-    local rateStr = nil
+    local rateStr
     if numRate and numRate > 0 and numRate < 1 then
         numRate = numRate * 100
         rateStr = string.format("%d%%", math.floor(numRate + 0.5))
@@ -970,7 +951,7 @@ local function RenderLootRowAt(slotIdx, rowIdx)
     if sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) then
         local status = sfui.recipes.GetRecipeStatus and sfui.recipes.GetRecipeStatus(itemID)
         local isAlt = sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(itemID)
-        local badge = ""
+        local badge
         if status == "KNOWN_CURRENT" or status == "known" then
             badge = "  ·  |cff40c040[known]|r"
         elseif status == "CAN_LEARN_CURRENT" or status == "learnable" then
@@ -1099,7 +1080,7 @@ RenderLoot = function(boss, dungeon)
 
                 bossHeaderFrame._lastDispID = nil
                 bossHeaderFrame.portrait:SetTexture(boss.icon or (dungeon and dungeon.icon) or 133743)
-                bossHeaderFrame.portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                common.set_square_icon_coords(bossHeaderFrame.portrait)
                 if bossHeaderFrame.portraitFrame then
                     bossHeaderFrame.portraitFrame:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.75)
                     bossHeaderFrame.portraitFrame:Show()
@@ -1149,7 +1130,7 @@ RenderLoot = function(boss, dungeon)
                     bossHeaderFrame._lastDispID = nil
                     if boss.icon then
                         bossHeaderFrame.portrait:SetTexture(boss.icon)
-                        bossHeaderFrame.portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                        common.set_square_icon_coords(bossHeaderFrame.portrait)
                     else
                         bossHeaderFrame.portrait:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull")
                         bossHeaderFrame.portrait:SetTexCoord(0, 1, 0, 1)
@@ -1351,7 +1332,7 @@ local function RefreshBossView()
         if boss.isAll then
             btn._lastDispID = nil
             btn.icon:SetTexture(boss.icon or (dungeon and dungeon.icon) or 133743)
-            btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            common.set_square_icon_coords(btn.icon)
             set = true
         elseif boss.displayId and SetPortraitTextureFromCreatureDisplayID then
             if btn._lastDispID == boss.displayId and btn.icon:GetTexture() then
@@ -1371,7 +1352,7 @@ local function RefreshBossView()
             btn._lastDispID = nil
             if boss.icon then
                 btn.icon:SetTexture(boss.icon)
-                btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                common.set_square_icon_coords(btn.icon)
             else
                 btn.icon:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull")
                 btn.icon:SetTexCoord(0, 1, 0, 1)
@@ -1870,8 +1851,8 @@ sfui.dungeonjournal._initBosses = OnFrameCreated
 
 function sfui.dungeonjournal.SelectBoss(bossIndexOrName)
     if not bossIndexOrName then return end
-    local dungeon = GetCurrentDungeon()
-    local encounters = GetEncounterList(dungeon)
+    local d = GetCurrentDungeon()
+    local encounters = GetEncounterList(d)
     if not encounters or #encounters == 0 then return end
 
     if type(bossIndexOrName) == "number" then

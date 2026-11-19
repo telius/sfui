@@ -8,6 +8,8 @@ sfui.trackedoptions.UpdatePreview = function() end
 local GameTooltip = sfui.common.get_tooltip()
 
 local CreateFlatButton = common.create_flat_button
+local set_square_icon_coords = (common and common.set_square_icon_coords)
+    or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 local g = cfg
 local c = g.options_panel
 
@@ -657,7 +659,7 @@ local function CreateSealColorsSubRow(secContent, yOffset, width, camelot, db, r
         local iconTex = chip:CreateTexture(nil, "ARTWORK")
         iconTex:SetSize(20, 20)
         iconTex:SetPoint("CENTER", iconBorder, "CENTER")
-        iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        set_square_icon_coords(iconTex)
         local tex = (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(def.spellID)) or def.icon
         iconTex:SetTexture(tex)
 
@@ -1348,7 +1350,7 @@ local function AcquireBuffRow(parent, sec2c, index, width)
         local iconTex = row:CreateTexture(nil, "ARTWORK")
         iconTex:SetSize(28, 28)
         iconTex:SetPoint("LEFT", 4, 0)
-        iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        set_square_icon_coords(iconTex)
         row.iconTex = iconTex
 
         local iconBorder = row:CreateTexture(nil, "BACKGROUND")

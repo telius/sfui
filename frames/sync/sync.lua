@@ -626,7 +626,10 @@ local function sync_machine_store()
 
     local myName = sync.FullName("player")
     local myGUID = UnitGUID and UnitGUID("player")
-    local _, myClass = _G.UnitClass and _G.UnitClass("player")
+    local _, myClass
+    if _G.UnitClass then
+        _, myClass = _G.UnitClass("player")
+    end
     local myLevel = _G.UnitLevel and _G.UnitLevel("player")
     local now = (GetServerTime and GetServerTime()) or time()
 
@@ -1706,7 +1709,7 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
             for guid, remInfo in pairs(remoteManifest.quests) do
                 local locAlt = SfuiDB.alts[guid]
                 local locRev = locAlt and (tonumber(locAlt.questsRev) or 0) or 0
-                local rRev = 0
+                local rRev
                 local rActive = nil
                 local rDone = nil
                 if type(remInfo) == "table" then
@@ -2609,7 +2612,9 @@ local function format_colored_char_name(alt, fallbackName, guid)
     local classToken = alt and alt.class
     if classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken] then
         local c = _G.RAID_CLASS_COLORS[classToken]
-        local hex = c.colorStr or string.format("ff%02x%02x%02x", math.floor((c.r or 1) * 255), math.floor((c.g or 1) * 255), math.floor((c.b or 1) * 255))
+        local rgbHex = (sfui.colors and sfui.colors.rgb_to_hex) and sfui.colors.rgb_to_hex(c.r, c.g, c.b)
+            or string.format("%02x%02x%02x", math.floor((c.r or 1) * 255), math.floor((c.g or 1) * 255), math.floor((c.b or 1) * 255))
+        local hex = c.colorStr or ("ff" .. rgbHex)
         return "|c" .. hex .. cleanName .. "|r"
     end
     return cleanName
@@ -2837,7 +2842,7 @@ local function collect_deduped_synced_alts(s, partyGUIDs, partyNames, liveMap, r
     local byName = {}
     for guid, alt in pairs(SfuiDB.alts) do
         if guid ~= myGUID and type(alt) == "table" then
-            local hasQuestTables = false
+            local hasQuestTables
             if requireActiveOnly then
                 hasQuestTables = (type(alt.activeQuests) == "table" or type(alt.completedQuests) == "table")
             else
