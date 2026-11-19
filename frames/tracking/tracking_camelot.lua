@@ -21,6 +21,7 @@ local C_UnitAuras = C_UnitAuras
 local Enum = _G.Enum
 local GetTime = GetTime
 local next = next
+local string_lower = string.lower
 local tonumber = tonumber
 local type = type
 local wipe = wipe or table.wipe
@@ -31,18 +32,94 @@ local ITEM_SPELL = (Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.S
 local ITEM_FLYOUT = (Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Flyout) or 3
 
 local SEAL_SEEDS = {
-    20154, 21084, -- seal of righteousness
-    21082,        -- seal of the crusader
-    20375,        -- seal of command
-    20164,        -- seal of justice
-    20165,        -- seal of light
-    20166,        -- seal of wisdom
-    1311649,      -- seal of fury (forever)
+    20154, 21084,   -- seal of righteousness
+    21082,          -- seal of the crusader
+    20375,          -- seal of command
+    20164,          -- seal of justice
+    20165,          -- seal of light
+    20166,          -- seal of wisdom
+    20163, 1311649, -- seal of fury (classic + forever)
 }
 
 C.SEALS_COOLDOWN_ID = 200340
+C.SEALS_COOLDOWN_ID_HOLY = 200339
 C.SEALS_SPELL_ID = 1323522
 C.DEFAULT_SEAL_DURATION = 30
+
+local SEAL_DEFS = {
+    {
+        key = "righteousness",
+        label = "seal of righteousness",
+        spellID = 20154,
+        spellIDs = { 20154, 21084, 20287, 20288, 20289, 20290, 20291, 20292, 20293 },
+        icon = 132325,
+        defaultColor = { 1.00, 0.82, 0.18, 1 },
+    },
+    {
+        key = "crusader",
+        label = "seal of the crusader",
+        spellID = 21082,
+        spellIDs = { 21082, 20162, 20305, 20306, 20307, 20308 },
+        icon = 135924,
+        defaultColor = { 1.00, 0.56, 0.14, 1 },
+    },
+    {
+        key = "command",
+        label = "seal of command",
+        spellID = 20375,
+        spellIDs = { 20375, 20915, 20918, 20919, 20920 },
+        icon = 132347,
+        defaultColor = { 0.90, 0.22, 0.26, 1 },
+    },
+    {
+        key = "justice",
+        label = "seal of justice",
+        spellID = 20164,
+        spellIDs = { 20164 },
+        icon = 135971,
+        defaultColor = { 0.72, 0.36, 0.95, 1 },
+    },
+    {
+        key = "light",
+        label = "seal of light",
+        spellID = 20165,
+        spellIDs = { 20165, 20347, 20348, 20349 },
+        icon = 135917,
+        defaultColor = { 0.28, 0.88, 0.48, 1 },
+    },
+    {
+        key = "wisdom",
+        label = "seal of wisdom",
+        spellID = 20166,
+        spellIDs = { 20166, 20356, 20357 },
+        icon = 135960,
+        defaultColor = { 0.24, 0.62, 1.00, 1 },
+    },
+    {
+        key = "fury",
+        label = "seal of fury",
+        spellID = 1311649,
+        spellIDs = { 1311649, 20163 },
+        icon = 135969,
+        defaultColor = { 0.96, 0.38, 0.12, 1 },
+    },
+}
+
+local _sealDefByKey = {}
+local _sealKeyBySpellID = {}
+local _sealKeyByLowerName = {}
+local _sealKeyByRawName = {}
+local _sealKeyByIcon = {}
+
+for i = 1, #SEAL_DEFS do
+    local def = SEAL_DEFS[i]
+    _sealDefByKey[def.key] = def
+    _sealKeyByLowerName[def.label] = def.key
+    _sealKeyByIcon[def.icon] = def.key
+    for j = 1, #def.spellIDs do
+        _sealKeyBySpellID[def.spellIDs[j]] = def.key
+    end
+end
 
 local _knownSealSpellIDs = {}
 local _knownSealSpellList = {}
@@ -207,7 +284,7 @@ end
 
 function C.IsCoverSpell(cdInfo, cooldownID, spellID)
     local cid = cooldownID or (cdInfo and cdInfo.cooldownID)
-    if cid and not issecretvalue(cid) and cid == C.SEALS_COOLDOWN_ID then
+    if cid and not issecretvalue(cid) and (cid == C.SEALS_COOLDOWN_ID or cid == C.SEALS_COOLDOWN_ID_HOLY) then
         return true
     end
     local sid = spellID or (cdInfo and (cdInfo.overrideSpellID or cdInfo.spellID))
@@ -215,6 +292,66 @@ function C.IsCoverSpell(cdInfo, cooldownID, spellID)
         return true
     end
     return false
+end
+
+local function MatchSealName(name)
+    if not name or issecretvalue(name) or type(name) ~= "string" or name == "" then
+        return nil
+    end
+    local cached = _sealKeyByRawName[name]
+    if cached ~= nil then
+        return cached or nil
+    end
+    local resolved = _sealKeyByLowerName[string_lower(name)]
+    _sealKeyByRawName[name] = resolved or false
+    return resolved
+end
+
+function C.GetSealDefs()
+    return SEAL_DEFS
+end
+
+function C.GetSealDef(sealKey)
+    if not sealKey or issecretvalue(sealKey) then return nil end
+    return _sealDefByKey[sealKey]
+end
+
+function C.ResolveSealKey(spellID, name, icon)
+    local validSID = (spellID and not issecretvalue(spellID) and type(spellID) == "number" and spellID > 0) and spellID or nil
+    if validSID and _sealKeyBySpellID[validSID] then
+        return _sealKeyBySpellID[validSID]
+    end
+
+    local key = MatchSealName(name)
+    if not key and validSID and A and A.GetCachedSpellName then
+        key = MatchSealName(A.GetCachedSpellName(validSID))
+    end
+    if not key and icon and not issecretvalue(icon) then
+        key = _sealKeyByIcon[icon]
+    end
+
+    if key and validSID then
+        _sealKeyBySpellID[validSID] = key
+    end
+    return key
+end
+
+function C.GetSealColor(sealKey)
+    if not sealKey or issecretvalue(sealKey) then
+        return nil, false
+    end
+    local dbCols = SfuiDB and SfuiDB.trackedBars and SfuiDB.trackedBars.sealColors
+    local custom = dbCols and dbCols[sealKey]
+    if type(custom) == "table" then
+        return custom, true
+    end
+    local cfgCols = sfui.config and sfui.config.trackedBars and sfui.config.trackedBars.sealColors
+    local cfgCol = cfgCols and cfgCols[sealKey]
+    if type(cfgCol) == "table" then
+        return cfgCol, false
+    end
+    local def = _sealDefByKey[sealKey]
+    return def and def.defaultColor or nil, false
 end
 
 function C.IsSealSpell(spellID)
@@ -388,7 +525,7 @@ function C.GetActiveSealForCandidates(cooldownID, candidates)
         end
     end
 
-    if cooldownID == C.SEALS_COOLDOWN_ID or A.HasCandidate(candidates, C.SEALS_SPELL_ID) then
+    if cooldownID == C.SEALS_COOLDOWN_ID or cooldownID == C.SEALS_COOLDOWN_ID_HOLY or A.HasCandidate(candidates, C.SEALS_SPELL_ID) then
         return _activeSeal
     end
     if candidates then

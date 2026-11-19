@@ -435,6 +435,7 @@ sfui.options.RegisterTab({
                 if SfuiDB.overlay_pins_mode == nil then SfuiDB.overlay_pins_mode = "auto" end
                 if SfuiDB.overlay_alt_interactive == nil then SfuiDB.overlay_alt_interactive = true end
                 if SfuiDB.overlay_rotate == nil then SfuiDB.overlay_rotate = true end
+                if SfuiDB.overlay_compass == nil then SfuiDB.overlay_compass = true end
             end
 
             local overlay_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
@@ -471,8 +472,15 @@ sfui.options.RegisterTab({
             end, "temporarily fades the overlay out while the world map or character panels are open.")
             hide_panels_cb:SetPoint("TOPLEFT", toggle_overlay_btn, "BOTTOMLEFT", 0, -10)
 
+            local compass_cb = create_checkbox(minimap_panel, "show compass", "overlay_compass", function()
+                if sfui.map and sfui.map.compass and sfui.map.compass.SyncState then
+                    sfui.map.compass:SyncState()
+                end
+            end, "displays a minimal themed compass above the experience bar while the overlay is active.")
+            compass_cb:SetPoint("LEFT", hide_panels_cb.text, "RIGHT", 20, 0)
+
             local reset_overlay_pos_btn = CreateFlatButton(minimap_panel, "reset overlay pos", 130, 22)
-            reset_overlay_pos_btn:SetPoint("LEFT", hide_panels_cb.text, "RIGHT", 20, 0)
+            reset_overlay_pos_btn:SetPoint("LEFT", compass_cb.text, "RIGHT", 20, 0)
             reset_overlay_pos_btn:SetScript("OnClick", function()
                 if sfui.map and sfui.map.overlay and sfui.map.overlay.HandleSlash then
                     sfui.map.overlay:HandleSlash("resetpos")

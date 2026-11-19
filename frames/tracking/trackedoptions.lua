@@ -619,6 +619,142 @@ function sfui.trackedoptions.initialize()
     end
 end
 
+local function CreateSealColorsSubRow(secContent, yOffset, width, camelot, db, refreshFn)
+    local defs = camelot.GetSealDefs()
+    if not defs or #defs == 0 then return nil end
+
+    local sealRow = CreateFrame("Frame", nil, secContent, "BackdropTemplate")
+    sealRow:SetSize(width - 10, 34)
+    sealRow:SetPoint("TOPLEFT", 0, yOffset)
+    sealRow:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8" })
+    sealRow:SetBackdropColor(0.07, 0.07, 0.09, 0.65)
+
+    local accent = sealRow:CreateTexture(nil, "OVERLAY")
+    accent:SetSize(2, 22)
+    accent:SetPoint("LEFT", 6, 0)
+    local pal = get_palette()
+    local hl = (pal and pal.highlightColor) or cfg.appearance.highlightColor or { 0.4, 0.8, 1, 1 }
+    accent:SetColorTexture(hl[1], hl[2], hl[3], 1)
+
+    local label = sealRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("LEFT", 14, 0)
+    label:SetText("seal colors:")
+
+    local sealUpdaters = {}
+
+    for idx = 1, #defs do
+        local def = defs[idx]
+        local chip = CreateFrame("Button", nil, sealRow)
+        chip:SetSize(52, 24)
+        chip:SetPoint("LEFT", 90 + (idx - 1) * 72, 0)
+        chip:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+        local iconBorder = chip:CreateTexture(nil, "BACKGROUND")
+        iconBorder:SetSize(22, 22)
+        iconBorder:SetPoint("LEFT", 1, 0)
+        iconBorder:SetColorTexture(0, 0, 0, 1)
+
+        local iconTex = chip:CreateTexture(nil, "ARTWORK")
+        iconTex:SetSize(20, 20)
+        iconTex:SetPoint("CENTER", iconBorder, "CENTER")
+        iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        local tex = (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(def.spellID)) or def.icon
+        iconTex:SetTexture(tex)
+
+        local sw = CreateFrame("Frame", nil, chip, "BackdropTemplate")
+        sw:SetSize(22, 18)
+        sw:SetPoint("LEFT", iconBorder, "RIGHT", 4, 0)
+        sw:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
+
+        local function UpdateChip()
+            local col, isCustom = camelot.GetSealColor(def.key)
+            sw:SetBackdropColor(common.unpack_color(col))
+            if isCustom then
+                sw:SetBackdropBorderColor(1, 1, 1, 0.85)
+            else
+                sw:SetBackdropBorderColor(unpack(cfg.colors.black))
+            end
+        end
+        UpdateChip()
+        sealUpdaters[#sealUpdaters + 1] = UpdateChip
+
+        chip:SetScript("OnClick", function(self, button)
+            if button == "RightButton" then
+                if db.sealColors then
+                    db.sealColors[def.key] = nil
+                end
+                UpdateChip()
+                refreshFn()
+                if GameTooltip and GameTooltip:IsOwned(self) then
+                    self:GetScript("OnEnter")(self)
+                end
+                return
+            end
+
+            local curCol, hadCustom = camelot.GetSealColor(def.key)
+            local r, g, b, a = common.unpack_color(curCol)
+            local oldColor = hadCustom and { r, g, b, a } or nil
+
+            local function ApplyPickerColor()
+                local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+                local na = ColorPickerFrame:GetColorAlpha()
+                if not db.sealColors then db.sealColors = {} end
+                db.sealColors[def.key] = { nr, ng, nb, na }
+                UpdateChip()
+                refreshFn()
+            end
+
+            ColorPickerFrame:SetupColorPickerAndShow({
+                swatchFunc = ApplyPickerColor,
+                opacityFunc = ApplyPickerColor,
+                cancelFunc = function()
+                    if oldColor then
+                        if not db.sealColors then db.sealColors = {} end
+                        db.sealColors[def.key] = oldColor
+                    elseif db.sealColors then
+                        db.sealColors[def.key] = nil
+                    end
+                    UpdateChip()
+                    refreshFn()
+                end,
+                r = r,
+                g = g,
+                b = b,
+                opacity = a,
+                hasOpacity = true,
+            })
+        end)
+
+        chip:SetScript("OnEnter", function(self)
+            if GameTooltip then
+                local col, isCustom = camelot.GetSealColor(def.key)
+                local tr, tg, tb = common.unpack_color(col)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(isCustom and (def.label .. " (custom)") or def.label, tr, tg, tb)
+                GameTooltip:AddLine("left-click: choose bar color", 0.8, 0.8, 0.8)
+                GameTooltip:AddLine("right-click: reset default", 0.65, 0.65, 0.65)
+                GameTooltip:Show()
+            end
+        end)
+        chip:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+    end
+
+    local resetBtn = CreateFlatButton(sealRow, "reset all", 70, 20)
+    resetBtn:SetPoint("LEFT", 598, 0)
+    resetBtn.tooltip = "reset all seal colors to defaults"
+    resetBtn:SetScript("OnClick", function()
+        if db.sealColors then wipe(db.sealColors) end
+        for j = 1, #sealUpdaters do
+            sealUpdaters[j]()
+        end
+        refreshFn()
+    end)
+
+    return sealRow
+end
+
 function sfui.trackedoptions.RenderBarsTab(parent)
     if not parent then return end
 
@@ -857,6 +993,11 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             local id = info.id
             local name = info.name or "Unknown"
             local icon = info.icon
+            local camelot = sfui.isCamelot and sfui.tracking and sfui.tracking.camelot or nil
+            local cdInfo = camelot and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo
+                and C_CooldownViewer.GetCooldownViewerCooldownInfo(id) or nil
+            local isSealsCoverRow = (camelot and camelot.IsCoverSpell
+                and camelot.IsCoverSpell(cdInfo, id, info.spellID or (cdInfo and cdInfo.spellID))) and true or false
 
             local row = CreateFrame("Frame", nil, sec3c, "BackdropTemplate")
             row:SetSize(WIDTH - 10, 44)
@@ -1104,6 +1245,21 @@ function sfui.trackedoptions.RenderBarsTab(parent)
                 })
             end)
 
+            if isSealsCoverRow then
+                swatch:SetScript("OnEnter", function(self)
+                    if GameTooltip then
+                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                        GameTooltip:SetText("fallback seal color")
+                        GameTooltip:AddLine("used only when no seal is active.", 0.8, 0.8, 0.8)
+                        GameTooltip:AddLine("active seals use individual seal colors below.", 0.65, 0.65, 0.65)
+                        GameTooltip:Show()
+                    end
+                end)
+                swatch:SetScript("OnLeave", function()
+                    if GameTooltip then GameTooltip:Hide() end
+                end)
+            end
+
             -- Pandemic checkbox
             RC("pandemicEnabled", "Recolor bar when debuff is in pandemic refresh window (≤30% duration left)", 748)
 
@@ -1157,9 +1313,15 @@ function sfui.trackedoptions.RenderBarsTab(parent)
             end)
 
             ly = ly - 46
+
+            if isSealsCoverRow and camelot.GetSealDefs then
+                CreateSealColorsSubRow(sec3c, ly + 1, WIDTH, camelot, db, Refresh)
+                ly = ly - 36
+            end
         end
     end
     sec3:SetHeight(h3 + math.abs(ly - s3y) + 40)
+    yPos = yPos - sec3:GetHeight() - 20
 
     return yPos
 end

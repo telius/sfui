@@ -1316,11 +1316,38 @@ end
 local _pinsDebug = {}
 function pins.SetMinimapPinsMouseEnabled(enabled)
     minimapPinsMouseEnabled = enabled and true or false
+    local gTip = _G.GameTooltip
     for _, pin in ipairs(activeMinimapPins) do
         if pin and can_modify_pin(pin) and pin.EnableMouse then
             pin:EnableMouse(minimapPinsMouseEnabled)
         end
+        if not minimapPinsMouseEnabled and pin then
+            local owned = (GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(pin))
+                or (gTip and gTip.IsOwned and gTip:IsOwned(pin))
+            if owned then
+                local onLeave = pin.GetScript and pin:GetScript("OnLeave")
+                if onLeave then
+                    onLeave(pin)
+                elseif gTip and gTip.Hide then
+                    gTip:Hide()
+                end
+            end
+        end
     end
+end
+
+function pins.TriggerHoveredMinimapPinEnter()
+    if not minimapPinsMouseEnabled then return false end
+    for _, pin in ipairs(activeMinimapPins) do
+        if pin and pin:IsShown() and pin.IsMouseOver and pin:IsMouseOver() then
+            local onEnter = pin.GetScript and pin:GetScript("OnEnter")
+            if onEnter then
+                onEnter(pin)
+                return true
+            end
+        end
+    end
+    return false
 end
 
 function sfui.pins_debug_info()

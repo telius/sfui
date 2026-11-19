@@ -107,11 +107,12 @@ function sfui.trackedbars.GetKnownSpells()
     local known = {}
 
     local function GetInfo(id)
-        local name, icon
+        local name, icon, spellID
         if C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
             local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(id)
             if info then
                 if info.spellID then
+                    spellID = info.spellID
                     name = common.get_spell_name(info.spellID)
                     icon = common.get_spell_icon(info.spellID)
                 elseif info.itemID then
@@ -124,7 +125,7 @@ function sfui.trackedbars.GetKnownSpells()
         if not name then name = common.get_spell_name(id) end
         if not icon then icon = common.get_spell_icon(id) end
 
-        return name or ("Unknown (" .. id .. ")"), icon or cfg.textures.white
+        return name or ("Unknown (" .. id .. ")"), icon or cfg.textures.white, spellID
     end
 
     -- Only add configured bars from DB to ensure synchronization with assignments
@@ -132,11 +133,12 @@ function sfui.trackedbars.GetKnownSpells()
     if specBars then
         for id, cfg in pairs(specBars) do
             if type(id) == "number" and not known[id] then
-                local n, i = GetInfo(id)
+                local n, i, sid = GetInfo(id)
                 known[id] = {
                     id = id,
                     name = n,
                     icon = i,
+                    spellID = sid,
                     active = bars[id] ~= nil
                 }
             end
@@ -349,6 +351,26 @@ local function GetBarNormalColor(config)
 end
 sfui.trackedbars.GetBarNormalColor = GetBarNormalColor
 
+local function ApplyBarStatusColor(bar, config, force)
+    local tBarsCfg = (sfui.config and sfui.config.trackedBars) or _emptyTable
+    local shouldRecolor = (config and config.pandemicEnabled ~= nil) and config.pandemicEnabled or (tBarsCfg.pandemicRecolor ~= false)
+    local col
+    if shouldRecolor and bar._inPandemic then
+        col = (config and config.pandemicColor) or tBarsCfg.pandemicColor or DEFAULT_PANDEMIC_COLOR
+    elseif bar._selfDriven and bar._isCoverSeal and bar._auraActive and bar._auraSealKey then
+        local camelot = sfui.tracking and sfui.tracking.camelot
+        col = (camelot and camelot.GetSealColor and camelot.GetSealColor(bar._auraSealKey)) or GetBarNormalColor(config)
+    else
+        col = GetBarNormalColor(config)
+    end
+    local r, g, b, a = common.unpack_color(col)
+    a = a or 1
+    if force or bar._appliedR ~= r or bar._appliedG ~= g or bar._appliedB ~= b or bar._appliedA ~= a then
+        bar._appliedR, bar._appliedG, bar._appliedB, bar._appliedA = r, g, b, a
+        bar.status:SetStatusBarColor(r, g, b, a)
+    end
+end
+
 local function ResolveBarTextFlags(config)
     local db = (SfuiDB and SfuiDB.trackedBars) or _emptyTable
     local isStackMode = (config and config.stackMode) or false
@@ -454,16 +476,7 @@ local function SetupBarState(bar, config, cfg)
     end
 
     -- Color Logic
-    local color = GetBarNormalColor(config)
-    bar.status:SetStatusBarColor(common.unpack_color(color))
-
-    -- If the bar is currently in the pandemic window, restore the pandemic color.
-    local tBarsCfg = (sfui.config and sfui.config.trackedBars) or _emptyTable
-    local shouldRecolor = (config and config.pandemicEnabled ~= nil) and config.pandemicEnabled or (tBarsCfg.pandemicRecolor ~= false)
-    if shouldRecolor and bar._inPandemic then
-        local pColor = (config and config.pandemicColor) or tBarsCfg.pandemicColor or DEFAULT_PANDEMIC_COLOR
-        bar.status:SetStatusBarColor(common.unpack_color(pColor))
-    end
+    ApplyBarStatusColor(bar, config, true)
 end
 
 -- Helper for Standard Bar Positioning
@@ -845,6 +858,8 @@ end
 local function ResetSelfDrivenBar(bar)
     StopSelfDrivenTimer(bar)
     bar._selfDriven = nil
+    bar._isCoverSeal = nil
+    bar._auraSealKey = nil
     bar._auraActive = nil
     bar._auraRev = nil
     bar._auraExpTime = nil
@@ -855,6 +870,10 @@ local function ResetSelfDrivenBar(bar)
     bar._auraCandidates = nil
     bar._auraCandActive = nil
     bar._auraCandLinked = nil
+    bar._appliedR = nil
+    bar._appliedG = nil
+    bar._appliedB = nil
+    bar._appliedA = nil
 end
 
 local function SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
@@ -865,6 +884,9 @@ local function SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
     if spellID and issecretvalue(spellID) then spellID = nil end
     myBar.spellID = spellID or id
 
+    local camelot = sfui.tracking and sfui.tracking.camelot
+    myBar._isCoverSeal = (camelot and camelot.IsCoverSpell and camelot.IsCoverSpell(info, id, spellID)) and true or false
+
     local candidates, rebuilt = auraResolver.GetCandidates(myBar, spellID, info and info.linkedSpellIDs, info)
     local rev = auraResolver.GetRevision and auraResolver.GetRevision() or 0
     local expiredFallback = myBar._auraActive and myBar._auraExpTime and myBar._auraExpTime > 0 and GetTime() >= myBar._auraExpTime
@@ -872,6 +894,10 @@ local function SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
     if rebuilt or myBar._auraRev ~= rev or expiredFallback or myBar._auraActive == nil then
         myBar._auraRev = rev
         local iid, aura, present = auraResolver.Resolve(id, candidates)
+        if not aura and iid and auraResolver.CanAccessUnitAuras and auraResolver.CanAccessUnitAuras()
+            and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
+            aura = C_UnitAuras.GetAuraDataByAuraInstanceID("player", iid)
+        end
         if aura or iid then
             local dObj = auraResolver.GetDuration(iid, aura)
             if dObj then
@@ -883,6 +909,15 @@ local function SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
             myBar._auraIcon = auraResolver.PlainField(aura, "icon") or myBar._auraIcon
             myBar._auraStacks = auraResolver.PlainField(aura, "applications") or myBar._auraStacks
             myBar._auraActive = true
+            if myBar._isCoverSeal and camelot and camelot.ResolveSealKey then
+                local auraSid = auraResolver.PlainField(aura, "spellId") or auraResolver.PlainField(aura, "spellID")
+                local sealKey = camelot.ResolveSealKey(auraSid, myBar._auraName, myBar._auraIcon)
+                if sealKey then
+                    myBar._auraSealKey = sealKey
+                end
+            else
+                myBar._auraSealKey = nil
+            end
         elseif present and not rebuilt and myBar._auraActive then
             -- aura up but restricted: keep the last duration object ticking
         else
@@ -891,6 +926,7 @@ local function SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
             myBar._auraName = nil
             myBar._auraIcon = nil
             myBar._auraStacks = nil
+            myBar._auraSealKey = nil
             myBar._auraActive = false
         end
     end
@@ -900,6 +936,7 @@ local function SyncSelfDrivenBar(myBar, config, isStackMode, id, info)
     local tex = myBar._auraIcon or (spellID and C_Spell.GetSpellTexture(spellID)) or 134400
     myBar.icon:SetTexture(tex)
     myBar.icon:SetDesaturated(not active)
+    ApplyBarStatusColor(myBar, config, false)
 
     local _, isAttached, showStacksText, showDur, showNameEnabled, showStacks, wantCenteredStacks, isTimerAndStacks = ResolveBarTextFlags(config)
 
@@ -1007,6 +1044,12 @@ local function RecycleBar(bar)
     bar._auraStackTimer = nil
     bar._stackPeakVal = nil
     bar._stackPeakTimer = nil
+    bar._isCoverSeal = nil
+    bar._auraSealKey = nil
+    bar._appliedR = nil
+    bar._appliedG = nil
+    bar._appliedB = nil
+    bar._appliedA = nil
     table.insert(barPool, bar)
 end
 
@@ -1759,16 +1802,10 @@ local function UpdateBarsState()
 
                 -- Pandemic bar recolor (transition-gated to avoid 20Hz SetStatusBarColor spam)
                 local shouldRecolor = (config and config.pandemicEnabled ~= nil) and config.pandemicEnabled or (tBarsCfg.pandemicRecolor ~= false)
-                if shouldRecolor then
-                    if inPandemic and not wasPandemic then
-                        local pColor = (config and config.pandemicColor) or tBarsCfg.pandemicColor or DEFAULT_PANDEMIC_COLOR
-                        myBar.status:SetStatusBarColor(common.unpack_color(pColor))
-                    elseif wasPandemic and not inPandemic then
-                        local defColor = GetBarNormalColor(config)
-                        myBar.status:SetStatusBarColor(common.unpack_color(defColor))
-                    end
-                end
                 myBar._inPandemic = inPandemic
+                if shouldRecolor and (inPandemic ~= wasPandemic) then
+                    ApplyBarStatusColor(myBar, config, false)
+                end
             end
         end
     end

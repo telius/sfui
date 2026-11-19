@@ -16,6 +16,7 @@ local dj_map = sfui.dj_map
 
 local MEDIA_PATH = "Interface\\AddOns\\sfui\\media\\dungeonmaps\\"
 local LADDER_TEX = MEDIA_PATH .. "LevelLadder"
+local LINK_ARROW_TEX = MEDIA_PATH .. "MapLinkArrow"
 local ENTRANCE_TEX = MEDIA_PATH .. "EntranceArrow"
 local WISHLIST_TEX = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_3"
 local STATUE_TEX = MEDIA_PATH .. "SerpentStatue"
@@ -215,12 +216,17 @@ function dj_map.FindBossMapSpot(dungeon, bossName)
     local m = sfui.dj_camelot and sfui.dj_camelot.maps and sfui.dj_camelot.maps[dungeon.id]
     if not m then return nil end
     local want = bossName:lower()
+    local altHit
     for _, b in ipairs(m.bosses or {}) do
         if (b.name or ""):lower() == want or (b.targetName or ""):lower() == want then
-            return b
+            if not b.alt then
+                return b
+            elseif not altHit then
+                altHit = b
+            end
         end
     end
-    return nil
+    return altHit
 end
 
 function dj_map.FindQuestMapSpot(dungeon, questID, questName)
@@ -331,6 +337,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
         bossPins = {},
         questPins = {},
         ladderPins = {},
+        linkPins = {},
         entrancePins = {},
         markerPins = {},
         stepRows = {},
@@ -539,6 +546,12 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin:SetPoint("CENTER", self.holder, "TOPLEFT", pin.normX * artW, -(pin.normY * artH))
             end
         end
+        for _, pin in ipairs(self.linkPins) do
+            if pin:IsShown() and pin.normX and pin.normY then
+                pin:ClearAllPoints()
+                pin:SetPoint("CENTER", self.holder, "TOPLEFT", pin.normX * artW, -(pin.normY * artH))
+            end
+        end
         for _, pin in ipairs(self.bossPins) do
             if pin:IsShown() and pin.normX and pin.normY then
                 pin:ClearAllPoints()
@@ -621,6 +634,10 @@ local function CreateMapController(parent, isWorldMapOverlay)
 
     viewport:SetScript("OnHide", function(self)
         self:SetScript("OnUpdate", nil)
+        for _, pin in ipairs(ctrl.linkPins) do
+            pin:SetScript("OnUpdate", nil)
+            if pin.glow then pin.glow:SetAlpha(0) end
+        end
     end)
 
     viewport:SetScript("OnSizeChanged", function()
@@ -888,6 +905,11 @@ local function CreateMapController(parent, isWorldMapOverlay)
     function ctrl:RenderCanvas()
         for _, p in ipairs(self.entrancePins) do p:Hide() end
         for _, p in ipairs(self.ladderPins) do p:Hide() end
+        for _, p in ipairs(self.linkPins) do
+            p:SetScript("OnUpdate", nil)
+            if p.glow then p.glow:SetAlpha(0) end
+            p:Hide()
+        end
         for _, p in ipairs(self.bossPins) do p:Hide() end
         for _, p in ipairs(self.questPins) do p:Hide() end
         for _, p in ipairs(self.markerPins) do p:Hide() end
@@ -1038,11 +1060,32 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     pin.tex = pin:CreateTexture(nil, "OVERLAY")
                     pin.tex:SetAllPoints()
                     pin.tex:SetTexture(LADDER_TEX)
+                    pin.caption = pin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    pin.caption:SetShadowColor(0, 0, 0, 1)
+                    pin.caption:SetShadowOffset(1, -1)
+                    pin.caption:SetPoint("BOTTOM", pin, "TOP", 0, 1)
                     self.ladderPins[lUsed] = pin
                 end
                 local sz = math.max(24, math.floor(self.baseH * 0.068))
                 pin:SetSize(sz, sz)
                 pin:SetFrameLevel(self.holder:GetFrameLevel() + 10)
+                local c = type(tr.color) == "table" and tr.color or nil
+                if c then
+                    pin.tex:SetVertexColor(c[1], c[2], c[3], 1)
+                else
+                    pin.tex:SetVertexColor(1, 1, 1, 1)
+                end
+                if tr.caption and tr.caption ~= "" then
+                    pin.caption:SetText(tr.caption:lower())
+                    if c then
+                        pin.caption:SetTextColor(c[1], c[2], c[3])
+                    else
+                        pin.caption:SetTextColor(0.35, 1.0, 0.45)
+                    end
+                    pin.caption:Show()
+                else
+                    pin.caption:Hide()
+                end
                 pin.normX, pin.normY = tr.x, tr.y
                 pin:ClearAllPoints()
                 pin:SetPoint("CENTER", self.holder, "TOPLEFT", tr.x * artW, -(tr.y * artH))
@@ -1053,7 +1096,10 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     else
                         local destName = m.floors[destFloor].name
                         local title = tr.label or (destName and ("go to " .. destName:lower()) or ("go to floor " .. destFloor))
-                        GameTooltip:SetText(title:lower(), 1.0, 0.82, 0.25)
+                        local trR = c and c[1] or 1.0
+                        local trG = c and c[2] or 0.82
+                        local trB = c and c[3] or 0.25
+                        GameTooltip:SetText(title:lower(), trR, trG, trB)
                         GameTooltip:AddLine("left-click: switch floor", 0.65, 0.65, 0.72)
                     end
                     GameTooltip:Show()
@@ -1073,6 +1119,94 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     if destFloor then
                         GameTooltip:Hide()
                         self:SetFloor(destFloor)
+                    end
+                end)
+                pin:Show()
+            end
+        end
+
+        -- 2b. Intra-page passage link arrows
+        local linkUsed = 0
+        local linkByIndex = {}
+        local links = m.links or {}
+        for i, lk in ipairs(links) do
+            if (lk.floor or 1) == fIdx then
+                linkUsed = linkUsed + 1
+                local pin = self.linkPins[linkUsed]
+                if not pin then
+                    pin = CreateFrame("Button", nil, self.holder)
+                    pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                    pin.icon = pin:CreateTexture(nil, "ARTWORK")
+                    pin.icon:SetTexture(LINK_ARROW_TEX)
+                    pin.icon:SetAllPoints()
+                    pin.glow = pin:CreateTexture(nil, "OVERLAY")
+                    pin.glow:SetTexture(LINK_ARROW_TEX)
+                    pin.glow:SetAllPoints()
+                    pin.glow:SetBlendMode("ADD")
+                    pin.glow:SetVertexColor(1.00, 0.90, 0.45)
+                    pin.glow:SetAlpha(0)
+                    pin.hl = pin:CreateTexture(nil, "HIGHLIGHT")
+                    pin.hl:SetTexture(LINK_ARROW_TEX)
+                    pin.hl:SetAllPoints()
+                    pin.hl:SetBlendMode("ADD")
+                    pin.hl:SetAlpha(0.45)
+                    self.linkPins[linkUsed] = pin
+                end
+                local sz = math.max(20, math.floor(self.baseH * 0.07))
+                pin:SetSize(sz, sz)
+                pin:SetFrameLevel(self.holder:GetFrameLevel() + 16)
+                local c = type(lk.color) == "table" and lk.color or nil
+                pin.icon:SetVertexColor(c and c[1] or 0.35, c and c[2] or 1.00, c and c[3] or 0.35)
+                pin.normX, pin.normY = lk.x, lk.y
+                pin:ClearAllPoints()
+                pin:SetPoint("CENTER", self.holder, "TOPLEFT", lk.x * artW, -(lk.y * artH))
+
+                local dest = links[lk.to]
+                local rot = 0
+                if lk.angle then
+                    rot = math.rad(lk.angle) - math.pi / 2
+                elseif dest then
+                    rot = math.atan2(-(dest.y - lk.y) * artH, (dest.x - lk.x) * artW) - math.pi / 2
+                end
+                if pin.icon.SetRotation then pin.icon:SetRotation(rot) end
+                if pin.glow.SetRotation then pin.glow:SetRotation(rot) end
+                if pin.hl.SetRotation then pin.hl:SetRotation(rot) end
+
+                pin:SetScript("OnUpdate", nil)
+                pin.glow:SetAlpha(0)
+                linkByIndex[i] = pin
+
+                local targetIdx = lk.to
+                pin:SetScript("OnEnter", function(s)
+                    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+                    GameTooltip:SetText("passage link", 0.35, 1.0, 0.45)
+                    GameTooltip:AddLine("left-click: highlight connected arrow", 0.65, 0.65, 0.72)
+                    GameTooltip:Show()
+                end)
+                pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                pin:SetScript("OnClick", function(_, button)
+                    if button == "RightButton" then
+                        if self.zoom > 1.001 then
+                            self.zoom = 1.0
+                            self.panX, self.panY = 0, 0
+                            self:ApplyTransform()
+                        elseif self.isWorldMapOverlay and self.onRightClickOut then
+                            self.onRightClickOut()
+                        end
+                        return
+                    end
+                    local destPin = targetIdx and linkByIndex[targetIdx]
+                    if destPin and destPin:IsShown() then
+                        destPin.pulse = 0
+                        destPin:SetScript("OnUpdate", function(p, elapsed)
+                            p.pulse = (p.pulse or 0) + (elapsed or 0)
+                            if p.pulse >= 2.4 then
+                                p.glow:SetAlpha(0)
+                                p:SetScript("OnUpdate", nil)
+                                return
+                            end
+                            p.glow:SetAlpha(0.5 - 0.5 * math.cos(p.pulse * 7.854))
+                        end)
                     end
                 end)
                 pin:Show()
@@ -1115,7 +1249,8 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 end
 
                 pin:SetSize(pinSize, pinSize)
-                pin:SetFrameLevel(self.holder:GetFrameLevel() + 18)
+                pin:SetAlpha(b.alt and 0.45 or 1.0)
+                pin:SetFrameLevel(self.holder:GetFrameLevel() + (b.alt and 14 or 18))
 
                 local sfuiBoss = FindSfuiBossData(self.dungeon, b)
                 local questEntry = b.quest and FindDungeonQuestEntry(self.dungeon, { id = b.quest }) or nil
@@ -1129,7 +1264,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     pin.portrait:SetTexture("Interface\\EncounterJournal\\UI-EJ-Boss-Default")
                 end
 
-                if b.quest then
+                if b.quest and not b.alt then
                     local qbSize = math.max(18, math.floor(pinSize * 0.78))
                     pin.questBadge:SetSize(qbSize, qbSize)
                     pin.questBadge:ClearAllPoints()
@@ -1142,7 +1277,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     pin.questBadge:Hide()
                 end
 
-                local wishItems = GetBossWishlistItems(sfuiBoss)
+                local wishItems = (not b.alt) and GetBossWishlistItems(sfuiBoss) or nil
                 if wishItems then
                     pin.wishIcon:Show()
                 else
@@ -1150,7 +1285,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 end
 
                 local lvl = b.level or (sfuiBoss and sfuiBoss.level)
-                if lvl and bossScale >= 0.75 then
+                if lvl and not b.alt and bossScale >= 0.75 then
                     pin.lvlBadge:SetText("|cffffd100" .. tostring(lvl) .. "|r")
                     pin.lvlBadge:Show()
                 else
@@ -1164,6 +1299,9 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin:SetScript("OnEnter", function(s)
                     GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
                     GameTooltip:SetText((b.name or "boss"):lower(), 1.0, 0.82, 0.0)
+                    if b.alt then
+                        GameTooltip:AddLine("can also spawn here", 0.85, 0.85, 0.90)
+                    end
                     if lvl then
                         GameTooltip:AddLine("level " .. tostring(lvl) .. " elite", 0.75, 0.75, 0.82)
                     end

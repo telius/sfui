@@ -77,6 +77,7 @@ local DEFAULTS = {
     overlay_alt_interactive = true,
     overlay_rotate          = true,
     overlay_pin_scale       = 1.0,
+    overlay_compass         = true,
 }
 
 local MAPS_ADDON_NAME  = "sfui_overlay_maps"
@@ -126,14 +127,21 @@ local function can_modify_region(f)
     return true
 end
 
+local function is_alt_down_clean()
+    local rawAlt = IsAltKeyDown and IsAltKeyDown()
+    return (not is_secret(rawAlt)) and (rawAlt and true or false) or false
+end
+
 -- ── Runtime & Cached Draw State ───────────────────────────────────────────────
 local isActive                 = false
 local pendingCombatSync        = false
 local pendingMouseSync         = false
 local hybridHooked             = false
 local clusterHooked            = false
+local zoomButtonsHooked        = false
 local moverRegistered          = false
 local eventsWired              = false
+local lastOverlayInteractive   = false
 local savedZoom                = nil
 local savedRotate              = nil
 local overlayHiddenQuestiePins = setmetatable({}, { __mode = "k" })
@@ -202,6 +210,13 @@ local _debugInfo        = {}
 local update_view
 local update_effective_alphas
 local apply_pin_mouse_state
+local pin_on_enter
+
+local function sync_compass()
+    if sfui.map and sfui.map.compass and sfui.map.compass.SyncState then
+        sfui.map.compass:SyncState()
+    end
+end
 
 -- ── Options & Data Pack Accessors ─────────────────────────────────────────────
 local function ensure_db()
@@ -377,6 +392,10 @@ local function refresh_panel_visibility()
         panelHidden = nextHidden
         viewCache.dirty = true
         update_effective_alphas(true)
+        if isActive and apply_pin_mouse_state then
+            apply_pin_mouse_state()
+        end
+        sync_compass()
     elseif nextHidden and isActive then
         update_effective_alphas(true)
     end
@@ -454,6 +473,9 @@ local function sync_questie_hbd_filter(filterMode, fullScan)
     if filterMode == "restore" then
         for pin, savedData in pairs(overlayHiddenQuestiePins) do
             restore_questie_pin(pin, savedData)
+            if pin and pin.EnableMouse and can_modify_region(pin) then
+                pin:EnableMouse(true)
+            end
             overlayHiddenQuestiePins[pin] = nil
         end
         hbdFilterModeApplied = "restore"
@@ -481,6 +503,8 @@ local function sync_questie_hbd_filter(filterMode, fullScan)
             end
         end
     elseif filterMode == "active_only" then
+        local altOpt = get_opt("overlay_alt_interactive") ~= false
+        local interactive = (not isActive) or (altOpt and is_alt_down_clean() and not panelHidden)
         if fullScan then
             for pin, savedData in pairs(overlayHiddenQuestiePins) do
                 if pin.data ~= savedData and savedData ~= true then
@@ -496,6 +520,8 @@ local function sync_questie_hbd_filter(filterMode, fullScan)
             for pin in pairs(src) do
                 if not is_questie_pin_active(pin) then
                     hide_questie_pin(pin)
+                elseif not pin.hidden and pin.EnableMouse and can_modify_region(pin) then
+                    pin:EnableMouse(interactive)
                 end
             end
         end
@@ -505,9 +531,7 @@ local function sync_questie_hbd_filter(filterMode, fullScan)
 end
 
 local function handle_overlay_wheel(_, delta)
-    local rawAlt = IsAltKeyDown and IsAltKeyDown()
-    local altNow = (not is_secret(rawAlt)) and (rawAlt and true or false) or false
-    if not (isActive and get_opt("overlay_alt_interactive") and altNow) then
+    if not (isActive and (get_opt("overlay_alt_interactive") ~= false) and is_alt_down_clean() and not panelHidden) then
         return
     end
     local step = (delta and delta > 0) and 1 or -1
@@ -539,17 +563,133 @@ local function handle_overlay_wheel(_, delta)
     end
 end
 
+local function is_generic_minimap_pin(ch, hbdMap)
+    if not ch or (ch.IsForbidden and ch:IsForbidden()) then
+        return false
+    end
+    if ch == _G.MinimapBackdrop or ch == _G.HybridMinimap or ch == _G.sfuiMinimapPinsContainer then
+        return false
+    end
+    if Minimap and (ch == Minimap.ZoomIn or ch == Minimap.ZoomOut or ch == Minimap.ZoomHitArea) then
+        return false
+    end
+    local name = ch.GetName and ch:GetName()
+    if type(name) == "string" and name:find("^sfui") then
+        return false
+    end
+    if hbdMap and hbdMap[ch] ~= nil then
+        return false
+    end
+    return (ch.IsObjectType and ch:IsObjectType("Button"))
+        or (ch.GetScript and ch:GetScript("OnEnter") ~= nil)
+end
+
+local function trigger_minimap_native_hover()
+    if not (Minimap and Minimap.IsShown and Minimap:IsShown() and Minimap.IsMouseOver and Minimap:IsMouseOver()) then
+        return
+    end
+    local me = Minimap.GetScript and Minimap:GetScript("OnEnter")
+    if me then
+        me(Minimap)
+        local ou = Minimap.GetScript and Minimap:GetScript("OnUpdate")
+        if ou then
+            ou(Minimap, 0)
+        end
+    end
+    if Minimap.ZoomIn and Minimap.ZoomIn.Hide then Minimap.ZoomIn:Hide() end
+    if Minimap.ZoomOut and Minimap.ZoomOut.Hide then Minimap.ZoomOut:Hide() end
+end
+
+local function trigger_hovered_pin_on_enter(hbdPins, minimapChildren)
+    for _, btn in ipairs(activePinButtons) do
+        if btn and btn.IsShown and btn:IsShown() and btn.IsMouseOver and btn:IsMouseOver() then
+            if pin_on_enter then
+                pin_on_enter(btn)
+                return true
+            end
+        end
+    end
+    if sfui.map and sfui.map.pins and sfui.map.pins.TriggerHoveredMinimapPinEnter
+        and sfui.map.pins.TriggerHoveredMinimapPinEnter() then
+        return true
+    end
+    if hbdPins then
+        local src = hbdPins.activeMinimapPins or hbdPins.minimapPins
+        if src then
+            for pin in pairs(src) do
+                if pin and not pin.hidden and pin.IsShown and pin:IsShown()
+                    and pin.IsMouseOver and pin:IsMouseOver() then
+                    local onEnter = pin.GetScript and pin:GetScript("OnEnter")
+                    if onEnter then
+                        onEnter(pin)
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    if minimapChildren then
+        for _, ch in ipairs(minimapChildren) do
+            if ch and ch.IsShown and ch:IsShown() and ch.IsMouseOver and ch:IsMouseOver() then
+                local onEnter = ch.GetScript and ch:GetScript("OnEnter")
+                if onEnter then
+                    onEnter(ch)
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 apply_pin_mouse_state = function()
-    local rawAlt = IsAltKeyDown and IsAltKeyDown()
-    local altNow = (not is_secret(rawAlt)) and (rawAlt and true or false) or false
-    local altOpt = get_opt("overlay_alt_interactive") and true or false
-    local interactive = (not isActive) or (altOpt and altNow)
-    local wheelActive = isActive and altOpt and altNow and not panelHidden
+    local altOpt = get_opt("overlay_alt_interactive") ~= false
+    local altNow = is_alt_down_clean()
+    local overlayInteractive = (isActive and altOpt and altNow and not panelHidden) and true or false
+    local becameInteractive = overlayInteractive and not lastOverlayInteractive
+    local leftInteractive = lastOverlayInteractive and not overlayInteractive
+    lastOverlayInteractive = overlayInteractive
+    local interactive = (not isActive) or overlayInteractive
+    local wheelActive = overlayInteractive
     local blocked = false
 
+    if Minimap then
+        if can_modify_region(Minimap) then
+            if not isActive then
+                if Minimap.EnableMouse then Minimap:EnableMouse(true) end
+                if Minimap.SetMouseClickEnabled then Minimap:SetMouseClickEnabled(true) end
+                if Minimap.SetMouseMotionEnabled then Minimap:SetMouseMotionEnabled(true) end
+            elseif overlayInteractive then
+                if Minimap.SetMouseClickEnabled and Minimap.SetMouseMotionEnabled then
+                    Minimap:SetMouseClickEnabled(false)
+                    Minimap:SetMouseMotionEnabled(true)
+                elseif Minimap.EnableMouseMotion then
+                    if Minimap.EnableMouse then Minimap:EnableMouse(false) end
+                    Minimap:EnableMouseMotion(true)
+                elseif Minimap.EnableMouse then
+                    Minimap:EnableMouse(true)
+                end
+            else
+                if leftInteractive then
+                    local ml = Minimap.GetScript and Minimap:GetScript("OnLeave")
+                    if ml then ml(Minimap) end
+                    if Minimap.SetScript and Minimap.GetScript and Minimap:GetScript("OnUpdate") then
+                        Minimap:SetScript("OnUpdate", nil)
+                    end
+                end
+                if Minimap.EnableMouse then Minimap:EnableMouse(false) end
+                if Minimap.SetMouseClickEnabled then Minimap:SetMouseClickEnabled(false) end
+                if Minimap.SetMouseMotionEnabled then Minimap:SetMouseMotionEnabled(false) end
+            end
+        else
+            blocked = true
+        end
+    end
+
     local hbdPins = get_questie_hbd_pins()
-    if hbdPins and hbdPins.minimapPins then
-        for pin in pairs(hbdPins.minimapPins) do
+    local hbdMap = hbdPins and hbdPins.minimapPins
+    if hbdMap then
+        for pin in pairs(hbdMap) do
             if pin and pin.EnableMouse then
                 if can_modify_region(pin) then
                     pin:EnableMouse(interactive)
@@ -579,11 +719,42 @@ apply_pin_mouse_state = function()
         end
     end
 
+    local genericChildren = nil
+    if Minimap and Minimap.GetChildren then
+        local rawChildren = { Minimap:GetChildren() }
+        for _, ch in ipairs(rawChildren) do
+            if is_generic_minimap_pin(ch, hbdMap) then
+                genericChildren = genericChildren or {}
+                genericChildren[#genericChildren + 1] = ch
+                if ch.EnableMouse then
+                    if can_modify_region(ch) then
+                        ch:EnableMouse(interactive)
+                    else
+                        blocked = true
+                    end
+                end
+            end
+        end
+    end
+
     if wheelCatcher and wheelCatcher.EnableMouseWheel then
         if can_modify_region(wheelCatcher) then
             wheelCatcher:EnableMouseWheel(wheelActive)
         else
             blocked = true
+        end
+    end
+
+    if isActive and becameInteractive then
+        if not trigger_hovered_pin_on_enter(hbdPins, genericChildren) then
+            trigger_minimap_native_hover()
+        end
+    elseif leftInteractive then
+        if sfui.common and sfui.common.hide_tooltip then
+            sfui.common.hide_tooltip()
+        end
+        if _G.GameTooltip and _G.GameTooltip.IsShown and _G.GameTooltip:IsShown() then
+            _G.GameTooltip:Hide()
         end
     end
 
@@ -771,7 +942,7 @@ local function ensure_frames()
 
     wheelCatcher = CreateFrame("Frame", "sfui_MapOverlayWheel", UIParent)
     wheelCatcher:SetFrameStrata("LOW")
-    wheelCatcher:SetFrameLevel(13)
+    wheelCatcher:SetFrameLevel(5)
     wheelCatcher:SetAllPoints(canvasFrame)
     wheelCatcher:EnableMouse(false)
     wheelCatcher:EnableMouseWheel(false)
@@ -839,7 +1010,25 @@ local function hook_hybrid_minimap()
     end)
 end
 
+local function hook_minimap_zoom_buttons()
+    if zoomButtonsHooked or not Minimap then return end
+    if Minimap.ZoomIn or Minimap.ZoomOut then
+        zoomButtonsHooked = true
+    end
+    for _, zb in ipairs({ Minimap.ZoomIn, Minimap.ZoomOut }) do
+        if zb and zb.HookScript then
+            zb:HookScript("OnShow", function(self)
+                if isActive and self.Hide then
+                    self:Hide()
+                end
+            end)
+        end
+    end
+end
+
 local function suppress_blizzard_surround(active)
+    hook_minimap_zoom_buttons()
+
     local frames = {
         _G.MinimapCompassTexture,
         _G.MinimapCompassTextureUnderlay,
@@ -857,6 +1046,40 @@ local function suppress_blizzard_surround(active)
             f:EnableMouse(false)
         end
     end
+
+    if Minimap then
+        for _, zb in ipairs({ Minimap.ZoomIn, Minimap.ZoomOut }) do
+            if zb then
+                if zb.SetAlpha then zb:SetAlpha(active and 0 or 1) end
+                if active and zb.Hide then zb:Hide() end
+                if zb.EnableMouse and can_modify_region(zb) then
+                    zb:EnableMouse(not active)
+                end
+            end
+        end
+        if Minimap.ZoomHitArea then
+            if Minimap.ZoomHitArea.SetAlpha then Minimap.ZoomHitArea:SetAlpha(active and 0 or 1) end
+            if Minimap.ZoomHitArea.EnableMouse and can_modify_region(Minimap.ZoomHitArea) then
+                Minimap.ZoomHitArea:EnableMouse(not active)
+            end
+        end
+    end
+
+    local mb = _G.MinimapBackdrop
+    if mb then
+        if active and mb.EnableMouse and can_modify_region(mb) then
+            mb:EnableMouse(false)
+        end
+        if mb.ExternalEventURLButton then
+            if mb.ExternalEventURLButton.SetAlpha then
+                mb.ExternalEventURLButton:SetAlpha(active and 0 or 1)
+            end
+            if mb.ExternalEventURLButton.EnableMouse and can_modify_region(mb.ExternalEventURLButton) then
+                mb.ExternalEventURLButton:EnableMouse(not active)
+            end
+        end
+    end
+
     if _G.HybridMinimap then
         hook_hybrid_minimap()
         if _G.HybridMinimap.SetAlpha then
@@ -1531,10 +1754,21 @@ local function acquire_tile(idx)
     return tex
 end
 
-local function pin_on_enter(self)
+pin_on_enter = function(self)
+    if isActive and Minimap and Minimap.GetScript and Minimap:GetScript("OnUpdate") then
+        local ml = Minimap:GetScript("OnLeave")
+        if ml then
+            ml(Minimap)
+        else
+            Minimap:SetScript("OnUpdate", nil)
+        end
+    end
     local tip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or _G.GameTooltip
     if not tip then return end
     tip:SetOwner(self, "ANCHOR_RIGHT")
+    if tip.SetFrameStrata then
+        tip:SetFrameStrata("TOOLTIP")
+    end
     tip:SetText(tostring(self.pinTitle or "pin"):lower(), 1, 0.85, 0.25)
     if self.pinSubtitle and self.pinSubtitle ~= "" then
         tip:AddLine(tostring(self.pinSubtitle):lower(), 0.85, 0.85, 0.85, true)
@@ -1542,11 +1776,17 @@ local function pin_on_enter(self)
     tip:Show()
 end
 
-local function pin_on_leave()
+local function pin_on_leave(self)
     if sfui.common and sfui.common.hide_tooltip then
         sfui.common.hide_tooltip()
-    elseif _G.GameTooltip and _G.GameTooltip.Hide then
-        _G.GameTooltip:Hide()
+    end
+    if _G.GameTooltip and _G.GameTooltip.Hide then
+        if not self or not _G.GameTooltip.IsOwned or _G.GameTooltip:IsOwned(self) then
+            _G.GameTooltip:Hide()
+        end
+    end
+    if lastOverlayInteractive then
+        trigger_minimap_native_hover()
     end
 end
 
@@ -1744,11 +1984,10 @@ update_view = function(elapsed)
     local sz = get_opt("overlay_size") or 560
     local wx, wy, cont, bestMapID, facing, viewRadius, rotate = get_player_world_state()
     local mode = get_opt("overlay_pins_mode") or "auto"
-    local rawAlt = IsAltKeyDown and IsAltKeyDown()
-    local altNow = (not is_secret(rawAlt)) and (rawAlt and true or false) or false
-    local altOpt = get_opt("overlay_alt_interactive") and true or false
-    local interactive = (altOpt and altNow) and true or false
-    local wheelActive = interactive and not panelHidden
+    local altNow = is_alt_down_clean()
+    local altOpt = get_opt("overlay_alt_interactive") ~= false
+    local interactive = (altOpt and altNow and not panelHidden) and true or false
+    local wheelActive = interactive
     local pinScale = get_opt("overlay_pin_scale") or 1.0
     local questRev = get_quest_revision()
     local navRev = navTargets.rev
@@ -2131,6 +2370,7 @@ local function ensure_events_wired()
         end
         if isActive and changed.inCombat then
             update_effective_alphas(false)
+            sync_compass()
         end
     end)
     reg_msg("SFUI_QUEST_STATE_UPDATED", function()
@@ -2156,6 +2396,14 @@ end
 -- ── Public API & Module Lifecycle ─────────────────────────────────────────────
 function overlay:IsActive()
     return isActive
+end
+
+function overlay:IsPanelHidden()
+    return panelHidden
+end
+
+function overlay:IsInCombat()
+    return in_combat_now()
 end
 
 function overlay:SetActive(state)
@@ -2186,6 +2434,7 @@ function overlay:SetActive(state)
             sfui.events.UnregisterUpdate("MapOverlay")
         end
     end
+    sync_compass()
 end
 
 function overlay:Toggle()
@@ -2204,6 +2453,7 @@ function overlay:RefreshLayout()
         update_view(0)
         update_effective_alphas(true)
     end
+    sync_compass()
 end
 
 function overlay:OnInit()
@@ -2226,6 +2476,7 @@ function overlay:OnDisable()
     elseif sfui.events and sfui.events.UnregisterUpdate then
         sfui.events.UnregisterUpdate("MapOverlay")
     end
+    sync_compass()
     eventsWired = false
 end
 
@@ -2294,12 +2545,30 @@ function overlay:HandleSlash(msg)
         if sfui.common and sfui.common.print then
             sfui.common.print("overlay hide on panels: " .. (_G.SfuiDB.overlay_hide_on_panels ~= false and "on" or "off"))
         end
+    elseif sub == "compass" and _G.SfuiDB then
+        if val == "" or val == "toggle" then
+            _G.SfuiDB.overlay_compass = (_G.SfuiDB.overlay_compass == false)
+        elseif val == "on" or val == "1" or val == "true" then
+            _G.SfuiDB.overlay_compass = true
+        elseif val == "off" or val == "0" or val == "false" then
+            _G.SfuiDB.overlay_compass = false
+        end
+        sync_compass()
+        if sfui.common and sfui.common.print then
+            sfui.common.print("overlay compass: " .. (_G.SfuiDB.overlay_compass ~= false and "on" or "off"))
+        end
     elseif sub == "resetpos" then
         if _G.SfuiDB then
             _G.SfuiDB.overlay_x = 0
             _G.SfuiDB.overlay_y = 0
+            _G.SfuiDB.overlay_compass_pos = nil
+            _G.SfuiDB.overlay_compass_x = nil
+            _G.SfuiDB.overlay_compass_y = nil
         end
         apply_holder_position()
+        if sfui.map and sfui.map.compass and sfui.map.compass.UpdatePosition then
+            sfui.map.compass:UpdatePosition()
+        end
         self:RefreshLayout()
     elseif sub == "size" then
         local n = tonumber(val)
@@ -2396,7 +2665,7 @@ function overlay:HandleSlash(msg)
             )
         end
     elseif sfui.common and sfui.common.print then
-        sfui.common.print("overlay: /sfoverlay [toggle | rotate <on|off> | panels <on|off> | size <240-1000> | alpha <0.1-1.0> | combatalpha <0.05-1.0> | instalpha <0.1-1.0> | zoom <0-5> | pins <auto|questiedb|blizzard|off> | resetpos | diag]")
+        sfui.common.print("overlay: /sfoverlay [toggle | compass <on|off> | rotate <on|off> | panels <on|off> | size <240-1000> | alpha <0.1-1.0> | combatalpha <0.05-1.0> | instalpha <0.1-1.0> | zoom <0-5> | pins <auto|questiedb|blizzard|off> | resetpos | diag]")
     end
 end
 

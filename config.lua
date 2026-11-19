@@ -839,6 +839,15 @@ sfui.config = {
         pandemicGlow = true,            -- Glow tracking bar icon when in pandemic refresh window
         pandemicRecolor = true,         -- Recolor bar when in pandemic refresh window
         pandemicColor = { 1, 0, 1, 1 }, -- Default magenta color for pandemic window (#ff00ff)
+        sealColors = {
+            righteousness = { 1.00, 0.82, 0.18, 1 }, -- holy gold
+            crusader      = { 1.00, 0.56, 0.14, 1 }, -- crusader amber
+            command       = { 0.90, 0.22, 0.26, 1 }, -- retribution crimson
+            justice       = { 0.72, 0.36, 0.95, 1 }, -- justice violet
+            light         = { 0.28, 0.88, 0.48, 1 }, -- healing emerald
+            wisdom        = { 0.24, 0.62, 1.00, 1 }, -- mana azure
+            fury          = { 0.96, 0.38, 0.12, 1 }, -- righteous fury flame
+        },
         -- Default bar configuration per cooldown ID
         defaults = {
             [18469] = {                     -- Ignore Pain (Warrior)

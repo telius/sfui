@@ -789,7 +789,7 @@ sfui.dj_camelot.dungeons = {
         category = "camelot",
         entrance = { mapID = 1445, x = 0.753, y = 0.141, label = "Alcaz Prison Entrance", detail = "On Alcaz Island, off north-east Dustwallow Marsh: from the dock take the path up the hill to the prison building at the north end; the portal is in its cellar" },
         bosses   = {
-            { name = "Overseer Wrex",        displayId = 2316,   npcID = 0,      level = "50", items = { 276734 } },
+            { name = "Overseer Wrex",        displayId = 7914,   npcID = 255391, level = "50", items = { 276733, 276734, 276732 } },
             { name = "The Questioner",       displayId = 140092, npcID = 256236, level = "51", items = { 276742, 276743, 276741 } },
             { name = "Tidemistress Ca'zass", displayId = 4973,   npcID = 255997, level = "50", items = { 276736, 276737 } },
             { name = "Katerina the Cleaner", displayId = 2317,   npcID = 257016, level = "52", items = {} },
@@ -1298,6 +1298,7 @@ sfui.dj_camelot.dungeons = {
             { name = "Hamhock", displayId = 3250,            npcID = 1717, level = "25", items = { 273809, 273810 }, dropRates = { [273809] = 2, [273810] = 2 } },
             { name = "Bazil Thredd", displayId = 1621,       npcID = 1716, level = "26", items = { 273827, 273824, 273825, 273829 }, dropRates = { [273827] = 1, [273824] = 1, [273825] = 1, [273829] = 1 } },
             { name = "Dextren Ward", displayId = 2149,       npcID = 1715, level = "26", items = { 273820 }, dropRates = { [273820] = 100 } },
+            { name = "Bruegal Ironknuckle", displayId = 2142, npcID = 1720, level = "26", items = { 3228, 2941, 2942 } },
         },
         quests = {
             { id = 391, name = "The Stockade Riots", level = 29, minLevel = 16, faction = "Alliance",
@@ -1495,7 +1496,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134159,
         iconStr  = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01",
         category = "classic",
-        entrance = { mapID = 1420, x = 0.826, y = 0.338, label = "Scarlet Monastery Entrance", detail = "Inside the Scarlet Monastery courtyard; the Graveyard is the portal on the right" },
+        entrance = { mapID = 1420, x = 0.848, y = 0.304, label = "Scarlet Monastery Entrance", detail = "Inside the Scarlet Monastery courtyard; the Graveyard is the portal on the right" },
         bosses = {
             { name = "Interrogator Vishas", displayId = 2044,  npcID = 3983, level = "32", items = { 7682, 7683, 274290, 252513 }, dropRates = { [7682] = 8, [7683] = 51, [274290] = 1, [252513] = 40 } },
             { name = "Azshir the Sleepless", displayId = 5534, npcID = 4294, level = "33", items = { 7709, 7708, 7731 }, dropRates = { [7709] = 33, [7708] = 33, [7731] = 33 } },
@@ -1541,7 +1542,7 @@ sfui.dj_camelot.dungeons = {
         icon     = 134423,
         iconStr  = "Interface\\Icons\\INV_Misc_Book_09",
         category = "classic",
-        entrance = { mapID = 1420, x = 0.826, y = 0.338, label = "Scarlet Monastery Entrance", detail = "Inside the Scarlet Monastery; the Library has its own portal door" },
+        entrance = { mapID = 1420, x = 0.854, y = 0.324, label = "Scarlet Monastery Entrance", detail = "Inside the Scarlet Monastery; the Library has its own portal door" },
         bosses = {
             { name = "Houndmaster Loksey", displayId = 2040, npcID = 3974, level = "34", items = { 7710, 7756 }, dropRates = { [7710] = 14, [7756] = 56 } },
             { name = "Arcanist Doan", displayId = 5266,       npcID = 6487, level = "37", items = { 7711, 7712, 7713, 7714 }, dropRates = { [7711] = 46, [7712] = 47, [7713] = 47, [7714] = 48 } },
@@ -2008,6 +2009,7 @@ sfui.dj_camelot.dungeons = {
             { name = "Warchief Rend Blackhand", displayId = 9778, npcID = 10429, level = "60", items = { 12583, 12587, 12588, 12590, 12935, 12936, 12939, 12940, 16733, 18102, 18103, 18104, 22247 }, dropRates = { [12583] = 7, [12587] = 7, [12588] = 7, [12590] = 7, [12935] = 7, [12936] = 7, [12939] = 7, [12940] = 7, [16733] = 19, [18102] = 7, [18103] = 7, [18104] = 7, [22247] = 7 } },
             { name = "Gyth", displayId = 9806,                    npcID = 10339, level = "60", items = { 12953, 16669, 22225 }, dropRates = { [12953] = 40, [16669] = 19, [22225] = 40 } },
             { name = "The Beast", displayId = 10193,               npcID = 10430, level = "60", items = { 12709, 12963, 12964, 12965, 12966, 12967, 12968, 12969, 16729, 22311 }, dropRates = { [12709] = 9, [12963] = 9, [12964] = 9, [12965] = 9, [12966] = 9, [12967] = 9, [12968] = 9, [12969] = 9, [16729] = 18, [22311] = 9 } },
+            { name = "Lord Valthalak", displayId = 14308,          npcID = 16042, level = "62", items = { 22335, 22336, 22337, 22339, 22340, 22342, 22343, 22302 } },
             { name = "General Drakkisath", displayId = 10115,      npcID = 10363, level = "62", items = { 12592, 13098, 13141, 13142, 16666, 16674, 16688, 16690, 16700, 16706, 16721, 16726, 16730, 22253, 22267, 22268, 22269 }, dropRates = { [12592] = 1, [13098] = 1, [13141] = 1, [13142] = 1, [16666] = 5, [16674] = 12, [16688] = 11, [16690] = 11, [16700] = 12, [16706] = 12, [16721] = 10, [16726] = 7, [16730] = 12, [22253] = 1, [22267] = 1, [22268] = 1, [22269] = 1 } },
         },
         quests = {
