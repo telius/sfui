@@ -44,6 +44,16 @@ local function OnItemTooltip(tooltip, ctxOrData)
 
     if not itemID then return end
 
+    local db = sfui.recipes_camelot
+    local isKnown = db and ((db.items and db.items[itemID]) or (db.outputs and db.outputs[itemID]) or (db.recipes and db.recipes[itemID]))
+    if not isKnown then
+        local hasLive = sfui.recipes.HasLiveVendorItem and sfui.recipes.HasLiveVendorItem(itemID)
+        if not hasLive then
+            local classID = _G.C_Item and _G.C_Item.GetItemInfoInstant and select(6, _G.C_Item.GetItemInfoInstant(itemID))
+            if classID ~= 9 then return end
+        end
+    end
+
     local res = sfui.recipes.GetSource(itemID)
     if not res or not res.sources or #res.sources == 0 then return end
 
@@ -123,6 +133,61 @@ else
     end
 end
 
+local function OnSchematicSourceEnter(btn)
+    local res = btn._res
+    if not res then return end
+    local bestSource = btn._bestSource
+    GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+    GameTooltip:SetCustomWordWrapMinWidth(320)
+    GameTooltip:AddLine("|cffffd100where to get it:|r", 1, 1, 1)
+
+    if res.spec then
+        GameTooltip:AddLine(string.format("  |cffffa500requires:|r %s", res.spec), 1, 0.8, 0)
+    end
+    if res.faction and res.standing then
+        local repStr = string.format("  |cff80c0ffreputation:|r %s with %s", res.standing, res.faction)
+        if res.tokens then
+            repStr = repStr .. string.format(" (%s)", res.tokens)
+        end
+        GameTooltip:AddLine(repStr, 0.5, 0.8, 1)
+    end
+
+    local count = min(#res.sources, 4)
+    for idx = 1, count do
+        local s = res.sources[idx]
+        local line = sfui.recipes.FormatSourceLine(s, res)
+        if line ~= "" then
+            GameTooltip:AddLine("  " .. line, 0.9, 0.9, 0.9, true)
+        end
+    end
+
+    if #res.sources > 4 then
+        GameTooltip:AddLine(string.format("  |cff888888+%d more locations|r", #res.sources - 4), 0.6, 0.6, 0.6)
+    end
+
+    if bestSource and bestSource.mapID and bestSource.x and bestSource.y then
+        GameTooltip:AddLine("|cff80c0ffclick to set map waypoint|r", 0.5, 0.8, 1)
+    end
+    GameTooltip:AddLine("|cff80c0ffctrl-click to open recipe browser|r", 0.5, 0.8, 1)
+    GameTooltip:Show()
+end
+
+local function OnSchematicSourceLeave()
+    GameTooltip:Hide()
+end
+
+local function OnSchematicSourceClick(btn)
+    if IsControlKeyDown and IsControlKeyDown() and sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
+        if btn._recipeID then
+            sfui.recipes.OpenBrowserToRecipe(btn._recipeID)
+        end
+        return
+    end
+    if btn._bestSource then
+        sfui.recipes.SetWaypoint(btn._bestSource)
+    end
+end
+
 -- ── ProfessionsFrame / SchematicForm Integration (Camelot) ───────────────────
 local function HookSchematicForm()
     local Mixin = _G.ProfessionsRecipeSchematicFormMixin
@@ -138,11 +203,12 @@ local function HookSchematicForm()
         local res = sfui.recipes.GetSource(recipeID)
         if not res or not res.sources or #res.sources == 0 then return end
 
-        if self.RecipeSourceButton then
-            if self.RecipeSourceButton.Text then
-                self.RecipeSourceButton.Text:SetText("unlearned recipe")
+        local btn = self.RecipeSourceButton
+        if btn then
+            if btn.Text then
+                btn.Text:SetText("unlearned recipe")
             end
-            self.RecipeSourceButton:Show()
+            btn:Show()
 
             local bestSource = nil
             for _, s in ipairs(res.sources) do
@@ -153,56 +219,15 @@ local function HookSchematicForm()
             end
             bestSource = bestSource or res.sources[1]
 
-            self.RecipeSourceButton:SetScript("OnEnter", function(btn)
-                GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-                GameTooltip:SetCustomWordWrapMinWidth(320)
-                GameTooltip:AddLine("|cffffd100where to get it:|r", 1, 1, 1)
-
-                if res.spec then
-                    GameTooltip:AddLine(string.format("  |cffffa500requires:|r %s", res.spec), 1, 0.8, 0)
-                end
-                if res.faction and res.standing then
-                    local repStr = string.format("  |cff80c0ffreputation:|r %s with %s", res.standing, res.faction)
-                    if res.tokens then
-                        repStr = repStr .. string.format(" (%s)", res.tokens)
-                    end
-                    GameTooltip:AddLine(repStr, 0.5, 0.8, 1)
-                end
-
-                local count = min(#res.sources, 4)
-                for idx = 1, count do
-                    local s = res.sources[idx]
-                    local line = sfui.recipes.FormatSourceLine(s, res)
-                    if line ~= "" then
-                        GameTooltip:AddLine("  " .. line, 0.9, 0.9, 0.9, true)
-                    end
-                end
-
-                if #res.sources > 4 then
-                    GameTooltip:AddLine(string.format("  |cff888888+%d more locations|r", #res.sources - 4), 0.6, 0.6,
-                    0.6)
-                end
-
-                if bestSource and bestSource.mapID and bestSource.x and bestSource.y then
-                    GameTooltip:AddLine("|cff80c0ffclick to set map waypoint|r", 0.5, 0.8, 1)
-                end
-                GameTooltip:AddLine("|cff80c0ffctrl-click to open recipe browser|r", 0.5, 0.8, 1)
-                GameTooltip:Show()
-            end)
-
-            self.RecipeSourceButton:SetScript("OnLeave", function()
-                GameTooltip:Hide()
-            end)
-
-            self.RecipeSourceButton:SetScript("OnClick", function()
-                if IsControlKeyDown and IsControlKeyDown() and sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
-                    sfui.recipes.OpenBrowserToRecipe(recipeID)
-                    return
-                end
-                if bestSource then
-                    sfui.recipes.SetWaypoint(bestSource)
-                end
-            end)
+            btn._res = res
+            btn._bestSource = bestSource
+            btn._recipeID = recipeID
+            if not btn._sfuiHandlersBound then
+                btn._sfuiHandlersBound = true
+                btn:SetScript("OnEnter", OnSchematicSourceEnter)
+                btn:SetScript("OnLeave", OnSchematicSourceLeave)
+                btn:SetScript("OnClick", OnSchematicSourceClick)
+            end
         end
     end)
 end

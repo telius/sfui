@@ -19,6 +19,7 @@ local BOSS_BTN_H           = 42
 local BOSS_BTN_PAD         = 4
 local LOOT_ROW_H           = 44
 local LOOT_ROW_PAD         = 4
+local LOOT_ROW_STRIDE      = LOOT_ROW_H + LOOT_ROW_PAD
 local ICON_SZ              = 34
 local BOSS_LIST_W          = 200
 
@@ -43,6 +44,15 @@ local usableFilterSpecMode = "spec" -- "spec" = active spec, "all" = all class s
 local categoryUsableOnly   = {}     -- e.g. categoryUsableOnly["armor"] = true
 local filterButtons        = {}
 local UpdateFilterPills    = nil
+local ApplyPillStyle       = nil
+
+local filteredLootRows     = {}
+local filteredLootCount    = 0
+local renderedLootBoss     = nil
+local renderedLootDungeon  = nil
+local lastLootFirstIdx     = 0
+local lastLootLastIdx      = 0
+local lastLootScrollY      = 0
 
 local FILTER_BUTTONS       = {
     { key = "all",      label = "all" },
@@ -105,6 +115,22 @@ local function GetItemClassScanTooltip()
 end
 
 local itemClassUsableCache = {}
+local cachedLocClassLower  = nil
+local cachedClassPattern   = nil
+local cachedClassPrefix    = nil
+local classInfoCached      = false
+
+local function EnsureClassMatchLocals()
+    if classInfoCached and cachedLocClassLower ~= "" then return end
+    local locClass = UnitClass and UnitClass("player")
+    cachedLocClassLower = locClass and locClass:lower() or ""
+    if not classInfoCached then
+        cachedClassPattern = _G.ITEM_CLASSES_ALLOWED and _G.ITEM_CLASSES_ALLOWED:gsub("%%s", ".*") or nil
+        local rawPrefix = _G.ITEM_CLASSES_ALLOWED and _G.ITEM_CLASSES_ALLOWED:match("^([^:%%]+)")
+        cachedClassPrefix = rawPrefix and rawPrefix:trim():lower() or "classes"
+        classInfoCached = true
+    end
+end
 
 local function ItemMatchesPlayerClass(itemID, itemLink)
     if not itemID or itemID <= 0 then return true end
@@ -134,12 +160,10 @@ local function ItemMatchesPlayerClass(itemID, itemLink)
     end
 
     -- 2. Tooltip inspection for class restrictions (e.g. "Classes: Paladin, Priest")
-    local locClass = UnitClass("player")
-    local locClassLower = locClass and locClass:lower() or ""
-
-    local classPattern = ITEM_CLASSES_ALLOWED and ITEM_CLASSES_ALLOWED:gsub("%%s", ".*")
-    local classPrefix = ITEM_CLASSES_ALLOWED and ITEM_CLASSES_ALLOWED:match("^([^:%%]+)")
-    classPrefix = classPrefix and classPrefix:trim():lower() or "classes"
+    EnsureClassMatchLocals()
+    local locClassLower = cachedLocClassLower
+    local classPattern = cachedClassPattern
+    local classPrefix = cachedClassPrefix
 
     local foundRestriction = nil
     local dataReady = false
@@ -155,7 +179,7 @@ local function ItemMatchesPlayerClass(itemID, itemLink)
             end
             for _, line in ipairs(tData.lines) do
                 local lineType = line.type
-                local isRestrictedClassType = (lineType and Enum.TooltipDataLineType and lineType == Enum.TooltipDataLineType.RestrictedRaceClass)
+                local isRestrictedClassType = (lineType and Enum and Enum.TooltipDataLineType and lineType == Enum.TooltipDataLineType.RestrictedRaceClass)
                 local txt = line.leftText
                 local txtLower = (txt and type(txt) == "string") and txt:lower() or ""
 
@@ -185,8 +209,8 @@ local function ItemMatchesPlayerClass(itemID, itemLink)
         end
     end
 
-    -- Method B: Fallback hidden GameTooltip
-    if foundRestriction == nil then
+    -- Method B: Fallback hidden GameTooltip only when C_TooltipInfo was unavailable or incomplete
+    if not dataReady and foundRestriction == nil then
         local tip, tipName = GetItemClassScanTooltip()
         if tip then
             tip:SetHyperlink(link)
@@ -394,6 +418,7 @@ end
 
 local function GetEncounterList(dungeon)
     if not dungeon then return {} end
+    if dungeon._encounters then return dungeon._encounters end
     local bosses = dungeon.bosses or {}
     if #bosses == 0 then return {} end
 
@@ -430,6 +455,7 @@ local function GetEncounterList(dungeon)
         list[#list + 1] = b
     end
 
+    dungeon._encounters = list
     return list
 end
 
@@ -484,11 +510,85 @@ local function UpdateBossButtonWishlist(btn)
     end
 end
 
-local function UpdateAllBossButtonsWishlistState()
+UpdateAllBossButtonsWishlistState = function()
     if not bossButtons then return end
     for _, btn in ipairs(bossButtons) do
         UpdateBossButtonWishlist(btn)
     end
+end
+
+local function CompareSortedItems(a, b)
+    if a.rate ~= b.rate then
+        return a.rate > b.rate
+    end
+    return a.index < b.index
+end
+
+local RenderLoot
+
+local function ApplyBossButtonSelectedStyle(btn, isSelected, accent)
+    if not btn then return end
+    btn.isSelected = isSelected
+    if isSelected then
+        btn.nameText:SetTextColor(accent[1], accent[2], accent[3], 1)
+        btn:SetBackdropColor(0.14, 0.14, 0.18, 0.95)
+        btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+        if btn.icoFrame then
+            btn.icoFrame:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.85)
+        end
+    else
+        btn.nameText:SetTextColor(0.85, 0.85, 0.85, 1)
+        btn:SetBackdropColor(0.08, 0.08, 0.10, 0.0)
+        btn:SetBackdropBorderColor(0, 0, 0, 0)
+        if btn.icoFrame then
+            btn.icoFrame:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.6)
+        end
+    end
+end
+
+local function OnBossBtnClick(self)
+    local newIdx = self.bossIndex
+    if not newIdx then return end
+    local prevIdx = selectedBossIndex
+    selectedBossIndex = newIdx
+    DJ_DB().lastBoss = newIdx
+    if prevIdx ~= newIdx then
+        local pal = theme.GetPalette()
+        local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
+        if prevIdx and bossButtons[prevIdx] then
+            ApplyBossButtonSelectedStyle(bossButtons[prevIdx], false, accent)
+        end
+        ApplyBossButtonSelectedStyle(self, true, accent)
+    end
+    local dungeon = GetCurrentDungeon()
+    local encounters = GetEncounterList(dungeon)
+    local currentBoss = encounters[newIdx]
+    if RenderLoot then
+        RenderLoot(currentBoss, dungeon)
+    end
+end
+
+local function OnBossBtnEnter(self)
+    if self.hasWishlist and self.wishItemCount and self.wishItemCount > 0 then
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(self.bossName or "boss encounter", 1, 0.82, 0)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(
+            string.format(
+                "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist drop%s (%d)|r",
+                (self.wishItemCount > 1 and "s" or ""), self.wishItemCount), 1, 1, 1)
+        if self.wishItemNames then
+            for _, itemName in ipairs(self.wishItemNames) do
+                GameTooltip:AddLine("  • " .. itemName, 0.85, 0.85, 0.85)
+            end
+        end
+        GameTooltip:AddLine("click to view encounter loot.", 0.6, 0.6, 0.6, true)
+        GameTooltip:Show()
+    end
+end
+
+local function OnBossBtnLeave()
+    GameTooltip:Hide()
 end
 
 -- ─── Boss Button Pool ─────────────────────────────────────────────────────────
@@ -551,11 +651,78 @@ local function AcquireBossButton(pool, parent)
     hi:SetBlendMode("ADD")
     hi:SetAlpha(0.25)
 
+    btn:SetScript("OnClick", OnBossBtnClick)
+    btn:SetScript("OnEnter", OnBossBtnEnter)
+    btn:SetScript("OnLeave", OnBossBtnLeave)
+
     pool[#pool + 1] = btn
     return btn
 end
 
 -- ─── Loot Button Pool ─────────────────────────────────────────────────────────
+local function OnLootBtnEnter(self)
+    local itemID = self.itemID
+    if not itemID then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    local Resolve = sfui.dungeonjournal and sfui.dungeonjournal.ResolveItemLink
+    local itemLink = Resolve and Resolve(self, itemID)
+    if itemLink then
+        GameTooltip:SetHyperlink(itemLink)
+    else
+        GameTooltip:SetItemByID(itemID)
+    end
+    local isRecipe = sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
+    if isRecipe then
+        if sfui.recipes.AddAltKnowledgeLines then
+            sfui.recipes.AddAltKnowledgeLines(GameTooltip, itemID, true)
+        end
+        GameTooltip:AddLine(" ")
+        local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or itemID
+        local isPinned = sfui.recipes.IsRecipePinned and sfui.recipes.IsRecipePinned(sID)
+        GameTooltip:AddLine("|cff80c0ffctrl-click: open recipe catalogue|r", 0.5, 0.8, 1)
+        GameTooltip:AddLine(
+            string.format("|cff00ff88right-click: %s objective tracker|r",
+                isPinned and "unpin from" or "track in"),
+            0.2, 1, 0.4)
+    else
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cff888888<shift-click to link · ctrl-click to view>|r", 0.6, 0.6, 0.6)
+    end
+    GameTooltip:Show()
+end
+
+local function OnLootBtnLeave()
+    GameTooltip:Hide()
+end
+
+local function OnLootBtnClick(self, mouseBtn)
+    local itemID = self.itemID
+    if not itemID then return end
+    local isRecipe = sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
+    if isRecipe and mouseBtn == "RightButton" then
+        local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or itemID
+        if sfui.recipes.TogglePinRecipe then
+            sfui.recipes.TogglePinRecipe(sID)
+            if GameTooltip:IsOwned(self) then
+                OnLootBtnEnter(self)
+            end
+            return
+        end
+    end
+    if isRecipe and mouseBtn == "LeftButton" and _G.IsControlKeyDown and _G.IsControlKeyDown()
+        and not (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
+        and not (_G.IsAltKeyDown and _G.IsAltKeyDown()) then
+        local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or itemID
+        if sfui.recipes.OpenBrowserToRecipe then
+            sfui.recipes.OpenBrowserToRecipe(sID)
+            return
+        end
+    end
+    if sfui.dungeonjournal and sfui.dungeonjournal.HandleItemClick then
+        sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
+    end
+end
+
 local function AcquireLootButton(pool, parent)
     for _, btn in ipairs(pool) do
         if not btn:IsShown() then return btn end
@@ -677,6 +844,10 @@ local function AcquireLootButton(pool, parent)
     hi:SetBlendMode("ADD")
     hi:SetAlpha(0.2)
 
+    btn:SetScript("OnEnter", OnLootBtnEnter)
+    btn:SetScript("OnLeave", OnLootBtnLeave)
+    btn:SetScript("OnClick", OnLootBtnClick)
+
     pool[#pool + 1] = btn
     return btn
 end
@@ -717,10 +888,193 @@ local function GetItemNumericDropRate(itemEntry, itemID, boss)
     return numRate or 0, rateStr
 end
 
--- ─── Render Loot Items ────────────────────────────────────────────────────────
-local function RenderLoot(boss, dungeon)
+-- ─── Virtualized Loot Rows Renderer ──────────────────────────────────────────
+local function RenderLootRowAt(slotIdx, rowIdx)
+    local row = filteredLootRows[rowIdx]
+    local btn = lootButtons[slotIdx]
+    if not btn then
+        btn = AcquireLootButton(lootButtons, lootContent)
+        lootButtons[slotIdx] = btn
+    end
+    local y = (rowIdx - 1) * LOOT_ROW_STRIDE
+    if btn._lastY ~= y then
+        btn._lastY = y
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", lootContent, "TOPLEFT", 0, -y)
+        btn:SetPoint("TOPRIGHT", lootContent, "TOPRIGHT", 0, -y)
+        btn:SetHeight(LOOT_ROW_H)
+    end
+
+    local itemID     = row.id
+    local link       = row.link
+    local name       = row.name
+    local quality    = row.quality
+    local iLevel     = row.iLevel
+    local reqLevel   = row.reqLevel
+    local class      = row.class
+    local subclass   = row.subclass
+    local equipSlot  = row.equipSlot
+    local icon       = row.icon
+    local rateStr    = row.rateStr
+    local boss       = renderedLootBoss
+
+    btn.itemID               = itemID
+    btn.link                 = link
+
+    local isWish             = sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and
+        sfui.dungeonjournal.IsWishlisted(itemID)
+    btn.starBtn.isWishlisted = isWish
+    if isWish then
+        if btn.starBtn.starIcon then
+            btn.starBtn.starIcon:SetDesaturated(false)
+            btn.starBtn.starIcon:SetAlpha(1.0)
+        end
+        btn:SetBackdropBorderColor(0.8, 0.27, 1.0, 0.7)
+    else
+        if btn.starBtn.starIcon then
+            btn.starBtn.starIcon:SetDesaturated(true)
+            btn.starBtn.starIcon:SetAlpha(0.25)
+        end
+        btn:SetBackdropBorderColor(0.15, 0.15, 0.18, 0.8)
+    end
+
+    local r, g, b = GetQualityColor(quality)
+    btn.iconTex:SetTexture(icon or 134400)
+    btn.iconBtn:SetBackdropBorderColor(r, g, b, 0.8)
+
+    btn.nameText:SetText(name or ("item #" .. itemID))
+    btn.nameText:SetTextColor(r, g, b, 1)
+
+    local slotText = equipSlot and _G[equipSlot] or equipSlot
+    local typeLabel = ""
+    if slotText and subclass and subclass ~= "" then
+        typeLabel = tostring(slotText):lower() .. "  ·  " .. tostring(subclass):lower()
+    elseif slotText then
+        typeLabel = tostring(slotText):lower()
+    elseif subclass then
+        typeLabel = tostring(subclass):lower()
+    elseif class then
+        typeLabel = tostring(class):lower()
+    end
+    if boss and boss.isAll then
+        local source = sfui.dj_camelot and sfui.dj_camelot.GetItemSource and
+            sfui.dj_camelot.GetItemSource(itemID)
+        if source and source.bossName then
+            if typeLabel ~= "" then
+                typeLabel = typeLabel .. "  ·  |cff888888" .. tostring(source.bossName):lower() .. "|r"
+            else
+                typeLabel = "|cff888888" .. tostring(source.bossName):lower() .. "|r"
+            end
+        end
+    end
+    if sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) then
+        local status = sfui.recipes.GetRecipeStatus and sfui.recipes.GetRecipeStatus(itemID)
+        local isAlt = sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(itemID)
+        local badge = ""
+        if status == "KNOWN_CURRENT" or status == "known" then
+            badge = "  ·  |cff40c040[known]|r"
+        elseif status == "CAN_LEARN_CURRENT" or status == "learnable" then
+            badge = "  ·  |cff00ff88[learnable]|r"
+        elseif status == "CAN_LEARN_ALT" or isAlt then
+            badge = "  ·  |cff80c0ff[alt needs]|r"
+        elseif status == "KNOWN_ALT" or status == "alt_known" then
+            badge = "  ·  |cff80c0ff[alt known]|r"
+        else
+            badge = "  ·  |cffffa500[recipe]|r"
+        end
+        typeLabel = typeLabel .. badge
+    end
+    local upgEval = sfui.gear and sfui.gear.EvaluateItemUpgrade and sfui.gear.EvaluateItemUpgrade(link or itemID, nil, true)
+    if upgEval and upgEval.isUpgrade then
+        local pctTag = (upgEval.pctGain >= 99.5) and "+upgrade" or string.format("+%.0f%%", upgEval.pctGain)
+        local clr = upgEval.isOffSpec and "|cff66ccff" or "|cff33ff88"
+        local sep = (typeLabel ~= "") and "  ·  " or ""
+        typeLabel = typeLabel .. sep .. clr .. "[" .. pctTag .. "]|r"
+        if not isWish then
+            btn:SetBackdropBorderColor(0.20, 0.75, 0.45, 0.65)
+        end
+    end
+    if isWish and sfui.dungeonjournal and sfui.dungeonjournal.GetWishlistCharacters then
+        local wishChars = sfui.dungeonjournal.GetWishlistCharacters(itemID)
+        if wishChars and #wishChars > 0 then
+            typeLabel = typeLabel .. "  ·  |cffcc44ff[" .. table.concat(wishChars, ", ") .. "]|r"
+        end
+    end
+    btn.typeText:SetText(typeLabel)
+
+    local reqStr = ""
+    if sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) then
+        local rec = sfui.recipes.GetRecipe and sfui.recipes.GetRecipe(itemID)
+        if rec and rec.minSkill and rec.minSkill > 0 then
+            reqStr = "skill " .. rec.minSkill
+        elseif reqLevel and reqLevel > 0 then
+            reqStr = "req " .. reqLevel
+        end
+    elseif reqLevel and reqLevel > 0 then
+        reqStr = "req " .. reqLevel
+    elseif iLevel and iLevel > 0 then
+        reqStr = "ilvl " .. iLevel
+    end
+
+    if rateStr and reqStr ~= "" then
+        btn.reqText:SetText(string.format("|cff00e5ff%s|r  ·  %s", rateStr, reqStr))
+    elseif rateStr then
+        btn.reqText:SetText(string.format("|cff00e5ff%s|r", rateStr))
+    else
+        btn.reqText:SetText(reqStr)
+    end
+
+    if not btn:IsShown() then
+        btn:Show()
+    end
+end
+
+local function RenderVisibleLootRows(force, explicitScrollY)
     if not lootScroll or not lootContent then return end
-    ReleaseAll(lootButtons)
+    if filteredLootCount == 0 then
+        lastLootFirstIdx = 0
+        lastLootLastIdx = 0
+        for i = 1, #lootButtons do
+            lootButtons[i]:Hide()
+        end
+        return
+    end
+
+    local scrollY = explicitScrollY
+    if scrollY == nil then
+        scrollY = (lootScroll.GetVerticalScroll and lootScroll:GetVerticalScroll()) or lastLootScrollY or 0
+    end
+    if scrollY < 0 then scrollY = 0 end
+    lastLootScrollY = scrollY
+
+    local viewH = (lootScroll.GetHeight and lootScroll:GetHeight()) or 0
+    if viewH < 100 then viewH = 440 end
+    local visibleCount = math.ceil(viewH / LOOT_ROW_STRIDE) + 2
+    local firstIdx = math.max(1, math.floor(scrollY / LOOT_ROW_STRIDE) + 1)
+    local lastIdx = math.min(filteredLootCount, firstIdx + visibleCount - 1)
+    firstIdx = math.max(1, lastIdx - visibleCount + 1)
+
+    if not force and firstIdx == lastLootFirstIdx and lastIdx == lastLootLastIdx then
+        return
+    end
+    lastLootFirstIdx = firstIdx
+    lastLootLastIdx = lastIdx
+
+    local slotIdx = 0
+    for rowIdx = firstIdx, lastIdx do
+        slotIdx = slotIdx + 1
+        RenderLootRowAt(slotIdx, rowIdx)
+    end
+    for i = slotIdx + 1, #lootButtons do
+        if lootButtons[i]:IsShown() then
+            lootButtons[i]:Hide()
+        end
+    end
+end
+
+-- ─── Render Loot Items ────────────────────────────────────────────────────────
+RenderLoot = function(boss, dungeon)
+    if not lootScroll or not lootContent then return end
 
     local pal    = theme.GetPalette()
     local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
@@ -743,6 +1097,7 @@ local function RenderLoot(boss, dungeon)
                     bossHeaderFrame.count:SetTextColor(0.5, 0.5, 0.5, 1)
                 end
 
+                bossHeaderFrame._lastDispID = nil
                 bossHeaderFrame.portrait:SetTexture(boss.icon or (dungeon and dungeon.icon) or 133743)
                 bossHeaderFrame.portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
                 if bossHeaderFrame.portraitFrame then
@@ -774,16 +1129,24 @@ local function RenderLoot(boss, dungeon)
                     bossHeaderFrame.count:SetTextColor(0.5, 0.5, 0.5, 1)
                 end
 
-                -- Update Header Portrait
+                -- Update Header Portrait (cached by displayId)
                 local set = false
                 if boss.displayId and SetPortraitTextureFromCreatureDisplayID then
-                    local ok = pcall(SetPortraitTextureFromCreatureDisplayID, bossHeaderFrame.portrait, boss.displayId)
-                    if ok and bossHeaderFrame.portrait:GetTexture() then
-                        bossHeaderFrame.portrait:SetTexCoord(0, 1, 0, 1)
+                    if bossHeaderFrame._lastDispID == boss.displayId and bossHeaderFrame.portrait:GetTexture() then
                         set = true
+                    else
+                        local ok = pcall(SetPortraitTextureFromCreatureDisplayID, bossHeaderFrame.portrait, boss.displayId)
+                        if ok and bossHeaderFrame.portrait:GetTexture() then
+                            bossHeaderFrame._lastDispID = boss.displayId
+                            bossHeaderFrame.portrait:SetTexCoord(0, 1, 0, 1)
+                            set = true
+                        else
+                            bossHeaderFrame._lastDispID = nil
+                        end
                     end
                 end
                 if not set then
+                    bossHeaderFrame._lastDispID = nil
                     if boss.icon then
                         bossHeaderFrame.portrait:SetTexture(boss.icon)
                         bossHeaderFrame.portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -821,6 +1184,7 @@ local function RenderLoot(boss, dungeon)
             bossHeaderFrame.name:SetText("select an encounter")
             bossHeaderFrame.sub:SetText("choose a boss from the list on the left")
             bossHeaderFrame.count:SetText("")
+            bossHeaderFrame._lastDispID = nil
             if bossHeaderFrame.portrait then
                 bossHeaderFrame.portrait:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull")
                 bossHeaderFrame.portrait:SetTexCoord(0, 1, 0, 1)
@@ -837,8 +1201,14 @@ local function RenderLoot(boss, dungeon)
         end
     end
 
+    local bossChanged = (renderedLootBoss ~= boss) or (renderedLootDungeon ~= dungeon)
+    renderedLootBoss = boss
+    renderedLootDungeon = dungeon
+
     wipe(currentBossItemSet)
     if not boss or not boss.items or #boss.items == 0 then
+        filteredLootCount = 0
+        RenderVisibleLootRows(true, 0)
         lootContent:SetHeight(10)
         if lootScroll and lootScroll.SetVerticalScroll then
             lootScroll:SetVerticalScroll(0)
@@ -849,257 +1219,82 @@ local function RenderLoot(boss, dungeon)
         return
     end
 
-    -- Build sorted item list (highest drop rate first)
-    local sortedItems = {}
-    for idx, itemEntry in ipairs(boss.items) do
-        local itemID = type(itemEntry) == "table" and (itemEntry.id or itemEntry[1]) or itemEntry
-        itemID = tonumber(itemID)
-        if itemID then
-            currentBossItemSet[itemID] = true
-            local numRate, rateStr = GetItemNumericDropRate(itemEntry, itemID, boss)
-            sortedItems[#sortedItems + 1] = {
-                entry   = itemEntry,
-                id      = itemID,
-                rate    = numRate,
-                rateStr = rateStr,
-                index   = idx,
-            }
+    -- Cache sorted item list per boss (highest drop rate first)
+    local sortedItems = boss._sortedItems
+    if not sortedItems then
+        sortedItems = {}
+        for idx, itemEntry in ipairs(boss.items) do
+            local itemID = type(itemEntry) == "table" and (itemEntry.id or itemEntry[1]) or itemEntry
+            itemID = tonumber(itemID)
+            if itemID then
+                local numRate, rateStr = GetItemNumericDropRate(itemEntry, itemID, boss)
+                sortedItems[#sortedItems + 1] = {
+                    entry   = itemEntry,
+                    id      = itemID,
+                    rate    = numRate,
+                    rateStr = rateStr,
+                    index   = idx,
+                }
+            end
         end
+        table.sort(sortedItems, CompareSortedItems)
+        boss._sortedItems = sortedItems
     end
 
-    table.sort(sortedItems, function(a, b)
-        if a.rate ~= b.rate then
-            return a.rate > b.rate
-        end
-        return a.index < b.index
-    end)
-
-    local y = 0
     local shownCount = 0
+    for i = 1, #sortedItems do
+        local sortedItem = sortedItems[i]
+        local itemID     = sortedItem.id
+        currentBossItemSet[itemID] = true
 
-    for _, sortedItem in ipairs(sortedItems) do
-        local itemID                                                                                             = sortedItem
-            .id
-        local rateStr                                                                                            = sortedItem
-            .rateStr
-
-        -- Query item data via project wrapper
         local name, link, quality, iLevel, reqLevel, class, subclass, _, equipSlot, icon, _, classID, subclassID = common
             .get_item_info(itemID)
 
         if not name or not icon then
-            -- Fallback instant info
             local _, instType, instSubType, instEquipLoc, instIcon, instClassID, instSubClassID = common
                 .get_item_instant_info(itemID)
-            local instName                                                                      = (_G.C_Item and _G.C_Item.GetItemNameByID and _G.C_Item.GetItemNameByID(itemID))
-            name                                                                                = instName or
-                ("item #" .. itemID)
-            quality                                                                             = common
-                .get_item_quality(itemID) or 1
-            icon                                                                                = instIcon or
-                (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(itemID)) or 134400
-            equipSlot                                                                           = equipSlot or
-                instEquipLoc
-            class                                                                               = class or instType
-            subclass                                                                            = subclass or instSubType
-            classID                                                                             = classID or instClassID
-            subclassID                                                                          = subclassID or
-                instSubClassID
-            -- Request async cache population
+            local instName = (_G.C_Item and _G.C_Item.GetItemNameByID and _G.C_Item.GetItemNameByID(itemID))
+            name       = instName or ("item #" .. itemID)
+            quality    = common.get_item_quality(itemID) or 1
+            icon       = instIcon or (_G.C_Item and _G.C_Item.GetItemIconByID and _G.C_Item.GetItemIconByID(itemID)) or 134400
+            equipSlot  = equipSlot or instEquipLoc
+            class      = class or instType
+            subclass   = subclass or instSubType
+            classID    = classID or instClassID
+            subclassID = subclassID or instSubClassID
             if common and common.request_item_load then
                 common.request_item_load(itemID)
             elseif _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
-                pcall(_G.C_Item.RequestLoadItemDataByID, itemID)
+                _G.C_Item.RequestLoadItemDataByID(itemID)
             end
         end
 
-        -- Filter check
         local itemLink = link or ("item:" .. itemID)
         if IsItemMatchingFilter(currentLootFilter, itemID, classID, subclassID, equipSlot, itemLink) then
             shownCount = shownCount + 1
-            local btn = AcquireLootButton(lootButtons, lootContent)
-            btn:ClearAllPoints()
-            btn:SetPoint("TOPLEFT", lootContent, "TOPLEFT", 0, -y)
-            btn:SetPoint("TOPRIGHT", lootContent, "TOPRIGHT", 0, -y)
-            btn:SetHeight(LOOT_ROW_H)
-
-            btn.itemID               = itemID
-            btn.link                 = link
-
-            -- Wishlist state
-            local isWish             = sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and
-                sfui.dungeonjournal.IsWishlisted(itemID)
-            btn.starBtn.isWishlisted = isWish
-            if isWish then
-                if btn.starBtn.starIcon then
-                    btn.starBtn.starIcon:SetDesaturated(false)
-                    btn.starBtn.starIcon:SetAlpha(1.0)
-                end
-                btn:SetBackdropBorderColor(0.8, 0.27, 1.0, 0.7)
-            else
-                if btn.starBtn.starIcon then
-                    btn.starBtn.starIcon:SetDesaturated(true)
-                    btn.starBtn.starIcon:SetAlpha(0.25)
-                end
-                btn:SetBackdropBorderColor(0.15, 0.15, 0.18, 0.8)
+            local rec = filteredLootRows[shownCount]
+            if not rec then
+                rec = {}
+                filteredLootRows[shownCount] = rec
             end
-
-            local r, g, b = GetQualityColor(quality)
-
-            -- Set Icon & Border
-            btn.iconTex:SetTexture(icon or 134400)
-            btn.iconBtn:SetBackdropBorderColor(r, g, b, 0.8)
-
-            -- Name with quality color
-            btn.nameText:SetText(name or ("item #" .. itemID))
-            btn.nameText:SetTextColor(r, g, b, 1)
-
-            -- Type / Subtype text
-            local slotText = equipSlot and _G[equipSlot] or equipSlot
-            local typeLabel = ""
-            if slotText and subclass and subclass ~= "" then
-                typeLabel = tostring(slotText):lower() .. "  ·  " .. tostring(subclass):lower()
-            elseif slotText then
-                typeLabel = tostring(slotText):lower()
-            elseif subclass then
-                typeLabel = tostring(subclass):lower()
-            elseif class then
-                typeLabel = tostring(class):lower()
-            end
-            if boss.isAll then
-                local source = sfui.dj_camelot and sfui.dj_camelot.GetItemSource and
-                    sfui.dj_camelot.GetItemSource(itemID)
-                if source and source.bossName then
-                    if typeLabel ~= "" then
-                        typeLabel = typeLabel .. "  ·  |cff888888" .. tostring(source.bossName):lower() .. "|r"
-                    else
-                        typeLabel = "|cff888888" .. tostring(source.bossName):lower() .. "|r"
-                    end
-                end
-            end
-            if sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) then
-                local status = sfui.recipes.GetRecipeStatus and sfui.recipes.GetRecipeStatus(itemID)
-                local isAlt = sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(itemID)
-                local badge = ""
-                if status == "KNOWN_CURRENT" or status == "known" then
-                    badge = "  ·  |cff40c040[known]|r"
-                elseif status == "CAN_LEARN_CURRENT" or status == "learnable" then
-                    badge = "  ·  |cff00ff88[learnable]|r"
-                elseif status == "CAN_LEARN_ALT" or isAlt then
-                    badge = "  ·  |cff80c0ff[alt needs]|r"
-                elseif status == "KNOWN_ALT" or status == "alt_known" then
-                    badge = "  ·  |cff80c0ff[alt known]|r"
-                else
-                    badge = "  ·  |cffffa500[recipe]|r"
-                end
-                typeLabel = typeLabel .. badge
-            end
-            local upgEval = sfui.gear and sfui.gear.EvaluateItemUpgrade and sfui.gear.EvaluateItemUpgrade(link or itemID, nil, true)
-            if upgEval and upgEval.isUpgrade then
-                local pctTag = (upgEval.pctGain >= 99.5) and "+upgrade" or string.format("+%.0f%%", upgEval.pctGain)
-                local clr = upgEval.isOffSpec and "|cff66ccff" or "|cff33ff88"
-                local sep = (typeLabel ~= "") and "  ·  " or ""
-                typeLabel = typeLabel .. sep .. clr .. "[" .. pctTag .. "]|r"
-                if not isWish then
-                    btn:SetBackdropBorderColor(0.20, 0.75, 0.45, 0.65)
-                end
-            end
-            if isWish and sfui.dungeonjournal and sfui.dungeonjournal.GetWishlistCharacters then
-                local wishChars = sfui.dungeonjournal.GetWishlistCharacters(itemID)
-                if wishChars and #wishChars > 0 then
-                    typeLabel = typeLabel .. "  ·  |cffcc44ff[" .. table.concat(wishChars, ", ") .. "]|r"
-                end
-            end
-            btn.typeText:SetText(typeLabel)
-
-            -- Drop rate & Level info
-            local reqStr = ""
-            if sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID) then
-                local rec = sfui.recipes.GetRecipe and sfui.recipes.GetRecipe(itemID)
-                if rec and rec.minSkill and rec.minSkill > 0 then
-                    reqStr = "skill " .. rec.minSkill
-                elseif reqLevel and reqLevel > 0 then
-                    reqStr = "req " .. reqLevel
-                end
-            elseif reqLevel and reqLevel > 0 then
-                reqStr = "req " .. reqLevel
-            elseif iLevel and iLevel > 0 then
-                reqStr = "ilvl " .. iLevel
-            end
-
-            if rateStr and reqStr ~= "" then
-                btn.reqText:SetText(string.format("|cff00e5ff%s|r  ·  %s", rateStr, reqStr))
-            elseif rateStr then
-                btn.reqText:SetText(string.format("|cff00e5ff%s|r", rateStr))
-            else
-                btn.reqText:SetText(reqStr)
-            end
-
-            -- Tooltips and Click actions
-            btn:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                local itemLink = ResolveItemLink(self, itemID)
-                if itemLink then
-                    GameTooltip:SetHyperlink(itemLink)
-                else
-                    GameTooltip:SetItemByID(itemID)
-                end
-                local isRecipe = sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
-                if isRecipe then
-                    if sfui.recipes.AddAltKnowledgeLines then
-                        sfui.recipes.AddAltKnowledgeLines(GameTooltip, itemID, true)
-                    end
-                    GameTooltip:AddLine(" ")
-                    local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or
-                        itemID
-                    local isPinned = sfui.recipes.IsRecipePinned and sfui.recipes.IsRecipePinned(sID)
-                    GameTooltip:AddLine("|cff80c0ffctrl-click: open recipe catalogue|r", 0.5, 0.8, 1)
-                    GameTooltip:AddLine(
-                        string.format("|cff00ff88right-click: %s objective tracker|r",
-                            isPinned and "unpin from" or "track in"),
-                        0.2, 1, 0.4)
-                else
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cff888888<shift-click to link · ctrl-click to view>|r", 0.6, 0.6, 0.6)
-                end
-                GameTooltip:Show()
-            end)
-            btn:SetScript("OnLeave", function()
-                GameTooltip:Hide()
-            end)
-
-            btn:SetScript("OnClick", function(self, mouseBtn)
-                local isRecipe = sfui.recipes and sfui.recipes.IsRecipe and sfui.recipes.IsRecipe(itemID)
-                if isRecipe and mouseBtn == "RightButton" then
-                    local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or
-                        itemID
-                    if sfui.recipes.TogglePinRecipe then
-                        sfui.recipes.TogglePinRecipe(sID)
-                        if GameTooltip:IsOwned(self) and self:GetScript("OnEnter") then
-                            self:GetScript("OnEnter")(self)
-                        end
-                        return
-                    end
-                end
-                if isRecipe and mouseBtn == "LeftButton" and _G.IsControlKeyDown and _G.IsControlKeyDown()
-                    and not (_G.IsShiftKeyDown and _G.IsShiftKeyDown())
-                    and not (_G.IsAltKeyDown and _G.IsAltKeyDown()) then
-                    local sID = (sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[itemID]) or
-                        itemID
-                    if sfui.recipes.OpenBrowserToRecipe then
-                        sfui.recipes.OpenBrowserToRecipe(sID)
-                        return
-                    end
-                end
-                if sfui.dungeonjournal and sfui.dungeonjournal.HandleItemClick then
-                    sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
-                end
-            end)
-
-            btn:Show()
-            y = y + LOOT_ROW_H + LOOT_ROW_PAD
+            rec.id         = itemID
+            rec.link       = link
+            rec.name       = name
+            rec.quality    = quality
+            rec.iLevel     = iLevel
+            rec.reqLevel   = reqLevel
+            rec.class      = class
+            rec.subclass   = subclass
+            rec.equipSlot  = equipSlot
+            rec.icon       = icon
+            rec.rateStr    = sortedItem.rateStr
         end
     end
+
+    for i = shownCount + 1, #filteredLootRows do
+        filteredLootRows[i] = nil
+    end
+    filteredLootCount = shownCount
 
     -- Update count badge if filtered
     if bossHeaderFrame and bossHeaderFrame.count and boss and boss.items then
@@ -1115,7 +1310,13 @@ local function RenderLoot(boss, dungeon)
         end
     end
 
-    lootContent:SetHeight(math.max(1, y))
+    local totalH = math.max(1, shownCount * LOOT_ROW_STRIDE)
+    lootContent:SetHeight(totalH)
+    if bossChanged and lootScroll.SetVerticalScroll then
+        lastLootScrollY = 0
+        lootScroll:SetVerticalScroll(0)
+    end
+    RenderVisibleLootRows(true, bossChanged and 0 or nil)
     if lootScroll and lootScroll.ScrollBar and lootScroll.ScrollBar.UpdateVisibility then
         lootScroll.ScrollBar:UpdateVisibility()
     end
@@ -1145,20 +1346,29 @@ local function RefreshBossView()
         btn:SetPoint("TOPRIGHT", bossListContent, "TOPRIGHT", 0, -y)
         btn:SetHeight(BOSS_BTN_H)
 
-        -- Icon
+        -- Icon (cached by displayId)
         local set = false
         if boss.isAll then
+            btn._lastDispID = nil
             btn.icon:SetTexture(boss.icon or (dungeon and dungeon.icon) or 133743)
             btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             set = true
         elseif boss.displayId and SetPortraitTextureFromCreatureDisplayID then
-            local ok = pcall(SetPortraitTextureFromCreatureDisplayID, btn.icon, boss.displayId)
-            if ok and btn.icon:GetTexture() then
-                btn.icon:SetTexCoord(0, 1, 0, 1)
+            if btn._lastDispID == boss.displayId and btn.icon:GetTexture() then
                 set = true
+            else
+                local ok = pcall(SetPortraitTextureFromCreatureDisplayID, btn.icon, boss.displayId)
+                if ok and btn.icon:GetTexture() then
+                    btn._lastDispID = boss.displayId
+                    btn.icon:SetTexCoord(0, 1, 0, 1)
+                    set = true
+                else
+                    btn._lastDispID = nil
+                end
             end
         end
         if not set then
+            btn._lastDispID = nil
             if boss.icon then
                 btn.icon:SetTexture(boss.icon)
                 btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -1168,10 +1378,8 @@ local function RefreshBossView()
             end
         end
 
-        -- Name
         btn.nameText:SetText(boss.name or ("boss #" .. idx))
 
-        -- Level
         if boss.isAll then
             btn.levelText:SetText(boss.subtitle or "all encounters")
         elseif boss.level then
@@ -1180,57 +1388,12 @@ local function RefreshBossView()
             btn.levelText:SetText("boss encounter")
         end
 
-        -- Selection state
-        local isSelected = (idx == selectedBossIndex)
-        if isSelected then
-            btn.nameText:SetTextColor(accent[1], accent[2], accent[3], 1)
-            btn:SetBackdropColor(0.14, 0.14, 0.18, 0.95)
-            btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
-            if btn.icoFrame then
-                btn.icoFrame:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.85)
-            end
-        else
-            btn.nameText:SetTextColor(0.85, 0.85, 0.85, 1)
-            btn:SetBackdropColor(0.08, 0.08, 0.10, 0.0)
-            btn:SetBackdropBorderColor(0, 0, 0, 0)
-            if btn.icoFrame then
-                btn.icoFrame:SetBackdropBorderColor(0.20, 0.20, 0.25, 0.6)
-            end
-        end
+        ApplyBossButtonSelectedStyle(btn, (idx == selectedBossIndex), accent)
 
-        local currentIdx = idx
-        btn:SetScript("OnClick", function()
-            selectedBossIndex = currentIdx
-            DJ_DB().lastBoss = currentIdx
-            RefreshBossView()
-        end)
-
-        -- Wishlist state on boss button
-        btn.bossData = boss
-        btn.bossName = boss.name
+        btn.bossIndex = idx
+        btn.bossData  = boss
+        btn.bossName  = boss.name
         UpdateBossButtonWishlist(btn)
-
-        btn:SetScript("OnEnter", function(self)
-            if self.hasWishlist and self.wishItemCount and self.wishItemCount > 0 then
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(self.bossName or "boss encounter", 1, 0.82, 0)
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine(
-                    string.format(
-                        "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist drop%s (%d)|r",
-                        (self.wishItemCount > 1 and "s" or ""), self.wishItemCount), 1, 1, 1)
-                if self.wishItemNames then
-                    for _, itemName in ipairs(self.wishItemNames) do
-                        GameTooltip:AddLine("  • " .. itemName, 0.85, 0.85, 0.85)
-                    end
-                end
-                GameTooltip:AddLine("click to view encounter loot.", 0.6, 0.6, 0.6, true)
-                GameTooltip:Show()
-            end
-        end)
-        btn:SetScript("OnLeave", function(self)
-            GameTooltip:Hide()
-        end)
 
         btn:Show()
         y = y + BOSS_BTN_H + BOSS_BTN_PAD
@@ -1241,7 +1404,6 @@ local function RefreshBossView()
         bossListScroll.ScrollBar:UpdateVisibility()
     end
 
-    -- Render the currently selected boss loot
     local currentBoss = encounters[selectedBossIndex]
     RenderLoot(currentBoss, dungeon)
 end
@@ -1397,7 +1559,7 @@ local function OnFrameCreated(arg1, arg2)
         GameTooltip:Hide()
         local dungeon = GetCurrentDungeon()
         if not dungeon or not dungeon.bosses or not (sfui.gear and sfui.gear.EvaluateItemUpgrade) then return end
-        local added = 0
+        local toAdd = {}
         local uncached = 0
         local seen = {}
         for _, b in ipairs(dungeon.bosses) do
@@ -1412,10 +1574,20 @@ local function OnFrameCreated(arg1, arg2)
                     else
                         local eval = sfui.gear.EvaluateItemUpgrade(link or id, nil, true)
                         if eval and eval.isUpgrade and not eval.isOffSpec then
-                            if sfui.dungeonjournal and sfui.dungeonjournal.AddWishlistItem and sfui.dungeonjournal.AddWishlistItem(id, true) then
-                                added = added + 1
-                            end
+                            toAdd[#toAdd + 1] = id
                         end
+                    end
+                end
+            end
+        end
+        local added = 0
+        if #toAdd > 0 and sfui.dungeonjournal then
+            if sfui.dungeonjournal.AddWishlistItemsBatch then
+                added = sfui.dungeonjournal.AddWishlistItemsBatch(toAdd, true)
+            elseif sfui.dungeonjournal.AddWishlistItem then
+                for i = 1, #toAdd do
+                    if sfui.dungeonjournal.AddWishlistItem(toAdd[i], true, i < #toAdd) then
+                        added = added + 1
                     end
                 end
             end
@@ -1446,6 +1618,25 @@ local function OnFrameCreated(arg1, arg2)
     filterBar:SetPoint("TOPLEFT", div, "BOTTOMLEFT", 0, -4)
     filterBar:SetPoint("TOPRIGHT", div, "BOTTOMRIGHT", 0, -4)
     filterBar:SetHeight(22)
+
+    ApplyPillStyle = function(pBtn, accent)
+        local key = pBtn.filterKey
+        local isSel = (key == currentLootFilter)
+        local isUsableOnly = (categoryUsableOnly[key] == true)
+        if isSel then
+            pBtn:SetBackdropColor(accent[1], accent[2], accent[3], 0.22)
+            pBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.75)
+            pBtn.label:SetTextColor(accent[1], accent[2], accent[3], 1)
+        elseif isUsableOnly then
+            pBtn:SetBackdropColor(0.12, 0.22, 0.14, 0.6)
+            pBtn:SetBackdropBorderColor(0.25, 0.7, 0.35, 0.75)
+            pBtn.label:SetTextColor(0.4, 0.85, 0.5, 1)
+        else
+            pBtn:SetBackdropColor(0.08, 0.08, 0.10, 0.6)
+            pBtn:SetBackdropBorderColor(0.18, 0.18, 0.22, 0.6)
+            pBtn.label:SetTextColor(0.65, 0.65, 0.7, 1)
+        end
+    end
 
     UpdateFilterPills = function()
         local pal    = theme.GetPalette()
@@ -1479,19 +1670,7 @@ local function OnFrameCreated(arg1, arg2)
             pBtn:SetPoint("LEFT", filterBar, "LEFT", pillX, 0)
             pillX = pillX + btnW + 5
 
-            if isSel then
-                pBtn:SetBackdropColor(accent[1], accent[2], accent[3], 0.22)
-                pBtn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.75)
-                pBtn.label:SetTextColor(accent[1], accent[2], accent[3], 1)
-            elseif isUsableOnly then
-                pBtn:SetBackdropColor(0.12, 0.22, 0.14, 0.6)
-                pBtn:SetBackdropBorderColor(0.25, 0.7, 0.35, 0.75)
-                pBtn.label:SetTextColor(0.4, 0.85, 0.5, 1)
-            else
-                pBtn:SetBackdropColor(0.08, 0.08, 0.10, 0.6)
-                pBtn:SetBackdropBorderColor(0.18, 0.18, 0.22, 0.6)
-                pBtn.label:SetTextColor(0.65, 0.65, 0.7, 1)
-            end
+            ApplyPillStyle(pBtn, accent)
         end
     end
 
@@ -1626,9 +1805,11 @@ local function OnFrameCreated(arg1, arg2)
         end
 
         pBtn:SetScript("OnEnter", pBtn.OnEnterHandler)
-        pBtn:SetScript("OnLeave", function()
+        pBtn:SetScript("OnLeave", function(self)
             GameTooltip:Hide()
-            UpdateFilterPills()
+            local pal = theme.GetPalette()
+            local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
+            ApplyPillStyle(self, accent)
         end)
 
         filterButtons[#filterButtons + 1] = pBtn
@@ -1645,6 +1826,10 @@ local function OnFrameCreated(arg1, arg2)
     lootContent = CreateFrame("Frame", nil, lootScroll)
     lootContent:SetSize(LOOT_SCROLL_W, 1)
     lootScroll:SetScrollChild(lootContent)
+
+    lootScroll:HookScript("OnVerticalScroll", function(_, offset)
+        RenderVisibleLootRows(false, offset)
+    end)
 
     if lootScroll.ScrollBar and common.style_scrollbar then
         common.style_scrollbar(lootScroll.ScrollBar)
@@ -1711,7 +1896,6 @@ end
 
 -- ─── Message & Event Hooks ───────────────────────────────────────────────────
 if sfui.events and sfui.events.RegisterMessage then
-    sfui.events.RegisterMessage("SFUI_DJ_FRAME_CREATED", OnFrameCreated)
     sfui.events.RegisterMessage("SFUI_DJ_CLEAR_CACHE", function()
         itemClassUsableCache = {}
         ReleaseAll(bossButtons)
@@ -1730,7 +1914,6 @@ if sfui.events and sfui.events.RegisterMessage then
         end
     end)
     sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", function()
-        itemClassUsableCache = {}
         if UpdateFilterPills then
             UpdateFilterPills()
         end

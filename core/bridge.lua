@@ -500,10 +500,10 @@ function sfui.gear.GetStatPool(specID, isTank, role)
     if isTank or rLower == "tank" or rLower == "bear" or rLower == "prot" then
         if classID == 1484 then -- Druid Bear Tank (cannot block or parry)
             return { "Arm", "Stam", "Def", "Dodge", "Agi", "Str", "Hit", "AP" }
-        elseif classID == 1486 then -- Paladin Tank (uses shield & SP/healing)
-            return { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "SP", "Hit", "Str" }
+        elseif classID == 1486 then -- Paladin Tank (uses shield & SP/Str)
+            return { "Def", "Stam", "Arm", "SP", "Str", "Block", "Dodge", "Parry", "Hit" }
         else -- Warrior Tank
-            return { "Def", "Stam", "Arm", "Dodge", "Parry", "Block", "Hit", "Str", "Agi" }
+            return { "Def", "Stam", "Arm", "Str", "Hit", "Block", "Dodge", "Parry" }
         end
     end
 

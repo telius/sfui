@@ -18,7 +18,7 @@ if not sfui.isRetail then
     _G["BINDING_NAME_CLICK SfuiClassUtilityBtn:LeftButton"] = "class utility (totems / shards)"
     _G["BINDING_NAME_CLICK SfuiTriageDeleteBtn:LeftButton"] = "triage: delete / purge active item"
     _G["BINDING_NAME_CLICK SfuiPurgeSoulShards:LeftButton"] = "purge excess soul shards"
-    _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "dungeon journal"
+    _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "adventure guide"
     _G["BINDING_NAME_SFUI_MAP_OVERLAY"] = "minimap overlay (arpg)"
 else
     _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "loot browser"

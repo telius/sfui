@@ -111,24 +111,61 @@ local function HasPrimaryStat(itemLink, primaryStatName, specID)
     end
 
     if isClassic and classID then
-        local b = sfui.talents.SPEC_BRIDGE[specID]
-        local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
-        local cRole = (specDB and specDB.classic_role and specDB.classic_role:lower())
-        local isHeal = (cRole == "heal" or cRole == "resto" or cRole == "holy" or cRole == "disc" or (specDB and specDB.is_healer))
-            or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
+        if stats then
+            local b = sfui.talents.SPEC_BRIDGE[specID]
+            local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
+            local rawRole = (specDB and specDB.classic_role) or (sfui.gear and sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, specDB))
+            local cRole = rawRole and rawRole:lower()
+            local isHeal = (cRole == "heal" or cRole == "resto" or cRole == "holy" or cRole == "disc" or (specDB and specDB.is_healer))
+                or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
+            local isTank = (cRole == "tank" or cRole == "bear" or cRole == "prot" or (specDB and (specDB.is_tank or specDB.armor_ilvl_prio)))
+                or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
+            local isCasterDps = (cRole == "moon" or cRole == "ele")
 
-        if classID == 1488 or classID == 1491 or classID == 1485 then -- Rogue, Warrior, Hunter
-            if stats and (stats["ITEM_MOD_INTELLECT_SHORT"] or 0) > 0 and (stats["ITEM_MOD_STRENGTH_SHORT"] or 0) == 0 and (stats["ITEM_MOD_AGILITY_SHORT"] or 0) == 0 and (stats["ITEM_MOD_ATTACK_POWER_SHORT"] or 0) == 0 and (stats["ITEM_MOD_RANGED_ATTACK_POWER_SHORT"] or 0) == 0 then
-                return false
-            end
-        elseif classID == 1482 or classID == 1487 or classID == 1490 then -- Mage, Priest, Warlock
-            if stats and ((stats["ITEM_MOD_STRENGTH_SHORT"] or 0) > 0 or (stats["ITEM_MOD_AGILITY_SHORT"] or 0) > 0) and (stats["ITEM_MOD_INTELLECT_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPELL_POWER_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0) == 0 then
-                return false
-            end
-        elseif isHeal and (classID == 1486 or classID == 1489 or classID == 1484) then -- Paladin, Shaman, Druid in heal mode
-            -- Pure melee items without any spell/healing/intellect/spirit stats should not be valid for heal mode
-            if stats and ((stats["ITEM_MOD_STRENGTH_SHORT"] or 0) > 0 or (stats["ITEM_MOD_AGILITY_SHORT"] or 0) > 0) and (stats["ITEM_MOD_INTELLECT_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPELL_POWER_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0) == 0 and (stats["ITEM_MOD_MANA_REGENERATION_SHORT"] or 0) == 0 and (stats["ITEM_MOD_SPIRIT_SHORT"] or 0) == 0 then
-                return false
+            local strVal  = stats["ITEM_MOD_STRENGTH_SHORT"] or 0
+            local agiVal  = stats["ITEM_MOD_AGILITY_SHORT"] or 0
+            local apVal   = stats["ITEM_MOD_ATTACK_POWER_SHORT"] or 0
+            local rapVal  = stats["ITEM_MOD_RANGED_ATTACK_POWER_SHORT"] or 0
+            local intVal  = stats["ITEM_MOD_INTELLECT_SHORT"] or 0
+            local spVal   = stats["ITEM_MOD_SPELL_POWER_SHORT"] or 0
+            local sdVal   = stats["ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"] or 0
+            local healVal = stats["ITEM_MOD_SPELL_HEALING_DONE_SHORT"] or 0
+            local mp5Val  = stats["ITEM_MOD_MANA_REGENERATION_SHORT"] or 0
+            local spiVal  = stats["ITEM_MOD_SPIRIT_SHORT"] or 0
+
+            local hasPhys = (strVal > 0 or agiVal > 0 or apVal > 0 or rapVal > 0)
+            local hasPhysCombat = hasPhys
+                or (stats["ITEM_MOD_HIT_RATING_SHORT"] or 0) > 0
+                or (stats["ITEM_MOD_CRIT_RATING_SHORT"] or 0) > 0
+                or (stats["ITEM_MOD_DEFENSE_SKILL_RATING_SHORT"] or 0) > 0
+                or (stats["ITEM_MOD_DODGE_RATING_SHORT"] or 0) > 0
+                or (stats["ITEM_MOD_PARRY_RATING_SHORT"] or 0) > 0
+                or (stats["ITEM_MOD_BLOCK_RATING_SHORT"] or 0) > 0
+            local hasSpell = (intVal > 0 or spVal > 0 or sdVal > 0 or healVal > 0 or mp5Val > 0
+                or (stats["ITEM_MOD_CRIT_SPELL_RATING_SHORT"] or 0) > 0
+                or (stats["ITEM_MOD_HIT_SPELL_RATING_SHORT"] or 0) > 0)
+            local hasPureSpellOrSpi = hasSpell or spiVal > 0
+
+            if classID == 1488 or classID == 1491 or classID == 1485 then -- Rogue, Warrior, Hunter
+                if hasPureSpellOrSpi and not hasPhysCombat then
+                    return false
+                end
+            elseif classID == 1482 or classID == 1487 or classID == 1490 or isCasterDps then -- Mage, Priest, Warlock, Moonkin, Elemental
+                if hasPhys and not hasSpell then
+                    return false
+                end
+            elseif isHeal and (classID == 1486 or classID == 1489 or classID == 1484) then -- Paladin, Shaman, Druid in heal mode
+                if hasPhys and not hasPureSpellOrSpi then
+                    return false
+                end
+            elseif isTank and classID == 1486 then -- Protection Paladin (allows SP/SpellDmg + physical/tank stats)
+                if (healVal > 0 or mp5Val > 0 or intVal > 0 or spiVal > 0) and not hasPhysCombat and (spVal == 0 and sdVal == 0) then
+                    return false
+                end
+            elseif classID == 1486 or classID == 1489 or classID == 1484 then -- Ret Paladin, Enhancement Shaman, Cat/Bear Druid
+                if hasPureSpellOrSpi and not hasPhysCombat then
+                    return false
+                end
             end
         end
         return true

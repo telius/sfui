@@ -48,6 +48,7 @@ local math_ceil  = math.ceil
 local math_min   = math.min
 local math_max   = math.max
 local string_format = string.format
+local select     = select
 local ipairs     = ipairs
 local pairs      = pairs
 local next       = next
@@ -170,6 +171,66 @@ local instPinCache     = {}
 local directPinsDirty  = true
 local lastPinCont      = nil
 local lastInstPinCont  = nil
+
+local SURROUND_GLOBAL_KEYS = {
+    "MinimapCompassTexture",
+    "MinimapCompassTextureUnderlay",
+    "sfui_SquareMinimapBackdrop",
+    "sfui_SquareMinimapBronzeOverlay",
+}
+
+local perfState = {
+    cachedHbdPins       = nil,
+    rotateMinimap       = nil,
+    cachedInstID        = nil,
+    uiPanelsHooked      = false,
+    overlayTickReg      = false,
+    refreshingLayout    = false,
+    inTransition        = false,
+    lastAppliedActive   = nil,
+    lastAppliedInter    = nil,
+    lastAppliedWheel    = nil,
+    lastMaskApplied     = nil,
+    prevTileCount       = 0,
+    prevPinCount        = 0,
+    lastQuestMasks      = {},
+    lastQuestCount      = -1,
+    zdb                 = false,
+    areaToMapCache      = {},
+    texPathCache        = {},
+    texPathCacheBase    = nil,
+    scratchVec2         = nil,
+    hbdMouseApplied     = setmetatable({}, { __mode = "k" }),
+    hbdSweptOnce        = false,
+    lastPinPushFacing   = 0,
+    lastPinPushMap      = nil,
+    lastPinPushRad      = nil,
+    lastPinPushRot      = nil,
+    genericChildrenN    = 0,
+    genericChildren     = {},
+    pendingHbdEnter     = false,
+}
+
+local tileScratch = {
+    wx           = 0,
+    wy           = 0,
+    cosF         = 1,
+    sinF         = 0,
+    ppy          = 1,
+    negFacing    = 0,
+    viewRadius   = 100,
+    count        = 0,
+    fnames       = {},
+    texBase      = {},
+    cxs          = {},
+    cys          = {},
+    sides        = {},
+    assignedSlot = {},
+    slotByFname  = {},
+    slotFname    = {},
+    usedSlot     = {},
+    MAX_TILES    = 48,
+}
 
 local alphaState = {
     curCanvas = 0, tgtCanvas = 0, appCanvas = nil,
@@ -348,10 +409,11 @@ update_effective_alphas = function(immediate)
         alphaState.tgtPins   = 0
         alphaState.tgtMini   = 0
     else
+        local combat = in_combat_now()
         local baseAlpha = lastUsingNativeGround
             and (get_opt("overlay_instance_alpha") or 0.35)
             or (get_opt("overlay_alpha") or 0.85)
-        local combatCap = in_combat_now() and (get_opt("overlay_combat_alpha") or 0.22) or 1.0
+        local combatCap = combat and (get_opt("overlay_combat_alpha") or 0.22) or 1.0
         local eff = math_min(baseAlpha, combatCap)
 
         if lastUsingNativeGround then
@@ -360,8 +422,8 @@ update_effective_alphas = function(immediate)
             alphaState.tgtPins   = math_max(0.35, eff)
         else
             alphaState.tgtCanvas = eff
-            alphaState.tgtMini   = in_combat_now() and math_max(0.45, eff) or 1
-            alphaState.tgtPins   = in_combat_now() and math_max(0.45, eff) or 1
+            alphaState.tgtMini   = combat and math_max(0.45, eff) or 1
+            alphaState.tgtPins   = combat and math_max(0.45, eff) or 1
         end
     end
 
@@ -373,35 +435,69 @@ update_effective_alphas = function(immediate)
     end
 end
 
+local function approach(cur, tgt, rate)
+    local diff = tgt - cur
+    if math_abs(diff) <= 0.005 then return tgt end
+    return cur + diff * rate
+end
+
 local function step_alphas(elapsed)
-    local rate = math_min(1, (elapsed or 0.016) * 12)
-    local function approach(cur, tgt)
-        local diff = tgt - cur
-        if math_abs(diff) <= 0.005 then return tgt end
-        return cur + diff * rate
+    if alphaState.curCanvas == alphaState.tgtCanvas
+        and alphaState.curPins == alphaState.tgtPins
+        and alphaState.curMini == alphaState.tgtMini then
+        return
     end
-    alphaState.curCanvas = approach(alphaState.curCanvas, alphaState.tgtCanvas)
-    alphaState.curPins   = approach(alphaState.curPins,   alphaState.tgtPins)
-    alphaState.curMini   = approach(alphaState.curMini,   alphaState.tgtMini)
+    local rate = math_min(1, (elapsed or 0.016) * 12)
+    alphaState.curCanvas = approach(alphaState.curCanvas, alphaState.tgtCanvas, rate)
+    alphaState.curPins   = approach(alphaState.curPins,   alphaState.tgtPins,   rate)
+    alphaState.curMini   = approach(alphaState.curMini,   alphaState.tgtMini,   rate)
     apply_alphas_to_widgets()
 end
 
+local on_overlay_tick
+
+local function sync_overlay_ticker()
+    local ev = sfui.events
+    if not (ev and ev.RegisterUpdate and ev.UnregisterUpdate) then return end
+    local shouldRun = isActive and not panelHidden
+    if shouldRun then
+        if not perfState.overlayTickReg and on_overlay_tick then
+            perfState.overlayTickReg = true
+            ev.RegisterUpdate("MapOverlay", 0.016, on_overlay_tick)
+        end
+    else
+        if perfState.overlayTickReg then
+            perfState.overlayTickReg = false
+            ev.UnregisterUpdate("MapOverlay")
+        end
+    end
+end
+
 local function refresh_panel_visibility()
+    if not isActive then return end
     local nextHidden = has_blocking_panel_open()
     if nextHidden ~= panelHidden then
         panelHidden = nextHidden
         viewCache.dirty = true
         update_effective_alphas(true)
-        if isActive and apply_pin_mouse_state then
+        if apply_pin_mouse_state then
             apply_pin_mouse_state()
         end
+        sync_overlay_ticker()
         sync_compass()
-    elseif nextHidden and isActive then
+        if not panelHidden and update_view then
+            update_view(0)
+        end
+    elseif nextHidden then
         update_effective_alphas(true)
+        sync_overlay_ticker()
     end
 end
 
 local function hook_ui_panels()
+    if not perfState.uiPanelsHooked then
+        perfState.uiPanelsHooked = true
+    end
     for _, name in ipairs(AUTO_HIDE_PANELS) do
         local f = _G[name]
         if f and not hookedPanels[f] and f.HookScript then
@@ -414,13 +510,22 @@ end
 
 -- ── Questie HBD Pin Filter & Mouse/Wheel Control ──────────────────────────────
 local function get_questie_hbd_pins()
-    if not _G.QuestieLoader or not _G.QuestieLoader.ImportModule then return nil end
     local loader = _G.QuestieLoader
+    if not loader or not loader.ImportModule then
+        perfState.cachedHbdLoader = nil
+        perfState.cachedHbdPins = nil
+        return nil
+    end
+    if perfState.cachedHbdLoader == loader and perfState.cachedHbdPins ~= nil then
+        return perfState.cachedHbdPins
+    end
     if loader._modules and not loader._modules["HBDPins"] then
         return nil
     end
     local ok, mod = pcall(loader.ImportModule, loader, "HBDPins")
     if ok and type(mod) == "table" then
+        perfState.cachedHbdLoader = loader
+        perfState.cachedHbdPins = mod
         return mod
     end
     return nil
@@ -470,11 +575,13 @@ local function restore_questie_pin(pin, savedData)
 end
 
 local function sync_questie_hbd_filter(filterMode, fullScan)
+    local hbdMouseApplied = perfState.hbdMouseApplied
     if filterMode == "restore" then
         for pin, savedData in pairs(overlayHiddenQuestiePins) do
             restore_questie_pin(pin, savedData)
-            if pin and pin.EnableMouse and can_modify_region(pin) then
+            if pin and pin.EnableMouse and hbdMouseApplied[pin] ~= true and can_modify_region(pin) then
                 pin:EnableMouse(true)
+                hbdMouseApplied[pin] = true
             end
             overlayHiddenQuestiePins[pin] = nil
         end
@@ -520,8 +627,9 @@ local function sync_questie_hbd_filter(filterMode, fullScan)
             for pin in pairs(src) do
                 if not is_questie_pin_active(pin) then
                     hide_questie_pin(pin)
-                elseif not pin.hidden and pin.EnableMouse and can_modify_region(pin) then
+                elseif not pin.hidden and pin.EnableMouse and hbdMouseApplied[pin] ~= interactive and can_modify_region(pin) then
                     pin:EnableMouse(interactive)
+                    hbdMouseApplied[pin] = interactive
                 end
             end
         end
@@ -600,7 +708,7 @@ local function trigger_minimap_native_hover()
     if Minimap.ZoomOut and Minimap.ZoomOut.Hide then Minimap.ZoomOut:Hide() end
 end
 
-local function trigger_hovered_pin_on_enter(hbdPins, minimapChildren)
+local function trigger_hovered_pin_on_enter(hbdPins, genericCount)
     for _, btn in ipairs(activePinButtons) do
         if btn and btn.IsShown and btn:IsShown() and btn.IsMouseOver and btn:IsMouseOver() then
             if pin_on_enter then
@@ -628,8 +736,10 @@ local function trigger_hovered_pin_on_enter(hbdPins, minimapChildren)
             end
         end
     end
-    if minimapChildren then
-        for _, ch in ipairs(minimapChildren) do
+    if genericCount and genericCount > 0 then
+        local list = perfState.genericChildren
+        for i = 1, genericCount do
+            local ch = list[i]
             if ch and ch.IsShown and ch:IsShown() and ch.IsMouseOver and ch:IsMouseOver() then
                 local onEnter = ch.GetScript and ch:GetScript("OnEnter")
                 if onEnter then
@@ -642,15 +752,51 @@ local function trigger_hovered_pin_on_enter(hbdPins, minimapChildren)
     return false
 end
 
-apply_pin_mouse_state = function()
+local function apply_generic_children_mouse(hbdMap, interactive, collectHover, n, ...)
+    local blocked = false
+    local count = 0
+    local list = perfState.genericChildren
+    for i = 1, n do
+        local ch = select(i, ...)
+        if is_generic_minimap_pin(ch, hbdMap) then
+            if collectHover then
+                count = count + 1
+                list[count] = ch
+            end
+            if ch.EnableMouse then
+                if can_modify_region(ch) then
+                    ch:EnableMouse(interactive)
+                else
+                    blocked = true
+                end
+            end
+        end
+    end
+    for i = count + 1, perfState.genericChildrenN do
+        list[i] = nil
+    end
+    perfState.genericChildrenN = count
+    return blocked, count
+end
+
+apply_pin_mouse_state = function(force)
     local altOpt = get_opt("overlay_alt_interactive") ~= false
     local altNow = is_alt_down_clean()
     local overlayInteractive = (isActive and altOpt and altNow and not panelHidden) and true or false
     local becameInteractive = overlayInteractive and not lastOverlayInteractive
     local leftInteractive = lastOverlayInteractive and not overlayInteractive
-    lastOverlayInteractive = overlayInteractive
     local interactive = (not isActive) or overlayInteractive
     local wheelActive = overlayInteractive
+
+    if not force and not pendingMouseSync
+        and perfState.lastAppliedActive == isActive
+        and perfState.lastAppliedInter == interactive
+        and perfState.lastAppliedWheel == wheelActive
+        and lastOverlayInteractive == overlayInteractive then
+        return false
+    end
+
+    lastOverlayInteractive = overlayInteractive
     local blocked = false
 
     if Minimap then
@@ -689,12 +835,16 @@ apply_pin_mouse_state = function()
     local hbdPins = get_questie_hbd_pins()
     local hbdMap = hbdPins and hbdPins.minimapPins
     if hbdMap then
+        local hbdMouseApplied = perfState.hbdMouseApplied
         for pin in pairs(hbdMap) do
             if pin and pin.EnableMouse then
-                if can_modify_region(pin) then
-                    pin:EnableMouse(interactive)
-                else
-                    blocked = true
+                if force or hbdMouseApplied[pin] ~= interactive then
+                    if can_modify_region(pin) then
+                        pin:EnableMouse(interactive)
+                        hbdMouseApplied[pin] = interactive
+                    else
+                        blocked = true
+                    end
                 end
             end
         end
@@ -706,39 +856,27 @@ apply_pin_mouse_state = function()
 
     for _, btn in ipairs(activePinButtons) do
         if btn then
-            if btn.EnableMouse then
-                if can_modify_region(btn) then
-                    btn:EnableMouse(interactive)
-                else
-                    blocked = true
-                end
+            if btn.EnableMouse and btn._mouseEnabled ~= interactive then
+                btn._mouseEnabled = interactive
+                btn:EnableMouse(interactive)
             end
-            if btn.EnableMouseWheel and can_modify_region(btn) then
+            if btn.EnableMouseWheel and btn._wheelEnabled ~= wheelActive then
+                btn._wheelEnabled = wheelActive
                 btn:EnableMouseWheel(wheelActive)
             end
         end
     end
 
-    local genericChildren = nil
+    local genericCount = 0
     if Minimap and Minimap.GetChildren then
-        local rawChildren = { Minimap:GetChildren() }
-        for _, ch in ipairs(rawChildren) do
-            if is_generic_minimap_pin(ch, hbdMap) then
-                genericChildren = genericChildren or {}
-                genericChildren[#genericChildren + 1] = ch
-                if ch.EnableMouse then
-                    if can_modify_region(ch) then
-                        ch:EnableMouse(interactive)
-                    else
-                        blocked = true
-                    end
-                end
-            end
-        end
+        local chBlocked, chCount = apply_generic_children_mouse(hbdMap, interactive, isActive and becameInteractive, select("#", Minimap:GetChildren()), Minimap:GetChildren())
+        if chBlocked then blocked = true end
+        genericCount = chCount
     end
 
-    if wheelCatcher and wheelCatcher.EnableMouseWheel then
+    if wheelCatcher and wheelCatcher.EnableMouseWheel and wheelCatcher._wheelEnabled ~= wheelActive then
         if can_modify_region(wheelCatcher) then
+            wheelCatcher._wheelEnabled = wheelActive
             wheelCatcher:EnableMouseWheel(wheelActive)
         else
             blocked = true
@@ -746,7 +884,7 @@ apply_pin_mouse_state = function()
     end
 
     if isActive and becameInteractive then
-        if not trigger_hovered_pin_on_enter(hbdPins, genericChildren) then
+        if not trigger_hovered_pin_on_enter(hbdPins, genericCount) then
             trigger_minimap_native_hover()
         end
     elseif leftInteractive then
@@ -759,6 +897,14 @@ apply_pin_mouse_state = function()
     end
 
     pendingMouseSync = blocked
+    if not blocked then
+        perfState.lastAppliedActive = isActive
+        perfState.lastAppliedInter = interactive
+        perfState.lastAppliedWheel = wheelActive
+    else
+        perfState.lastAppliedActive = nil
+    end
+    return true
 end
 
 local function force_hbd_reposition()
@@ -794,6 +940,7 @@ end
 
 -- Direct CVar write so rotateMinimap still switches immediately in combat lockdown.
 local function set_rotate_cvar(val)
+    perfState.rotateMinimap = (val == "1")
     if _G.C_CVar and _G.C_CVar.SetCVar then
         _G.C_CVar.SetCVar("rotateMinimap", val)
     elseif SetCVar then
@@ -810,7 +957,9 @@ local function sync_rotate_cvar(wantRotate)
                 _G.SfuiDB._overlaySavedRotate = cur
             end
         end
-        if get_rotate_cvar() ~= "1" then
+        local cur = get_rotate_cvar()
+        perfState.rotateMinimap = (cur == "1")
+        if cur ~= "1" then
             set_rotate_cvar("1")
         end
     else
@@ -820,9 +969,14 @@ local function sync_rotate_cvar(wantRotate)
             if _G.SfuiDB then
                 _G.SfuiDB._overlaySavedRotate = nil
             end
-            if get_rotate_cvar() ~= restore then
+            local cur = get_rotate_cvar()
+            if cur ~= restore then
                 set_rotate_cvar(restore)
+            else
+                perfState.rotateMinimap = (cur == "1")
             end
+        else
+            perfState.rotateMinimap = (get_rotate_cvar() == "1")
         end
     end
 end
@@ -1010,55 +1164,60 @@ local function hook_hybrid_minimap()
     end)
 end
 
+local function hook_zoom_button(zb)
+    if zb and zb.HookScript then
+        zb:HookScript("OnShow", function(self)
+            if isActive and self.Hide then
+                self:Hide()
+            end
+        end)
+    end
+end
+
 local function hook_minimap_zoom_buttons()
     if zoomButtonsHooked or not Minimap then return end
     if Minimap.ZoomIn or Minimap.ZoomOut then
         zoomButtonsHooked = true
     end
-    for _, zb in ipairs({ Minimap.ZoomIn, Minimap.ZoomOut }) do
-        if zb and zb.HookScript then
-            zb:HookScript("OnShow", function(self)
-                if isActive and self.Hide then
-                    self:Hide()
-                end
-            end)
-        end
+    hook_zoom_button(Minimap.ZoomIn)
+    hook_zoom_button(Minimap.ZoomOut)
+end
+
+local function apply_zoom_button_surround(zb, active)
+    if not zb then return end
+    if zb.SetAlpha then zb:SetAlpha(active and 0 or 1) end
+    if active and zb.Hide then zb:Hide() end
+    if zb.EnableMouse and can_modify_region(zb) then
+        zb:EnableMouse(not active)
     end
 end
 
 local function suppress_blizzard_surround(active)
     hook_minimap_zoom_buttons()
 
-    local frames = {
-        _G.MinimapCompassTexture,
-        _G.MinimapCompassTextureUnderlay,
-        _G.sfui_SquareMinimapBackdrop,
-        _G.sfui_SquareMinimapBronzeOverlay,
-    }
-    if _G.MinimapCluster and _G.MinimapCluster.DielFrame then
-        frames[#frames + 1] = _G.MinimapCluster.DielFrame
-    end
-    for _, f in ipairs(frames) do
-        if f and f.SetAlpha then
-            f:SetAlpha(active and 0 or 1)
+    local a = active and 0 or 1
+    for i = 1, #SURROUND_GLOBAL_KEYS do
+        local f = _G[SURROUND_GLOBAL_KEYS[i]]
+        if f then
+            if f.SetAlpha then f:SetAlpha(a) end
+            if active and f.EnableMouse and can_modify_region(f) then
+                f:EnableMouse(false)
+            end
         end
-        if f and f.EnableMouse and active and can_modify_region(f) then
-            f:EnableMouse(false)
+    end
+    local diel = _G.MinimapCluster and _G.MinimapCluster.DielFrame
+    if diel then
+        if diel.SetAlpha then diel:SetAlpha(a) end
+        if active and diel.EnableMouse and can_modify_region(diel) then
+            diel:EnableMouse(false)
         end
     end
 
     if Minimap then
-        for _, zb in ipairs({ Minimap.ZoomIn, Minimap.ZoomOut }) do
-            if zb then
-                if zb.SetAlpha then zb:SetAlpha(active and 0 or 1) end
-                if active and zb.Hide then zb:Hide() end
-                if zb.EnableMouse and can_modify_region(zb) then
-                    zb:EnableMouse(not active)
-                end
-            end
-        end
+        apply_zoom_button_surround(Minimap.ZoomIn, active)
+        apply_zoom_button_surround(Minimap.ZoomOut, active)
         if Minimap.ZoomHitArea then
-            if Minimap.ZoomHitArea.SetAlpha then Minimap.ZoomHitArea:SetAlpha(active and 0 or 1) end
+            if Minimap.ZoomHitArea.SetAlpha then Minimap.ZoomHitArea:SetAlpha(a) end
             if Minimap.ZoomHitArea.EnableMouse and can_modify_region(Minimap.ZoomHitArea) then
                 Minimap.ZoomHitArea:EnableMouse(not active)
             end
@@ -1106,7 +1265,7 @@ local function hook_minimap_cluster()
     if not cluster or not cluster.UpdateMinimapConfig or not _G.hooksecurefunc then return end
     clusterHooked = true
     _G.hooksecurefunc(cluster, "UpdateMinimapConfig", function()
-        if isActive then
+        if isActive and not perfState.refreshingLayout and not perfState.inTransition then
             apply_overlay_mask()
             refresh_canvas_layout()
         end
@@ -1299,22 +1458,51 @@ local function get_player_world_state()
         end
     end
 
-    if (not wx or not wy) and bestMapID and _G.C_Map and _G.C_Map.GetPlayerMapPosition and _G.C_Map.GetWorldPosFromMapPos then
-        local pos = _G.C_Map.GetPlayerMapPosition(bestMapID, "player")
-        if pos and not is_secret(pos) and pos.GetXY then
-            local c, wpos = _G.C_Map.GetWorldPosFromMapPos(bestMapID, pos)
-            if c ~= nil and wpos ~= nil and not is_secret(c) and not is_secret(wpos) and wpos.GetXY then
-                local pwX, pwY = wpos:GetXY()
-                if pwX ~= nil and pwY ~= nil and not is_secret(pwX) and not is_secret(pwY) then
-                    wx, wy, cont = pwX, pwY, c
+    local inInst = sfui.state and sfui.state.Is and sfui.state.Is("inInstance")
+    if inInst == nil and IsInInstance then
+        local r = IsInInstance()
+        inInst = (not is_secret(r)) and (r and true or false) or false
+    end
+
+    if not wx or not wy then
+        local instID = perfState.cachedInstID
+        if inInst and instID == nil and GetInstanceInfo then
+            local _, _, _, _, _, _, _, iid = GetInstanceInfo()
+            if iid ~= nil and not is_secret(iid) and type(iid) == "number" and iid > 0 then
+                instID = iid
+                perfState.cachedInstID = iid
+            end
+        end
+        if cont == nil and instID then
+            cont = instID
+        end
+
+        local data = get_map_data()
+        local isUnmappedInst = inInst and (not data or not data.instances or not instID or data.instances[instID] == nil)
+        if not isUnmappedInst and bestMapID and _G.C_Map and _G.C_Map.GetPlayerMapPosition and _G.C_Map.GetWorldPosFromMapPos then
+            local pos = _G.C_Map.GetPlayerMapPosition(bestMapID, "player")
+            if pos and not is_secret(pos) and pos.GetXY then
+                local c, wpos = _G.C_Map.GetWorldPosFromMapPos(bestMapID, pos)
+                if c ~= nil and wpos ~= nil and not is_secret(c) and not is_secret(wpos) and wpos.GetXY then
+                    local pwX, pwY = wpos:GetXY()
+                    if pwX ~= nil and pwY ~= nil and not is_secret(pwX) and not is_secret(pwY) then
+                        wx, wy, cont = pwX, pwY, c
+                    end
                 end
             end
         end
     end
 
     if cont == nil and GetInstanceInfo then
-        local _, _, _, _, _, _, _, instID = GetInstanceInfo()
-        if instID ~= nil and not is_secret(instID) and type(instID) == "number" and instID > 0 then
+        local instID = perfState.cachedInstID
+        if instID == nil then
+            local _, _, _, _, _, _, _, iid = GetInstanceInfo()
+            if iid ~= nil and not is_secret(iid) and type(iid) == "number" and iid > 0 then
+                instID = iid
+                perfState.cachedInstID = iid
+            end
+        end
+        if instID then
             cont = instID
         end
     end
@@ -1325,16 +1513,14 @@ local function get_player_world_state()
         if is_secret(z) or type(z) ~= "number" then z = 0 end
         local rawIndoors = IsIndoors and IsIndoors()
         local indoors = (not is_secret(rawIndoors)) and rawIndoors or false
-        local inInst = sfui.state and sfui.state.Is and sfui.state.Is("inInstance")
-        if inInst == nil and IsInInstance then
-            local r = IsInInstance()
-            inInst = (not is_secret(r)) and (r and true or false) or false
-        end
         if inInst then indoors = true end
         viewRadius = (indoors and ZOOM_RADII_INDOOR[z] or ZOOM_RADII_OUTDOOR[z]) or 100
     end
 
-    local rotate = (get_rotate_cvar() == "1")
+    if perfState.rotateMinimap == nil then
+        perfState.rotateMinimap = (get_rotate_cvar() == "1")
+    end
+    local rotate = perfState.rotateMinimap
     local facing = 0
     if rotate and GetPlayerFacing then
         local f = GetPlayerFacing()
@@ -1347,6 +1533,7 @@ local function get_player_world_state()
 end
 
 local function refresh_nav_targets()
+    if not isActive then return end
     local newWP = nil
     local cMap = _G.C_Map
     if cMap and cMap.GetUserWaypoint and cMap.GetWorldPosFromMapPos then
@@ -1469,9 +1656,84 @@ local function get_quest_revision()
     return qCount
 end
 
+local QDB_FIELDS = { "name", "objectives", "finishedBy", "triggerEnd" }
+local REBUILD_CLUSTER_DIST_SQ = 32 * 32
+local REBUILD_MAX_COORDS = 16
+local REBUILD_MAX_CLUSTERS = 6
+local scratchByType = {
+    monster = {},
+    object  = {},
+    item    = {},
+    event   = {},
+}
+
+local function compute_quest_mask(qid, isComplete)
+    local mask = isComplete and 1 or 0
+    local rawObjs = _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives and _G.C_QuestLog.GetQuestObjectives(qid)
+    if type(rawObjs) == "table" and not is_secret(rawObjs) then
+        local bitVal = 2
+        for i = 1, #rawObjs do
+            local o = rawObjs[i]
+            if type(o) == "table" and not is_secret(o) then
+                local fin = o.finished
+                if not is_secret(fin) and fin == true then
+                    mask = mask + bitVal
+                end
+            end
+            bitVal = bitVal * 2
+        end
+    end
+    return mask
+end
+
+local function has_quest_pin_state_changed(inLog)
+    local lastMasks = perfState.lastQuestMasks
+    local count = 0
+    local changed = false
+    for qid, entry in pairs(inLog) do
+        count = count + 1
+        local mask = compute_quest_mask(qid, entry.isComplete)
+        if lastMasks[qid] ~= mask then
+            changed = true
+            lastMasks[qid] = mask
+        end
+    end
+    if count ~= perfState.lastQuestCount then
+        changed = true
+        perfState.lastQuestCount = count
+        for qid in pairs(lastMasks) do
+            if not inLog[qid] then
+                lastMasks[qid] = nil
+            end
+        end
+    end
+    return changed
+end
+
+local function sync_quest_pin_dirty()
+    if directPinsDirty then return true end
+    local inLog = get_active_quests_map()
+    if has_quest_pin_state_changed(inLog) then
+        directPinsDirty = true
+        hbdFilterDirty = true
+        lastInstPinCont = nil
+        return true
+    end
+    return false
+end
+
 local function project_zone_percent_to_world(uiMapID, xPct, yPct, expectedCont)
     if not (_G.C_Map and _G.C_Map.GetWorldPosFromMapPos and CreateVector2D) then return nil, nil end
-    local c, wpos = _G.C_Map.GetWorldPosFromMapPos(uiMapID, CreateVector2D(xPct / 100, yPct / 100))
+    local vec = perfState.scratchVec2
+    if vec and vec.SetXY then
+        vec:SetXY(xPct * 0.01, yPct * 0.01)
+    else
+        vec = CreateVector2D(xPct * 0.01, yPct * 0.01)
+        if vec and vec.SetXY then
+            perfState.scratchVec2 = vec
+        end
+    end
+    local c, wpos = _G.C_Map.GetWorldPosFromMapPos(uiMapID, vec)
     if c == nil or not wpos or is_secret(c) or is_secret(wpos) or not wpos.GetXY then return nil, nil end
     if expectedCont ~= nil and c ~= expectedCont then return nil, nil end
     local wx, wy = wpos:GetXY()
@@ -1480,18 +1742,33 @@ local function project_zone_percent_to_world(uiMapID, xPct, yPct, expectedCont)
 end
 
 local function resolve_area_to_uimap(areaId, subToUi)
+    local cached = perfState.areaToMapCache[areaId]
+    if cached ~= nil then
+        return cached or nil
+    end
     local m = subToUi and subToUi[areaId]
-    if m and m > 0 then return m end
+    if m and m > 0 then
+        perfState.areaToMapCache[areaId] = m
+        return m
+    end
     local loader = _G.QuestieLoader
     if loader and loader._modules and loader._modules["ZoneDB"] and loader.ImportModule then
-        local ok, zdb = pcall(loader.ImportModule, loader, "ZoneDB")
-        if ok and zdb and zdb.GetUiMapIdByAreaId then
+        local zdb = perfState.zdb
+        if perfState.zdbLoader ~= loader then
+            local ok, mod = pcall(loader.ImportModule, loader, "ZoneDB")
+            zdb = (ok and mod) or false
+            perfState.zdb = zdb
+            perfState.zdbLoader = loader
+        end
+        if zdb and zdb.GetUiMapIdByAreaId then
             local zm = zdb:GetUiMapIdByAreaId(areaId)
             if type(zm) == "number" and zm > 0 then
+                perfState.areaToMapCache[areaId] = zm
                 return zm
             end
         end
     end
+    perfState.areaToMapCache[areaId] = false
     return nil
 end
 
@@ -1500,6 +1777,63 @@ local function get_player_faction_code()
         or (UnitFactionGroup and UnitFactionGroup("player"))
     if is_secret(faction) then return "AH" end
     return (faction == "Alliance" and "A") or (faction == "Horde" and "H") or "AH"
+end
+
+local function add_clustered_spawns(spawns, icon, title, subtitle, kind, size, clusterBase, activeCont, subToUi)
+    if type(spawns) ~= "table" then return end
+    for areaId, list in pairs(spawns) do
+        local uiMapID = resolve_area_to_uimap(areaId, subToUi)
+        if uiMapID and type(list) == "table" then
+            local limit = math_min(#list, REBUILD_MAX_COORDS)
+            for i = 1, limit do
+                local coord = list[i]
+                if type(coord) == "table" and coord[1] and coord[2] then
+                    local pwx, pwy = project_zone_percent_to_world(uiMapID, coord[1], coord[2], activeCont)
+                    if pwx and pwy then
+                        local merged = false
+                        for j = clusterBase, #directPinCache do
+                            local cPin = directPinCache[j]
+                            local dx = pwx - cPin.wx
+                            local dy = pwy - cPin.wy
+                            if (dx * dx + dy * dy) <= REBUILD_CLUSTER_DIST_SQ then
+                                local n = cPin._count + 1
+                                cPin.wx = cPin.wx + (dx / n)
+                                cPin.wy = cPin.wy + (dy / n)
+                                cPin._count = n
+                                merged = true
+                                break
+                            end
+                        end
+                        if (not merged) and ((#directPinCache - clusterBase + 1) < REBUILD_MAX_CLUSTERS) then
+                            local rec = new_pin_record()
+                            rec.wx = pwx
+                            rec.wy = pwy
+                            rec.icon = icon
+                            rec.title = title
+                            rec.subtitle = subtitle
+                            rec.kind = kind
+                            rec.size = size or 15
+                            rec._count = 1
+                            directPinCache[#directPinCache + 1] = rec
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function is_obj_done(byType, kindKey, idx, total)
+    if not byType then return false end
+    local arr = byType[kindKey]
+    if not arr or #arr == 0 then return false end
+    if #arr == total then
+        return arr[idx] == true
+    end
+    for k = 1, #arr do
+        if not arr[k] then return false end
+    end
+    return true
 end
 
 local function rebuild_direct_pins(activeCont)
@@ -1514,60 +1848,14 @@ local function rebuild_direct_pins(activeCont)
     if not (data and QuestDB and NpcDB and ObjectDB and activeCont ~= nil) then return end
 
     local inLog = get_active_quests_map()
+    has_quest_pin_state_changed(inLog)
     if next(inLog) == nil then return end
 
     local ItemDB = _G.ItemDB
     local subToUi = data.subZoneToUiMapId or {}
-    local CLUSTER_DIST_SQ = 32 * 32
-    local MAX_COORDS = 16
-    local MAX_CLUSTERS = 6
-
-    local function add_clustered_spawns(spawns, icon, title, subtitle, kind, size, clusterBase)
-        if type(spawns) ~= "table" then return end
-        for areaId, list in pairs(spawns) do
-            local uiMapID = resolve_area_to_uimap(areaId, subToUi)
-            if uiMapID and type(list) == "table" then
-                local limit = math_min(#list, MAX_COORDS)
-                for i = 1, limit do
-                    local coord = list[i]
-                    if type(coord) == "table" and coord[1] and coord[2] then
-                        local pwx, pwy = project_zone_percent_to_world(uiMapID, coord[1], coord[2], activeCont)
-                        if pwx and pwy then
-                            local merged = false
-                            for j = clusterBase, #directPinCache do
-                                local cPin = directPinCache[j]
-                                local dx = pwx - cPin.wx
-                                local dy = pwy - cPin.wy
-                                if (dx * dx + dy * dy) <= CLUSTER_DIST_SQ then
-                                    local n = cPin._count + 1
-                                    cPin.wx = cPin.wx + (dx / n)
-                                    cPin.wy = cPin.wy + (dy / n)
-                                    cPin._count = n
-                                    merged = true
-                                    break
-                                end
-                            end
-                            if (not merged) and ((#directPinCache - clusterBase + 1) < MAX_CLUSTERS) then
-                                local rec = new_pin_record()
-                                rec.wx = pwx
-                                rec.wy = pwy
-                                rec.icon = icon
-                                rec.title = title
-                                rec.subtitle = subtitle
-                                rec.kind = kind
-                                rec.size = size or 15
-                                rec._count = 1
-                                directPinCache[#directPinCache + 1] = rec
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
 
     for qid, entry in pairs(inLog) do
-        local qRow = QuestDB.GetAll(qid, { "name", "objectives", "finishedBy", "triggerEnd" })
+        local qRow = QuestDB.GetAll(qid, QDB_FIELDS)
         local qTitle = (qRow and qRow[1]) or entry.title or ("quest #" .. tostring(qid))
 
         if entry.isComplete then
@@ -1578,7 +1866,7 @@ local function rebuild_direct_pins(activeCont)
                         local base = #directPinCache + 1
                         local sp = NpcDB.spawns and NpcDB.spawns(nid)
                         local nm = (NpcDB.name and NpcDB.name(nid)) or "npc"
-                        add_clustered_spawns(sp, ICON_QUEST_TURNIN, qTitle, nm .. " (turn-in)", "turnin", 17, base)
+                        add_clustered_spawns(sp, ICON_QUEST_TURNIN, qTitle, nm .. " (turn-in)", "turnin", 17, base, activeCont, subToUi)
                     end
                 end
                 if type(fin[2]) == "table" then
@@ -1586,7 +1874,7 @@ local function rebuild_direct_pins(activeCont)
                         local base = #directPinCache + 1
                         local sp = ObjectDB.spawns and ObjectDB.spawns(oid)
                         local nm = (ObjectDB.name and ObjectDB.name(oid)) or "object"
-                        add_clustered_spawns(sp, ICON_QUEST_TURNIN, qTitle, nm .. " (turn-in)", "turnin", 17, base)
+                        add_clustered_spawns(sp, ICON_QUEST_TURNIN, qTitle, nm .. " (turn-in)", "turnin", 17, base, activeCont, subToUi)
                     end
                 end
             end
@@ -1594,7 +1882,11 @@ local function rebuild_direct_pins(activeCont)
             local byType = nil
             local rawObjs = _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives and _G.C_QuestLog.GetQuestObjectives(qid)
             if type(rawObjs) == "table" and not is_secret(rawObjs) then
-                byType = { monster = {}, object = {}, item = {}, event = {} }
+                byType = scratchByType
+                for i = 1, #byType.monster do byType.monster[i] = nil end
+                for i = 1, #byType.object do byType.object[i] = nil end
+                for i = 1, #byType.item do byType.item[i] = nil end
+                for i = 1, #byType.event do byType.event[i] = nil end
                 for _, o in ipairs(rawObjs) do
                     if type(o) == "table" and not is_secret(o) then
                         local ot = o.type
@@ -1607,30 +1899,17 @@ local function rebuild_direct_pins(activeCont)
                 end
             end
 
-            local function is_obj_done(kindKey, idx, total)
-                if not byType then return false end
-                local arr = byType[kindKey]
-                if not arr or #arr == 0 then return false end
-                if #arr == total then
-                    return arr[idx] == true
-                end
-                for k = 1, #arr do
-                    if not arr[k] then return false end
-                end
-                return true
-            end
-
             local objsGrp = qRow and qRow[2]
             if type(objsGrp) == "table" then
                 if type(objsGrp[1]) == "table" then
                     local total = #objsGrp[1]
                     for idx, pair in ipairs(objsGrp[1]) do
                         local nid = type(pair) == "table" and pair[1]
-                        if nid and not is_obj_done("monster", idx, total) then
+                        if nid and not is_obj_done(byType, "monster", idx, total) then
                             local base = #directPinCache + 1
                             local sp = NpcDB.spawns and NpcDB.spawns(nid)
                             local nName = (pair[2] and pair[2] ~= "" and pair[2]) or (NpcDB.name and NpcDB.name(nid)) or qTitle
-                            add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, nName, "objective", 14, base)
+                            add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, nName, "objective", 14, base, activeCont, subToUi)
                         end
                     end
                 end
@@ -1638,11 +1917,11 @@ local function rebuild_direct_pins(activeCont)
                     local total = #objsGrp[2]
                     for idx, pair in ipairs(objsGrp[2]) do
                         local oid = type(pair) == "table" and pair[1]
-                        if oid and not is_obj_done("object", idx, total) then
+                        if oid and not is_obj_done(byType, "object", idx, total) then
                             local base = #directPinCache + 1
                             local sp = ObjectDB.spawns and ObjectDB.spawns(oid)
                             local oName = (pair[2] and pair[2] ~= "" and pair[2]) or (ObjectDB.name and ObjectDB.name(oid)) or qTitle
-                            add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, oName, "objective", 14, base)
+                            add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, oName, "objective", 14, base, activeCont, subToUi)
                         end
                     end
                 end
@@ -1650,21 +1929,21 @@ local function rebuild_direct_pins(activeCont)
                     local total = #objsGrp[3]
                     for idx, pair in ipairs(objsGrp[3]) do
                         local itemId = type(pair) == "table" and pair[1]
-                        if itemId and not is_obj_done("item", idx, total) then
+                        if itemId and not is_obj_done(byType, "item", idx, total) then
                             local base = #directPinCache + 1
                             local itemName = (pair[2] and pair[2] ~= "" and pair[2]) or (ItemDB.name and ItemDB.name(itemId)) or qTitle
                             local npcs = ItemDB.npcDrops and ItemDB.npcDrops(itemId)
                             if type(npcs) == "table" then
                                 for i = 1, math_min(#npcs, 4) do
                                     local sp = NpcDB.spawns and NpcDB.spawns(npcs[i])
-                                    add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, itemName, "objective", 14, base)
+                                    add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, itemName, "objective", 14, base, activeCont, subToUi)
                                 end
                             end
                             local objs = ItemDB.objectDrops and ItemDB.objectDrops(itemId)
                             if type(objs) == "table" then
                                 for i = 1, math_min(#objs, 4) do
                                     local sp = ObjectDB.spawns and ObjectDB.spawns(objs[i])
-                                    add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, itemName, "objective", 14, base)
+                                    add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, itemName, "objective", 14, base, activeCont, subToUi)
                                 end
                             end
                         end
@@ -1673,7 +1952,7 @@ local function rebuild_direct_pins(activeCont)
                 if type(objsGrp[5]) == "table" then
                     local total = #objsGrp[5]
                     for idx, tup in ipairs(objsGrp[5]) do
-                        if type(tup) == "table" and type(tup[1]) == "table" and not is_obj_done("monster", idx, total) then
+                        if type(tup) == "table" and type(tup[1]) == "table" and not is_obj_done(byType, "monster", idx, total) then
                             local base = #directPinCache + 1
                             local kName = (tup[3] and tup[3] ~= "" and tup[3])
                                 or (tup[2] and NpcDB.name and NpcDB.name(tup[2]))
@@ -1681,7 +1960,7 @@ local function rebuild_direct_pins(activeCont)
                             local ids = tup[1]
                             for i = 1, math_min(#ids, 6) do
                                 local sp = NpcDB.spawns and NpcDB.spawns(ids[i])
-                                add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, kName, "objective", 14, base)
+                                add_clustered_spawns(sp, ICON_OBJECTIVE, qTitle, kName, "objective", 14, base, activeCont, subToUi)
                             end
                         end
                     end
@@ -1689,9 +1968,9 @@ local function rebuild_direct_pins(activeCont)
             end
 
             local trig = qRow and qRow[4]
-            if type(trig) == "table" and type(trig[2]) == "table" and not is_obj_done("event", 1, 1) then
+            if type(trig) == "table" and type(trig[2]) == "table" and not is_obj_done(byType, "event", 1, 1) then
                 local base = #directPinCache + 1
-                add_clustered_spawns(trig[2], ICON_OBJECTIVE, qTitle, trig[1] or "explore", "objective", 14, base)
+                add_clustered_spawns(trig[2], ICON_OBJECTIVE, qTitle, trig[1] or "explore", "objective", 14, base, activeCont, subToUi)
             end
         end
     end
@@ -1748,9 +2027,13 @@ local function acquire_tile(idx)
         tex = canvasFrame:CreateTexture(nil, "ARTWORK")
         tex:SetTexCoord(0, 1, 0, 1)
         tex:AddMaskTexture(radialMask)
+        tex._shown = false
         tilePool[idx] = tex
     end
-    tex:Show()
+    if not tex._shown then
+        tex._shown = true
+        tex:Show()
+    end
     return tex
 end
 
@@ -1770,8 +2053,12 @@ pin_on_enter = function(self)
         tip:SetFrameStrata("TOOLTIP")
     end
     tip:SetText(tostring(self.pinTitle or "pin"):lower(), 1, 0.85, 0.25)
-    if self.pinSubtitle and self.pinSubtitle ~= "" then
-        tip:AddLine(tostring(self.pinSubtitle):lower(), 0.85, 0.85, 0.85, true)
+    local sub = self.pinSubtitle
+    if (not sub or sub == "") and self.pinDistYds ~= nil then
+        sub = string_format("%d yd", math_floor(self.pinDistYds + 0.5))
+    end
+    if sub and sub ~= "" then
+        tip:AddLine(tostring(sub):lower(), 0.85, 0.85, 0.85, true)
     end
     tip:Show()
 end
@@ -1795,6 +2082,8 @@ local function acquire_pin_button(idx, interactive, wheelActive)
     if not btn then
         btn = CreateFrame("Button", nil, pinFrame)
         btn:SetSize(16, 16)
+        btn._lastSize = 16
+        btn._shown = false
         btn.tex = btn:CreateTexture(nil, "OVERLAY")
         btn.tex:SetAllPoints(btn)
         btn:SetScript("OnEnter", pin_on_enter)
@@ -1802,11 +2091,20 @@ local function acquire_pin_button(idx, interactive, wheelActive)
         btn:SetScript("OnMouseWheel", handle_overlay_wheel)
         pinPool[idx] = btn
     end
-    if can_modify_region(btn) then
-        if btn.EnableMouse then btn:EnableMouse(interactive and true or false) end
-        if btn.EnableMouseWheel then btn:EnableMouseWheel(wheelActive and true or false) end
+    local wantMouse = interactive and true or false
+    local wantWheel = wheelActive and true or false
+    if btn.EnableMouse and btn._mouseEnabled ~= wantMouse then
+        btn._mouseEnabled = wantMouse
+        btn:EnableMouse(wantMouse)
     end
-    btn:Show()
+    if btn.EnableMouseWheel and btn._wheelEnabled ~= wantWheel then
+        btn._wheelEnabled = wantWheel
+        btn:EnableMouseWheel(wantWheel)
+    end
+    if not btn._shown then
+        btn._shown = true
+        btn:Show()
+    end
     activePinButtons[idx] = btn
     return btn
 end
@@ -1827,7 +2125,7 @@ local function set_pin_texture(btn, iconPath, tc, rot, r, g, b, a)
         btn._lastTC1, btn._lastTC2, btn._lastTC3, btn._lastTC4 = tc1, tc2, tc3, tc4
         t:SetTexCoord(tc1, tc2, tc3, tc4)
     end
-    if btn._lastRot ~= rot and t.SetRotation then
+    if (btn._lastRot == nil or math_abs(btn._lastRot - rot) > 0.0005) and t.SetRotation then
         btn._lastRot = rot
         t:SetRotation(rot)
     end
@@ -1840,30 +2138,54 @@ local function set_pin_texture(btn, iconPath, tc, rot, r, g, b, a)
     end
 end
 
+local function set_pin_geometry(btn, pSize, px, py, alpha)
+    if btn._lastSize == nil or math_abs(btn._lastSize - pSize) > 0.02 then
+        btn._lastSize = pSize
+        btn:SetSize(pSize, pSize)
+    end
+    if btn._lastX == nil or math_abs(btn._lastX - px) > 0.02 or math_abs(btn._lastY - py) > 0.02 then
+        btn._lastX = px
+        btn._lastY = py
+        btn:SetPoint("CENTER", pinFrame, "CENTER", px, py)
+    end
+    if btn._lastAlpha == nil or math_abs(btn._lastAlpha - alpha) > 0.005 then
+        btn._lastAlpha = alpha
+        btn:SetAlpha(alpha)
+    end
+end
+
 local function project_pin_list(pinList, pinIdx, interactive, wheelActive, pinScale, wx, wy, cosF, sinF, ppy, viewRadius, defaultIcon, defaultSize)
-    for _, p in ipairs(pinList) do
+    local maxR = 0.96 * viewRadius
+    local maxRSq = maxR * maxR
+    for i = 1, #pinList do
+        local p = pinList[i]
         local dx = wy - p.wy
-        local dy = wx - p.wx
-        local rx = dx * cosF - dy * sinF
-        local ry = dx * sinF + dy * cosF
-        local normR = math_sqrt(rx * rx + ry * ry) / viewRadius
-        if normR <= 0.96 then
-            pinIdx = pinIdx + 1
-            local btn = acquire_pin_button(pinIdx, interactive, wheelActive)
-            local pSize = (p.size or defaultSize or 16) * pinScale
-            btn:SetSize(pSize, pSize)
-            set_pin_texture(btn, p.icon or defaultIcon, p.tc, 0, 1, 1, 1, 1)
-            btn.pinTitle = p.title
-            btn.pinSubtitle = p.subtitle
-            btn:ClearAllPoints()
-            btn:SetPoint("CENTER", pinFrame, "CENTER", rx * ppy, -ry * ppy)
-            local alpha = 1
-            if normR > 0.80 then
-                alpha = math_max(0, 1 - (normR - 0.80) / 0.16)
-            elseif normR < 0.08 then
-                alpha = 0.55 + 0.45 * (normR / 0.08)
+        if math_abs(dx) <= maxR then
+            local dy = wx - p.wx
+            if math_abs(dy) <= maxR then
+                local distSq = dx * dx + dy * dy
+                if distSq <= maxRSq then
+                    local rx = dx * cosF - dy * sinF
+                    local ry = dx * sinF + dy * cosF
+                    local normR = math_sqrt(distSq) / viewRadius
+                    pinIdx = pinIdx + 1
+                    local btn = acquire_pin_button(pinIdx, interactive, wheelActive)
+                    local pSize = (p.size or defaultSize or 16) * pinScale
+                    set_pin_texture(btn, p.icon or defaultIcon, p.tc, 0, 1, 1, 1, 1)
+                    btn.pinTitle = p.title
+                    btn.pinSubtitle = p.subtitle
+                    btn.pinDistYds = nil
+                    btn._lastDistYd = nil
+                    btn._lastKind = nil
+                    local alpha = 1
+                    if normR > 0.80 then
+                        alpha = math_max(0, 1 - (normR - 0.80) / 0.16)
+                    elseif normR < 0.08 then
+                        alpha = 0.55 + 0.45 * (normR / 0.08)
+                    end
+                    set_pin_geometry(btn, pSize, rx * ppy, -ry * ppy, alpha)
+                end
             end
-            btn:SetAlpha(alpha)
         end
     end
     return pinIdx
@@ -1905,13 +2227,16 @@ local function project_nav_marker(target, cont, pinIdx, interactive, wheelActive
         end
     end
 
-    btn:SetSize(pSize, pSize)
     set_pin_texture(btn, iconPath, nil, rot, target.r, target.g, target.b, 1)
     btn.pinTitle = target.title
-    btn.pinSubtitle = string_format("%d yd", math_floor(distYds + 0.5))
-    btn:ClearAllPoints()
-    btn:SetPoint("CENTER", pinFrame, "CENTER", px, py)
-    btn:SetAlpha(0.95)
+    btn.pinDistYds = distYds
+    local distRounded = math_floor(distYds + 0.5)
+    if btn._lastDistYd ~= distRounded or btn._lastKind ~= target.kind then
+        btn._lastDistYd = distRounded
+        btn._lastKind = target.kind
+        btn.pinSubtitle = string_format("%d yd", distRounded)
+    end
+    set_pin_geometry(btn, pSize, px, py, 0.95)
     return pinIdx
 end
 
@@ -1920,10 +2245,162 @@ local function update_hbd_filter_throttled(targetHbdFilter, elapsed)
     if hbdFilterDirty or hbdFilterModeApplied ~= targetHbdFilter then
         sync_questie_hbd_filter(targetHbdFilter, true)
         hbdFilterAccum = 0
-    elseif hbdFilterAccum >= 0.5 then
+    elseif hbdFilterAccum >= 1.5 then
         sync_questie_hbd_filter(targetHbdFilter, false)
         hbdFilterAccum = 0
     end
+end
+
+local function collect_tile(texBase, texName, cx, cy, sideYards)
+    local ts = tileScratch
+    local n = ts.count + 1
+    if n > ts.MAX_TILES then return end
+    ts.count = n
+    ts.fnames[n] = texName
+    ts.texBase[n] = texBase
+    ts.cxs[n] = cx
+    ts.cys[n] = cy
+    ts.sides[n] = sideYards
+end
+
+local function collect_grid(texBase, tiles, maxX, maxY, cols, rows, step, stride)
+    if not tiles then return end
+    local ts = tileScratch
+    local wx, wy = ts.wx, ts.wy
+    local halfStep = step * 0.5
+    local cullR = ts.viewRadius + 2
+    local cullRSq = cullR * cullR
+    local colMin = math_max(0, math_floor((maxY - (wy + cullR)) / step))
+    local colMax = math_min(cols - 1, math_floor((maxY - (wy - cullR)) / step))
+    local rowMin = math_max(0, math_floor((maxX - (wx + cullR)) / step))
+    local rowMax = math_min(rows - 1, math_floor((maxX - (wx - cullR)) / step))
+    for col = colMin, colMax do
+        local cy = maxY - (col + 0.5) * step
+        local dyN = math_abs(wy - cy) - halfStep
+        if dyN < 0 then dyN = 0 end
+        local dyNSq = dyN * dyN
+        local colOff = col * stride
+        for row = rowMin, rowMax do
+            local fname = tiles[colOff + row]
+            if fname then
+                local cx = maxX - (row + 0.5) * step
+                local dxN = math_abs(wx - cx) - halfStep
+                if dxN < 0 then dxN = 0 end
+                if (dxN * dxN + dyNSq) <= cullRSq then
+                    collect_tile(texBase, fname, cx, cy, step)
+                end
+            end
+        end
+    end
+end
+
+local function flush_collected_tiles()
+    local ts = tileScratch
+    local count = ts.count
+    local prevPoolN = #tilePool
+    for i = 1, prevPoolN do
+        ts.usedSlot[i] = nil
+    end
+
+    -- Pass 1: preserve already-bound texture slots to avoid SetTexture churn
+    for i = 1, count do
+        local fname = ts.fnames[i]
+        local slot = ts.slotByFname[fname]
+        if slot and not ts.usedSlot[slot] and tilePool[slot] and tilePool[slot]._lastBase == ts.texBase[i] then
+            ts.usedSlot[slot] = true
+            ts.assignedSlot[i] = slot
+        else
+            ts.assignedSlot[i] = nil
+        end
+    end
+
+    -- Pass 2: assign newly visible tiles to lowest free pool slots
+    local nextFree = 1
+    for i = 1, count do
+        if not ts.assignedSlot[i] then
+            while ts.usedSlot[nextFree] do
+                nextFree = nextFree + 1
+            end
+            ts.usedSlot[nextFree] = true
+            ts.assignedSlot[i] = nextFree
+            nextFree = nextFree + 1
+        end
+    end
+
+    local wx, wy = ts.wx, ts.wy
+    local cosF, sinF = ts.cosF, ts.sinF
+    local ppy, negFacing = ts.ppy, ts.negFacing
+
+    for i = 1, count do
+        local slot = ts.assignedSlot[i]
+        local fname = ts.fnames[i]
+        local tbase = ts.texBase[i]
+        local oldFname = ts.slotFname[slot]
+        if oldFname and oldFname ~= fname then
+            if ts.slotByFname[oldFname] == slot then
+                ts.slotByFname[oldFname] = nil
+            end
+        end
+        ts.slotFname[slot] = fname
+        ts.slotByFname[fname] = slot
+
+        local tex = acquire_tile(slot)
+        activeTiles[i] = tex
+        if tex._lastFname ~= fname or tex._lastBase ~= tbase then
+            if perfState.texPathCacheBase ~= tbase then
+                perfState.texPathCacheBase = tbase
+                for k in pairs(perfState.texPathCache) do
+                    perfState.texPathCache[k] = nil
+                end
+            end
+            local fullPath = perfState.texPathCache[fname]
+            if not fullPath then
+                fullPath = tbase .. fname
+                perfState.texPathCache[fname] = fullPath
+            end
+            tex._lastFname = fname
+            tex._lastBase = tbase
+            tex._lastPath = fullPath
+            tex:SetTexture(fullPath, "CLAMP", "CLAMP", "TRILINEAR")
+        end
+
+        local dx = wy - ts.cys[i]
+        local dy = wx - ts.cxs[i]
+        local rx = dx * cosF - dy * sinF
+        local ry = dx * sinF + dy * cosF
+        local px = rx * ppy
+        local py = -ry * ppy
+        local pxSize = ts.sides[i] * ppy
+
+        if tex._lastRot == nil or math_abs(tex._lastRot - negFacing) > 0.0005 then
+            tex._lastRot = negFacing
+            tex:SetRotation(negFacing)
+        end
+        if tex._lastSize == nil or math_abs(tex._lastSize - pxSize) > 0.02 then
+            tex._lastSize = pxSize
+            tex:SetSize(pxSize, pxSize)
+        end
+        if tex._lastX == nil or math_abs(tex._lastX - px) > 0.02 or math_abs(tex._lastY - py) > 0.02 then
+            tex._lastX = px
+            tex._lastY = py
+            tex:SetPoint("CENTER", canvasFrame, "CENTER", px, py)
+        end
+    end
+
+    for i = count + 1, perfState.prevTileCount do
+        activeTiles[i] = nil
+    end
+    perfState.prevTileCount = count
+
+    for s = 1, #tilePool do
+        local tex = tilePool[s]
+        if not ts.usedSlot[s] and tex._shown then
+            tex._shown = false
+            tex:Hide()
+        end
+    end
+
+    return count
 end
 
 local function is_view_unchanged(hasData, wx, wy, cont, bestMapID, facing, viewRadius, rotate, sz, interactive, mode, pinScale, questRev, navRev)
@@ -2017,27 +2494,46 @@ update_view = function(elapsed)
     end
 
     if not wx or not wy then
-        for i = 1, #activeTiles do
-            activeTiles[i]:Hide()
+        for i = 1, perfState.prevTileCount do
+            local tex = activeTiles[i]
+            if tex and tex._shown then
+                tex._shown = false
+                tex:Hide()
+            end
             activeTiles[i] = nil
         end
-        for i = 1, #pinPool do
-            pinPool[i]:Hide()
+        perfState.prevTileCount = 0
+        for i = 1, perfState.prevPinCount do
+            local btn = pinPool[i]
+            if btn and btn._shown then
+                btn._shown = false
+                btn:Hide()
+            end
             activePinButtons[i] = nil
         end
+        perfState.prevPinCount = 0
         local changedNative = (lastUsingNativeGround ~= true)
         lastUsingNativeGround = true
         sync_ground_textures(false)
         update_effective_alphas(changedNative)
-        if pinFrame then pinFrame:Hide() end
+        if pinFrame and perfState.pinFrameShown ~= false then
+            perfState.pinFrameShown = false
+            pinFrame:Hide()
+        end
         record_view_snapshot(hasData, true, nil, nil, cont, bestMapID, facing, viewRadius, rotate, sz, interactive, mode, pinScale, questRev, navRev)
         return
     end
 
-    if rotate and math_abs(facing - lastFacingForPins) > 0.0005 then
-        lastFacingForPins = facing
+    if (rotate and math_abs(facing - perfState.lastPinPushFacing) >= 0.01)
+        or perfState.lastPinPushMap ~= bestMapID
+        or perfState.lastPinPushRad ~= viewRadius
+        or perfState.lastPinPushRot ~= rotate then
+        perfState.lastPinPushFacing = facing
+        perfState.lastPinPushMap = bestMapID
+        perfState.lastPinPushRad = viewRadius
+        perfState.lastPinPushRot = rotate
         if sfui.map and sfui.map.pins and sfui.map.pins.UpdateMinimapPins then
-            sfui.map.pins.UpdateMinimapPins(false)
+            sfui.map.pins.UpdateMinimapPins(false, bestMapID, facing, viewRadius, rotate)
         end
     end
 
@@ -2046,44 +2542,15 @@ update_view = function(elapsed)
     local sinF = math_sin(facing)
     local halfSz = sz * 0.5
 
-    local tileIdx = 0
-    local function place_tile(texBase, texName, cx, cy, sideYards)
-        tileIdx = tileIdx + 1
-        local tex = acquire_tile(tileIdx)
-        activeTiles[tileIdx] = tex
-        local fullPath = texBase .. texName
-        if tex._lastPath ~= fullPath then
-            tex._lastPath = fullPath
-            tex:SetTexture(fullPath, "CLAMP", "CLAMP", "TRILINEAR")
-        end
-        local dx = wy - cy
-        local dy = wx - cx
-        local rx = dx * cosF - dy * sinF
-        local ry = dx * sinF + dy * cosF
-        tex:SetRotation(-facing)
-        local pxSize = sideYards * ppy
-        tex:SetSize(pxSize, pxSize)
-        tex:ClearAllPoints()
-        tex:SetPoint("CENTER", canvasFrame, "CENTER", rx * ppy, -ry * ppy)
-    end
-
-    local function place_grid(texBase, tiles, maxX, maxY, cols, rows, step, stride)
-        if not tiles then return end
-        local rMaxSq = (viewRadius + step * 0.78) ^ 2
-        for col = 0, cols - 1 do
-            for row = 0, rows - 1 do
-                local fname = tiles[col * stride + row]
-                if fname then
-                    local cx = maxX - (row + 0.5) * step
-                    local cy = maxY - (col + 0.5) * step
-                    local dxC, dyC = wx - cx, wy - cy
-                    if (dxC * dxC + dyC * dyC) <= rMaxSq then
-                        place_tile(texBase, fname, cx, cy, step)
-                    end
-                end
-            end
-        end
-    end
+    local ts = tileScratch
+    ts.wx = wx
+    ts.wy = wy
+    ts.cosF = cosF
+    ts.sinF = sinF
+    ts.ppy = ppy
+    ts.negFacing = -facing
+    ts.viewRadius = viewRadius
+    ts.count = 0
 
     local instData = data and cont and data.instances and data.instances[cont]
     if data then
@@ -2092,7 +2559,7 @@ update_view = function(elapsed)
             for _, wing in ipairs(instData.wings) do
                 if wx >= (wing.minX - viewRadius) and wx <= (wing.maxX + viewRadius)
                     and wy >= (wing.minY - viewRadius) and wy <= (wing.maxY + viewRadius) then
-                    place_grid(data.texBase, wing.tiles, wing.gridMaxX, wing.gridMaxY,
+                    collect_grid(data.texBase, wing.tiles, wing.gridMaxX, wing.gridMaxY,
                         wing.cols or 1, wing.rows or 1, wing.stepYards or 96, 64)
                 end
             end
@@ -2100,16 +2567,15 @@ update_view = function(elapsed)
             local city = (bestMapID and data.cities and data.cities[bestMapID])
                 or (bestMapID == 1458 and data.undercity) or nil
             if city and city.tiles then
-                place_grid(data.texBase, city.tiles, city.maxX, city.maxY,
+                collect_grid(data.texBase, city.tiles, city.maxX, city.maxY,
                     city.cols or 6, city.rows or 6, city.stepYards or 128, 16)
             else
                 local cave = bestMapID and data._cavesByMapID and data._cavesByMapID[bestMapID]
-                if not cave then
+                if not cave and cont ~= nil and data._unmappedCavesByCont and data._unmappedCavesByCont[cont] then
                     local rawIndoors = IsIndoors and IsIndoors()
                     local indoors = (not is_secret(rawIndoors)) and rawIndoors or false
-                    local bucket = indoors and cont ~= nil and data._unmappedCavesByCont
-                        and data._unmappedCavesByCont[cont]
-                    if bucket then
+                    if indoors then
+                        local bucket = data._unmappedCavesByCont[cont]
                         for _, c in ipairs(bucket) do
                             if wx >= c.minX and wx <= c.maxX and wy >= c.minY and wy <= c.maxY then
                                 cave = c
@@ -2120,32 +2586,40 @@ update_view = function(elapsed)
                 end
                 if cave then
                     if cave.tiles then
-                        place_grid(data.texBase, cave.tiles, cave.gridMaxX, cave.gridMaxY,
+                        collect_grid(data.texBase, cave.tiles, cave.gridMaxX, cave.gridMaxY,
                             cave.cols or 2, cave.rows or 2, cave.stepYards or 256, 16)
                     elseif cave.tex then
                         local cx = (cave.texMinX + cave.texMaxX) * 0.5
                         local cy = (cave.texMinY + cave.texMaxY) * 0.5
                         local side = cave.texMaxX - cave.texMinX
-                        place_tile(data.texBase, cave.tex, cx, cy, side)
+                        collect_tile(data.texBase, cave.tex, cx, cy, side)
                     end
                 else
                     local contTiles = (data.continents and cont ~= nil and data.continents[cont])
                         or (cont == 0 and data.outdoor) or nil
                     if contTiles then
                         local tileYds = data.tileYards or (1600 / 3)
-                        local ptx = math_floor(32 - wy / tileYds)
-                        local pty = math_floor(32 - wx / tileYds)
-                        local span = math_max(1, math_ceil(viewRadius / tileYds))
-                        local rMaxSq = (viewRadius + tileYds * 0.78) ^ 2
-                        for tx = ptx - span, ptx + span do
-                            for ty = pty - span, pty + span do
-                                local fname = contTiles[tx * 64 + ty]
+                        local halfTile = tileYds * 0.5
+                        local cullR = viewRadius + 2
+                        local cullRSq = cullR * cullR
+                        local txMin = math_floor(32 - (wy + cullR) / tileYds)
+                        local txMax = math_floor(32 - (wy - cullR) / tileYds)
+                        local tyMin = math_floor(32 - (wx + cullR) / tileYds)
+                        local tyMax = math_floor(32 - (wx - cullR) / tileYds)
+                        for tx = txMin, txMax do
+                            local cy = (31.5 - tx) * tileYds
+                            local dyN = math_abs(wy - cy) - halfTile
+                            if dyN < 0 then dyN = 0 end
+                            local dyNSq = dyN * dyN
+                            local txOff = tx * 64
+                            for ty = tyMin, tyMax do
+                                local fname = contTiles[txOff + ty]
                                 if fname then
                                     local cx = (31.5 - ty) * tileYds
-                                    local cy = (31.5 - tx) * tileYds
-                                    local dxC, dyC = wx - cx, wy - cy
-                                    if (dxC * dxC + dyC * dyC) <= rMaxSq then
-                                        place_tile(data.texBase, fname, cx, cy, tileYds)
+                                    local dxN = math_abs(wx - cx) - halfTile
+                                    if dxN < 0 then dxN = 0 end
+                                    if (dxN * dxN + dyNSq) <= cullRSq then
+                                        collect_tile(data.texBase, fname, cx, cy, tileYds)
                                     end
                                 end
                             end
@@ -2156,21 +2630,19 @@ update_view = function(elapsed)
         end
     end
 
+    local tileIdx = flush_collected_tiles()
+
     local prevNative = lastUsingNativeGround
     local usingNativeGround = (tileIdx == 0)
     lastUsingNativeGround = usingNativeGround
-    sync_ground_textures(not usingNativeGround)
-    update_effective_alphas(usingNativeGround ~= prevNative)
-
-    for i = tileIdx + 1, #tilePool do
-        tilePool[i]:Hide()
-        activeTiles[i] = nil
+    if usingNativeGround ~= prevNative or groundSuppressed == nil then
+        sync_ground_textures(not usingNativeGround)
+        update_effective_alphas(usingNativeGround ~= prevNative)
     end
 
     -- 2. Pins + Waypoint/Corpse Chevrons
     if viewCache.questRev ~= questRev then
-        directPinsDirty = true
-        lastInstPinCont = nil
+        sync_quest_pin_dirty()
     end
 
     local pinIdx = 0
@@ -2202,24 +2674,34 @@ update_view = function(elapsed)
         pinIdx = project_nav_marker(navTargets.waypoint, cont, pinIdx, interactive, wheelActive, pinScale, wx, wy, cosF, sinF, ppy, halfSz, viewRadius)
     end
 
-    if pinIdx > 0 then
-        pinFrame:Show()
-    else
-        pinFrame:Hide()
+    local wantPinFrameShown = (pinIdx > 0)
+    if perfState.pinFrameShown ~= wantPinFrameShown then
+        perfState.pinFrameShown = wantPinFrameShown
+        if wantPinFrameShown then
+            pinFrame:Show()
+        else
+            pinFrame:Hide()
+        end
     end
 
-    for i = pinIdx + 1, #pinPool do
-        pinPool[i]:Hide()
+    for i = pinIdx + 1, perfState.prevPinCount do
+        local btn = pinPool[i]
+        if btn and btn._shown then
+            btn._shown = false
+            btn:Hide()
+        end
         activePinButtons[i] = nil
     end
+    perfState.prevPinCount = pinIdx
 
     record_view_snapshot(hasData, false, wx, wy, cont, bestMapID, facing, viewRadius, rotate, sz, interactive, mode, pinScale, questRev, navRev)
 end
 
-local function on_overlay_tick(elapsed)
+on_overlay_tick = function(elapsed)
     if not isActive or not canvasFrame then return end
     step_alphas(elapsed)
     if panelHidden and alphaState.curCanvas <= 0.005 and alphaState.curMini <= 0.005 then
+        sync_overlay_ticker()
         return
     end
     update_view(elapsed)
@@ -2227,6 +2709,8 @@ end
 
 -- ── Transition & Lifecycle Handlers ───────────────────────────────────────────
 local function handle_zone_or_portal_transition(isEnteringWorld)
+    perfState.inTransition = true
+    perfState.cachedInstID = nil
     directPinsDirty = true
     hbdFilterDirty = true
     lastInstPinCont = nil
@@ -2236,6 +2720,7 @@ local function handle_zone_or_portal_transition(isEnteringWorld)
         if isEnteringWorld then
             sync_rotate_cvar(false)
         end
+        perfState.inTransition = false
         return
     end
     sync_rotate_cvar(get_opt("overlay_rotate") ~= false)
@@ -2247,6 +2732,7 @@ local function handle_zone_or_portal_transition(isEnteringWorld)
     if lastUsingNativeGround then
         nudge_minimap_zoom()
     end
+    perfState.inTransition = false
     if isEnteringWorld and C_Timer and C_Timer.After then
         C_Timer.After(0.35, function()
             if not isActive then return end
@@ -2258,6 +2744,20 @@ local function handle_zone_or_portal_transition(isEnteringWorld)
                 nudge_minimap_zoom()
             end
         end)
+    end
+end
+
+local function handle_indoor_or_wmo_change()
+    viewCache.dirty = true
+    if not isActive then return end
+    local prevMap = viewCache.mapID
+    local prevNative = lastUsingNativeGround
+    update_view(0)
+    if viewCache.mapID ~= prevMap or lastUsingNativeGround ~= prevNative then
+        apply_overlay_mask()
+        if lastUsingNativeGround then
+            nudge_minimap_zoom()
+        end
     end
 end
 
@@ -2296,34 +2796,25 @@ local function ensure_events_wired()
             apply_pin_mouse_state()
         end
     end)
-    reg_ev("MODIFIER_STATE_CHANGED", function()
-        if isActive then
-            apply_pin_mouse_state()
+    reg_ev("MODIFIER_STATE_CHANGED", function(_, key)
+        if not isActive then return end
+        if (key ~= "LALT" and key ~= "RALT") or (get_opt("overlay_alt_interactive") == false) then
+            return
+        end
+        if apply_pin_mouse_state() then
             viewCache.dirty = true
         end
     end)
     reg_ev("ZONE_CHANGED_NEW_AREA", function()
         handle_zone_or_portal_transition(false)
     end)
-    reg_ev("ZONE_CHANGED_INDOORS", function()
-        directPinsDirty = true
-        viewCache.dirty = true
-        if isActive then
-            apply_overlay_mask()
-            update_view(0)
-            if lastUsingNativeGround then
-                nudge_minimap_zoom()
-            end
-        end
-    end)
-    reg_ev("NEW_WMO_CHUNK", function()
-        directPinsDirty = true
-        viewCache.dirty = true
-        if isActive then
-            apply_overlay_mask()
-            update_view(0)
-            if lastUsingNativeGround then
-                nudge_minimap_zoom()
+    reg_ev("ZONE_CHANGED_INDOORS", handle_indoor_or_wmo_change)
+    reg_ev("NEW_WMO_CHUNK", handle_indoor_or_wmo_change)
+    reg_ev("CVAR_UPDATE", function(_, cvarName)
+        if cvarName == "rotateMinimap" then
+            perfState.rotateMinimap = (get_rotate_cvar() == "1")
+            if isActive then
+                viewCache.dirty = true
             end
         end
     end)
@@ -2354,7 +2845,9 @@ local function ensure_events_wired()
         if isActive then update_view(0) end
     end)
     reg_ev("ADDON_LOADED", function(_, arg1)
-        hook_ui_panels()
+        if isActive or perfState.uiPanelsHooked then
+            hook_ui_panels()
+        end
         if arg1 == "Blizzard_HybridMinimap" and isActive then
             suppress_blizzard_surround(true)
             groundSuppressed = nil
@@ -2374,17 +2867,17 @@ local function ensure_events_wired()
         end
     end)
     reg_msg("SFUI_QUEST_STATE_UPDATED", function()
-        directPinsDirty = true
-        hbdFilterDirty = true
-        viewCache.dirty = true
+        if sync_quest_pin_dirty() then
+            viewCache.dirty = true
+        end
     end)
 
     -- Fallback quest listeners only if sfui.queststate isn't present in a standalone harness
     if not sfui.queststate then
         local function mark_q_dirty()
-            directPinsDirty = true
-            hbdFilterDirty = true
-            viewCache.dirty = true
+            if sync_quest_pin_dirty() then
+                viewCache.dirty = true
+            end
         end
         reg_ev("QUEST_LOG_UPDATE", mark_q_dirty)
         reg_ev("QUEST_ACCEPTED", mark_q_dirty)
@@ -2414,25 +2907,56 @@ function overlay:SetActive(state)
     if nextState then
         ensure_events_wired()
         ensure_map_pack_loaded()
+        hook_ui_panels()
     end
 
     isActive = nextState
+    perfState.cachedInstID = nil
+    perfState.lastAppliedActive = nil
     directPinsDirty = true
     lastInstPinCont = nil
+    lastPinCont = nil
     viewCache.dirty = true
-    refresh_nav_targets()
-    apply_minimap_state()
+    viewCache.questRev = -1
 
     if isActive then
-        if sfui.events and sfui.events.RegisterUpdate then
-            sfui.events.RegisterUpdate("MapOverlay", 0.016, on_overlay_tick)
-        end
+        refresh_nav_targets()
+        apply_minimap_state()
+        sync_overlay_ticker()
         update_view(0)
         update_effective_alphas(true)
     else
-        if sfui.events and sfui.events.UnregisterUpdate then
-            sfui.events.UnregisterUpdate("MapOverlay")
+        release_pin_cache(directPinCache)
+        release_pin_cache(instPinCache)
+        for qid in pairs(perfState.lastQuestMasks) do
+            perfState.lastQuestMasks[qid] = nil
         end
+        perfState.lastQuestCount = -1
+        for i = 1, perfState.prevTileCount do
+            activeTiles[i] = nil
+        end
+        perfState.prevTileCount = 0
+        for i = 1, #tilePool do
+            local tex = tilePool[i]
+            if tex._shown then
+                tex._shown = false
+                tex:Hide()
+            end
+        end
+        for i = 1, perfState.prevPinCount do
+            activePinButtons[i] = nil
+        end
+        perfState.prevPinCount = 0
+        for i = 1, #pinPool do
+            local btn = pinPool[i]
+            if btn._shown then
+                btn._shown = false
+                btn:Hide()
+            end
+        end
+        perfState.pinFrameShown = false
+        sync_overlay_ticker()
+        apply_minimap_state()
     end
     sync_compass()
 end
@@ -2442,6 +2966,8 @@ function overlay:Toggle()
 end
 
 function overlay:RefreshLayout()
+    if perfState.refreshingLayout then return end
+    perfState.refreshingLayout = true
     viewCache.dirty = true
     if isActive then
         hook_minimap_cluster()
@@ -2449,11 +2975,13 @@ function overlay:RefreshLayout()
         panelHidden = has_blocking_panel_open()
         apply_overlay_mask()
         refresh_canvas_layout()
-        apply_pin_mouse_state()
+        apply_pin_mouse_state(true)
+        sync_overlay_ticker()
         update_view(0)
         update_effective_alphas(true)
     end
     sync_compass()
+    perfState.refreshingLayout = false
 end
 
 function overlay:OnInit()
@@ -2465,16 +2993,16 @@ function overlay:OnEnable()
     ensure_db()
     ensure_holder()
     register_mover()
-    hook_ui_panels()
     ensure_events_wired()
-    refresh_nav_targets()
 end
 
 function overlay:OnDisable()
     if isActive then
         self:SetActive(false)
-    elseif sfui.events and sfui.events.UnregisterUpdate then
-        sfui.events.UnregisterUpdate("MapOverlay")
+    else
+        sync_overlay_ticker()
+        release_pin_cache(directPinCache)
+        release_pin_cache(instPinCache)
     end
     sync_compass()
     eventsWired = false

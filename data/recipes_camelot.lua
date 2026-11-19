@@ -4527,24 +4527,40 @@ local RAW = {
 local tonumber = tonumber
 local pairs = pairs
 local next = next
+local rawget = rawget
+local rawset = rawset
 local setmetatable = setmetatable
 
 local decodedCache = {}
 
-local function decode_recipe(sid, raw)
-    if not raw then return nil end
-    local reagents
-    local rStr = raw[8]
-    if rStr and rStr ~= "" then
-        reagents = {}
-        for pair in rStr:gmatch("([^,]+)") do
-            local itemID, count = pair:match("^(%d+):(%d+)$")
-            if itemID then
-                reagents[tonumber(itemID)] = tonumber(count)
-            end
+local function parse_reagents(rStr)
+    if not rStr or rStr == "" then return nil end
+    local reagents = {}
+    for pair in rStr:gmatch("([^,]+)") do
+        local itemID, count = pair:match("^(%d+):(%d+)$")
+        if itemID then
+            reagents[tonumber(itemID)] = tonumber(count)
         end
     end
+    return reagents
+end
 
+local RECIPE_MT = {
+    __index = function(t, k)
+        if k == "reagents" then
+            local rStr = rawget(t, "_rStr")
+            if not rStr then return nil end
+            local val = parse_reagents(rStr)
+            rawset(t, "_rStr", nil)
+            rawset(t, "reagents", val)
+            return val
+        end
+    end,
+}
+
+local function decode_recipe(sid, raw)
+    if not raw then return nil end
+    local rStr = raw[8]
     local rec = {
         id           = sid,
         name         = raw[1],
@@ -4554,7 +4570,7 @@ local function decode_recipe(sid, raw)
         output       = (raw[5] and raw[5] > 0) and raw[5] or nil,
         recipeItemID = (raw[6] and raw[6] > 0) and raw[6] or nil,
         sources      = (raw[7] and raw[7] > 0) and SRC_POOL[raw[7]] or nil,
-        reagents     = reagents,
+        _rStr        = (rStr and rStr ~= "") and rStr or nil,
     }
 
     local extra = raw[9]
@@ -4564,6 +4580,7 @@ local function decode_recipe(sid, raw)
         end
     end
 
+    setmetatable(rec, RECIPE_MT)
     decodedCache[sid] = rec
     return rec
 end

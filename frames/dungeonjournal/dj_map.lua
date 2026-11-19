@@ -64,6 +64,9 @@ local WAYPOINT_TEXTS = {
 
 -- ─── Helpers ──────────────────────────────────────────────────────────────────
 
+local wipe = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
+local mapArtCache = {}
+
 local function ApplyBackdrop(f, bgR, bgG, bgB, bgA, brR, brG, brB, brA)
     if not f.SetBackdrop then
         Mixin(f, BackdropTemplateMixin)
@@ -104,6 +107,8 @@ end
 
 local function IsQuestCompleted(questID)
     if not questID then return false end
+    local qs = sfui.queststate
+    if qs and qs.IsCompleted then return qs.IsCompleted(questID) end
     if C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted) == "function" then
         local res = SafePlain(C_QuestLog.IsQuestFlaggedCompleted(questID))
         return res == true
@@ -116,6 +121,8 @@ end
 
 local function IsQuestInLog(questID)
     if not questID then return false end
+    local qs = sfui.queststate
+    if qs and qs.IsActive then return qs.IsActive(questID) end
     if C_QuestLog and type(C_QuestLog.IsOnQuest) == "function" then
         local res = SafePlain(C_QuestLog.IsOnQuest(questID))
         return res == true
@@ -131,15 +138,18 @@ local function StrokeIcon(owner, icon, size)
     local tex = icon.GetTexture and icon:GetTexture()
     if not tex then return end
     local w = math.max(1, math.floor((size or 22) * 0.06 + 0.5))
+    if owner._strokeTex == tex and owner._strokeW == w then return end
+    owner._strokeTex = tex
+    owner._strokeW = w
     owner.strokeTex = owner.strokeTex or {}
     for i, o in ipairs(STROKE_OFFSETS) do
         local s = owner.strokeTex[i]
         if not s then
             s = owner:CreateTexture(nil, "ARTWORK")
+            s:SetVertexColor(0, 0, 0, 1)
             owner.strokeTex[i] = s
         end
         s:SetTexture(tex)
-        s:SetVertexColor(0, 0, 0, 1)
         s:ClearAllPoints()
         s:SetPoint("TOPLEFT", icon, "TOPLEFT", o[1] * w, o[2] * w)
         s:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", o[1] * w, o[2] * w)
@@ -149,13 +159,25 @@ end
 
 local function FindSfuiBossData(dungeon, bossPin)
     if not dungeon or not bossPin then return nil, nil end
-    local target = (bossPin.targetName or bossPin.name or ""):lower()
-    local raw = (bossPin.name or ""):lower()
-    for i, b in ipairs(dungeon.bosses or {}) do
-        local bn = (b.name or ""):lower()
-        if bn == raw or bn == target then
-            return b, i
+    local cache = dungeon._bossByLowerName
+    if not cache then
+        cache = {}
+        for i, b in ipairs(dungeon.bosses or {}) do
+            local bn = (b.name or ""):lower()
+            if bn ~= "" and not cache[bn] then
+                cache[bn] = { b, i }
+            end
         end
+        dungeon._bossByLowerName = cache
+    end
+    local raw = (bossPin.name or ""):lower()
+    local hit = raw ~= "" and cache[raw]
+    if not hit then
+        local target = (bossPin.targetName or bossPin.name or ""):lower()
+        hit = target ~= "" and cache[target]
+    end
+    if hit then
+        return hit[1], hit[2]
     end
     return nil, nil
 end
@@ -178,28 +200,36 @@ end
 
 local function FindDungeonQuestEntry(dungeon, qPin)
     if not dungeon or not qPin then return nil end
+    local byID = dungeon._questByID
+    local byName = dungeon._questByLowerName
+    if not byID then
+        byID, byName = {}, {}
+        for _, q in ipairs(dungeon.quests or {}) do
+            if q.id and not byID[q.id] then byID[q.id] = q end
+            if q.chain then
+                for _, s in ipairs(q.chain) do
+                    if s.id and not byID[s.id] then byID[s.id] = q end
+                end
+            end
+            if q.chainStart and q.chainStart.id and not byID[q.chainStart.id] then
+                byID[q.chainStart.id] = q
+            end
+            local qn = (q.name or ""):lower()
+            if qn ~= "" and not byName[qn] then
+                byName[qn] = q
+            end
+        end
+        dungeon._questByID = byID
+        dungeon._questByLowerName = byName
+    end
     local wantID = tonumber(qPin.main or qPin.id)
     local rawID = tonumber(qPin.id)
-    local wantName = (qPin.name or ""):lower()
-    for _, q in ipairs(dungeon.quests or {}) do
-        if q.id == wantID or q.id == rawID then
-            return q
-        end
-        if q.chain then
-            for _, s in ipairs(q.chain) do
-                if s.id == wantID or s.id == rawID then return q end
-            end
-        end
-        if q.chainStart and (q.chainStart.id == wantID or q.chainStart.id == rawID) then
-            return q
-        end
+    if (wantID and byID[wantID]) or (rawID and byID[rawID]) then
+        return (wantID and byID[wantID]) or byID[rawID]
     end
+    local wantName = (qPin.name or ""):lower()
     if wantName ~= "" then
-        for _, q in ipairs(dungeon.quests or {}) do
-            if (q.name or ""):lower() == wantName then
-                return q
-            end
-        end
+        return byName[wantName]
     end
     return nil
 end
@@ -319,6 +349,313 @@ local function OpenBossInJournal(ctrl, targetBossName)
                 sfui.dungeonjournal.SelectBoss(targetBossName)
             end
         end
+    end
+end
+
+local MapHandlers = {}
+
+function MapHandlers.HideTooltip()
+    GameTooltip:Hide()
+end
+
+function MapHandlers.HandleRightClick(ctrl)
+    if ctrl.zoom > 1.001 then
+        ctrl.zoom = 1.0
+        ctrl.panX, ctrl.panY = 0, 0
+        ctrl:ApplyTransform()
+    elseif ctrl.isWorldMapOverlay and ctrl.onRightClickOut then
+        ctrl.onRightClickOut()
+    end
+end
+
+function MapHandlers.WingClick(btn)
+    local ctrl = btn._ctrl
+    if not ctrl or not btn._wingID then return end
+    sfui.dj_camelot.SetScarletWing(btn._wingID)
+    local d = sfui.dj_camelot.GetDungeonByName(btn._wingID)
+    if d then
+        ctrl:SetDungeon(d, 1)
+    end
+end
+
+function MapHandlers.FloorEnter(btn)
+    GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+    GameTooltip:SetText(btn._fullText or "floor", 1.0, 0.82, 0.0)
+    if not btn._isActive then
+        GameTooltip:AddLine("click to view floor", 0.65, 0.65, 0.72)
+    end
+    GameTooltip:Show()
+end
+
+function MapHandlers.FloorClick(btn)
+    local ctrl = btn._ctrl
+    if ctrl and btn._floorIdx then
+        ctrl:SetFloor(btn._floorIdx)
+    end
+end
+
+function MapHandlers.EntranceEnter(s)
+    local e = s._e
+    if not e then return end
+    local extEnt = s._extEnt
+    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+    GameTooltip:SetText((e.label or "entrance"):lower(), 0.35, 1.0, 0.45)
+    if extEnt and extEnt.detail and extEnt.detail ~= "" then
+        GameTooltip:AddLine(extEnt.detail:lower(), 0.85, 0.85, 0.90, true)
+    end
+    if extEnt then
+        GameTooltip:AddLine("left-click: mark dungeon entrance on world map", 0.65, 0.65, 0.72)
+    end
+    GameTooltip:Show()
+end
+
+function MapHandlers.EntranceClick(s, button)
+    local ctrl = s._ctrl
+    if not ctrl then return end
+    if button == "RightButton" then
+        MapHandlers.HandleRightClick(ctrl)
+        return
+    end
+    local extEnt = s._extEnt
+    if extEnt and ctrl.dungeon then
+        dj_map.OpenWorldMapSpot(extEnt, (extEnt.label or (ctrl.dungeon.name .. " entrance")):lower())
+    end
+end
+
+function MapHandlers.LadderEnter(s)
+    local tr = s._tr
+    if not tr then return end
+    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+    if s._isNote then
+        GameTooltip:SetText((tr.label or "note"):lower(), 0.35, 1.0, 0.45)
+    else
+        local m = s._m
+        local destFloor = s._destFloor
+        local destName = m and m.floors and m.floors[destFloor] and m.floors[destFloor].name
+        local title = tr.label or (destName and ("go to " .. destName:lower()) or ("go to floor " .. tostring(destFloor)))
+        local c = s._color
+        local trR = c and c[1] or 1.0
+        local trG = c and c[2] or 0.82
+        local trB = c and c[3] or 0.25
+        GameTooltip:SetText(title:lower(), trR, trG, trB)
+        GameTooltip:AddLine("left-click: switch floor", 0.65, 0.65, 0.72)
+    end
+    GameTooltip:Show()
+end
+
+function MapHandlers.LadderClick(s, button)
+    local ctrl = s._ctrl
+    if not ctrl then return end
+    if button == "RightButton" then
+        MapHandlers.HandleRightClick(ctrl)
+        return
+    end
+    if s._destFloor then
+        GameTooltip:Hide()
+        ctrl:SetFloor(s._destFloor)
+    end
+end
+
+function MapHandlers.LinkPulseUpdate(p, elapsed)
+    p.pulse = (p.pulse or 0) + (elapsed or 0)
+    if p.pulse >= 2.4 then
+        p.glow:SetAlpha(0)
+        p:SetScript("OnUpdate", nil)
+        return
+    end
+    p.glow:SetAlpha(0.5 - 0.5 * math.cos(p.pulse * 7.854))
+end
+
+function MapHandlers.LinkEnter(s)
+    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+    GameTooltip:SetText("passage link", 0.35, 1.0, 0.45)
+    GameTooltip:AddLine("left-click: highlight connected arrow", 0.65, 0.65, 0.72)
+    GameTooltip:Show()
+end
+
+function MapHandlers.LinkClick(s, button)
+    local ctrl = s._ctrl
+    if not ctrl then return end
+    if button == "RightButton" then
+        MapHandlers.HandleRightClick(ctrl)
+        return
+    end
+    local destPin = s._targetIdx and ctrl.linkByIndex and ctrl.linkByIndex[s._targetIdx]
+    if destPin and destPin:IsShown() then
+        destPin.pulse = 0
+        destPin:SetScript("OnUpdate", MapHandlers.LinkPulseUpdate)
+    end
+end
+
+function MapHandlers.BossEnter(s)
+    local b = s._b
+    if not b then return end
+    local lvl = s._lvl
+    local questEntry = s._questEntry
+    local wishItems = s._wishItems
+    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+    GameTooltip:SetText((b.name or "boss"):lower(), 1.0, 0.82, 0.0)
+    if b.alt then
+        GameTooltip:AddLine("can also spawn here", 0.85, 0.85, 0.90)
+    end
+    if lvl then
+        GameTooltip:AddLine("level " .. tostring(lvl) .. " elite", 0.75, 0.75, 0.82)
+    end
+    if b.quest then
+        local qName = (questEntry and questEntry.name and questEntry.name:lower()) or ("#" .. tostring(b.quest))
+        GameTooltip:AddLine("quest target: " .. qName, 0.55, 0.85, 1.0)
+    end
+    if wishItems then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("wishlisted drops:", 0.66, 0.40, 1.0)
+        for _, itemID in ipairs(wishItems) do
+            local itemName, itemLink = (sfui.common and sfui.common.get_item_info and sfui.common.get_item_info(itemID))
+                or GetItemInfo(itemID)
+            GameTooltip:AddLine("  • " .. (itemLink or (itemName and itemName:lower()) or ("item #" .. itemID)), 1, 1, 1)
+        end
+    end
+    GameTooltip:AddLine(" ")
+    if s._isQuestMobOnly then
+        GameTooltip:AddLine("left-click: view quest in journal", 0.20, 1.0, 0.20)
+    else
+        GameTooltip:AddLine("left-click: view boss & loot", 0.20, 1.0, 0.20)
+    end
+    GameTooltip:Show()
+end
+
+function MapHandlers.BossClick(s, button)
+    local ctrl = s._ctrl
+    if not ctrl then return end
+    if button == "RightButton" then
+        MapHandlers.HandleRightClick(ctrl)
+        return
+    end
+    GameTooltip:Hide()
+    local b = s._b
+    if not b then return end
+    if s._isQuestMobOnly then
+        local qID = (s._questEntry and s._questEntry.id) or b.quest
+        if ctrl.isWorldMapOverlay then
+            if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
+                sfui.dungeonjournal.SelectQuest(ctrl.dungeon.id, qID)
+            elseif sfui.dungeonjournal and sfui.dungeonjournal.OpenToDungeon then
+                sfui.dungeonjournal.OpenToDungeon(ctrl.dungeon.id, "quests")
+            end
+            local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
+            if djFrame then
+                djFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+                if djFrame.Raise then djFrame:Raise() end
+            end
+        elseif sfui.dungeonjournal then
+            sfui.dungeonjournal.SetMode("quests")
+            if qID and sfui.dungeonjournal.FocusQuest then
+                sfui.dungeonjournal.FocusQuest(qID)
+            end
+        end
+        return
+    end
+    local sfuiBoss = s._sfuiBoss
+    local targetBossName = (sfuiBoss and sfuiBoss.name) or b.targetName or b.name
+    OpenBossInJournal(ctrl, targetBossName)
+end
+
+function MapHandlers.QuestEnter(s)
+    local spots = s._spots
+    if not spots then return end
+    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+    local firstLine = true
+    for sIdx, sp in ipairs(spots) do
+        if sIdx > 1 then GameTooltip:AddLine(" ") end
+        if sp.name and sp.name ~= "" then
+            if firstLine then
+                GameTooltip:SetText(sp.name:lower(), 1, 1, 1)
+                firstLine = false
+            else
+                GameTooltip:AddLine(sp.name:lower(), 1, 1, 1)
+            end
+        end
+        for _, q in ipairs(sp.shown) do
+            local qTitle = (q.name or "quest"):lower()
+            if firstLine then
+                GameTooltip:SetText(qTitle, 1.0, 0.82, 0.0)
+                firstLine = false
+            else
+                GameTooltip:AddLine(qTitle, 1.0, 0.82, 0.0)
+            end
+            if q.textKey and QUEST_TEXT_KEYS[q.textKey] then
+                GameTooltip:AddLine("  • " .. QUEST_TEXT_KEYS[q.textKey], 0.85, 0.85, 0.90, true)
+            else
+                for _, act in ipairs(q.acts or {}) do
+                    if act == "loot" and q.itemName then
+                        GameTooltip:AddLine("  • loot: " .. q.itemName:lower(), 0.85, 0.85, 0.90, true)
+                    elseif QUEST_ACT_TEXT[act] then
+                        GameTooltip:AddLine("  • " .. QUEST_ACT_TEXT[act], 0.85, 0.85, 0.90, true)
+                    end
+                end
+            end
+        end
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("left-click: view quest in journal", 0.20, 1.0, 0.20)
+    GameTooltip:Show()
+end
+
+function MapHandlers.QuestClick(s, button)
+    local ctrl = s._ctrl
+    if not ctrl then return end
+    if button == "RightButton" then
+        MapHandlers.HandleRightClick(ctrl)
+        return
+    end
+    GameTooltip:Hide()
+    local targetQ = s._targetQ
+    local matchedQ = FindDungeonQuestEntry(ctrl.dungeon, targetQ)
+    local qID = (matchedQ and matchedQ.id) or (targetQ and (targetQ.main or targetQ.id))
+    if ctrl.isWorldMapOverlay then
+        if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
+            sfui.dungeonjournal.SelectQuest(ctrl.dungeon.id, qID)
+        elseif sfui.dungeonjournal and sfui.dungeonjournal.OpenToDungeon then
+            sfui.dungeonjournal.OpenToDungeon(ctrl.dungeon.id, "quests")
+        end
+        local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
+        if djFrame then
+            djFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+            if djFrame.Raise then djFrame:Raise() end
+        end
+    elseif sfui.dungeonjournal then
+        sfui.dungeonjournal.SetMode("quests")
+        if qID and sfui.dungeonjournal.FocusQuest then
+            sfui.dungeonjournal.FocusQuest(qID)
+        end
+    end
+end
+
+function MapHandlers.MarkerEnter(s)
+    local pin = s._markerOwner or s
+    local mk = pin._mk
+    if not mk then return end
+    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+    GameTooltip:SetText((mk.title or ("marker " .. tostring(mk.n or ""))):lower(), 1.0, 0.82, 0.0)
+    if mk.body and mk.body ~= "" then
+        GameTooltip:AddLine(mk.body:lower(), 0.9, 0.9, 0.92, true)
+    end
+    if mk.boss then
+        GameTooltip:AddLine("left-click: view " .. mk.boss:lower() .. " loot", 0.65, 0.65, 0.72)
+    end
+    GameTooltip:Show()
+end
+
+function MapHandlers.MarkerClick(s, button)
+    local pin = s._markerOwner or s
+    local ctrl = pin._ctrl
+    if not ctrl then return end
+    if button == "RightButton" then
+        MapHandlers.HandleRightClick(ctrl)
+        return
+    end
+    local mk = pin._mk
+    if mk and mk.boss then
+        OpenBossInJournal(ctrl, mk.boss)
     end
 end
 
@@ -497,7 +834,12 @@ local function CreateMapController(parent, isWorldMapOverlay)
         return px, py
     end
 
-    function ctrl:ApplyTransform()
+    function ctrl:ApplyPan()
+        self.panX, self.panY = self:ClampPan(self.panX, self.panY, self.zoom)
+        self.holder:SetPoint("CENTER", self.viewport, "CENTER", self.panX, self.panY)
+    end
+
+    function ctrl:ApplyTransform(forceLayout)
         local vw = self.viewport:GetWidth() or 600
         local vh = self.viewport:GetHeight() or 400
         if vw <= 10 or vh <= 10 then
@@ -518,6 +860,12 @@ local function CreateMapController(parent, isWorldMapOverlay)
         self.holder:SetSize(artW, artH)
         self.holder:ClearAllPoints()
         self.holder:SetPoint("CENTER", self.viewport, "CENTER", self.panX, self.panY)
+
+        local dimsChanged = forceLayout or self._tilesNeedLayout or (artW ~= self._lastArtW) or (artH ~= self._lastArtH)
+        if not dimsChanged then return end
+        self._lastArtW = artW
+        self._lastArtH = artH
+        self._tilesNeedLayout = false
 
         if self.tileGrid and #self.mapTiles > 0 then
             local g = self.tileGrid
@@ -599,23 +947,30 @@ local function CreateMapController(parent, isWorldMapOverlay)
         ctrl:ApplyTransform()
     end)
 
+    local function onDragUpdate(v)
+        local mx, my = GetCursorPosition()
+        local sc = v:GetEffectiveScale() or 1
+        mx, my = mx / sc, my / sc
+        if mx == ctrl._lastDragX and my == ctrl._lastDragY then return end
+        ctrl._lastDragX, ctrl._lastDragY = mx, my
+        ctrl.panX = ctrl.dragOriginX + (mx - ctrl.dragStartX)
+        ctrl.panY = ctrl.dragOriginY + (my - ctrl.dragStartY)
+        ctrl:ApplyPan()
+    end
+
     -- Left-drag panning & Right-click zoom reset / world map return
     viewport:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" and ctrl.zoom > 1.001 then
             local cx, cy = GetCursorPosition()
             local scale = self:GetEffectiveScale() or 1
-            ctrl.dragStartX = cx / scale
-            ctrl.dragStartY = cy / scale
+            cx, cy = cx / scale, cy / scale
+            ctrl.dragStartX = cx
+            ctrl.dragStartY = cy
+            ctrl._lastDragX = cx
+            ctrl._lastDragY = cy
             ctrl.dragOriginX = ctrl.panX
             ctrl.dragOriginY = ctrl.panY
-            self:SetScript("OnUpdate", function(v)
-                local mx, my = GetCursorPosition()
-                local sc = v:GetEffectiveScale() or 1
-                mx, my = mx / sc, my / sc
-                ctrl.panX = ctrl.dragOriginX + (mx - ctrl.dragStartX)
-                ctrl.panY = ctrl.dragOriginY + (my - ctrl.dragStartY)
-                ctrl:ApplyTransform()
-            end)
+            self:SetScript("OnUpdate", onDragUpdate)
         end
     end)
 
@@ -642,7 +997,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
 
     viewport:SetScript("OnSizeChanged", function()
         if ctrl.dungeon then
-            ctrl:ApplyTransform()
+            ctrl:ApplyTransform(true)
         end
     end)
 
@@ -723,31 +1078,37 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 if not btn then
                     btn = CreateFrame("Button", nil, self.toolbar, "BackdropTemplate")
                     btn:SetHeight(20)
+                    ApplyBackdrop(btn, 0.07, 0.07, 0.10, 1.0, 0.20, 0.20, 0.25, 1.0)
                     btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
                     btn.label:SetPoint("CENTER")
+                    btn:SetScript("OnClick", MapHandlers.WingClick)
+                    btn._ctrl = self
                     self.wingButtons[i] = btn
                 end
-                btn.label:SetText(w.short)
-                local bw = math.max(58, math.ceil((btn.label:GetStringWidth() or 44) + 16))
+                btn._wingID = w.id
+                if btn._lastText ~= w.short then
+                    btn._lastText = w.short
+                    btn.label:SetText(w.short)
+                    btn._lastBW = math.max(58, math.ceil((btn.label:GetStringWidth() or 44) + 16))
+                end
+                local bw = btn._lastBW or 58
                 btn:SetWidth(bw)
                 btn:ClearAllPoints()
                 btn:SetPoint("LEFT", self.toolbar, "LEFT", xOff, 0)
                 xOff = xOff + bw + 4
                 local active = (self.dungeon and self.dungeon.id == w.id)
-                if active then
-                    ApplyBackdrop(btn, 0.16, 0.10, 0.26, 1.0, 0.66, 0.40, 1.0, 1.0)
-                    btn.label:SetTextColor(1.0, 1.0, 1.0)
-                else
-                    ApplyBackdrop(btn, 0.07, 0.07, 0.10, 1.0, 0.20, 0.20, 0.25, 1.0)
-                    btn.label:SetTextColor(0.65, 0.65, 0.72)
-                end
-                btn:SetScript("OnClick", function()
-                    sfui.dj_camelot.SetScarletWing(w.id)
-                    local d = sfui.dj_camelot.GetDungeonByName(w.id)
-                    if d then
-                        self:SetDungeon(d, 1)
+                if btn._lastActive ~= active then
+                    btn._lastActive = active
+                    if active then
+                        btn:SetBackdropColor(0.16, 0.10, 0.26, 1.0)
+                        btn:SetBackdropBorderColor(0.66, 0.40, 1.0, 1.0)
+                        btn.label:SetTextColor(1.0, 1.0, 1.0)
+                    else
+                        btn:SetBackdropColor(0.07, 0.07, 0.10, 1.0)
+                        btn:SetBackdropBorderColor(0.20, 0.20, 0.25, 1.0)
+                        btn.label:SetTextColor(0.65, 0.65, 0.72)
                     end
-                end)
+                end
                 btn:Show()
             end
         elseif #floors > 1 then
@@ -760,16 +1121,30 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 if not btn then
                     btn = CreateFrame("Button", nil, self.toolbar, "BackdropTemplate")
                     btn:SetHeight(20)
+                    ApplyBackdrop(btn, 0.07, 0.07, 0.10, 1.0, 0.20, 0.20, 0.25, 1.0)
                     btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
                     btn.label:SetPoint("CENTER")
                     btn.label:SetWordWrap(false)
                     if btn.label.SetMaxLines then btn.label:SetMaxLines(1) end
+                    btn:SetScript("OnEnter", MapHandlers.FloorEnter)
+                    btn:SetScript("OnLeave", MapHandlers.HideTooltip)
+                    btn:SetScript("OnClick", MapHandlers.FloorClick)
+                    btn._ctrl = self
+                    btn._floorIdx = i
                     self.floorButtons[i] = btn
                 end
                 btn.label:SetWidth(0)
                 local text = fl.name and (i .. " · " .. fl.name:lower()) or ("floor " .. i)
-                btn.label:SetText(text)
-                local w = math.max(54, math.ceil((btn.label:GetStringWidth() or 40) + 16))
+                if btn._lastFullStr ~= text then
+                    btn._lastFullStr = text
+                    btn.label:SetText(text)
+                    btn._fullWidth = math.max(54, math.ceil((btn.label:GetStringWidth() or 40) + 16))
+                    btn._lastShownStr = text
+                elseif btn._lastShownStr ~= text then
+                    btn.label:SetText(text)
+                    btn._lastShownStr = text
+                end
+                local w = btn._fullWidth
                 fullWidths[i] = w
                 fullTotalW = fullTotalW + w + (i > 1 and 4 or 0)
             end
@@ -780,7 +1155,11 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 local bw
                 if compact and not active then
                     btn.label:SetWidth(0)
-                    btn.label:SetText(tostring(i))
+                    local numStr = tostring(i)
+                    if btn._lastShownStr ~= numStr then
+                        btn.label:SetText(numStr)
+                        btn._lastShownStr = numStr
+                    end
                     bw = 26
                 elseif compact and active then
                     local availActive = math.max(72, maxTabsW - (#floors - 1) * 30)
@@ -793,26 +1172,20 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 btn:ClearAllPoints()
                 btn:SetPoint("LEFT", self.toolbar, "LEFT", xOff, 0)
                 xOff = xOff + bw + 4
-                if active then
-                    ApplyBackdrop(btn, 0.16, 0.10, 0.26, 1.0, 0.66, 0.40, 1.0, 1.0)
-                    btn.label:SetTextColor(1.0, 1.0, 1.0)
-                else
-                    ApplyBackdrop(btn, 0.07, 0.07, 0.10, 1.0, 0.20, 0.20, 0.25, 1.0)
-                    btn.label:SetTextColor(0.65, 0.65, 0.72)
-                end
-                local fullText = fl.name and ("floor " .. i .. " · " .. fl.name:lower()) or ("floor " .. i)
-                btn:SetScript("OnEnter", function(s)
-                    GameTooltip:SetOwner(s, "ANCHOR_TOP")
-                    GameTooltip:SetText(fullText, 1.0, 0.82, 0.0)
-                    if not active then
-                        GameTooltip:AddLine("click to view floor", 0.65, 0.65, 0.72)
+                if btn._lastActive ~= active then
+                    btn._lastActive = active
+                    if active then
+                        btn:SetBackdropColor(0.16, 0.10, 0.26, 1.0)
+                        btn:SetBackdropBorderColor(0.66, 0.40, 1.0, 1.0)
+                        btn.label:SetTextColor(1.0, 1.0, 1.0)
+                    else
+                        btn:SetBackdropColor(0.07, 0.07, 0.10, 1.0)
+                        btn:SetBackdropBorderColor(0.20, 0.20, 0.25, 1.0)
+                        btn.label:SetTextColor(0.65, 0.65, 0.72)
                     end
-                    GameTooltip:Show()
-                end)
-                btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                btn:SetScript("OnClick", function()
-                    self:SetFloor(i)
-                end)
+                end
+                btn._isActive = active
+                btn._fullText = fl.name and ("floor " .. i .. " · " .. fl.name:lower()) or ("floor " .. i)
                 btn:Show()
             end
         else
@@ -934,18 +1307,27 @@ local function CreateMapController(parent, isWorldMapOverlay)
         else
             self.mapTex:Hide()
             local apiLayer, apiTextures
-            if fl.uiMapID and C_Map and type(C_Map.GetMapArtLayers) == "function" and type(C_Map.GetMapArtLayerTextures) == "function" then
-                local layers = SafePlain(C_Map.GetMapArtLayers(fl.uiMapID))
-                if type(layers) == "table" and layers[1] then
-                    local textures = SafePlain(C_Map.GetMapArtLayerTextures(fl.uiMapID, 1))
-                    if type(textures) == "table" and #textures > 0 then
-                        apiLayer, apiTextures = layers[1], textures
+            if fl.uiMapID then
+                local cached = mapArtCache[fl.uiMapID]
+                if cached == nil then
+                    if C_Map and type(C_Map.GetMapArtLayers) == "function" and type(C_Map.GetMapArtLayerTextures) == "function" then
+                        local layers = SafePlain(C_Map.GetMapArtLayers(fl.uiMapID))
+                        if type(layers) == "table" and layers[1] then
+                            local textures = SafePlain(C_Map.GetMapArtLayerTextures(fl.uiMapID, 1))
+                            if type(textures) == "table" and #textures > 0 then
+                                apiLayer, apiTextures = layers[1], textures
+                            end
+                        end
                     end
+                    local wantFirst = fl.tiles and type(GetFileIDFromPath) == "function" and SafePlain(GetFileIDFromPath(fl.tiles .. "1"))
+                    if apiTextures and wantFirst and wantFirst > 0 and SafePlain(apiTextures[1]) ~= wantFirst then
+                        apiLayer, apiTextures = nil, nil
+                    end
+                    cached = apiLayer and { layer = apiLayer, textures = apiTextures } or false
+                    mapArtCache[fl.uiMapID] = cached
+                elseif cached then
+                    apiLayer, apiTextures = cached.layer, cached.textures
                 end
-            end
-            local wantFirst = fl.tiles and type(GetFileIDFromPath) == "function" and SafePlain(GetFileIDFromPath(fl.tiles .. "1"))
-            if apiTextures and wantFirst and wantFirst > 0 and SafePlain(apiTextures[1]) ~= wantFirst then
-                apiLayer, apiTextures = nil, nil
             end
             local layerW = (apiLayer and tonumber(SafePlain(apiLayer.layerWidth))) or 1002
             local layerH = (apiLayer and tonumber(SafePlain(apiLayer.layerHeight))) or 668
@@ -982,6 +1364,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
             end
         end
 
+        self._tilesNeedLayout = true
         self:ApplyTransform()
         local artW = self.baseW * self.zoom
         local artH = self.baseH * self.zoom
@@ -998,6 +1381,10 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     pin.tex = pin:CreateTexture(nil, "OVERLAY")
                     pin.tex:SetAllPoints()
                     pin.tex:SetTexture(ENTRANCE_TEX)
+                    pin:SetScript("OnEnter", MapHandlers.EntranceEnter)
+                    pin:SetScript("OnLeave", MapHandlers.HideTooltip)
+                    pin:SetScript("OnClick", MapHandlers.EntranceClick)
+                    pin._ctrl = self
                     self.entrancePins[eUsed] = pin
                 end
                 local sz = math.max(20, math.floor(self.baseH * 0.055))
@@ -1014,34 +1401,8 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin.normX, pin.normY = e.x, e.y
                 pin:ClearAllPoints()
                 pin:SetPoint("CENTER", self.holder, "TOPLEFT", e.x * artW, -(e.y * artH))
-                local extEnt = self.dungeon and ((fIdx > 1 and self.dungeon.extraEntrances and self.dungeon.extraEntrances[fIdx - 1]) or self.dungeon.entrance) or nil
-                pin:SetScript("OnEnter", function(s)
-                    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-                    GameTooltip:SetText((e.label or "entrance"):lower(), 0.35, 1.0, 0.45)
-                    if extEnt and extEnt.detail and extEnt.detail ~= "" then
-                        GameTooltip:AddLine(extEnt.detail:lower(), 0.85, 0.85, 0.90, true)
-                    end
-                    if extEnt then
-                        GameTooltip:AddLine("left-click: mark dungeon entrance on world map", 0.65, 0.65, 0.72)
-                    end
-                    GameTooltip:Show()
-                end)
-                pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                pin:SetScript("OnClick", function(_, button)
-                    if button == "RightButton" then
-                        if self.zoom > 1.001 then
-                            self.zoom = 1.0
-                            self.panX, self.panY = 0, 0
-                            self:ApplyTransform()
-                        elseif self.isWorldMapOverlay and self.onRightClickOut then
-                            self.onRightClickOut()
-                        end
-                        return
-                    end
-                    if extEnt then
-                        dj_map.OpenWorldMapSpot(extEnt, (extEnt.label or (self.dungeon.name .. " entrance")):lower())
-                    end
-                end)
+                pin._e = e
+                pin._extEnt = self.dungeon and ((fIdx > 1 and self.dungeon.extraEntrances and self.dungeon.extraEntrances[fIdx - 1]) or self.dungeon.entrance) or nil
                 pin:Show()
             end
         end
@@ -1064,6 +1425,10 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     pin.caption:SetShadowColor(0, 0, 0, 1)
                     pin.caption:SetShadowOffset(1, -1)
                     pin.caption:SetPoint("BOTTOM", pin, "TOP", 0, 1)
+                    pin:SetScript("OnEnter", MapHandlers.LadderEnter)
+                    pin:SetScript("OnLeave", MapHandlers.HideTooltip)
+                    pin:SetScript("OnClick", MapHandlers.LadderClick)
+                    pin._ctrl = self
                     self.ladderPins[lUsed] = pin
                 end
                 local sz = math.max(24, math.floor(self.baseH * 0.068))
@@ -1089,45 +1454,20 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin.normX, pin.normY = tr.x, tr.y
                 pin:ClearAllPoints()
                 pin:SetPoint("CENTER", self.holder, "TOPLEFT", tr.x * artW, -(tr.y * artH))
-                pin:SetScript("OnEnter", function(s)
-                    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-                    if isNote then
-                        GameTooltip:SetText((tr.label or "note"):lower(), 0.35, 1.0, 0.45)
-                    else
-                        local destName = m.floors[destFloor].name
-                        local title = tr.label or (destName and ("go to " .. destName:lower()) or ("go to floor " .. destFloor))
-                        local trR = c and c[1] or 1.0
-                        local trG = c and c[2] or 0.82
-                        local trB = c and c[3] or 0.25
-                        GameTooltip:SetText(title:lower(), trR, trG, trB)
-                        GameTooltip:AddLine("left-click: switch floor", 0.65, 0.65, 0.72)
-                    end
-                    GameTooltip:Show()
-                end)
-                pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                pin:SetScript("OnClick", function(_, button)
-                    if button == "RightButton" then
-                        if self.zoom > 1.001 then
-                            self.zoom = 1.0
-                            self.panX, self.panY = 0, 0
-                            self:ApplyTransform()
-                        elseif self.isWorldMapOverlay and self.onRightClickOut then
-                            self.onRightClickOut()
-                        end
-                        return
-                    end
-                    if destFloor then
-                        GameTooltip:Hide()
-                        self:SetFloor(destFloor)
-                    end
-                end)
+                pin._tr = tr
+                pin._destFloor = destFloor
+                pin._isNote = isNote
+                pin._color = c
+                pin._m = m
                 pin:Show()
             end
         end
 
         -- 2b. Intra-page passage link arrows
         local linkUsed = 0
-        local linkByIndex = {}
+        self.linkByIndex = self.linkByIndex or {}
+        local linkByIndex = self.linkByIndex
+        wipe(linkByIndex)
         local links = m.links or {}
         for i, lk in ipairs(links) do
             if (lk.floor or 1) == fIdx then
@@ -1150,6 +1490,10 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     pin.hl:SetAllPoints()
                     pin.hl:SetBlendMode("ADD")
                     pin.hl:SetAlpha(0.45)
+                    pin:SetScript("OnEnter", MapHandlers.LinkEnter)
+                    pin:SetScript("OnLeave", MapHandlers.HideTooltip)
+                    pin:SetScript("OnClick", MapHandlers.LinkClick)
+                    pin._ctrl = self
                     self.linkPins[linkUsed] = pin
                 end
                 local sz = math.max(20, math.floor(self.baseH * 0.07))
@@ -1175,40 +1519,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin:SetScript("OnUpdate", nil)
                 pin.glow:SetAlpha(0)
                 linkByIndex[i] = pin
-
-                local targetIdx = lk.to
-                pin:SetScript("OnEnter", function(s)
-                    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-                    GameTooltip:SetText("passage link", 0.35, 1.0, 0.45)
-                    GameTooltip:AddLine("left-click: highlight connected arrow", 0.65, 0.65, 0.72)
-                    GameTooltip:Show()
-                end)
-                pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                pin:SetScript("OnClick", function(_, button)
-                    if button == "RightButton" then
-                        if self.zoom > 1.001 then
-                            self.zoom = 1.0
-                            self.panX, self.panY = 0, 0
-                            self:ApplyTransform()
-                        elseif self.isWorldMapOverlay and self.onRightClickOut then
-                            self.onRightClickOut()
-                        end
-                        return
-                    end
-                    local destPin = targetIdx and linkByIndex[targetIdx]
-                    if destPin and destPin:IsShown() then
-                        destPin.pulse = 0
-                        destPin:SetScript("OnUpdate", function(p, elapsed)
-                            p.pulse = (p.pulse or 0) + (elapsed or 0)
-                            if p.pulse >= 2.4 then
-                                p.glow:SetAlpha(0)
-                                p:SetScript("OnUpdate", nil)
-                                return
-                            end
-                            p.glow:SetAlpha(0.5 - 0.5 * math.cos(p.pulse * 7.854))
-                        end)
-                    end
-                end)
+                pin._targetIdx = lk.to
                 pin:Show()
             end
         end
@@ -1245,6 +1556,11 @@ local function CreateMapController(parent, isWorldMapOverlay)
 
                     pin.lvlBadge = pin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
                     pin.lvlBadge:SetPoint("BOTTOM", pin, "BOTTOM", 0, -4)
+
+                    pin:SetScript("OnEnter", MapHandlers.BossEnter)
+                    pin:SetScript("OnLeave", MapHandlers.HideTooltip)
+                    pin:SetScript("OnClick", MapHandlers.BossClick)
+                    pin._ctrl = self
                     self.bossPins[bUsed] = pin
                 end
 
@@ -1257,11 +1573,15 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 local isQuestMobOnly = (sfuiBoss == nil) and (b.quest ~= nil)
 
                 local dispID = b.displayId or (sfuiBoss and sfuiBoss.displayId) or 0
-                if dispID > 0 and type(SetPortraitTextureFromCreatureDisplayID) == "function" then
-                    SetPortraitTextureFromCreatureDisplayID(pin.portrait, dispID)
-                    pin.portrait:SetTexCoord(0, 1, 0, 1)
-                else
-                    pin.portrait:SetTexture("Interface\\EncounterJournal\\UI-EJ-Boss-Default")
+                local wantedDisp = (dispID > 0 and type(SetPortraitTextureFromCreatureDisplayID) == "function") and dispID or 0
+                if pin._lastDispID ~= wantedDisp then
+                    pin._lastDispID = wantedDisp
+                    if wantedDisp > 0 then
+                        SetPortraitTextureFromCreatureDisplayID(pin.portrait, wantedDisp)
+                        pin.portrait:SetTexCoord(0, 1, 0, 1)
+                    else
+                        pin.portrait:SetTexture("Interface\\EncounterJournal\\UI-EJ-Boss-Default")
+                    end
                 end
 
                 if b.quest and not b.alt then
@@ -1296,73 +1616,12 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin:ClearAllPoints()
                 pin:SetPoint("CENTER", self.holder, "TOPLEFT", b.x * artW, -(b.y * artH))
 
-                pin:SetScript("OnEnter", function(s)
-                    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-                    GameTooltip:SetText((b.name or "boss"):lower(), 1.0, 0.82, 0.0)
-                    if b.alt then
-                        GameTooltip:AddLine("can also spawn here", 0.85, 0.85, 0.90)
-                    end
-                    if lvl then
-                        GameTooltip:AddLine("level " .. tostring(lvl) .. " elite", 0.75, 0.75, 0.82)
-                    end
-                    if b.quest then
-                        local qName = (questEntry and questEntry.name and questEntry.name:lower()) or ("#" .. tostring(b.quest))
-                        GameTooltip:AddLine("quest target: " .. qName, 0.55, 0.85, 1.0)
-                    end
-                    if wishItems then
-                        GameTooltip:AddLine(" ")
-                        GameTooltip:AddLine("wishlisted drops:", 0.66, 0.40, 1.0)
-                        for _, itemID in ipairs(wishItems) do
-                            local itemName, itemLink = (sfui.common and sfui.common.get_item_info and sfui.common.get_item_info(itemID))
-                                or GetItemInfo(itemID)
-                            GameTooltip:AddLine("  • " .. (itemLink or (itemName and itemName:lower()) or ("item #" .. itemID)), 1, 1, 1)
-                        end
-                    end
-                    GameTooltip:AddLine(" ")
-                    if isQuestMobOnly then
-                        GameTooltip:AddLine("left-click: view quest in journal", 0.20, 1.0, 0.20)
-                    else
-                        GameTooltip:AddLine("left-click: view boss & loot", 0.20, 1.0, 0.20)
-                    end
-                    GameTooltip:Show()
-                end)
-                pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                pin:SetScript("OnClick", function(_, button)
-                    if button == "RightButton" then
-                        if self.zoom > 1.001 then
-                            self.zoom = 1.0
-                            self.panX, self.panY = 0, 0
-                            self:ApplyTransform()
-                        elseif self.isWorldMapOverlay and self.onRightClickOut then
-                            self.onRightClickOut()
-                        end
-                        return
-                    end
-                    GameTooltip:Hide()
-                    if isQuestMobOnly then
-                        local qID = (questEntry and questEntry.id) or b.quest
-                        if self.isWorldMapOverlay then
-                            if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
-                                sfui.dungeonjournal.SelectQuest(self.dungeon.id, qID)
-                            elseif sfui.dungeonjournal and sfui.dungeonjournal.OpenToDungeon then
-                                sfui.dungeonjournal.OpenToDungeon(self.dungeon.id, "quests")
-                            end
-                            local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
-                            if djFrame then
-                                djFrame:SetFrameStrata("FULLSCREEN_DIALOG")
-                                if djFrame.Raise then djFrame:Raise() end
-                            end
-                        elseif sfui.dungeonjournal then
-                            sfui.dungeonjournal.SetMode("quests")
-                            if qID and sfui.dungeonjournal.FocusQuest then
-                                sfui.dungeonjournal.FocusQuest(qID)
-                            end
-                        end
-                        return
-                    end
-                    local targetBossName = (sfuiBoss and sfuiBoss.name) or b.targetName or b.name
-                    OpenBossInJournal(self, targetBossName)
-                end)
+                pin._b = b
+                pin._lvl = lvl
+                pin._questEntry = questEntry
+                pin._wishItems = wishItems
+                pin._isQuestMobOnly = isQuestMobOnly
+                pin._sfuiBoss = sfuiBoss
                 pin:Show()
             end
         end
@@ -1406,6 +1665,10 @@ local function CreateMapController(parent, isWorldMapOverlay)
                             pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
                             pin.icon = pin:CreateTexture(nil, "OVERLAY")
                             pin.icon:SetAllPoints()
+                            pin:SetScript("OnEnter", MapHandlers.QuestEnter)
+                            pin:SetScript("OnLeave", MapHandlers.HideTooltip)
+                            pin:SetScript("OnClick", MapHandlers.QuestClick)
+                            pin._ctrl = self
                             self.questPins[qUsed] = pin
                         end
                         local isBang = (not hasLogged) and (hasAvailable or hasStart)
@@ -1427,79 +1690,8 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         pin:ClearAllPoints()
                         pin:SetPoint("CENTER", self.holder, "TOPLEFT", qPin.x * artW, -(qPin.y * artH))
 
-                        pin:SetScript("OnEnter", function(s)
-                            GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-                            local firstLine = true
-                            for sIdx, sp in ipairs(spots) do
-                                if sIdx > 1 then GameTooltip:AddLine(" ") end
-                                if sp.name and sp.name ~= "" then
-                                    if firstLine then
-                                        GameTooltip:SetText(sp.name:lower(), 1, 1, 1)
-                                        firstLine = false
-                                    else
-                                        GameTooltip:AddLine(sp.name:lower(), 1, 1, 1)
-                                    end
-                                end
-                                for _, q in ipairs(sp.shown) do
-                                    local qTitle = (q.name or "quest"):lower()
-                                    if firstLine then
-                                        GameTooltip:SetText(qTitle, 1.0, 0.82, 0.0)
-                                        firstLine = false
-                                    else
-                                        GameTooltip:AddLine(qTitle, 1.0, 0.82, 0.0)
-                                    end
-                                    if q.textKey and QUEST_TEXT_KEYS[q.textKey] then
-                                        GameTooltip:AddLine("  • " .. QUEST_TEXT_KEYS[q.textKey], 0.85, 0.85, 0.90, true)
-                                    else
-                                        for _, act in ipairs(q.acts or {}) do
-                                            if act == "loot" and q.itemName then
-                                                GameTooltip:AddLine("  • loot: " .. q.itemName:lower(), 0.85, 0.85, 0.90, true)
-                                            elseif QUEST_ACT_TEXT[act] then
-                                                GameTooltip:AddLine("  • " .. QUEST_ACT_TEXT[act], 0.85, 0.85, 0.90, true)
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                            GameTooltip:AddLine(" ")
-                            GameTooltip:AddLine("left-click: view quest in journal", 0.20, 1.0, 0.20)
-                            GameTooltip:Show()
-                        end)
-                        pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                        pin:SetScript("OnClick", function(_, button)
-                            if button == "RightButton" then
-                                if self.zoom > 1.001 then
-                                    self.zoom = 1.0
-                                    self.panX, self.panY = 0, 0
-                                    self:ApplyTransform()
-                                elseif self.isWorldMapOverlay and self.onRightClickOut then
-                                    self.onRightClickOut()
-                                end
-                                return
-                            end
-                            GameTooltip:Hide()
-                            local matchedQ = FindDungeonQuestEntry(self.dungeon, targetQ)
-                            local qID = (matchedQ and matchedQ.id) or (targetQ and (targetQ.main or targetQ.id))
-                            if self.isWorldMapOverlay then
-                                if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
-                                    sfui.dungeonjournal.SelectQuest(self.dungeon.id, qID)
-                                elseif sfui.dungeonjournal and sfui.dungeonjournal.OpenToDungeon then
-                                    sfui.dungeonjournal.OpenToDungeon(self.dungeon.id, "quests")
-                                end
-                                local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
-                                if djFrame then
-                                    djFrame:SetFrameStrata("FULLSCREEN_DIALOG")
-                                    if djFrame.Raise then pcall(djFrame.Raise, djFrame) end
-                                end
-                            else
-                                if sfui.dungeonjournal then
-                                    sfui.dungeonjournal.SetMode("quests")
-                                    if qID and sfui.dungeonjournal.FocusQuest then
-                                        sfui.dungeonjournal.FocusQuest(qID)
-                                    end
-                                end
-                            end
-                        end)
+                        pin._spots = spots
+                        pin._targetQ = targetQ
                         pin:Show()
                     end
                 end
@@ -1532,6 +1724,14 @@ local function CreateMapController(parent, isWorldMapOverlay)
                     pin.text = pin.badge:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
                     pin.text:SetPoint("CENTER", 0, 0)
                     pin.text:SetTextColor(1.00, 0.84, 0.30)
+                    pin._ctrl = self
+                    pin.badge._markerOwner = pin
+                    pin:SetScript("OnEnter", MapHandlers.MarkerEnter)
+                    pin:SetScript("OnLeave", MapHandlers.HideTooltip)
+                    pin:SetScript("OnClick", MapHandlers.MarkerClick)
+                    pin.badge:SetScript("OnEnter", MapHandlers.MarkerEnter)
+                    pin.badge:SetScript("OnLeave", MapHandlers.HideTooltip)
+                    pin.badge:SetScript("OnClick", MapHandlers.MarkerClick)
                     self.markerPins[mUsed] = pin
                 end
 
@@ -1567,39 +1767,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin.badge:SetFrameLevel(self.holder:GetFrameLevel() + 19)
                 pin.badge:Show()
 
-                local function onMarkerEnter(s)
-                    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-                    GameTooltip:SetText((mk.title or ("marker " .. tostring(mk.n or ""))):lower(), 1.0, 0.82, 0.0)
-                    if mk.body and mk.body ~= "" then
-                        GameTooltip:AddLine(mk.body:lower(), 0.9, 0.9, 0.92, true)
-                    end
-                    if mk.boss then
-                        GameTooltip:AddLine("left-click: view " .. mk.boss:lower() .. " loot", 0.65, 0.65, 0.72)
-                    end
-                    GameTooltip:Show()
-                end
-                local function onMarkerLeave() GameTooltip:Hide() end
-                local function onMarkerClick(_, button)
-                    if button == "RightButton" then
-                        if self.zoom > 1.001 then
-                            self.zoom = 1.0
-                            self.panX, self.panY = 0, 0
-                            self:ApplyTransform()
-                        elseif self.isWorldMapOverlay and self.onRightClickOut then
-                            self.onRightClickOut()
-                        end
-                        return
-                    end
-                    if mk.boss then
-                        OpenBossInJournal(self, mk.boss)
-                    end
-                end
-                pin:SetScript("OnEnter", onMarkerEnter)
-                pin:SetScript("OnLeave", onMarkerLeave)
-                pin:SetScript("OnClick", onMarkerClick)
-                pin.badge:SetScript("OnEnter", onMarkerEnter)
-                pin.badge:SetScript("OnLeave", onMarkerLeave)
-                pin.badge:SetScript("OnClick", onMarkerClick)
+                pin._mk = mk
                 pin:Show()
             end
         end
@@ -1647,8 +1815,11 @@ local function CreateMapController(parent, isWorldMapOverlay)
     end
 
     function ctrl:FocusSpot(floorIdx, normX, normY)
-        self.showingRoute = false
-        self:SetFloor(floorIdx or 1)
+        local targetFloor = floorIdx or 1
+        if self.showingRoute or self.floorIndex ~= targetFloor then
+            self.showingRoute = false
+            self:SetFloor(targetFloor)
+        end
         if normX and normY then
             local artW = self.baseW * self.zoom
             local artH = self.baseH * self.zoom
@@ -1669,13 +1840,13 @@ end
 --  2. Dungeon Journal Panel Entry Points
 -- ══════════════════════════════════════════════════════════════════════════════
 
-function dj_map.Render(frame, dungeon)
+function dj_map.Render(frame, dungeon, forcedFloor)
     frame = frame or (sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame())
     if not frame or not frame.mapPanel then return end
     if not frame.mapPanel.ctrl then
         frame.mapPanel.ctrl = CreateMapController(frame.mapPanel, false)
     end
-    frame.mapPanel.ctrl:SetDungeon(dungeon)
+    frame.mapPanel.ctrl:SetDungeon(dungeon, forcedFloor)
 end
 
 function dj_map.FocusBoss(frame, dungeon, bossName)
@@ -1683,12 +1854,17 @@ function dj_map.FocusBoss(frame, dungeon, bossName)
     if not frame or not dungeon or not bossName then return end
     local spot = dj_map.FindBossMapSpot(dungeon, bossName)
     if not spot then return end
+    local targetFloor = spot.floor or 1
+    GetSavedFloors()[dungeon.id] = targetFloor
     if sfui.dungeonjournal then
         sfui.dungeonjournal.SetMode("map")
     end
-    if frame.mapPanel and frame.mapPanel.ctrl then
-        frame.mapPanel.ctrl:SetDungeon(dungeon, spot.floor or 1)
-        frame.mapPanel.ctrl:FocusSpot(spot.floor or 1, spot.x, spot.y)
+    local ctrl = frame.mapPanel and frame.mapPanel.ctrl
+    if ctrl then
+        if ctrl.dungeon ~= dungeon or ctrl.floorIndex ~= targetFloor or ctrl.showingRoute then
+            ctrl:SetDungeon(dungeon, targetFloor)
+        end
+        ctrl:FocusSpot(targetFloor, spot.x, spot.y)
     end
 end
 
@@ -1697,12 +1873,17 @@ function dj_map.FocusQuest(frame, dungeon, questID, questName)
     if not frame or not dungeon then return end
     local spot = dj_map.FindQuestMapSpot(dungeon, questID, questName)
     if not spot then return end
+    local targetFloor = spot.floor or 1
+    GetSavedFloors()[dungeon.id] = targetFloor
     if sfui.dungeonjournal then
         sfui.dungeonjournal.SetMode("map")
     end
-    if frame.mapPanel and frame.mapPanel.ctrl then
-        frame.mapPanel.ctrl:SetDungeon(dungeon, spot.floor or 1)
-        frame.mapPanel.ctrl:FocusSpot(spot.floor or 1, spot.x, spot.y)
+    local ctrl = frame.mapPanel and frame.mapPanel.ctrl
+    if ctrl then
+        if ctrl.dungeon ~= dungeon or ctrl.floorIndex ~= targetFloor or ctrl.showingRoute then
+            ctrl:SetDungeon(dungeon, targetFloor)
+        end
+        ctrl:FocusSpot(targetFloor, spot.x, spot.y)
     end
 end
 
@@ -1838,30 +2019,77 @@ local function CatmullRomRun(run, out, stepPx)
     out[#out + 1] = { x = run[n].x, y = run[n].y }
 end
 
+local function clipAxis(p, q, t0, t1)
+    if p == 0 then
+        if q < 0 then return nil end
+        return t0, t1
+    end
+    local r = q / p
+    if p < 0 then
+        if r > t1 then return nil end
+        if r > t0 then t0 = r end
+    else
+        if r < t0 then return nil end
+        if r < t1 then t1 = r end
+    end
+    return t0, t1
+end
+
 local function ClipSegment(x1, y1, x2, y2, w, h)
     local dx, dy = x2 - x1, y2 - y1
     local t0, t1 = 0, 1
-    local p = { -dx, dx, -dy, dy }
-    local q = { x1, w - x1, y1, h - y1 }
-    for i = 1, 4 do
-        if p[i] == 0 then
-            if q[i] < 0 then return nil end
-        else
-            local r = q[i] / p[i]
-            if p[i] < 0 then
-                if r > t1 then return nil end
-                if r > t0 then t0 = r end
-            else
-                if r < t0 then return nil end
-                if r < t1 then t1 = r end
-            end
+    t0, t1 = clipAxis(-dx, x1, t0, t1); if not t0 then return nil end
+    t0, t1 = clipAxis(dx, w - x1, t0, t1); if not t0 then return nil end
+    t0, t1 = clipAxis(-dy, y1, t0, t1); if not t0 then return nil end
+    t0, t1 = clipAxis(dy, h - y1, t0, t1); if not t0 then return nil end
+    return x1 + t0 * dx, y1 + t0 * dy, x1 + t1 * dx, y1 + t1 * dy
+end
+
+local routeCache = {}
+
+local function HideRoutePrimitives()
+    if not routeCache.visible then return end
+    routeCache.visible = false
+    for _, l in ipairs(routeLines) do l:Hide() end
+    for _, l in ipairs(routeShadows) do l:Hide() end
+    for _, w in ipairs(routeWaypoints) do w:Hide() end
+    if routeOverlayFrame then routeOverlayFrame:Hide() end
+end
+
+function MapHandlers.WaypointEnter(s)
+    local wp = s._wp
+    if not wp then return end
+    GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+    local t = WAYPOINT_TITLES[wp.titleKey] or "route waypoint"
+    GameTooltip:SetText(t, 1.0, 0.82, 0.0)
+    if wp.textKey and WAYPOINT_TEXTS[wp.textKey] then
+        GameTooltip:AddLine(WAYPOINT_TEXTS[wp.textKey], 0.9, 0.9, 0.9, true)
+    end
+    GameTooltip:AddLine("right-click: clear route overlay", 0.65, 0.65, 0.72)
+    GameTooltip:Show()
+end
+
+function MapHandlers.WaypointClick(s, button)
+    local wp = s._wp
+    if button == "RightButton" then
+        GameTooltip:Hide()
+        dj_map.ClearRouteOnWorldMap()
+    elseif wp and wp.mapID and wp.mapID ~= s._currentMapID then
+        GameTooltip:Hide()
+        if InCombatLockdown and InCombatLockdown() then return end
+        if C_Map and type(C_Map.OpenWorldMap) == "function" then
+            C_Map.OpenWorldMap(wp.mapID)
+        elseif WorldMapFrame and WorldMapFrame.SetMapID then
+            WorldMapFrame:SetMapID(wp.mapID)
         end
     end
-    return x1 + t0 * dx, y1 + t0 * dy, x1 + t1 * dx, y1 + t1 * dy
 end
 
 function dj_map.ClearRouteOnWorldMap()
     activeRouteMap = nil
+    routeCache.map = nil
+    routeCache.smooth = nil
+    routeCache.visible = false
     for _, l in ipairs(routeLines) do l:Hide() end
     for _, l in ipairs(routeShadows) do l:Hide() end
     for _, w in ipairs(routeWaypoints) do w:Hide() end
@@ -1869,18 +2097,27 @@ function dj_map.ClearRouteOnWorldMap()
 end
 
 local function RenderRouteOnWorldMap()
-    for _, l in ipairs(routeLines) do l:Hide() end
-    for _, l in ipairs(routeShadows) do l:Hide() end
-    for _, w in ipairs(routeWaypoints) do w:Hide() end
-
-    if not activeRouteMap or not WorldMapFrame or not WorldMapFrame:IsShown() then return end
+    if not activeRouteMap or not WorldMapFrame or not WorldMapFrame:IsShown() then
+        HideRoutePrimitives()
+        return
+    end
     local canvas = (WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas())
         or (WorldMapFrame.ScrollContainer and WorldMapFrame.ScrollContainer.Child)
     local currentMapID = WorldMapFrame.GetMapID and SafePlain(WorldMapFrame:GetMapID())
-    if not canvas or not currentMapID then return end
+    if not canvas or not currentMapID then
+        HideRoutePrimitives()
+        return
+    end
 
     local width, height = canvas:GetWidth(), canvas:GetHeight()
-    if not width or not height or width <= 10 or height <= 10 then return end
+    if not width or not height or width <= 10 or height <= 10 then
+        HideRoutePrimitives()
+        return
+    end
+
+    for _, l in ipairs(routeLines) do l:Hide() end
+    for _, l in ipairs(routeShadows) do l:Hide() end
+    for _, w in ipairs(routeWaypoints) do w:Hide() end
 
     if not routeOverlayFrame then
         routeOverlayFrame = CreateFrame("Frame", nil, canvas)
@@ -1893,28 +2130,46 @@ local function RenderRouteOnWorldMap()
     routeOverlayFrame:SetFrameStrata("HIGH")
     routeOverlayFrame:SetFrameLevel(math.max((canvas:GetFrameLevel() or 0) + 500, 9995))
     routeOverlayFrame:Show()
+    routeCache.visible = true
 
     local continentID = activeRouteMap.mapID
-    local projected = {}
-    for _, pt in ipairs(activeRouteMap.points or {}) do
-        local x, y = ProjectRoutePoint(pt, currentMapID, continentID)
-        if x and y then
-            projected[#projected + 1] = { x = x * width, y = y * height, corner = pt.corner }
+    local mw = math.floor(width + 0.5)
+    local mh = math.floor(height + 0.5)
+    local smooth = routeCache.smooth
+    if not smooth or routeCache.map ~= activeRouteMap or routeCache.mapID ~= currentMapID or routeCache.w ~= mw or routeCache.h ~= mh then
+        local projected = {}
+        for _, pt in ipairs(activeRouteMap.points or {}) do
+            local x, y = ProjectRoutePoint(pt, currentMapID, continentID)
+            if x and y then
+                projected[#projected + 1] = { x = x * width, y = y * height, corner = pt.corner }
+            end
         end
-    end
-    if #projected < 2 then return end
+        if #projected < 2 then
+            routeCache.map = activeRouteMap
+            routeCache.mapID = currentMapID
+            routeCache.w = mw
+            routeCache.h = mh
+            routeCache.smooth = nil
+            return
+        end
 
-    local smooth = {}
-    local run = {}
-    for i, p in ipairs(projected) do
-        run[#run + 1] = p
-        if (p.corner and #run > 1) or i == #projected then
-            local seg = {}
-            CatmullRomRun(run, seg, 5)
-            local startK = (#smooth > 0) and 2 or 1
-            for k = startK, #seg do smooth[#smooth + 1] = seg[k] end
-            run = { p }
+        smooth = {}
+        local run = {}
+        for i, p in ipairs(projected) do
+            run[#run + 1] = p
+            if (p.corner and #run > 1) or i == #projected then
+                local seg = {}
+                CatmullRomRun(run, seg, 12)
+                local startK = (#smooth > 0) and 2 or 1
+                for k = startK, #seg do smooth[#smooth + 1] = seg[k] end
+                run = { p }
+            end
         end
+        routeCache.map = activeRouteMap
+        routeCache.mapID = currentMapID
+        routeCache.w = mw
+        routeCache.h = mh
+        routeCache.smooth = smooth
     end
 
     local used = 0
@@ -1959,35 +2214,15 @@ local function RenderRouteOnWorldMap()
                 wf.icon = wf:CreateTexture(nil, "OVERLAY", nil, 7)
                 wf.icon:SetAllPoints()
                 wf.icon:SetTexture("Interface\\Minimap\\Tracking\\FlightMaster")
+                wf:SetScript("OnEnter", MapHandlers.WaypointEnter)
+                wf:SetScript("OnLeave", MapHandlers.HideTooltip)
+                wf:SetScript("OnClick", MapHandlers.WaypointClick)
                 routeWaypoints[i] = wf
             end
             wf:ClearAllPoints()
             wf:SetPoint("CENTER", routeOverlayFrame, "TOPLEFT", wx * width, -(wy * height))
-            wf:SetScript("OnEnter", function(s)
-                GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-                local t = WAYPOINT_TITLES[wp.titleKey] or "route waypoint"
-                GameTooltip:SetText(t, 1.0, 0.82, 0.0)
-                if wp.textKey and WAYPOINT_TEXTS[wp.textKey] then
-                    GameTooltip:AddLine(WAYPOINT_TEXTS[wp.textKey], 0.9, 0.9, 0.9, true)
-                end
-                GameTooltip:AddLine("right-click: clear route overlay", 0.65, 0.65, 0.72)
-                GameTooltip:Show()
-            end)
-            wf:SetScript("OnLeave", function() GameTooltip:Hide() end)
-            wf:SetScript("OnClick", function(_, button)
-                if button == "RightButton" then
-                    GameTooltip:Hide()
-                    dj_map.ClearRouteOnWorldMap()
-                elseif wp.mapID and wp.mapID ~= currentMapID then
-                    GameTooltip:Hide()
-                    if InCombatLockdown and InCombatLockdown() then return end
-                    if C_Map and type(C_Map.OpenWorldMap) == "function" then
-                        C_Map.OpenWorldMap(wp.mapID)
-                    elseif WorldMapFrame.SetMapID then
-                        WorldMapFrame:SetMapID(wp.mapID)
-                    end
-                end
-            end)
+            wf._wp = wp
+            wf._currentMapID = currentMapID
             wf:Show()
         end
     end

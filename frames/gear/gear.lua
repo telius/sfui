@@ -148,9 +148,9 @@ local statAbbrv = {
     parry = "parry",
     Block = "block",
     block = "block",
-    BlockVal = "blockval",
-    BlockValue = "blockval",
-    blockval = "blockval",
+    BlockVal = "bv",
+    BlockValue = "bv",
+    blockval = "bv",
     Arm = "arm",
     Armor = "arm",
     arm = "arm",
@@ -443,6 +443,176 @@ local function resolveStatOrder(specID, db, pool, isTank)
 end
 sfui.gear.GetResolvedStatOrder = resolveStatOrder
 
+local STAT_ROW_Y = -112
+
+local function ensureStatRowButtons(card, ui, id, numStats)
+    if not card or not ui then return end
+    ui.statBtns = ui.statBtns or {}
+    ui.statTgls = ui.statTgls or {}
+
+    local startX = (numStats >= 10) and 46 or 48
+    local statBtnW = (numStats >= 10) and 26 or 28
+    local sepW = (numStats >= 10) and 12 or 14
+    local gap = 2
+    local needsLayout = (ui._lastStatCount ~= numStats)
+
+    local function getLiveContext()
+        local ldb = (SfuiDB and SfuiDB.gear and SfuiDB.gear[id]) or {}
+        local isTank = (sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(id, ldb)) or false
+        local role = (ldb and ldb.classic_role) or (sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(id, ldb))
+        local pool = (sfui.gear.GetStatPool and sfui.gear.GetStatPool(id, isTank, role)) or { "Crit", "Haste", "Mastery", "Versatility" }
+        local liveNum = #pool
+        local liveOrder = resolveStatOrder(id, ldb, pool, isTank)
+        return liveNum, liveOrder
+    end
+
+    local curAnchor = nil
+    for j = 1, numStats do
+        local sBtn = ui.statBtns[j]
+        if not sBtn then
+            sBtn = common.create_flat_button(card, "", statBtnW, 20)
+            sBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            local capturedIndex = j
+            sBtn:SetScript("OnClick", function(_, button)
+                local liveNum, liveOrder = getLiveContext()
+                if capturedIndex > liveNum then return end
+                SfuiDB.gear[id] = SfuiDB.gear[id] or {}
+                local ldb = SfuiDB.gear[id]
+                ldb.stat_order = {}
+                for idx = 1, liveNum do
+                    ldb.stat_order[idx] = liveOrder[idx]
+                end
+                local currentList = ldb.stat_order
+                if button == "LeftButton" then
+                    if capturedIndex > 1 then
+                        local temp = currentList[capturedIndex]
+                        currentList[capturedIndex] = currentList[capturedIndex - 1]
+                        currentList[capturedIndex - 1] = temp
+                    end
+                elseif button == "RightButton" then
+                    if capturedIndex < liveNum then
+                        local temp = currentList[capturedIndex]
+                        currentList[capturedIndex] = currentList[capturedIndex + 1]
+                        currentList[capturedIndex + 1] = temp
+                    end
+                end
+                ldb.pawn_weights = nil
+                ldb.pawn_string = nil
+                if sfui.upgrades and sfui.upgrades.MarkDirty then
+                    sfui.upgrades.MarkDirty()
+                end
+                sfui.gear.UpdateStatUI()
+                sfui.gear.Update()
+            end)
+            sBtn:SetScript("OnEnter", function(b)
+                local _, liveOrder = getLiveContext()
+                local curStat = liveOrder[capturedIndex]
+                local full = statFullName[curStat] or curStat or "none"
+                show_tooltip(b, "ANCHOR_TOP", full, {
+                    { "left-click: move left (higher priority)",  0.8, 0.8, 0.8 },
+                    { "right-click: move right (lower priority)", 0.8, 0.8, 0.8 },
+                })
+            end)
+            sBtn:SetScript("OnLeave", function() hide_tooltip() end)
+            ui.statBtns[j] = sBtn
+            needsLayout = true
+        end
+
+        if needsLayout then
+            sBtn:ClearAllPoints()
+            sBtn:SetSize(statBtnW, 20)
+            if j == 1 then
+                sBtn:SetPoint("TOPLEFT", card, "TOPLEFT", startX, STAT_ROW_Y)
+            else
+                sBtn:SetPoint("LEFT", curAnchor, "RIGHT", gap, 0)
+                sBtn:SetPoint("TOP", card, "TOP", 0, STAT_ROW_Y)
+            end
+        end
+        sBtn:Show()
+        curAnchor = sBtn
+
+        if j < numStats then
+            local tgl = ui.statTgls[j]
+            if not tgl then
+                tgl = common.create_flat_button(card, ">", sepW, 20)
+                local fs = (tgl.text and tgl.text.SetTextColor and tgl.text) or (tgl.GetFontString and tgl:GetFontString())
+                if fs and fs.SetTextColor then fs:SetTextColor(0.85, 0.85, 0.85) end
+                tgl.idx = j
+                tgl:SetScript("OnClick", function(b)
+                    SfuiDB.gear[id] = SfuiDB.gear[id] or {}
+                    local ldb = SfuiDB.gear[id]
+                    local eq = ldb.stat_equals or {}
+                    eq[b.idx] = not eq[b.idx]
+                    ldb.stat_equals = eq
+                    ldb.pawn_weights = nil
+                    ldb.pawn_string = nil
+                    if sfui.upgrades and sfui.upgrades.MarkDirty then
+                        sfui.upgrades.MarkDirty()
+                    end
+                    sfui.gear.UpdateStatUI()
+                    sfui.gear.Update()
+                end)
+                tgl:SetScript("OnEnter", function(b)
+                    local ldb = SfuiDB.gear and SfuiDB.gear[id]
+                    local eq = ldb and ldb.stat_equals or {}
+                    local isEq = eq[b.idx]
+                    show_tooltip(b, "ANCHOR_TOP", "priority operator", {
+                        { isEq and "stats are equal in priority (=)" or "strict priority order (>)", 1, 1, 1 },
+                        { "click to toggle between > and =", 0.7, 0.7, 0.7 },
+                    })
+                end)
+                tgl:SetScript("OnLeave", function() hide_tooltip() end)
+                ui.statTgls[j] = tgl
+                needsLayout = true
+            end
+
+            if needsLayout then
+                tgl:ClearAllPoints()
+                tgl:SetSize(sepW, 20)
+                tgl:SetPoint("LEFT", curAnchor, "RIGHT", gap, 0)
+                tgl:SetPoint("TOP", card, "TOP", 0, STAT_ROW_Y)
+            end
+            tgl:Show()
+            curAnchor = tgl
+        end
+    end
+
+    for j = numStats + 1, #ui.statBtns do
+        if ui.statBtns[j] then ui.statBtns[j]:Hide() end
+    end
+    for j = numStats, #ui.statTgls do
+        if ui.statTgls[j] then ui.statTgls[j]:Hide() end
+    end
+    ui._lastStatCount = numStats
+end
+
+local function refreshStatRowUI(ui, specID, db)
+    if not ui or not ui.card then return end
+    local isTank = (sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, db)) or false
+    local role = (db and db.classic_role) or (sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, db))
+    local pool = (sfui.gear.GetStatPool and sfui.gear.GetStatPool(specID, isTank, role)) or { "Crit", "Haste", "Mastery", "Versatility" }
+    local numStats = #pool
+    ensureStatRowButtons(ui.card, ui, specID, numStats)
+    local currentOrder = resolveStatOrder(specID, db, pool, isTank)
+    local equals = (db and db.stat_equals) or {}
+
+    for j = 1, numStats do
+        local sBtn = ui.statBtns[j]
+        if sBtn then
+            local s = currentOrder and currentOrder[j]
+            if s then
+                local abbr = statAbbrv[s] or s:sub(1, 4):lower()
+                sBtn:SetText(abbr)
+                local bgCol = statBgColors[s] or statBgColors.none
+                sBtn:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], 0.85)
+            end
+        end
+        if j < numStats and ui.statTgls and ui.statTgls[j] then
+            ui.statTgls[j]:SetText(equals[j] and "=" or ">")
+        end
+    end
+end
+
 -- -------------------------------------------------------------------------
 -- UPDATE STAT UI
 -- -------------------------------------------------------------------------
@@ -550,30 +720,7 @@ function sfui.gear.UpdateStatUI()
         end
 
         -- Row 3: Stat priority buttons & operator buttons
-        if ui.statBtns then
-            local isTank = (sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, db)) or false
-            local role = (db and db.classic_role) or (sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, db))
-            local pool = (sfui.gear.GetStatPool and sfui.gear.GetStatPool(specID, isTank, role)) or { "Crit", "Haste", "Mastery", "Versatility" }
-            local numStats = #pool
-            local currentOrder = resolveStatOrder(specID, db, pool, isTank)
-            local equals = (db and db.stat_equals) or {}
-
-            for j = 1, numStats do
-                local sBtn = ui.statBtns[j]
-                if sBtn then
-                    local s = currentOrder and currentOrder[j]
-                    if s then
-                        local abbr = statAbbrv[s] or s:sub(1, 4):lower()
-                        sBtn:SetText(abbr)
-                        local bgCol = statBgColors[s] or statBgColors.none
-                        sBtn:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], 0.85)
-                    end
-                end
-                if j < numStats and ui.statTgls and ui.statTgls[j] then
-                    ui.statTgls[j]:SetText(equals[j] and "=" or ">")
-                end
-            end
-        end
+        refreshStatRowUI(ui, specID, db)
     end
 end
 
@@ -667,8 +814,8 @@ if not sfui.isRetail then
         end
     end)
     upgradesBtn:SetScript("OnEnter", function(b)
-        show_tooltip(b, "ANCHOR_TOP", "gear upgrades", {
-            { "browse dungeon, quest, and vendor upgrades in your level range.", 0.8, 0.8, 0.8, true },
+        show_tooltip(b, "ANCHOR_TOP", "adventure guide: upgrades", {
+            { "open the adventure guide to browse dungeon, quest, and vendor upgrades in your level range.", 0.8, 0.8, 0.8, true },
         })
     end)
     upgradesBtn:SetScript("OnLeave", function() hide_tooltip() end)
@@ -1136,127 +1283,10 @@ gearFrame:SetScript("OnShow", function(self)
         end
 
         -- ROW 3: Stat Priorities & Pawn Weights
-        local R3Y = -112
         local targetDB = SfuiDB.gear[id] or {}
-        local isTank = (sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(id, targetDB)) or false
-        local role = (targetDB and targetDB.classic_role) or (sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(id, targetDB))
-        local pool = (sfui.gear.GetStatPool and sfui.gear.GetStatPool(id, isTank, role)) or { "Crit", "Haste", "Mastery", "Versatility" }
-        local numStats = #pool
-
         local statTag = mkLabel(card, "stats:", 0.65, 0.60, 0.50)
-        statTag:SetPoint("TOPLEFT", card, "TOPLEFT", 10, R3Y - 4)
-
-        local statBtnW = 28
-        local sepW = 14
-        local gap = 2
-
-        local function getResolvedStatOrder()
-            return resolveStatOrder(id, targetDB, pool, isTank)
-        end
-
-        ui.statBtns = {}
-        ui.statTgls = {}
-        local resolvedOrder = getResolvedStatOrder()
-        local equals = targetDB.stat_equals or {}
-
-        local curAnchor = nil
-        for j = 1, numStats do
-            local s = resolvedOrder[j]
-            local abbr = statAbbrv[s] or (s and s:sub(1, 4):lower()) or "none"
-            local sBtn = common.create_flat_button(card, abbr, statBtnW, 20)
-
-            if j == 1 then
-                sBtn:SetPoint("TOPLEFT", card, "TOPLEFT", 48, R3Y)
-            else
-                sBtn:SetPoint("LEFT", curAnchor, "RIGHT", gap, 0)
-                sBtn:SetPoint("TOP", card, "TOP", 0, R3Y)
-            end
-
-            local bgCol = statBgColors[s] or statBgColors.none
-            sBtn:SetBackdropColor(bgCol[1], bgCol[2], bgCol[3], 0.85)
-            sBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-
-            local capturedIndex = j
-            sBtn:SetScript("OnClick", function(self, button)
-                SfuiDB.gear[id] = SfuiDB.gear[id] or {}
-                local ldb = SfuiDB.gear[id]
-                ldb.stat_order = ldb.stat_order or {}
-                for idx = 1, numStats do
-                    if not ldb.stat_order[idx] then ldb.stat_order[idx] = resolvedOrder[idx] end
-                end
-                local currentList = ldb.stat_order
-                if button == "LeftButton" then
-                    if capturedIndex > 1 then
-                        local temp = currentList[capturedIndex]
-                        currentList[capturedIndex] = currentList[capturedIndex - 1]
-                        currentList[capturedIndex - 1] = temp
-                    end
-                elseif button == "RightButton" then
-                    if capturedIndex < numStats then
-                        local temp = currentList[capturedIndex]
-                        currentList[capturedIndex] = currentList[capturedIndex + 1]
-                        currentList[capturedIndex + 1] = temp
-                    end
-                end
-                ldb.pawn_weights = nil
-                ldb.pawn_string = nil
-                if sfui.upgrades and sfui.upgrades.MarkDirty then
-                    sfui.upgrades.MarkDirty()
-                end
-                sfui.gear.UpdateStatUI()
-                sfui.gear.Update()
-            end)
-
-            sBtn:SetScript("OnEnter", function(b)
-                local currentList = getResolvedStatOrder()
-                local full = statFullName[currentList[capturedIndex]] or currentList[capturedIndex]
-                show_tooltip(b, "ANCHOR_TOP", full, {
-                    { "left-click: move left (higher priority)",  0.8, 0.8, 0.8 },
-                    { "right-click: move right (lower priority)", 0.8, 0.8, 0.8 },
-                })
-            end)
-            sBtn:SetScript("OnLeave", function() hide_tooltip() end)
-            ui.statBtns[j] = sBtn
-            curAnchor = sBtn
-
-            if j < numStats then
-                local tgl = common.create_flat_button(card, equals[j] and "=" or ">", sepW, 20)
-                local fs = (tgl.text and tgl.text.SetTextColor and tgl.text) or (tgl.GetFontString and tgl:GetFontString())
-                if fs and fs.SetTextColor then fs:SetTextColor(0.85, 0.85, 0.85) end
-                tgl:SetPoint("LEFT", curAnchor, "RIGHT", gap, 0)
-                tgl:SetPoint("TOP", card, "TOP", 0, R3Y)
-
-                tgl.idx = j
-                tgl:SetScript("OnClick", function(b)
-                    SfuiDB.gear[id] = SfuiDB.gear[id] or {}
-                    local ldb = SfuiDB.gear[id]
-                    local eq = ldb.stat_equals or {}
-                    eq[b.idx] = not eq[b.idx]
-                    ldb.stat_equals = eq
-                    ldb.pawn_weights = nil
-                    ldb.pawn_string = nil
-                    if sfui.upgrades and sfui.upgrades.MarkDirty then
-                        sfui.upgrades.MarkDirty()
-                    end
-                    sfui.gear.UpdateStatUI()
-                    sfui.gear.Update()
-                end)
-
-                tgl:SetScript("OnEnter", function(b)
-                    local ldb = SfuiDB.gear and SfuiDB.gear[id]
-                    local eq = ldb and ldb.stat_equals or {}
-                    local isEq = eq[b.idx]
-                    show_tooltip(b, "ANCHOR_TOP", "priority operator", {
-                        { isEq and "stats are equal in priority (=)" or "strict priority order (>)", 1, 1, 1 },
-                        { "click to toggle between > and =", 0.7, 0.7, 0.7 },
-                    })
-                end)
-                tgl:SetScript("OnLeave", function() hide_tooltip() end)
-
-                ui.statTgls[j] = tgl
-                curAnchor = tgl
-            end
-        end
+        statTag:SetPoint("TOPLEFT", card, "TOPLEFT", 10, STAT_ROW_Y - 4)
+        refreshStatRowUI(ui, id, targetDB)
     end
 
     local activeSpecId = common.get_current_spec_id() or (specIDs and specIDs[1])

@@ -347,7 +347,10 @@ local function BuildLines(itemID, expanded)
         lines[#lines + 1] = { string_format("|cff%shold shift to show all recipes|r", HEX_DIM), "" }
     end
     local isFishSpecies = sfui.fishing_data and sfui.fishing_data.GetAllSpecies and sfui.fishing_data.GetAllSpecies()[itemID] ~= nil
-    local hasRecipeSource = sfui.recipes and sfui.recipes.GetSource and sfui.recipes.GetSource(itemID)
+    local db = sfui.recipes_camelot
+    local hasKnownRecipeObj = db and ((db.items and db.items[itemID]) or (db.outputs and db.outputs[itemID]) or (db.recipes and db.recipes[itemID]))
+        or (sfui.recipes and sfui.recipes.HasLiveVendorItem and sfui.recipes.HasLiveVendorItem(itemID))
+    local hasRecipeSource = hasKnownRecipeObj and sfui.recipes and sfui.recipes.GetSource and sfui.recipes.GetSource(itemID)
     if not isFishSpecies and not (hasRecipeSource and hasRecipeSource.sources and #hasRecipeSource.sources > 0) then
         lines[#lines + 1] = { "|cff80c0ffctrl-click to open recipe browser|r", "" }
     end
@@ -447,7 +450,6 @@ if sfui.events then
     end
     sfui.events.RegisterEvent("SKILL_LINES_CHANGED", OnDataChanged)
     sfui.events.RegisterEvent("NEW_RECIPE_LEARNED", OnDataChanged)
-    sfui.events.RegisterEvent("SPELLS_CHANGED", OnDataChanged)
     sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", OnDataChanged)
     if sfui.events.RegisterMessage then
         sfui.events.RegisterMessage("SFUI_ALT_SYNCED", OnDataChanged)

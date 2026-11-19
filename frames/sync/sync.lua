@@ -2868,22 +2868,34 @@ local function collect_deduped_synced_alts(s, partyGUIDs, partyNames, liveMap, r
     return byName
 end
 
--- Returns an array of class-colored lowercase character names for synced party
--- members who do NOT have `questID` in their active quest log and have not completed it.
-function sync.GetPartyMissingQuestPeers(questID)
-    questID = tonumber(questID)
-    if not questID then return nil end
+local function compare_quest_peer_results(a, b)
+    if a.inParty ~= b.inParty then return a.inParty end
+    if a.isOnline ~= b.isOnline then return a.isOnline end
+    return (a.name or "") < (b.name or "")
+end
+
+-- Builds a reusable snapshot of synced/party quest peers for multi-quest panel refreshes.
+function sync.CreateQuestPeerSnapshot()
     local s = sync.GetSettings()
     if not s.enabled or s.syncQuests == false then return nil end
-    if not (IsInGroup and IsInGroup()) then return nil end
     if not SfuiDB or type(SfuiDB.alts) ~= "table" then return nil end
-
     local partyGUIDs, partyNames = build_party_guid_and_name_maps()
     local liveMap = build_live_online_map()
     local byName = collect_deduped_synced_alts(s, partyGUIDs, partyNames, liveMap, false)
+    return {
+        inGroup = (IsInGroup and IsInGroup()) and true or false,
+        byName  = byName,
+    }
+end
+
+-- Returns an array of class-colored lowercase character names for synced party
+-- members who do NOT have `questID` in their active quest log and have not completed it.
+function sync.GetPartyMissingQuestPeersFromSnapshot(snapshot, questID)
+    questID = tonumber(questID)
+    if not questID or not snapshot or not snapshot.inGroup or type(snapshot.byName) ~= "table" then return nil end
     local missing = nil
 
-    for cleanName, entry in pairs(byName) do
+    for cleanName, entry in pairs(snapshot.byName) do
         if entry.inParty then
             local alt = entry.alt
             local guid = entry.guid
@@ -2902,22 +2914,23 @@ function sync.GetPartyMissingQuestPeers(questID)
     return missing
 end
 
+function sync.GetPartyMissingQuestPeers(questID)
+    questID = tonumber(questID)
+    if not questID then return nil end
+    if not (IsInGroup and IsInGroup()) then return nil end
+    local snapshot = sync.CreateQuestPeerSnapshot()
+    return sync.GetPartyMissingQuestPeersFromSnapshot(snapshot, questID)
+end
+
 -- Returns an array of status tables for synced peers/alts:
 -- { guid, name, coloredName, class, inParty, isOnline, status = "missing"|"active"|"ready"|"completed",
 --   objs = { "4/10 ...", ... }, objFinished = { 0, 1, ... }, unfinishedObjs = { ... }, hasProgress = bool }
-function sync.GetQuestPeerStatuses(questID, includeAllAlts)
+function sync.GetQuestPeerStatusesFromSnapshot(snapshot, questID, includeAllAlts)
     questID = tonumber(questID)
-    if not questID then return nil end
-    local s = sync.GetSettings()
-    if not s.enabled or s.syncQuests == false then return nil end
-    if not SfuiDB or type(SfuiDB.alts) ~= "table" then return nil end
-
-    local partyGUIDs, partyNames = build_party_guid_and_name_maps()
-    local liveMap = build_live_online_map()
-    local byName = collect_deduped_synced_alts(s, partyGUIDs, partyNames, liveMap, false)
+    if not questID or not snapshot or type(snapshot.byName) ~= "table" then return nil end
     local results = nil
 
-    for cleanName, entry in pairs(byName) do
+    for cleanName, entry in pairs(snapshot.byName) do
         local inParty = entry.inParty
         local isOnline = entry.isOnline
         if includeAllAlts or inParty or isOnline then
@@ -2978,14 +2991,17 @@ function sync.GetQuestPeerStatuses(questID, includeAllAlts)
     end
 
     if results and #results > 1 then
-        table.sort(results, function(a, b)
-            if a.inParty ~= b.inParty then return a.inParty end
-            if a.isOnline ~= b.isOnline then return a.isOnline end
-            return (a.name or "") < (b.name or "")
-        end)
+        table.sort(results, compare_quest_peer_results)
     end
 
     return results
+end
+
+function sync.GetQuestPeerStatuses(questID, includeAllAlts)
+    questID = tonumber(questID)
+    if not questID then return nil end
+    local snapshot = sync.CreateQuestPeerSnapshot()
+    return sync.GetQuestPeerStatusesFromSnapshot(snapshot, questID, includeAllAlts)
 end
 
 -- Returns active class quests (`qEntry.cl == 1`) held by online or in-party synced characters.
@@ -3373,27 +3389,31 @@ sync.GetDebugInfo = sfui.sync_debug_info
 
 function sync.GetPeerWishlistOwners(itemID)
     local id = tonumber(itemID)
-    if not id or not SfuiDB or not SfuiDB.dungeonjournal or type(SfuiDB.dungeonjournal.charWishlist) ~= "table" then
-        return nil
-    end
-    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    if not id or not SfuiDB or not SfuiDB.dungeonjournal then return nil end
+    local cw = SfuiDB.dungeonjournal.charWishlist
+    if type(cw) ~= "table" or not next(cw) then return nil end
     local peersTbl = SfuiDB.sync and SfuiDB.sync.peers
-    local out = nil
-    local seen = {}
-    for guid, charMap in pairs(SfuiDB.dungeonjournal.charWishlist) do
+    if type(peersTbl) ~= "table" or not next(peersTbl) then return nil end
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    local out, seen
+    local alts = SfuiDB.alts
+    for guid, charMap in pairs(cw) do
         if guid ~= myGUID and type(charMap) == "table" and charMap[id] == true then
-            local alt = SfuiDB.alts and SfuiDB.alts[guid]
+            local alt = alts and alts[guid]
             -- Only return peers NOT already surfaced by local SfuiDB.alts (or surface peer entries)
-            if not alt and type(peersTbl) == "table" then
+            if not alt then
                 for peerKey, p in pairs(peersTbl) do
                     if type(p) == "table" and p.guid == guid then
                         local raw = p.name or peerKey
                         local clean = (tostring(raw):match("^([^%-]+)") or tostring(raw)):lower()
-                        if clean ~= "" and not seen[clean] then
-                            seen[clean] = true
-                            local colored = (common and common.class_color_name and p.class and common.class_color_name(clean, p.class)) or clean
-                            out = out or {}
-                            out[#out + 1] = colored
+                        if clean ~= "" then
+                            seen = seen or {}
+                            if not seen[clean] then
+                                seen[clean] = true
+                                local colored = (common and common.class_color_name and p.class and common.class_color_name(clean, p.class)) or clean
+                                out = out or {}
+                                out[#out + 1] = colored
+                            end
                         end
                         break
                     end

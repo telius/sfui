@@ -17,9 +17,24 @@ local _G                  = _G
 local UnitLevel           = _G.UnitLevel
 local IsShiftKeyDown      = _G.IsShiftKeyDown
 local ipairs              = _G.ipairs
+local pairs               = _G.pairs
 local tostring            = _G.tostring
+local wipe                = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
 local string_format       = string.format
 local table_insert        = _G.table.insert
+
+local TEX_COORD_08        = { 0.08, 0.92, 0.08, 0.92 }
+local TEX_COORD_01        = { 0, 1, 0, 1 }
+local COLOR_BLACK         = { 0, 0, 0, 1 }
+local COLOR_WHITE         = { 1, 1, 1, 1 }
+local COLOR_UNDERLEVEL    = { 0.85, 0.55, 0.55, 0.85 }
+local COLOR_GOLD          = { 1, 0.82, 0, 1 }
+
+local entrancePinCache    = {}
+local entrancePinCacheSig = nil
+local questPinCache       = {}
+local questPinCacheSig    = nil
+local djPinCacheRev       = 0
 
 -- ─── Helper: DB Access ────────────────────────────────────────────────────────
 local function DJ_DB()
@@ -62,25 +77,31 @@ sfui.dungeonjournal.SetOption = sfui.dungeonjournal.SetOption or SetOption
 
 local function IsQuestPickedUpInDungeon(q)
     if not q then return false end
-    if q.pickedUpInDungeon == true or q.inDungeon == true then return true end
-    if q.pickup then
+    local cached = q._inDungeon
+    if cached ~= nil then return cached end
+    local res = false
+    if q.pickedUpInDungeon == true or q.inDungeon == true then
+        res = true
+    elseif q.pickup then
         local lower = q.pickup:lower()
-        if lower:find("inside ")
-            or lower:find("in dungeon")
-            or lower:find("dropped by ")
-            or lower:find("drops from ")
-            or lower:find("drop from ")
-            or lower:find("dropped inside")
-            or lower:find("drops in ")
-            or lower:find("item start:")
-            or lower:find("found inside")
-            or lower:find("looted in ")
-            or lower:find("looted from ")
+        if (lower:find("inside ", 1, true)
+            or lower:find("in dungeon", 1, true)
+            or lower:find("dropped by ", 1, true)
+            or lower:find("drops from ", 1, true)
+            or lower:find("drop from ", 1, true)
+            or lower:find("dropped inside", 1, true)
+            or lower:find("drops in ", 1, true)
+            or lower:find("item start:", 1, true)
+            or lower:find("found inside", 1, true)
+            or lower:find("looted in ", 1, true)
+            or lower:find("looted from ", 1, true))
+            and not lower:find("outside", 1, true)
         then
-            if not lower:find("outside") then return true end
+            res = true
         end
     end
-    return false
+    q._inDungeon = res
+    return res
 end
 
 -- ─── Interactive Tooltip Handlers ─────────────────────────────────────────────
@@ -144,7 +165,7 @@ local function OnEnterEntrance(pin, tooltip, pinData)
     end
 
     tooltip:AddLine(" ")
-    tooltip:AddLine("|cff00ff00<click to open dungeon journal>|r", 0, 1, 0)
+    tooltip:AddLine("|cff00ff00<click to open adventure guide>|r", 0, 1, 0)
     tooltip:AddLine("|cff00bfff<shift-click to set map waypoint>|r", 0, 0.75, 1)
     tooltip:AddLine("|cffff4444<right-click for pin options>|r", 1, 0.35, 0.35)
     tooltip:AddLine("|cff888888<shift-right-click to fast hide>|r", 0.6, 0.6, 0.6)
@@ -192,7 +213,7 @@ local function OnClickEntrance(pin, mouseBtn, pinData)
                     end,
                 },
                 {
-                    text = "open in dungeon journal",
+                    text = "open in adventure guide",
                     color = { 0.4, 1.0, 0.4 },
                     func = function()
                         if sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
@@ -303,7 +324,7 @@ local function OnEnterQuestGroup(pin, tooltip, pinData)
     end
 
     tooltip:AddLine(" ")
-    tooltip:AddLine("|cff00ff00<click to open dungeon journal>|r", 0, 1, 0)
+    tooltip:AddLine("|cff00ff00<click to open adventure guide>|r", 0, 1, 0)
     tooltip:AddLine("|cff00bfff<shift-click to set map waypoint>|r", 0, 0.75, 1)
     tooltip:AddLine("|cffff4444<right-click for pin options>|r", 1, 0.35, 0.35)
     tooltip:AddLine("|cff888888<shift-right-click to fast hide pin>|r", 0.6, 0.6, 0.6)
@@ -401,7 +422,7 @@ local function OnClickQuestGroup(pin, mouseBtn, pinData)
             })
 
             table_insert(items, {
-                text = "open in dungeon journal",
+                text = "open in adventure guide",
                 color = { 0.4, 1.0, 0.4 },
                 func = function()
                     local targetQuestID = (q.parentQuest and q.parentQuest.id) or q.id
@@ -543,7 +564,8 @@ end
 
 -- ─── Provider Implementation ──────────────────────────────────────────────────
 local function GetEntrancePins(mapID, playerLevel, playerFaction)
-    if DJ_DB().showEntrancePins == false then return nil end
+    local djdb = DJ_DB()
+    if djdb.showEntrancePins == false then return nil end
     local db = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
     if not db then return nil end
 
@@ -551,9 +573,19 @@ local function GetEntrancePins(mapID, playerLevel, playerFaction)
     local entries = entrancesByMapID[mapID]
     if not entries then return nil end
 
+    local autoHideTrivial = djdb.autoHideTrivialPins == true
+    local sig = tostring(djPinCacheRev) .. ":" .. tostring(autoHideTrivial and (playerLevel or 1) or 0) .. ":" .. tostring(db)
+    if entrancePinCacheSig ~= sig then
+        entrancePinCacheSig = sig
+        wipe(entrancePinCache)
+    end
+    local cached = entrancePinCache[mapID]
+    if cached ~= nil then
+        return cached ~= false and cached or nil
+    end
+
     local out = {}
     local dj = sfui.dungeonjournal
-    local autoHideTrivial = DJ_DB().autoHideTrivialPins
     for _, item in ipairs(entries) do
         local d = item.dungeon
         local ent = item.entrance
@@ -571,8 +603,8 @@ local function GetEntrancePins(mapID, playerLevel, playerFaction)
                 y           = ent.y,
                 size        = 22,
                 icon        = iconTexture,
-                texCoord    = { 0.08, 0.92, 0.08, 0.92 },
-                borderColor = { 0, 0, 0, 1 },
+                texCoord    = TEX_COORD_08,
+                borderColor = COLOR_BLACK,
                 title       = (extraIdx and ent.label) or d.name or ent.label or "dungeon entrance",
                 detail      = ent.detail,
                 dungeon     = d,
@@ -582,11 +614,17 @@ local function GetEntrancePins(mapID, playerLevel, playerFaction)
         end
     end
 
+    if #out == 0 then
+        entrancePinCache[mapID] = false
+        return nil
+    end
+    entrancePinCache[mapID] = out
     return out
 end
 
 local function GetQuestPins(mapID, playerLevel, playerFaction)
-    if DJ_DB().showQuestPins == false then return nil end
+    local djdb = DJ_DB()
+    if djdb.showQuestPins == false then return nil end
     local db = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
     if not db then return nil end
 
@@ -594,10 +632,21 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
     local entries = questsByMapID[mapID]
     if not entries then return nil end
 
-    local requireLevel = DJ_DB().questPinsRequireLevel ~= false
+    local requireLevel = djdb.questPinsRequireLevel ~= false
+    local pFaction     = playerFaction and playerFaction:lower() or "alliance"
+    local qsRev        = (sfui.queststate and sfui.queststate.GetRevision and sfui.queststate.GetRevision()) or 0
+    local sig          = tostring(djPinCacheRev) .. ":" .. tostring(qsRev) .. ":" .. tostring(playerLevel or 1) .. ":" .. pFaction .. ":" .. (requireLevel and "1" or "0") .. ":" .. tostring(db)
+    if questPinCacheSig ~= sig then
+        questPinCacheSig = sig
+        wipe(questPinCache)
+    end
+    local cached = questPinCache[mapID]
+    if cached ~= nil then
+        return cached ~= false and cached or nil
+    end
+
     local questCoords  = db.questCoords
     local groups       = {}
-    local pFaction     = playerFaction and playerFaction:lower() or "alliance"
     local dj           = sfui.dungeonjournal
     local checkClassRace = dj and dj.IsQuestClassRaceEligible
     local isDungeonHidden = dj and dj.AreDungeonPinsHidden
@@ -716,12 +765,12 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
                 y           = g.y,
                 size        = 20,
                 icon        = "Interface\\GossipFrame\\AvailableQuestIcon",
-                texCoord    = { 0, 1, 0, 1 },
+                texCoord    = TEX_COORD_01,
                 desaturated = not anyLevelMet,
-                vertexColor = (not anyLevelMet and { 0.85, 0.55, 0.55, 0.85 }) or { 1, 1, 1, 1 },
-                borderColor = { 0, 0, 0, 1 },
+                vertexColor = (not anyLevelMet and COLOR_UNDERLEVEL) or COLOR_WHITE,
+                borderColor = COLOR_BLACK,
                 count       = (#g.quests > 1 and #g.quests) or nil,
-                countColor  = { 1, 0.82, 0, 1 },
+                countColor  = COLOR_GOLD,
                 title       = firstQuest.name or "dungeon quest",
                 groupData   = g,
                 OnEnter     = OnEnterQuestGroup,
@@ -731,6 +780,11 @@ local function GetQuestPins(mapID, playerLevel, playerFaction)
         end
     end
 
+    if #out == 0 then
+        questPinCache[mapID] = false
+        return nil
+    end
+    questPinCache[mapID] = out
     return out
 end
 
@@ -749,14 +803,23 @@ pins.RegisterProvider("dj_quests", {
     GetPins     = GetQuestPins,
 })
 
-pins.RegisterTrackingCategory("dungeon journal", {
+pins.RegisterTrackingCategory("adventure guide", {
     { text = "dungeon entrances", get = function() return GetOption("showEntrancePins") end, set = function(v) SetOption("showEntrancePins", v) end },
     { text = "dungeon quests", get = function() return GetOption("showQuestPins") end, set = function(v) SetOption("showQuestPins", v) end },
     { text = "filter quests by level", get = function() return GetOption("questPinsRequireLevel") end, set = function(v) SetOption("questPinsRequireLevel", v) end },
     { text = "hide outleveled entrances", get = function() return GetOption("autoHideTrivialPins") end, set = function(v) SetOption("autoHideTrivialPins", v) end },
 })
 
-function sfui.dungeonjournal.UpdatePins() pins.RequestRefresh(0) end
+local function InvalidateDJPinCache()
+    djPinCacheRev = djPinCacheRev + 1
+    wipe(entrancePinCache)
+    wipe(questPinCache)
+end
+
+function sfui.dungeonjournal.UpdatePins()
+    InvalidateDJPinCache()
+    pins.RequestRefresh(0)
+end
 function sfui.dungeonjournal.HighlightEntrancePin(dungeonID)
     if not dungeonID then return end
     pins.HighlightPin("dj_entrance_" .. dungeonID, 0.6, 28)
@@ -764,6 +827,17 @@ end
 
 if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_DJ_SETTING_CHANGED", function()
+        InvalidateDJPinCache()
         pins.RequestRefresh(0)
     end)
+    sfui.events.RegisterMessage("SFUI_QUEST_STATE_UPDATED", function()
+        InvalidateDJPinCache()
+    end)
+end
+
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", InvalidateDJPinCache)
+    sfui.events.RegisterEvent("QUEST_TURNED_IN", InvalidateDJPinCache)
+    sfui.events.RegisterEvent("PLAYER_LEVEL_UP", InvalidateDJPinCache)
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", InvalidateDJPinCache)
 end

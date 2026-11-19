@@ -2452,27 +2452,20 @@ sfui.dj_camelot.raids = {
     },
 }
 
--- Canonical sorted dungeon order (sorted by maximum level, then minLevel, then name)
-sfui.dj_camelot.order = {}
-do
-    table.sort(sfui.dj_camelot.dungeons, function(a, b)
-        local maxA = a.maxLevel or a.minLevel or 0
-        local maxB = b.maxLevel or b.minLevel or 0
-        if maxA ~= maxB then
-            return maxA < maxB
-        end
-        local minA = a.minLevel or 0
-        local minB = b.minLevel or 0
-        if minA ~= minB then
-            return minA < minB
-        end
-        return (a.name or "") < (b.name or "")
-    end)
-
-    for _, d in ipairs(sfui.dj_camelot.dungeons) do
-        sfui.dj_camelot.order[#sfui.dj_camelot.order + 1] = d.id
+-- Sort dungeons canonically by maximum level, then minLevel, then name
+table.sort(sfui.dj_camelot.dungeons, function(a, b)
+    local maxA = a.maxLevel or a.minLevel or 0
+    local maxB = b.maxLevel or b.minLevel or 0
+    if maxA ~= maxB then
+        return maxA < maxB
     end
-end
+    local minA = a.minLevel or 0
+    local minB = b.minLevel or 0
+    if minA ~= minB then
+        return minA < minB
+    end
+    return (a.name or "") < (b.name or "")
+end)
 
 -- ─── Quest Pickup Coordinates Database (Classic & Forever) ────────────────────
 sfui.dj_camelot.questCoords = {
@@ -2810,47 +2803,64 @@ local function NormalizeName(str)
     return str:lower():gsub("[^%a%d]", "")
 end
 
-local function BuildCaches()
-    if itemSourceCache then return end
-
-    itemSourceCache   = {}
-    dungeonNameCache  = {}
-    questDungeonCache = {}
-
-    local allSources = {
-        sfui.dj_camelot.dungeons or {},
-        sfui.dj_camelot.raids or {},
-    }
-
-    for _, list in ipairs(allSources) do
+local function BuildDungeonNameCache()
+    if dungeonNameCache then return end
+    dungeonNameCache = {}
+    local dungeons = sfui.dj_camelot.dungeons or {}
+    local raids = sfui.dj_camelot.raids or {}
+    for i = 1, 2 do
+        local list = (i == 1) and dungeons or raids
         for _, dungeon in ipairs(list) do
-            -- Cache dungeon by ID and normalized name
             if dungeon.id then
                 dungeonNameCache[dungeon.id:lower()] = dungeon
+                local normID = NormalizeName(dungeon.id)
+                if normID ~= "" then
+                    dungeonNameCache[normID] = dungeon
+                end
             end
             if dungeon.name then
                 dungeonNameCache[NormalizeName(dungeon.name)] = dungeon
             end
+        end
+    end
+end
 
-            -- Cache item drops
+local function BuildItemSourceCache()
+    if itemSourceCache then return end
+    itemSourceCache = {}
+    local dungeons = sfui.dj_camelot.dungeons or {}
+    local raids = sfui.dj_camelot.raids or {}
+    for i = 1, 2 do
+        local list = (i == 1) and dungeons or raids
+        for _, dungeon in ipairs(list) do
             for _, boss in ipairs(dungeon.bosses or {}) do
                 for _, itemID in ipairs(boss.items or {}) do
                     local rawID = type(itemID) == "table" and (itemID.id or itemID[1]) or itemID
                     local numID = tonumber(rawID)
                     if numID and not itemSourceCache[numID] then
                         itemSourceCache[numID] = {
-                            dungeonID      = dungeon.id,
-                            dungeonName    = dungeon.name,
-                            bossName       = boss.name,
-                            bossDisplayId  = boss.displayId,
-                            dungeon        = dungeon,
-                            boss           = boss,
+                            dungeonID     = dungeon.id,
+                            dungeonName   = dungeon.name,
+                            bossName      = boss.name,
+                            bossDisplayId = boss.displayId,
+                            dungeon       = dungeon,
+                            boss          = boss,
                         }
                     end
                 end
             end
+        end
+    end
+end
 
-            -- Cache quests (including chain steps)
+local function BuildQuestDungeonCache()
+    if questDungeonCache then return end
+    questDungeonCache = {}
+    local dungeons = sfui.dj_camelot.dungeons or {}
+    local raids = sfui.dj_camelot.raids or {}
+    for i = 1, 2 do
+        local list = (i == 1) and dungeons or raids
+        for _, dungeon in ipairs(list) do
             for _, quest in ipairs(dungeon.quests or {}) do
                 local qID = tonumber(quest.id)
                 if qID and not questDungeonCache[qID] then
@@ -2890,13 +2900,17 @@ function sfui.dj_camelot.GetItemSource(itemID)
     if not itemID then return nil end
     local id = tonumber(itemID)
     if not id then return nil end
-    BuildCaches()
+    BuildItemSourceCache()
     return itemSourceCache[id]
 end
 
 function sfui.dj_camelot.GetDungeonByName(name)
     if not name or name == "" then return nil end
-    BuildCaches()
+    BuildDungeonNameCache()
+    local low = name:lower()
+    if dungeonNameCache[low] then
+        return dungeonNameCache[low]
+    end
     local norm = NormalizeName(name)
     if dungeonNameCache[norm] then
         return dungeonNameCache[norm]
@@ -2913,7 +2927,7 @@ function sfui.dj_camelot.GetQuestDungeon(questID)
     if not questID then return nil end
     local id = tonumber(questID)
     if not id then return nil end
-    BuildCaches()
+    BuildQuestDungeonCache()
     return questDungeonCache[id]
 end
 

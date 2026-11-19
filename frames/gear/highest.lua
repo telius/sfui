@@ -210,12 +210,8 @@ local function GetTwoHandPairBonus(itm, isClassicSpec, isPvP)
     local bonus = (itm.ilvl or 1) * mult
     if isClassicSpec then
         local q = itm.quality or 1
-        local qBonus = (q == 5 and 2500)
-            or (q == 4 and 1200)
-            or (q == 3 and 600)
-            or (q == 2 and 250)
-            or (q == 1 and 20)
-            or 0
+        local qBonus = (sfui.highest.GetClassicQualityBonus and sfui.highest.GetClassicQualityBonus(q))
+            or (q == 5 and 400 or q == 4 and 150 or q == 3 and 75 or q == 2 and 30 or q == 1 and 10 or 0)
         bonus = bonus + qBonus
     end
     return bonus
@@ -277,7 +273,23 @@ local function EvaluateCandidateAgainstSpec(itemLink, specID, ignorePlayerLevel,
         local slotID = _evalTargetSlots[i]
         if not lockedSlotMatch or lockedSlotMatch == slotID then
             local candObj = BuildScoredItemObj(itemLink, slotID, specID, st, false)
-            if candObj and (candObj.score or 0) > 0 then
+            local candValidScore = candObj and (candObj.score or 0) > 0
+            if candValidScore and st.context.isClassicSpec then
+                local eqLoc = candObj.itemEquipLoc
+                local isCombatCoreCand = (slotID == 16 or slotID == 17 or slotID == 18
+                    or eqLoc == "INVTYPE_SHIELD" or eqLoc == "INVTYPE_TRINKET"
+                    or eqLoc == "INVTYPE_RELIC" or eqLoc == "INVTYPE_AMMO")
+                if not isCombatCoreCand then
+                    if common.is_random_enchant_item and common.is_random_enchant_item(itemLink) and (candObj.statScore or 0) <= 0 then
+                        candValidScore = false
+                    elseif (eqLoc == "INVTYPE_CLOAK" or eqLoc == "INVTYPE_NECK" or eqLoc == "INVTYPE_FINGER")
+                        and (candObj.statScore or 0) <= 0 and playerLvl >= 15
+                    then
+                        candValidScore = false
+                    end
+                end
+            end
+            if candValidScore then
                 if (candObj.minLevel or 0) > playerLvl then
                     requiresHigherLevel = true
                 end

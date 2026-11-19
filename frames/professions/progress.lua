@@ -28,6 +28,37 @@ function sfui.recipes.SetBarTexture(texturePath)
     end
 end
 
+local function OnProgressBarEnter(self)
+    local d = self._pbData
+    if not d or not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(string.format("%s catalogue completion", d.profName), 1, 0.82, 0)
+    GameTooltip:AddDoubleLine("total known:", string.format("%d / %d (%.1f%%)", d.knownCount, d.totalCount, d.pct), 1, 1, 1, 0.2, 1, 0.4)
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("source breakdown:", 0.8, 0.8, 0.8)
+
+    local function AddBreakdown(label, known, total, r, g, b)
+        if total > 0 then
+            local p = (known / total) * 100
+            GameTooltip:AddDoubleLine("  " .. label .. ":", string.format("%d / %d (%.1f%%)", known, total, p), 0.9, 0.9, 0.9, r, g, b)
+        end
+    end
+
+    AddBreakdown("trainers", d.knownTrainer, d.totalTrainer, 0.4, 0.8, 1)
+    AddBreakdown("vendors", d.knownVendor, d.totalVendor, 1, 0.82, 0)
+    AddBreakdown("quests", d.knownQuest, d.totalQuest, 0.2, 1, 0.4)
+    AddBreakdown("world drops", d.knownDrop, d.totalDrop, 0.7, 0.4, 1)
+    AddBreakdown("reputation", d.knownRep, d.totalRep, 0.4, 0.7, 1)
+    AddBreakdown("limited stock", d.knownLimited, d.totalLimited, 1, 0.6, 0.2)
+    AddBreakdown("seasonal events", d.knownEvent, d.totalEvent, 1, 0.4, 0.7)
+
+    GameTooltip:Show()
+end
+
+local function OnProgressBarLeave()
+    if GameTooltip then GameTooltip:Hide() end
+end
+
 --- Create the completionist progress bar frame
 --- @param parent Frame
 --- @param anchorBelow Frame
@@ -46,6 +77,10 @@ function B.CreateProgressBar(parent, anchorBelow)
     local progressText = pb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     progressText:SetPoint("CENTER", pb, "CENTER", 0, 0)
     pb.text = progressText
+
+    pb._pbData = {}
+    pb:SetScript("OnEnter", OnProgressBarEnter)
+    pb:SetScript("OnLeave", OnProgressBarLeave)
 
     return pb
 end
@@ -75,6 +110,8 @@ function B.UpdateProgressBar()
     local knownRep, totalRep = 0, 0
     local knownLimited, totalLimited = 0, 0
     local knownEvent, totalEvent = 0, 0
+    local isSourceHostile = sfui.recipes and sfui.recipes.IsSourceHostile
+    local getDropInfo = sfui.recipes and sfui.recipes.GetDropInfo
 
     for _, r in ipairs(candidates) do
         local isKnown = B.IsRecipeLearned(r.id, r)
@@ -84,37 +121,63 @@ function B.UpdateProgressBar()
                 knownCount = knownCount + 1
             end
 
-            local isTr = B.RecipeMatchesSource(r, "trainer")
+            local minSkill = r.minSkill or (r.colors and r.colors[1]) or 0
+            local isStarter = (minSkill <= 0) and ((not r.sources) or (#r.sources == 0) or (r.sources[1] and r.sources[1].type == "trainer"))
+
+            local isTr = isStarter
+            local isVn = false
+            local isQst = false
+            local isDrp = (not isStarter) and getDropInfo and (getDropInfo(r.id) ~= nil) or false
+            local isRp = (not isStarter) and ((r.faction ~= nil) or (r.standing ~= nil))
+            local isLim = false
+
+            if not isStarter then
+                local sources = B.GetRecipeSources(r)
+                if sources then
+                    for _, s in ipairs(sources) do
+                        local hostile = isSourceHostile and isSourceHostile(s)
+                        if not hostile then
+                            local st = s.type
+                            if st == "trainer" then
+                                isTr = true
+                            elseif st == "vendor" then
+                                isVn = true
+                            elseif st == "quest" then
+                                isQst = true
+                            elseif st == "drop" or st == "object" or st == "pickpocket" or st == "container" then
+                                isDrp = true
+                            end
+                            if s.faction or s.standing then
+                                isRp = true
+                            end
+                            if s.limited then
+                                isLim = true
+                            end
+                        end
+                    end
+                end
+            end
+
             if isTr then
                 totalTrainer = totalTrainer + 1
                 if isKnown then knownTrainer = knownTrainer + 1 end
             end
-
-            local isVn = B.RecipeMatchesSource(r, "vendor")
             if isVn then
                 totalVendor = totalVendor + 1
                 if isKnown then knownVendor = knownVendor + 1 end
             end
-
-            local isQst = B.RecipeMatchesSource(r, "quest")
             if isQst then
                 totalQuest = totalQuest + 1
                 if isKnown then knownQuest = knownQuest + 1 end
             end
-
-            local isDrp = B.RecipeMatchesSource(r, "drop")
             if isDrp then
                 totalDrop = totalDrop + 1
                 if isKnown then knownDrop = knownDrop + 1 end
             end
-
-            local isRp = B.RecipeMatchesSource(r, "reputation")
             if isRp then
                 totalRep = totalRep + 1
                 if isKnown then knownRep = knownRep + 1 end
             end
-
-            local isLim = B.RecipeMatchesSource(r, "limited_stock")
             if isLim then
                 totalLimited = totalLimited + 1
                 if isKnown then knownLimited = knownLimited + 1 end
@@ -148,33 +211,14 @@ function B.UpdateProgressBar()
 
     pb.text:SetText(string.format("%s: %d / %d known (%.1f%%)", profName, knownCount, totalCount, pct))
 
-    pb:SetScript("OnEnter", function(self)
-        if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine(string.format("%s catalogue completion", profName), 1, 0.82, 0)
-        GameTooltip:AddDoubleLine("total known:", string.format("%d / %d (%.1f%%)", knownCount, totalCount, pct), 1, 1, 1, 0.2, 1, 0.4)
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("source breakdown:", 0.8, 0.8, 0.8)
-
-        local function AddBreakdown(label, known, total, r, g, b)
-            if total > 0 then
-                local p = (known / total) * 100
-                GameTooltip:AddDoubleLine("  " .. label .. ":", string.format("%d / %d (%.1f%%)", known, total, p), 0.9, 0.9, 0.9, r, g, b)
-            end
-        end
-
-        AddBreakdown("trainers", knownTrainer, totalTrainer, 0.4, 0.8, 1)
-        AddBreakdown("vendors", knownVendor, totalVendor, 1, 0.82, 0)
-        AddBreakdown("quests", knownQuest, totalQuest, 0.2, 1, 0.4)
-        AddBreakdown("world drops", knownDrop, totalDrop, 0.7, 0.4, 1)
-        AddBreakdown("reputation", knownRep, totalRep, 0.4, 0.7, 1)
-        AddBreakdown("limited stock", knownLimited, totalLimited, 1, 0.6, 0.2)
-        AddBreakdown("seasonal events", knownEvent, totalEvent, 1, 0.4, 0.7)
-
-        GameTooltip:Show()
-    end)
-
-    pb:SetScript("OnLeave", function()
-        if GameTooltip then GameTooltip:Hide() end
-    end)
+    local d = pb._pbData
+    d.profName = profName
+    d.knownCount, d.totalCount, d.pct = knownCount, totalCount, pct
+    d.knownTrainer, d.totalTrainer = knownTrainer, totalTrainer
+    d.knownVendor, d.totalVendor = knownVendor, totalVendor
+    d.knownQuest, d.totalQuest = knownQuest, totalQuest
+    d.knownDrop, d.totalDrop = knownDrop, totalDrop
+    d.knownRep, d.totalRep = knownRep, totalRep
+    d.knownLimited, d.totalLimited = knownLimited, totalLimited
+    d.knownEvent, d.totalEvent = knownEvent, totalEvent
 end

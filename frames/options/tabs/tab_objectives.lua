@@ -165,7 +165,7 @@ sfui.options.RegisterTab({
             local dj_section = p:CreateFontString(nil, "OVERLAY", g.font)
             dj_section:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
             dj_section:SetTextColor(0, 1, 1, 1)
-            dj_section:SetText("dungeon journal & map pins")
+            dj_section:SetText("adventure guide & map pins")
             yOff = yOff - 22
 
             local entrance_cb = create_checkbox(p, "show dungeon entrance icons",
@@ -244,7 +244,7 @@ sfui.options.RegisterTab({
                         SfuiDB.dungeonjournal.autoDetectInstance = checked
                     end
                 end,
-                "When inside a dungeon or raid, opening the Dungeon Journal automatically jumps directly to your active instance.")
+                "when inside a dungeon or raid, opening the adventure guide automatically jumps directly to your active instance.")
             auto_inst_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
             yOff = yOff - 28
 
@@ -284,7 +284,7 @@ sfui.options.RegisterTab({
                         SfuiDB.dungeonjournal.showAllDungeons = checked
                     end
                 end,
-                "when disabled (default), only dungeons within your current level range are shown in the dungeon journal. enable to show all dungeons regardless of level.")
+                "when disabled (default), only dungeons within your current level range are shown in the adventure guide. enable to show all dungeons regardless of level.")
             show_all_cb:SetPoint("TOPLEFT", p, "TOPLEFT", 15, yOff)
             yOff = yOff - 32
         end

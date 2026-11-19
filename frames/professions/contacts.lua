@@ -111,10 +111,10 @@ local function ScanMerchant()
     local npcName = UnitName("npc")
     if not npcID or not npcName or issecretvalue(npcName) then return end
 
-    local pos = GetPlayerPosition()
     local numItems = (GetMerchantNumItems and GetMerchantNumItems()) or 0
     if issecretvalue(numItems) or numItems <= 0 then return end
 
+    local pos = nil
     local dbRecipes = sfui.recipes_camelot and sfui.recipes_camelot.items or {}
     local vendorEntry = nil
 
@@ -134,6 +134,7 @@ local function ScanMerchant()
             -- Check if item is a recipe or in our camelot recipe scroll database
             if classID == ITEM_CLASS_RECIPE or dbRecipes[itemID] then
                 if not vendorEntry then
+                    pos = pos or GetPlayerPosition()
                     vendorEntry = SfuiDB.contacts.vendors[npcID] or {
                         name    = npcName:lower(),
                         npcID   = npcID,
@@ -228,20 +229,23 @@ local function ScanTrainer()
     local npcName = UnitName("npc")
     if not npcID or not npcName or issecretvalue(npcName) then return end
 
-    local pos = GetPlayerPosition()
     local numServices = (GetNumTrainerServices and GetNumTrainerServices()) or 0
     if issecretvalue(numServices) or numServices <= 0 then return end
 
-    local trainerEntry = SfuiDB.contacts.trainers[npcID] or {
-        name    = npcName:lower(),
-        npcID   = npcID,
-        mapID   = pos and pos.mapID,
-        zone    = pos and pos.zone,
-        subzone = pos and pos.subzone,
-        x       = pos and pos.x,
-        y       = pos and pos.y,
-        spells  = {},
-    }
+    local trainerEntry = SfuiDB.contacts.trainers[npcID]
+    if not trainerEntry then
+        local pos = GetPlayerPosition()
+        trainerEntry = {
+            name    = npcName:lower(),
+            npcID   = npcID,
+            mapID   = pos and pos.mapID,
+            zone    = pos and pos.zone,
+            subzone = pos and pos.subzone,
+            x       = pos and pos.x,
+            y       = pos and pos.y,
+            spells  = {},
+        }
+    end
 
     for i = 1, numServices do
         local serviceName, _, category = GetTrainerServiceInfo(i)
@@ -279,14 +283,9 @@ local function ScanLoot()
     local numItems = (GetNumLootItems and GetNumLootItems()) or 0
     if issecretvalue(numItems) or numItems <= 0 then return end
 
-    local pos = GetPlayerPosition()
+    local pos = nil
     local targetName = nil
-    if UnitExists("target") and UnitIsDead("target") and not UnitIsPlayer("target") then
-        local rawTargetName = UnitName("target")
-        if rawTargetName and not issecretvalue(rawTargetName) then
-            targetName = rawTargetName
-        end
-    end
+    local checkedTarget = false
 
     local dbRecipes = sfui.recipes_camelot and sfui.recipes_camelot.items or {}
     local updatedDrop = nil
@@ -301,6 +300,16 @@ local function ScanLoot()
             end
 
             if classID == ITEM_CLASS_RECIPE or dbRecipes[itemID] then
+                if not checkedTarget then
+                    checkedTarget = true
+                    if UnitExists("target") and UnitIsDead("target") and not UnitIsPlayer("target") then
+                        local rawTargetName = UnitName("target")
+                        if rawTargetName and not issecretvalue(rawTargetName) then
+                            targetName = rawTargetName
+                        end
+                    end
+                    pos = GetPlayerPosition()
+                end
                 local rawName = link:match("%[(.-)%]") or ""
                 local cleanName = rawName:gsub("^(Recipe|Pattern|Plans|Schematic|Formula|Manual|Book):%s*", ""):lower()
 
@@ -352,9 +361,9 @@ local function ScanQuest()
     local questTitle = (GetTitleText and GetTitleText()) or nil
     if not questTitle or issecretvalue(questTitle) or questTitle == "" then return end
 
-    local rawGiver = UnitExists("npc") and UnitName("npc") or nil
-    local giverName = (rawGiver and not issecretvalue(rawGiver)) and rawGiver or nil
-    local pos = GetPlayerPosition()
+    local giverName = nil
+    local pos = nil
+    local metaResolved = false
     local dbRecipes = sfui.recipes_camelot and sfui.recipes_camelot.items or {}
     local updatedQuest = nil
 
@@ -374,6 +383,12 @@ local function ScanQuest()
                 end
 
                 if classID == ITEM_CLASS_RECIPE or dbRecipes[itemID] then
+                    if not metaResolved then
+                        metaResolved = true
+                        local rawGiver = UnitExists("npc") and UnitName("npc") or nil
+                        giverName = (rawGiver and not issecretvalue(rawGiver)) and rawGiver or nil
+                        pos = GetPlayerPosition()
+                    end
                     local rawName = link:match("%[(.-)%]") or ""
                     local cleanName = rawName:gsub("^(Recipe|Pattern|Plans|Schematic|Formula|Manual|Book):%s*", "")
                         :lower()

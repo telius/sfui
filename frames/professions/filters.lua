@@ -614,14 +614,24 @@ function B.RecipeMatchesCategory(r, catKey, skillID)
     return true
 end
 
+local CITY_ZONES = {
+    ["orgrimmar"] = true, ["stormwind city"] = true, ["ironforge"] = true,
+    ["thunder bluff"] = true, ["undercity"] = true, ["darnassus"] = true,
+}
+
 --- Check if a recipe is obtainable in the player's current map zone
 --- @param r table
+--- @param currentMapID number?
+--- @param currentZoneText string?
+--- @param currentSubZoneText string?
 --- @return boolean
-function B.RecipeMatchesCurrentZone(r)
+function B.RecipeMatchesCurrentZone(r, currentMapID, currentZoneText, currentSubZoneText)
     if not r then return false end
-    local currentMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-    local currentZoneText = (GetZoneText and GetZoneText():lower()) or ""
-    local currentSubZoneText = (GetSubZoneText and GetSubZoneText():lower()) or ""
+    if currentMapID == nil and currentZoneText == nil then
+        currentMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        currentZoneText = (GetZoneText and GetZoneText():lower()) or ""
+        currentSubZoneText = (GetSubZoneText and GetSubZoneText():lower()) or ""
+    end
 
     if currentZoneText == "" and not currentMapID then
         return true
@@ -630,12 +640,8 @@ function B.RecipeMatchesCurrentZone(r)
     local sources = sfui.recipes and sfui.recipes.GetAllNonHostileSources and sfui.recipes.GetAllNonHostileSources(r)
     if not sources or #sources == 0 then
         local minSkill = r.minSkill or (r.colors and r.colors[1]) or 0
-        if minSkill <= 0 then
-            local cityZones = {
-                ["orgrimmar"] = true, ["stormwind city"] = true, ["ironforge"] = true,
-                ["thunder bluff"] = true, ["undercity"] = true, ["darnassus"] = true,
-            }
-            if cityZones[currentZoneText] then return true end
+        if minSkill <= 0 and CITY_ZONES[currentZoneText] then
+            return true
         end
         return false
     end
@@ -645,26 +651,25 @@ function B.RecipeMatchesCurrentZone(r)
             return true
         end
 
-        if s.zone and currentZoneText ~= "" then
-            local sz = s.zone:lower()
+        local sz = s._lowerZone
+        if not sz and s.zone then
+            sz = s.zone:lower()
+            s._lowerZone = sz
+        end
+        if sz and currentZoneText ~= "" then
             if sz == currentZoneText or sz:find(currentZoneText, 1, true) or currentZoneText:find(sz, 1, true) then
                 return true
             end
         end
 
-        if s.zone and currentSubZoneText ~= "" then
-            local sz = s.zone:lower()
+        if sz and currentSubZoneText ~= "" then
             if sz == currentSubZoneText or sz:find(currentSubZoneText, 1, true) or currentSubZoneText:find(sz, 1, true) then
                 return true
             end
         end
 
-        if s.type == "trainer" and (not s.zone or s.zone == "" or s.zone:lower():find("city")) then
-            local cityZones = {
-                ["orgrimmar"] = true, ["stormwind city"] = true, ["ironforge"] = true,
-                ["thunder bluff"] = true, ["undercity"] = true, ["darnassus"] = true,
-            }
-            if cityZones[currentZoneText] then
+        if s.type == "trainer" and (not sz or sz == "" or sz:find("city", 1, true)) then
+            if CITY_ZONES[currentZoneText] then
                 return true
             end
         end
@@ -702,6 +707,15 @@ function B.HasAnyNonHostileSource(r)
         end
     end
     return not allHostile
+end
+
+local function CompareProfessions(a, b)
+    local aIsSec = (a.skillID == 185 or a.skillID == 129)
+    local bIsSec = (b.skillID == 185 or b.skillID == 129)
+    if aIsSec ~= bIsSec then
+        return not aIsSec
+    end
+    return (a.name or "") < (b.name or "")
 end
 
 --- Query learned crafting professions of the active character
@@ -833,15 +847,7 @@ function B.GetPlayerProfessionsList()
         end
     end
 
-    table.sort(list, function(a, b)
-        local aIsSec = (a.skillID == 185 or a.skillID == 129)
-        local bIsSec = (b.skillID == 185 or b.skillID == 129)
-        if aIsSec ~= bIsSec then
-            return not aIsSec
-        end
-        return (a.name or "") < (b.name or "")
-    end)
-
+    table.sort(list, CompareProfessions)
     return list
 end
 
@@ -1186,6 +1192,27 @@ function B.GetCandidatesForSkill(skillID)
     return list
 end
 
+local function CompareFilteredAll(a, b)
+    local skA = a.recipe.minSkill or (a.recipe.colors and a.recipe.colors[1]) or 0
+    local skB = b.recipe.minSkill or (b.recipe.colors and b.recipe.colors[1]) or 0
+    if skA ~= skB then
+        return skA < skB
+    end
+    return (a.recipe.name or "") < (b.recipe.name or "")
+end
+
+local function CompareFilteredUnlearned(a, b)
+    if a.canLearn ~= b.canLearn then
+        return a.canLearn -- currently ready to learn first
+    end
+    local skA = a.recipe.minSkill or (a.recipe.colors and a.recipe.colors[1]) or 0
+    local skB = b.recipe.minSkill or (b.recipe.colors and b.recipe.colors[1]) or 0
+    if skA ~= skB then
+        return skA < skB
+    end
+    return (a.recipe.name or "") < (b.recipe.name or "")
+end
+
 --- Rebuild the filtered list based on current filters
 function B.RebuildFilteredList()
     local db = sfui.recipes_camelot and sfui.recipes_camelot.recipes
@@ -1199,7 +1226,16 @@ function B.RebuildFilteredList()
     local candidates = B.GetCandidatesForSkill(B.selectedSkillID)
     local resultCount = 0
 
-    -- Apply filters (state, seasonal event, spec, hostile source check, source, and search query)
+    local currentMapID, currentZoneText, currentSubZoneText
+    if B.showCurrentZoneOnly then
+        currentMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        currentZoneText = (GetZoneText and GetZoneText():lower()) or ""
+        currentSubZoneText = (GetSubZoneText and GetSubZoneText():lower()) or ""
+    end
+    local hasActiveSource = B.HasActiveSourceFilter()
+    local reagentSet = B.activeReagentSpellSet
+
+    -- Apply cheap raw filters first before resolving GetSource()
     for _, r in ipairs(candidates) do
         local spellID = r.id
         local isLearned = B.IsRecipeLearned(spellID, r)
@@ -1208,72 +1244,66 @@ function B.RebuildFilteredList()
                        or (B.filterState == "unlearned" and not isLearned)
 
         if passState then
-            -- Faction / hostile source check:
-            -- If a recipe only has hostile sources (e.g. Alliance recipe on Horde), skip it
-            local passHostile = B.HasAnyNonHostileSource(r)
+            -- Seasonal event filter (raw fields):
+            local eventHoliday = r.event or B.EVENT_RECIPES[spellID]
+            local isEvent = (r.isEvent or eventHoliday ~= nil)
+            local passEvent = true
+            if isEvent and not B.showEventRecipes and not isLearned then
+                if not (eventHoliday and B.IsHolidayActive(eventHoliday)) then
+                    passEvent = false
+                end
+            end
 
-            if passHostile then
-                -- Seasonal event filter:
-                local eventHoliday = r.event or B.EVENT_RECIPES[spellID]
-                local isEvent = (r.isEvent or eventHoliday ~= nil)
-                local passEvent = true
-                if isEvent and not B.showEventRecipes and not isLearned then
-                    if not (eventHoliday and B.IsHolidayActive(eventHoliday)) then
-                        passEvent = false
-                    end
+            if passEvent then
+                -- Sub-category / equipment slot filter (raw name):
+                local passCategory = true
+                if B.activeCategoryFilter then
+                    passCategory = B.RecipeMatchesCategory(r, B.activeCategoryFilter, B.selectedSkillID)
                 end
 
-                if passEvent then
-                    -- Current zone filter:
-                    local passZone = true
-                    if B.showCurrentZoneOnly then
-                        passZone = B.RecipeMatchesCurrentZone(r)
+                if passCategory then
+                    -- Specialization filter (raw spec):
+                    local passSpec = true
+                    if B.activeSpecFilter then
+                        if B.activeSpecFilter == "general" then
+                            passSpec = (r.spec == nil)
+                        else
+                            passSpec = B.RecipeMatchesSpec(r, B.activeSpecFilter)
+                        end
                     end
 
-                    if passZone then
-                        -- Sub-category / equipment slot filter:
-                        local passCategory = true
-                        if B.activeCategoryFilter then
-                            passCategory = B.RecipeMatchesCategory(r, B.activeCategoryFilter, B.selectedSkillID)
-                        end
-
-                        if passCategory then
-                            -- Specialization filter:
-                            local passSpec = true
-                            if B.activeSpecFilter then
-                                if B.activeSpecFilter == "general" then
-                                    passSpec = (r.spec == nil)
-                                else
-                                    passSpec = B.RecipeMatchesSpec(r, B.activeSpecFilter)
+                    if passSpec and (not reagentSet or reagentSet[spellID] == true) then
+                        -- Faction / hostile source check:
+                        if B.HasAnyNonHostileSource(r) then
+                            local passSource = true
+                            if hasActiveSource then
+                                passSource = false
+                                if B.sourceFilters.vendor and B.RecipeMatchesSource(r, "vendor") then
+                                    passSource = true
+                                elseif B.sourceFilters.trainer and B.RecipeMatchesSource(r, "trainer") then
+                                    passSource = true
+                                elseif B.sourceFilters.quest and B.RecipeMatchesSource(r, "quest") then
+                                    passSource = true
+                                elseif B.sourceFilters.drop and B.RecipeMatchesSource(r, "drop") then
+                                    passSource = true
+                                elseif B.sourceFilters.reputation and B.RecipeMatchesSource(r, "reputation") then
+                                    passSource = true
+                                elseif B.sourceFilters.limited_stock and B.RecipeMatchesSource(r, "limited_stock") then
+                                    passSource = true
+                                elseif B.sourceFilters.alt_unlearned and sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(r) then
+                                    passSource = true
                                 end
                             end
 
-                            if passSpec then
-                                local passSource = true
-                                if B.HasActiveSourceFilter() then
-                                    passSource = false
-                                    if B.sourceFilters.vendor and B.RecipeMatchesSource(r, "vendor") then
-                                        passSource = true
-                                    elseif B.sourceFilters.trainer and B.RecipeMatchesSource(r, "trainer") then
-                                        passSource = true
-                                    elseif B.sourceFilters.quest and B.RecipeMatchesSource(r, "quest") then
-                                        passSource = true
-                                    elseif B.sourceFilters.drop and B.RecipeMatchesSource(r, "drop") then
-                                        passSource = true
-                                    elseif B.sourceFilters.reputation and B.RecipeMatchesSource(r, "reputation") then
-                                        passSource = true
-                                    elseif B.sourceFilters.limited_stock and B.RecipeMatchesSource(r, "limited_stock") then
-                                        passSource = true
-                                    elseif B.sourceFilters.alt_unlearned and sfui.recipes.IsAltNeeded and sfui.recipes.IsAltNeeded(r) then
-                                        passSource = true
-                                    end
+                            if passSource then
+                                local passZone = true
+                                if B.showCurrentZoneOnly then
+                                    passZone = B.RecipeMatchesCurrentZone(r, currentMapID, currentZoneText, currentSubZoneText)
                                 end
 
-                                if passSource then
+                                if passZone then
                                     local passSearch = true
-                                    if B.activeReagentSpellSet then
-                                        passSearch = (B.activeReagentSpellSet[spellID] == true)
-                                    elseif searchPattern then
+                                    if (not reagentSet) and searchPattern then
                                         passSearch = false
                                         local rLower = r._lowerName
                                         if not rLower then
@@ -1338,7 +1368,6 @@ function B.RebuildFilteredList()
                         end
                     end
                 end
-
             end
         end
     end
@@ -1350,19 +1379,7 @@ function B.RebuildFilteredList()
     -- Sort:
     -- In "unlearned" mode: recipes the player qualifies for now first, then higher req
     -- In "all" and "learned" modes: sorted by minSkill ascending, then alphabetical by name
-    table.sort(B.filteredRecipes, function(a, b)
-        if B.filterState == "unlearned" then
-            if a.canLearn ~= b.canLearn then
-                return a.canLearn -- currently ready to learn first
-            end
-        end
-        local skA = a.recipe.minSkill or (a.recipe.colors and a.recipe.colors[1]) or 0
-        local skB = b.recipe.minSkill or (b.recipe.colors and b.recipe.colors[1]) or 0
-        if skA ~= skB then
-            return skA < skB
-        end
-        return (a.recipe.name or "") < (b.recipe.name or "")
-    end)
+    table.sort(B.filteredRecipes, (B.filterState == "unlearned") and CompareFilteredUnlearned or CompareFilteredAll)
 
     if B.ui.statusText then
         local withWaypoints = 0
@@ -1422,7 +1439,7 @@ end
 if sfui.events and sfui.events.RegisterEvent then
     local function InvalidateLearnedCache()
         wipe(isLearnedCache)
-        if B.ui and B.ui.frame and B.ui.frame:IsShown() then
+        if (B.IsPanelVisible and B.IsPanelVisible()) or (not B.IsPanelVisible and B.ui and B.ui.frame and B.ui.frame:IsShown()) then
             B.RebuildFilteredList()
             B.UpdateList()
         end
@@ -1431,6 +1448,6 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("TRADE_SKILL_SHOW", InvalidateLearnedCache)
     sfui.events.RegisterEvent("SKILL_LINES_CHANGED", InvalidateLearnedCache)
     sfui.events.RegisterEvent("CRAFT_SHOW", InvalidateLearnedCache)
-    sfui.events.RegisterEvent("SPELLS_CHANGED", InvalidateLearnedCache)
+    sfui.events.RegisterEvent("NEW_RECIPE_LEARNED", InvalidateLearnedCache)
     sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", InvalidateLearnedCache)
 end

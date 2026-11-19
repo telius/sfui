@@ -932,11 +932,8 @@ function CamelotSkillsModule:BuildBlocks(container)
                     return
                 end
                 local profName = SKILL_ID_TO_PROF_NAME[skillID]
-                if profName and sfui.recipes and sfui.recipes.browser and sfui.recipes.OpenBrowser then
-                    sfui.recipes.OpenBrowser()
-                    if sfui.recipes.browser.SelectProfession then
-                        sfui.recipes.browser:SelectProfession(profName)
-                    end
+                if profName and sfui.recipes and sfui.recipes.OpenBrowser then
+                    sfui.recipes.OpenBrowser(profName)
                 else
                     OpenSkillInUI(skillID)
                 end

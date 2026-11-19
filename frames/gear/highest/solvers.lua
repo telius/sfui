@@ -251,12 +251,8 @@ function sfui.highest.SolveWeapons(best, finalPick, specID, rule, context)
                 score2H = score2H + (best2H.ilvl * twoHandIlvlMult)
                 if isClassicSpec then
                     local q = best2H.quality or 1
-                    local qBonus = (q == 5 and 2500)
-                        or (q == 4 and 1200)
-                        or (q == 3 and 600)
-                        or (q == 2 and 250)
-                        or (q == 1 and 20)
-                        or 0
+                    local qBonus = (sfui.highest.GetClassicQualityBonus and sfui.highest.GetClassicQualityBonus(q))
+                        or (q == 5 and 400 or q == 4 and 150 or q == 3 and 75 or q == 2 and 30 or q == 1 and 10 or 0)
                     score2H = score2H + qBonus
                 end
             end

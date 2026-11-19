@@ -533,6 +533,7 @@ sfui.dj_camelot.maps = setmetatable({}, {
         if not raw then return nil end
         local d = decode_map(raw)
         t[k] = d
+        RAW_MAPS[k] = nil
         return d
     end,
 })
@@ -647,6 +648,7 @@ sfui.dj_camelot.mapQuestPins = setmetatable({}, {
         if not raw then return nil end
         local d = decode_pins(raw)
         t[k] = d
+        RAW_QUEST_PINS[k] = nil
         return d
     end,
 })
@@ -713,6 +715,7 @@ sfui.dj_camelot.routes = setmetatable({}, {
         if not raw then return nil end
         local d = decode_route(raw)
         t[k] = d
+        RAW_ROUTES[k] = nil
         return d
     end,
 })

@@ -50,25 +50,13 @@ local scrollFrame    = nil
 local scrollContent  = nil
 
 -- all sidebar filter toggles route through SetOption; the SFUI_DJ_SETTING_CHANGED
--- listener at the bottom of this file refreshes button states and the list.
+-- listener and SetOption itself refresh button states and the list cleanly.
 local function SetShowAll(val)
     sfui.dungeonjournal.SetOption("showAllDungeons", val and true or false)
-    if sidebarFrame and sidebarFrame.UpdateFilterState then
-        sidebarFrame.UpdateFilterState()
-    end
-    if RefreshSidebar then
-        RefreshSidebar()
-    end
 end
 
 local function SetShowHidden(val)
     sfui.dungeonjournal.SetOption("showHiddenInSidebar", val and true or false)
-    if sidebarFrame and sidebarFrame.UpdateEyeState then
-        sidebarFrame.UpdateEyeState()
-    end
-    if RefreshSidebar then
-        RefreshSidebar()
-    end
 end
 
 -- ─── Difficulty Color Helper ──────────────────────────────────────────────────
@@ -98,18 +86,22 @@ end
 
 local function FormatColoredLevelRange(dungeon, playerLevel)
     local pLvl = playerLevel or (UnitLevel and UnitLevel("player")) or 1
+    if dungeon._lvlStr and dungeon._lvlStrPlayerLvl == pLvl then
+        return dungeon._lvlStr
+    end
     local minLvl = dungeon.minLevel
     local maxLvl = dungeon.maxLevel
+    local out = ""
 
     if minLvl and maxLvl then
         local cMin = GetLevelColorHex(minLvl, pLvl)
         local cMax = GetLevelColorHex(maxLvl, pLvl)
         if minLvl == maxLvl then
-            return string.format("|c%s[%d]|r", cMin, minLvl)
+            out = string.format("|c%s[%d]|r", cMin, minLvl)
         elseif cMin == cMax then
-            return string.format("|c%s[%d - %d]|r", cMin, minLvl, maxLvl)
+            out = string.format("|c%s[%d - %d]|r", cMin, minLvl, maxLvl)
         else
-            return string.format("|cff666666[|r|c%s%d|r|cff555555 - |r|c%s%d|r|cff666666]|r", cMin, minLvl, cMax, maxLvl)
+            out = string.format("|cff666666[|r|c%s%d|r|cff555555 - |r|c%s%d|r|cff666666]|r", cMin, minLvl, cMax, maxLvl)
         end
     elseif dungeon.level then
         local low, high = tostring(dungeon.level):match("^(%d+)%s*-%s*(%d+)$")
@@ -118,20 +110,62 @@ local function FormatColoredLevelRange(dungeon, playerLevel)
             local cMin = GetLevelColorHex(nLow, pLvl)
             local cMax = GetLevelColorHex(nHigh, pLvl)
             if cMin == cMax then
-                return string.format("|c%s[%d - %d]|r", cMin, nLow, nHigh)
+                out = string.format("|c%s[%d - %d]|r", cMin, nLow, nHigh)
             else
-                return string.format("|cff666666[|r|c%s%d|r|cff555555 - |r|c%s%d|r|cff666666]|r", cMin, nLow, cMax, nHigh)
+                out = string.format("|cff666666[|r|c%s%d|r|cff555555 - |r|c%s%d|r|cff666666]|r", cMin, nLow, cMax, nHigh)
             end
         else
             local single = tonumber(dungeon.level)
             if single then
                 local c = GetLevelColorHex(single, pLvl)
-                return string.format("|c%s[%d]|r", c, single)
+                out = string.format("|c%s[%d]|r", c, single)
+            else
+                out = string.format("|cff888888[%s]|r", dungeon.level)
             end
-            return string.format("|cff888888[%s]|r", dungeon.level)
         end
     end
-    return ""
+    dungeon._lvlStrPlayerLvl = pLvl
+    dungeon._lvlStr = out
+    return out
+end
+
+local function GetDungeonSearchBlob(dungeon)
+    if dungeon._searchBlob and not dungeon._searchNeedsRebuild then
+        return dungeon._searchBlob
+    end
+    local parts = {}
+    if dungeon.name then parts[#parts + 1] = dungeon.name:lower() end
+    if dungeon.zone then parts[#parts + 1] = dungeon.zone:lower() end
+    local hasUncached = false
+    if dungeon.bosses then
+        for _, boss in ipairs(dungeon.bosses) do
+            if boss.name then parts[#parts + 1] = boss.name:lower() end
+            if boss.items then
+                for _, itemID in ipairs(boss.items) do
+                    local id = type(itemID) == "table" and (itemID.id or itemID[1]) or itemID
+                    local name = id and common.get_item_info(id)
+                    if not name and id and _G.C_Item and _G.C_Item.GetItemNameByID then
+                        name = _G.C_Item.GetItemNameByID(id)
+                    end
+                    if name then
+                        parts[#parts + 1] = name:lower()
+                    else
+                        hasUncached = true
+                    end
+                end
+            end
+        end
+    end
+    if dungeon.quests then
+        for _, q in ipairs(dungeon.quests) do
+            if q.name then parts[#parts + 1] = q.name:lower() end
+        end
+    end
+    local blob = table.concat(parts, "\n")
+    dungeon._searchBlob = blob
+    dungeon._searchHasUncached = hasUncached
+    dungeon._searchNeedsRebuild = false
+    return blob
 end
 
 -- ─── Player Faction & Quest Progress Helpers ─────────────────────────────────
@@ -243,7 +277,7 @@ local function OpenDungeonContextMenu(owner, dungeon)
             func = function()
                 sfui.dungeonjournal.SetDungeonHidden(dungeon.id, false)
                 if sfui.print then
-                    sfui.print(string.format("restored |cffffd100%s|r to dungeon journal and map.", dungeon.name or "dungeon"))
+                    sfui.print(string.format("restored |cffffd100%s|r to adventure guide and map.", dungeon.name or "dungeon"))
                 end
             end,
         })
@@ -326,9 +360,11 @@ local dungeonUpgradePending  = {}
 local pendingByItemID        = {}
 local requestedItemLoads     = {}
 local upgradeQueue           = {}
+local upgradeQueueHead       = 1
 local upgradeQueuedSet       = {}
 local upgradeWorkerScheduled = false
 local UPGRADE_BATCH_SIZE     = 3
+local dirtyRefresh           = false
 
 local function IsSidebarVisible()
     if not sidebarFrame then return false end
@@ -357,6 +393,7 @@ local function InvalidateUpgradeCache()
     for i = #upgradeQueue, 1, -1 do
         upgradeQueue[i] = nil
     end
+    upgradeQueueHead = 1
     for k in pairs(upgradeQueuedSet) do
         upgradeQueuedSet[k] = nil
     end
@@ -441,20 +478,46 @@ local function ComputeDungeonUpgradeCount(dungeon)
     return count, hasUnloaded
 end
 
+local function UpdateButtonForDungeon(dID, count)
+    for _, btn in ipairs(sidebarButtons) do
+        if btn:IsShown() and btn.dungeonRef and btn.dungeonRef.id == dID then
+            ApplyButtonUpgradeDisplay(btn, count)
+            return
+        end
+    end
+end
+
+local function PopUpgradeQueue()
+    if upgradeQueueHead > #upgradeQueue then
+        for i = #upgradeQueue, 1, -1 do upgradeQueue[i] = nil end
+        upgradeQueueHead = 1
+        return nil
+    end
+    local d = upgradeQueue[upgradeQueueHead]
+    upgradeQueue[upgradeQueueHead] = nil
+    upgradeQueueHead = upgradeQueueHead + 1
+    if upgradeQueueHead > #upgradeQueue then
+        for i = #upgradeQueue, 1, -1 do upgradeQueue[i] = nil end
+        upgradeQueueHead = 1
+    end
+    return d
+end
+
 local function ProcessUpgradeQueue()
     upgradeWorkerScheduled = false
     if not IsSidebarVisible() then
         for i = #upgradeQueue, 1, -1 do
             upgradeQueue[i] = nil
         end
+        upgradeQueueHead = 1
         for k in pairs(upgradeQueuedSet) do
             upgradeQueuedSet[k] = nil
         end
         return
     end
     local processed = 0
-    while #upgradeQueue > 0 and processed < UPGRADE_BATCH_SIZE do
-        local dungeon = table.remove(upgradeQueue, 1)
+    while upgradeQueueHead <= #upgradeQueue and processed < UPGRADE_BATCH_SIZE do
+        local dungeon = PopUpgradeQueue()
         if dungeon and dungeon.id then
             upgradeQueuedSet[dungeon.id] = nil
             if dungeonUpgradeCache[dungeon.id] == nil then
@@ -462,41 +525,31 @@ local function ProcessUpgradeQueue()
                 dungeonUpgradeCache[dungeon.id] = count
                 dungeonUpgradePending[dungeon.id] = hasUnloaded or nil
                 processed = processed + 1
-                for _, btn in ipairs(sidebarButtons) do
-                    if btn:IsShown() and btn.dungeonRef == dungeon then
-                        ApplyButtonUpgradeDisplay(btn, count)
-                        break
-                    end
-                end
+                UpdateButtonForDungeon(dungeon.id, count)
             end
         end
     end
-    if #upgradeQueue > 0 and _G.C_Timer and _G.C_Timer.After and not upgradeWorkerScheduled then
+    if upgradeQueueHead <= #upgradeQueue and _G.C_Timer and _G.C_Timer.After and not upgradeWorkerScheduled then
         upgradeWorkerScheduled = true
         _G.C_Timer.After(0, ProcessUpgradeQueue)
     end
 end
 
 local function ScheduleUpgradeWorker()
-    if upgradeWorkerScheduled or #upgradeQueue == 0 then return end
+    if upgradeWorkerScheduled or upgradeQueueHead > #upgradeQueue then return end
     if _G.C_Timer and _G.C_Timer.After then
         upgradeWorkerScheduled = true
         _G.C_Timer.After(0, ProcessUpgradeQueue)
     else
-        while #upgradeQueue > 0 do
-            local dungeon = table.remove(upgradeQueue, 1)
+        while upgradeQueueHead <= #upgradeQueue do
+            local dungeon = PopUpgradeQueue()
             if dungeon and dungeon.id then
                 upgradeQueuedSet[dungeon.id] = nil
                 if dungeonUpgradeCache[dungeon.id] == nil then
                     local count, hasUnloaded = ComputeDungeonUpgradeCount(dungeon)
                     dungeonUpgradeCache[dungeon.id] = count
                     dungeonUpgradePending[dungeon.id] = hasUnloaded or nil
-                    for _, btn in ipairs(sidebarButtons) do
-                        if btn:IsShown() and btn.dungeonRef == dungeon then
-                            ApplyButtonUpgradeDisplay(btn, count)
-                            break
-                        end
-                    end
+                    UpdateButtonForDungeon(dungeon.id, count)
                 end
             end
         end
@@ -520,6 +573,81 @@ local function GetCachedDungeonUpgradeCount(dungeon)
         EnqueueUpgradeCalc(dungeon)
     end
     return 0
+end
+
+local function OnSidebarButtonEnter(self)
+    local dungeon = self.dungeonRef
+    if not dungeon then return end
+    local prog = self.prog
+    local uc = self.upgCount or 0
+    local hasWish = self.hasWish
+    local wishCount = self.wishCount or 0
+    local isHidden = self._isHidden
+    local arePinsHidden = self._arePinsHidden
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(dungeon.name or "dungeon", 1, 0.82, 0)
+    if dungeon.level then
+        GameTooltip:AddLine("level: " .. dungeon.level, 0.85, 0.85, 0.85)
+    end
+    if dungeon.zone then
+        GameTooltip:AddLine("zone: " .. dungeon.zone, 0.65, 0.65, 0.65)
+    end
+    if prog then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(string.format("dungeon quests (%d total):", prog.total), 1, 0.82, 0)
+        if prog.available > 0 then
+            GameTooltip:AddLine(string.format("  - available to pick up: %d", prog.available), 1, 0.82, 0)
+        end
+        if prog.inProg > 0 then
+            GameTooltip:AddLine(string.format("  - in progress (in log): %d", prog.inProg), 0, 0.9, 1)
+        end
+        if prog.completed > 0 then
+            GameTooltip:AddLine(string.format("  - completed: %d", prog.completed), 0, 1, 0)
+        end
+        if prog.locked > 0 then
+            GameTooltip:AddLine(string.format("  - locked (requires higher level): %d", prog.locked), 0.7, 0.4, 0.4)
+        end
+    end
+
+    if uc > 0 then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(string.format("|cff33ff88+%d spec upgrade%s cached|r", uc, uc == 1 and "" or "s"), 0.2, 1, 0.53)
+    end
+
+    if hasWish then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(string.format("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffwishlist drop%s active (%d)|r", (wishCount > 1 and "s" or ""), wishCount), 1, 1, 1)
+    end
+
+    if isHidden then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cffff5555[this dungeon is hidden]|r", 1, 0.35, 0.35)
+        GameTooltip:AddLine("|cff00ff00<right-click to unhide dungeon>|r", 0, 1, 0)
+    elseif arePinsHidden then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cffffaa00[map pins for this dungeon are hidden]|r", 1, 0.7, 0.3)
+        GameTooltip:AddLine("|cff888888<right-click for hide/unhide options>|r", 0.6, 0.6, 0.6)
+    else
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cff888888<right-click for hide options>|r", 0.6, 0.6, 0.6)
+    end
+    GameTooltip:Show()
+end
+
+local function OnSidebarButtonLeave()
+    GameTooltip:Hide()
+end
+
+local function OnSidebarButtonClick(self, mouseButton)
+    local dRef = self.dungeonRef
+    if not dRef then return end
+    if mouseButton == "RightButton" then
+        OpenDungeonContextMenu(self, dRef)
+    else
+        if sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
+            sfui.dungeonjournal.SelectDungeon(dRef.id)
+        end
+    end
 end
 
 local function AcquireButton(pool, parent)
@@ -571,6 +699,11 @@ local function AcquireButton(pool, parent)
     hi:SetBlendMode("ADD")
     hi:SetAlpha(0.25)
 
+    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    btn:SetScript("OnEnter", OnSidebarButtonEnter)
+    btn:SetScript("OnLeave", OnSidebarButtonLeave)
+    btn:SetScript("OnClick", OnSidebarButtonClick)
+
     pool[#pool + 1] = btn
     return btn
 end
@@ -593,6 +726,7 @@ local function RefreshSidebarImpl()
     if sidebarFrame.UpdateEyeState then
         sidebarFrame.UpdateEyeState()
     end
+    dirtyRefresh = false
 
     ReleaseAll(sidebarButtons)
 
@@ -605,7 +739,7 @@ local function RefreshSidebarImpl()
 
     local isFiltering = (currentSearchFilter ~= nil and currentSearchFilter ~= "")
     local showAll     = DJ_DB().showAllDungeons == true
-    local currentInst = dj and dj.GetCurrentInstanceDungeon and dj.GetCurrentInstanceDungeon()
+    local currentInst = (not showAll) and dj and dj.GetCurrentInstanceDungeon and dj.GetCurrentInstanceDungeon() or nil
 
     local displayList = list
     if not showAll then
@@ -621,45 +755,8 @@ local function RefreshSidebarImpl()
     if isFiltering then
         local matched = {}
         for _, dungeon in ipairs(displayList) do
-            local matchFound = false
-            if dungeon.name and dungeon.name:lower():find(currentSearchFilter, 1, true) then
-                matchFound = true
-            elseif dungeon.zone and dungeon.zone:lower():find(currentSearchFilter, 1, true) then
-                matchFound = true
-            end
-
-            if not matchFound and dungeon.bosses then
-                for _, boss in ipairs(dungeon.bosses) do
-                    if boss.name and boss.name:lower():find(currentSearchFilter, 1, true) then
-                        matchFound = true
-                        break
-                    end
-                    if boss.items then
-                        for _, itemID in ipairs(boss.items) do
-                            local name = common.get_item_info(itemID)
-                            if not name and _G.C_Item and _G.C_Item.GetItemNameByID then
-                                name = _G.C_Item.GetItemNameByID(itemID)
-                            end
-                            if name and name:lower():find(currentSearchFilter, 1, true) then
-                                matchFound = true
-                                break
-                            end
-                        end
-                    end
-                    if matchFound then break end
-                end
-            end
-
-            if not matchFound and dungeon.quests then
-                for _, q in ipairs(dungeon.quests) do
-                    if q.name and q.name:lower():find(currentSearchFilter, 1, true) then
-                        matchFound = true
-                        break
-                    end
-                end
-            end
-
-            if matchFound then
+            local blob = GetDungeonSearchBlob(dungeon)
+            if blob:find(currentSearchFilter, 1, true) then
                 matched[#matched + 1] = dungeon
             end
         end
@@ -770,79 +867,14 @@ local function RefreshSidebarImpl()
                 end
             end
 
-            btn.dungeonRef = dungeon
-            btn.lvlStr     = lvlStr
-            btn.prog       = prog
-            btn.hasWish    = hasWish
-            btn.wishCount  = wishCount
+            btn.dungeonRef     = dungeon
+            btn.lvlStr         = lvlStr
+            btn.prog           = prog
+            btn.hasWish        = hasWish
+            btn.wishCount      = wishCount
+            btn._isHidden      = isHidden
+            btn._arePinsHidden = arePinsHidden
             ApplyButtonUpgradeDisplay(btn, upgCount)
-
-            -- Tooltip breakdown
-            btn:SetScript("OnEnter", function(self)
-                local uc = self.upgCount or 0
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(dungeon.name or "dungeon", 1, 0.82, 0)
-                if dungeon.level then
-                    GameTooltip:AddLine("level: " .. dungeon.level, 0.85, 0.85, 0.85)
-                end
-                if dungeon.zone then
-                    GameTooltip:AddLine("zone: " .. dungeon.zone, 0.65, 0.65, 0.65)
-                end
-                if prog then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine(string.format("dungeon quests (%d total):", prog.total), 1, 0.82, 0)
-                    if prog.available > 0 then
-                        GameTooltip:AddLine(string.format("  - available to pick up: %d", prog.available), 1, 0.82, 0)
-                    end
-                    if prog.inProg > 0 then
-                        GameTooltip:AddLine(string.format("  - in progress (in log): %d", prog.inProg), 0, 0.9, 1)
-                    end
-                    if prog.completed > 0 then
-                        GameTooltip:AddLine(string.format("  - completed: %d", prog.completed), 0, 1, 0)
-                    end
-                    if prog.locked > 0 then
-                        GameTooltip:AddLine(string.format("  - locked (requires higher level): %d", prog.locked), 0.7, 0.4, 0.4)
-                    end
-                end
-
-                if uc > 0 then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine(string.format("|cff33ff88+%d spec upgrade%s cached|r", uc, uc == 1 and "" or "s"), 0.2, 1, 0.53)
-                end
-
-                if hasWish then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine(string.format("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:12:12:0:0|t |cffcc44ffwishlist drop%s active (%d)|r", (wishCount > 1 and "s" or ""), wishCount), 1, 1, 1)
-                end
-
-                if isHidden then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cffff5555[this dungeon is hidden]|r", 1, 0.35, 0.35)
-                    GameTooltip:AddLine("|cff00ff00<right-click to unhide dungeon>|r", 0, 1, 0)
-                elseif arePinsHidden then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cffffaa00[map pins for this dungeon are hidden]|r", 1, 0.7, 0.3)
-                    GameTooltip:AddLine("|cff888888<right-click for hide/unhide options>|r", 0.6, 0.6, 0.6)
-                else
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cff888888<right-click for hide options>|r", 0.6, 0.6, 0.6)
-                end
-                GameTooltip:Show()
-            end)
-            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-            -- Click handler (Left = select dungeon, Right = open context menu)
-            local dRef = dungeon
-            btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-            btn:SetScript("OnClick", function(self, mouseButton)
-                if mouseButton == "RightButton" then
-                    OpenDungeonContextMenu(self, dRef)
-                else
-                    if sfui.dungeonjournal and sfui.dungeonjournal.SelectDungeon then
-                        sfui.dungeonjournal.SelectDungeon(dRef.id)
-                    end
-                end
-            end)
 
             btn:Show()
             y     = y + BTN_H + BTN_PAD
@@ -945,7 +977,7 @@ local function RefreshSidebarImpl()
         scrollFrame.ScrollBar:UpdateVisibility()
     end
 
-    if #upgradeQueue > 0 and IsSidebarVisible() then
+    if upgradeQueueHead <= #upgradeQueue and IsSidebarVisible() then
         ScheduleUpgradeWorker()
     end
 end
@@ -1056,12 +1088,19 @@ local function OnFrameCreated(arg1, arg2)
             placeholder:Hide()
             clearBtn:Show()
             currentSearchFilter = text:lower():match("^%s*(.-)%s*$")
+            if common and common.debounce then
+                common.debounce("dj_sidebar_search", 0.15, RefreshSidebar)
+            else
+                RefreshSidebar()
+            end
         else
             placeholder:Show()
             clearBtn:Hide()
-            currentSearchFilter = nil
+            if currentSearchFilter ~= nil then
+                currentSearchFilter = nil
+                RefreshSidebar()
+            end
         end
-        RefreshSidebar()
     end)
 
     searchBox:SetScript("OnEscapePressed", function(self)
@@ -1093,13 +1132,30 @@ local function OnFrameCreated(arg1, arg2)
         common.style_scrollbar(scrollFrame.ScrollBar)
     end
 
-
     -- Register refresh function with orchestrator
     if sfui.dungeonjournal and sfui.dungeonjournal._registerSidebar then
         sfui.dungeonjournal._registerSidebar(RefreshSidebar)
     end
 
-    RefreshSidebar()
+    dirtyRefresh = true
+    if sidebarFrame.HookScript then
+        sidebarFrame:HookScript("OnShow", function()
+            if sidebarFrame._syncItemEvents then
+                sidebarFrame._syncItemEvents(true)
+            end
+            if dirtyRefresh then
+                dirtyRefresh = false
+                RefreshSidebar()
+            elseif upgradeQueueHead <= #upgradeQueue then
+                ScheduleUpgradeWorker()
+            end
+        end)
+        sidebarFrame:HookScript("OnHide", function()
+            if sidebarFrame._syncItemEvents then
+                sidebarFrame._syncItemEvents(false)
+            end
+        end)
+    end
 end
 
 sfui.dungeonjournal._initSidebar = OnFrameCreated
@@ -1107,35 +1163,46 @@ sfui.dungeonjournal._initSidebar = OnFrameCreated
 local function DebouncedSidebarRefresh()
     if IsSidebarVisible() and RefreshSidebar then
         RefreshSidebar()
+    else
+        dirtyRefresh = true
     end
 end
 
--- Listen for frame-created and clear-cache messages
+-- Listen for clear-cache, wishlist, gear, and setting messages
 if sfui.events and sfui.events.RegisterMessage then
-    sfui.events.RegisterMessage("SFUI_DJ_FRAME_CREATED", OnFrameCreated)
-    sfui.events.RegisterMessage("SFUI_DJ_CLEAR_CACHE",   function()
+    sfui.events.RegisterMessage("SFUI_DJ_CLEAR_CACHE", function()
         InvalidateQuestProgressCache()
         InvalidateWishlistCache()
         InvalidateUpgradeCache()
         ReleaseAll(sidebarButtons)
-        RefreshSidebar()
+        if IsSidebarVisible() then
+            RefreshSidebar()
+        else
+            dirtyRefresh = true
+        end
     end)
     sfui.events.RegisterMessage("SFUI_DJ_WISHLIST_UPDATED", function()
         InvalidateWishlistCache()
         if IsSidebarVisible() then
             RefreshSidebar()
+        else
+            dirtyRefresh = true
         end
     end)
     sfui.events.RegisterMessage("SFUI_EQUIPMENT_DELTA", function()
         InvalidateUpgradeCache()
         if IsSidebarVisible() then
             common.debounce("dj_sidebar_upgrades", 0.15, DebouncedSidebarRefresh)
+        else
+            dirtyRefresh = true
         end
     end)
     sfui.events.RegisterMessage("SFUI_ROLE_CONTEXT_CHANGED", function()
         InvalidateUpgradeCache()
         if IsSidebarVisible() then
             common.debounce("dj_sidebar_upgrades", 0.15, DebouncedSidebarRefresh)
+        else
+            dirtyRefresh = true
         end
     end)
     sfui.events.RegisterMessage("SFUI_DJ_SETTING_CHANGED", function(_, key)
@@ -1144,6 +1211,8 @@ if sfui.events and sfui.events.RegisterMessage then
                 if sidebarFrame.UpdateFilterState then sidebarFrame.UpdateFilterState() end
                 if sidebarFrame.UpdateEyeState then sidebarFrame.UpdateEyeState() end
                 RefreshSidebar()
+            else
+                dirtyRefresh = true
             end
         end
     end)
@@ -1155,29 +1224,67 @@ if sfui.events and sfui.events.RegisterEvent then
         InvalidateQuestProgressCache()
         if IsSidebarVisible() then
             common.debounce("dj_sidebar_quests", 0.15, DebouncedSidebarRefresh)
+        else
+            dirtyRefresh = true
         end
     end
     local function OnUpgradeContextChanged()
         InvalidateUpgradeCache()
         if IsSidebarVisible() then
             common.debounce("dj_sidebar_upgrades", 0.15, DebouncedSidebarRefresh)
+        else
+            dirtyRefresh = true
         end
     end
     local function OnUpgradeItemLoaded(_, itemID, success)
         if not itemID or not pendingByItemID[itemID] then return end
-        if success == false then
-            pendingByItemID[itemID] = nil
-            return
-        end
-        local touched = false
-        for dID in pairs(pendingByItemID[itemID]) do
+        local touched = pendingByItemID[itemID]
+        pendingByItemID[itemID] = nil
+        if success == false then return end
+        for dID in pairs(touched) do
             dungeonUpgradeCache[dID] = nil
             dungeonUpgradePending[dID] = nil
-            touched = true
         end
-        pendingByItemID[itemID] = nil
-        if touched and IsSidebarVisible() then
-            common.debounce("dj_sidebar_item_upgrades", 0.35, DebouncedSidebarRefresh)
+        if not IsSidebarVisible() then
+            dirtyRefresh = true
+            return
+        end
+        for _, btn in ipairs(sidebarButtons) do
+            local d = btn.dungeonRef
+            if btn:IsShown() and d and d.id and touched[d.id] then
+                if d._searchHasUncached then
+                    d._searchNeedsRebuild = true
+                end
+                local count, hasUnloaded = ComputeDungeonUpgradeCount(d)
+                dungeonUpgradeCache[d.id] = count
+                dungeonUpgradePending[d.id] = hasUnloaded or nil
+                ApplyButtonUpgradeDisplay(btn, count)
+            end
+        end
+    end
+    local itemEventsRegistered = false
+    local function SyncSidebarItemEvents(visible)
+        if visible and not itemEventsRegistered then
+            itemEventsRegistered = true
+            sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnUpgradeItemLoaded)
+            sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT",  OnUpgradeItemLoaded)
+        elseif not visible and itemEventsRegistered then
+            itemEventsRegistered = false
+            if sfui.events.UnregisterEvent then
+                sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", OnUpgradeItemLoaded)
+                sfui.events.UnregisterEvent("ITEM_DATA_LOAD_RESULT",  OnUpgradeItemLoaded)
+            end
+        end
+    end
+    -- Attach to already-created or future sidebarFrame cleanly
+    local origInit = sfui.dungeonjournal._initSidebar
+    sfui.dungeonjournal._initSidebar = function(...)
+        origInit(...)
+        if sidebarFrame then
+            sidebarFrame._syncItemEvents = SyncSidebarItemEvents
+            if IsSidebarVisible() then
+                SyncSidebarItemEvents(true)
+            end
         end
     end
     sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)
@@ -1189,11 +1296,11 @@ if sfui.events and sfui.events.RegisterEvent then
         InvalidateUpgradeCache()
         if IsSidebarVisible() then
             common.debounce("dj_sidebar_quests", 0.15, DebouncedSidebarRefresh)
+        else
+            dirtyRefresh = true
         end
     end)
     sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",    OnUpgradeContextChanged)
     sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED",    OnUpgradeContextChanged)
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", OnUpgradeContextChanged)
-    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED",      OnUpgradeItemLoaded)
-    sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT",       OnUpgradeItemLoaded)
 end

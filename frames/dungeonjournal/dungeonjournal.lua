@@ -55,10 +55,77 @@ local sidebarFrame                  = nil
 local mapPanel                      = nil
 local bossPanel                     = nil
 local questPanel                    = nil
+local externalPanels                = {}
+local externalMounted               = {}
+local externalThemeDirty            = {}
+local bossesInitialized             = false
+local questsInitialized             = false
+local initPayload                   = nil
+local journalThemeDirty             = false
+
+local lastSfuiDBRef                 = nil
+local cachedDJDB                    = nil
+local cachedCharHidden              = nil
+local cachedCharKey                 = nil
+local syncedWishlistUnion           = false
+local cachedDataRef                 = nil
+local dungeonByID                   = nil
+local dungeonTabByID                = nil
+
+local EXTERNAL_TAB_ORDER = { "upgrades", "recipes", "fishing" }
+local EXTERNAL_TAB_DEFS = {
+    upgrades = {
+        label      = "upgrades",
+        width      = 84,
+        btnField   = "upgradesTabBtn",
+        panelField = "upgradesPanel",
+        getModule  = function() return sfui.upgrades end,
+        onRebuild  = function(mod)
+            if mod.MarkDirty then mod.MarkDirty() end
+        end,
+    },
+    recipes = {
+        label      = "recipes",
+        width      = 76,
+        btnField   = "recipesTabBtn",
+        panelField = "recipesPanel",
+        getModule  = function() return sfui.recipes and sfui.recipes.browser end,
+        onRebuild  = function(mod)
+            if mod.OnPanelShown then mod.OnPanelShown() end
+        end,
+    },
+    fishing = {
+        label      = "fishing",
+        width      = 76,
+        btnField   = "fishingTabBtn",
+        panelField = "fishingPanel",
+        getModule  = function() return sfui.fishing and sfui.fishing.atlas end,
+        onRebuild  = function(mod)
+            if mod.Update then mod.Update() end
+        end,
+    },
+}
 
 local selectedDungeonID             = nil -- dungeon id string
 local selectedMode                  = "map" -- "map" | "bosses" | "quests"
-local selectedTab                   = "dungeons" -- "dungeons" | "raids"
+local selectedTab                   = "dungeons" -- "dungeons" | "raids" | "upgrades" | "recipes" | "fishing"
+local lastJournalTab                = "dungeons" -- last active "dungeons" | "raids"
+
+local function HasExternalTab(tabKey)
+    local def = EXTERNAL_TAB_DEFS[tabKey]
+    if not def then return false end
+    local mod = def.getModule()
+    return mod ~= nil and type(mod.MountPanel) == "function"
+end
+
+local function IsExternalTab(tabKey)
+    local key = tabKey or selectedTab
+    return EXTERNAL_TAB_DEFS[key] ~= nil and HasExternalTab(key)
+end
+
+local function IsValidTab(tabKey)
+    return tabKey == "dungeons" or tabKey == "raids" or IsExternalTab(tabKey)
+end
 
 -- ─── SavedVariables helpers ───────────────────────────────────────────────────
 sfui.db.RegisterDefaults("dungeonjournal", {
@@ -79,13 +146,30 @@ sfui.db.RegisterDefaults("dungeonjournal", {
 
 local GetPlayerKey = sfui.common.get_player_unique_key
 
+local function ResetDBCacheIfNeeded()
+    local cur = _G.SfuiDB
+    if cur ~= lastSfuiDBRef then
+        lastSfuiDBRef = cur
+        cachedDJDB = nil
+        cachedCharHidden = nil
+        cachedCharKey = nil
+        syncedWishlistUnion = false
+    end
+end
+
 local function GetCharHidden()
+    ResetDBCacheIfNeeded()
+    local charKey = GetPlayerKey()
+    if cachedCharHidden and cachedCharKey == charKey then
+        return cachedCharHidden
+    end
+
     SfuiDB = SfuiDB or {}
+    lastSfuiDBRef = SfuiDB
     SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
     local dj = SfuiDB.dungeonjournal
     dj.charHidden = dj.charHidden or {}
 
-    local charKey = GetPlayerKey()
     if not dj.charHidden[charKey] then
         dj.charHidden[charKey] = {
             hiddenDungeons      = {},
@@ -120,25 +204,49 @@ local function GetCharHidden()
     data.hiddenDungeons = data.hiddenDungeons or {}
     data.hiddenPins = data.hiddenPins or {}
     data.hiddenQuestPins = data.hiddenQuestPins or {}
+    cachedCharHidden = data
+    cachedCharKey = charKey
     return data
 end
 sfui.dungeonjournal.GetCharHidden = GetCharHidden
 
 local function DJ_DB()
+    ResetDBCacheIfNeeded()
+    if cachedDJDB then
+        return cachedDJDB
+    end
+
     SfuiDB = SfuiDB or {}
+    lastSfuiDBRef = SfuiDB
     SfuiDB.dungeonjournal = SfuiDB.dungeonjournal or {}
-    SfuiDB.dungeonjournal.wishlist = SfuiDB.dungeonjournal.wishlist or {}
+    local dj = SfuiDB.dungeonjournal
+    dj.wishlist = dj.wishlist or {}
+    if not syncedWishlistUnion then
+        syncedWishlistUnion = true
+        if type(dj.charWishlist) == "table" then
+            for _, charMap in pairs(dj.charWishlist) do
+                if type(charMap) == "table" then
+                    for id, flag in pairs(charMap) do
+                        if flag == true then
+                            dj.wishlist[id] = true
+                        end
+                    end
+                end
+            end
+        end
+    end
     local charData = GetCharHidden()
-    SfuiDB.dungeonjournal.hiddenDungeons = charData.hiddenDungeons
-    SfuiDB.dungeonjournal.hiddenPins = charData.hiddenPins
-    SfuiDB.dungeonjournal.hiddenQuestPins = charData.hiddenQuestPins
+    dj.hiddenDungeons = charData.hiddenDungeons
+    dj.hiddenPins = charData.hiddenPins
+    dj.hiddenQuestPins = charData.hiddenQuestPins
     if charData.showHiddenInSidebar ~= nil then
-        SfuiDB.dungeonjournal.showHiddenInSidebar = charData.showHiddenInSidebar
+        dj.showHiddenInSidebar = charData.showHiddenInSidebar
     end
     if charData.showAllDungeons ~= nil then
-        SfuiDB.dungeonjournal.showAllDungeons = charData.showAllDungeons
+        dj.showAllDungeons = charData.showAllDungeons
     end
-    return SfuiDB.dungeonjournal
+    cachedDJDB = dj
+    return dj
 end
 sfui.dungeonjournal.GetDB = DJ_DB
 sfui.dungeonjournal.DB    = DJ_DB
@@ -158,17 +266,7 @@ function sfui.dungeonjournal.IsWishlisted(itemID)
     local id = tonumber(itemID)
     if not id then return false end
     local db = DJ_DB()
-    if db.wishlist and db.wishlist[id] == true then
-        return true
-    end
-    if type(db.charWishlist) == "table" then
-        for _, charMap in pairs(db.charWishlist) do
-            if type(charMap) == "table" and charMap[id] == true then
-                return true
-            end
-        end
-    end
-    return false
+    return db.wishlist ~= nil and db.wishlist[id] == true
 end
 
 function sfui.dungeonjournal.GetWishlistCharacters(itemID)
@@ -263,7 +361,7 @@ function sfui.dungeonjournal.GetWishlist()
     return db.wishlist or {}
 end
 
-function sfui.dungeonjournal.AddWishlistItem(itemID, silent)
+function sfui.dungeonjournal.AddWishlistItem(itemID, silent, deferBroadcast)
     local id = tonumber(itemID)
     if not id then return false end
     local db = DJ_DB()
@@ -274,6 +372,7 @@ function sfui.dungeonjournal.AddWishlistItem(itemID, silent)
     if myGUID then
         db.charWishlist[myGUID] = db.charWishlist[myGUID] or {}
         if db.charWishlist[myGUID][id] == true then
+            db.wishlist[id] = true
             return false
         end
         db.charWishlist[myGUID][id] = true
@@ -282,7 +381,7 @@ function sfui.dungeonjournal.AddWishlistItem(itemID, silent)
         return false
     end
     db.wishlist[id] = true
-    if sfui.events and sfui.events.SendMessage then
+    if not deferBroadcast and sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_WISHLIST_UPDATED", id, true)
     end
     if not silent and sfui.print then
@@ -290,6 +389,53 @@ function sfui.dungeonjournal.AddWishlistItem(itemID, silent)
         sfui.print("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffwishlist added:|r " .. (link or ("item #" .. id)))
     end
     return true
+end
+
+function sfui.dungeonjournal.AddWishlistItemsBatch(itemIDs, silent)
+    if type(itemIDs) ~= "table" or #itemIDs == 0 then return 0 end
+    local db = DJ_DB()
+    db.wishlist = db.wishlist or {}
+    db.charWishlist = db.charWishlist or {}
+    db.charWishlistRev = db.charWishlistRev or {}
+    local myGUID = _G.UnitGUID and _G.UnitGUID("player")
+    local myMap = nil
+    if myGUID then
+        db.charWishlist[myGUID] = db.charWishlist[myGUID] or {}
+        myMap = db.charWishlist[myGUID]
+    end
+    local added = 0
+    local lastAddedID = nil
+    for i = 1, #itemIDs do
+        local id = tonumber(itemIDs[i])
+        if id then
+            if myMap then
+                if myMap[id] ~= true then
+                    myMap[id] = true
+                    db.wishlist[id] = true
+                    added = added + 1
+                    lastAddedID = id
+                else
+                    db.wishlist[id] = true
+                end
+            elseif db.wishlist[id] ~= true then
+                db.wishlist[id] = true
+                added = added + 1
+                lastAddedID = id
+            end
+        end
+    end
+    if added > 0 then
+        if myGUID then
+            db.charWishlistRev[myGUID] = (_G.time and _G.time()) or 1
+        end
+        if sfui.events and sfui.events.SendMessage then
+            sfui.events.SendMessage("SFUI_DJ_WISHLIST_UPDATED", lastAddedID, true)
+        end
+        if not silent and sfui.print then
+            sfui.print(string_format("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0|t |cffcc44ffadded %d items to wishlist.|r", added))
+        end
+    end
+    return added
 end
 
 function sfui.dungeonjournal.FulfillWishlistItem(itemID)
@@ -340,15 +486,30 @@ local function GetList()
 end
 sfui.dungeonjournal.GetList = GetList
 
-local function FindDungeon(id)
+local function EnsureDungeonLookup()
     local db = GetData()
+    if cachedDataRef == db and dungeonByID then return end
+    cachedDataRef = db
+    dungeonByID = {}
+    dungeonTabByID = {}
     for _, d in ipairs(db.dungeons or {}) do
-        if d.id == id then return d, "dungeons" end
+        if d.id then
+            dungeonByID[d.id] = d
+            dungeonTabByID[d.id] = "dungeons"
+        end
     end
     for _, r in ipairs(db.raids or {}) do
-        if r.id == id then return r, "raids" end
+        if r.id then
+            dungeonByID[r.id] = r
+            dungeonTabByID[r.id] = "raids"
+        end
     end
-    return nil, nil
+end
+
+local function FindDungeon(id)
+    if not id then return nil, nil end
+    EnsureDungeonLookup()
+    return dungeonByID[id], dungeonTabByID[id]
 end
 sfui.dungeonjournal.FindDungeon = FindDungeon
 
@@ -457,26 +618,37 @@ local function HandleItemClick(btn, mouseBtn, itemID)
 end
 sfui.dungeonjournal.HandleItemClick = HandleItemClick
 
-local IsQuestCompleted = sfui.common.is_quest_completed
+local function IsQuestCompleted(questID)
+    if not questID then return false end
+    local qs = sfui.queststate
+    if qs and qs.IsCompleted then
+        return qs.IsCompleted(questID) == true
+    end
+    return sfui.common.is_quest_completed(questID) == true
+end
 sfui.dungeonjournal.IsQuestCompleted = IsQuestCompleted
 sfui.dungeonjournal.IsQuestDone      = IsQuestCompleted
 
 local function IsQuestActive(questID)
     if not questID then return false end
+    local qs = sfui.queststate
+    if qs and qs.IsActive then
+        return qs.IsActive(questID) == true
+    end
     if sfui.pins and sfui.pins.IsQuestActive then
         return sfui.pins.IsQuestActive(questID)
     end
     if _G.C_QuestLog and _G.C_QuestLog.IsOnQuest then
-        local ok, on = pcall(_G.C_QuestLog.IsOnQuest, questID)
-        if ok and on then return true end
+        local on = _G.C_QuestLog.IsOnQuest(questID)
+        if on then return true end
     end
     if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
-        local ok, idx = pcall(_G.C_QuestLog.GetLogIndexForQuestID, questID)
-        if ok and type(idx) == "number" and idx > 0 then return true end
+        local idx = _G.C_QuestLog.GetLogIndexForQuestID(questID)
+        if type(idx) == "number" and idx > 0 then return true end
     end
     if _G.GetQuestLogIndexByID then
-        local ok, idx = pcall(_G.GetQuestLogIndexByID, questID)
-        if ok and type(idx) == "number" and idx > 0 then return true end
+        local idx = _G.GetQuestLogIndexByID(questID)
+        if type(idx) == "number" and idx > 0 then return true end
     end
     return false
 end
@@ -739,9 +911,10 @@ function sfui.dungeonjournal.SetDungeonHidden(dungeonID, hidden)
         charData.hiddenDungeons[dungeonID] = nil
     end
     if RefreshSidebar then RefreshSidebar() end
-    if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "hiddenDungeons", dungeonID)
+    elseif sfui.dungeonjournal.UpdatePins then
+        sfui.dungeonjournal.UpdatePins(true)
     end
 end
 
@@ -754,9 +927,10 @@ function sfui.dungeonjournal.SetDungeonPinsHidden(dungeonID, hidden)
         charData.hiddenPins[dungeonID] = nil
     end
     if RefreshSidebar then RefreshSidebar() end
-    if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "hiddenPins", dungeonID)
+    elseif sfui.dungeonjournal.UpdatePins then
+        sfui.dungeonjournal.UpdatePins(true)
     end
 end
 
@@ -768,9 +942,10 @@ function sfui.dungeonjournal.SetQuestPinHidden(questID, hidden)
     else
         charData.hiddenQuestPins[questID] = nil
     end
-    if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "hiddenQuestPins", questID)
+    elseif sfui.dungeonjournal.UpdatePins then
+        sfui.dungeonjournal.UpdatePins(true)
     end
 end
 
@@ -797,9 +972,10 @@ function sfui.dungeonjournal.RestoreAllHidden()
         SfuiDB.dungeonjournal.hiddenQuestPins = charData.hiddenQuestPins
     end
     if RefreshSidebar then RefreshSidebar() end
-    if sfui.dungeonjournal.UpdatePins then sfui.dungeonjournal.UpdatePins(true) end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", "restoreAll", total)
+    elseif sfui.dungeonjournal.UpdatePins then
+        sfui.dungeonjournal.UpdatePins(true)
     end
     if sfui.print and total > 0 then
         sfui.print(string_format("restored %d hidden item%s (dungeons and map pins).", total, (total > 1 and "s" or "")))
@@ -846,7 +1022,7 @@ if _G.hooksecurefunc then
                 sfui.dungeonjournal.SetDungeonHidden(idStr, false)
                 local d = sfui.dungeonjournal.FindDungeon(idStr)
                 if sfui.print then
-                    sfui.print(string_format("restored |cffffd100%s|r to dungeon journal and map.", d and d.name or idStr))
+                    sfui.print(string_format("restored |cffffd100%s|r to adventure guide and map.", d and d.name or idStr))
                 end
             elseif kind == "pins" then
                 sfui.dungeonjournal.SetDungeonPinsHidden(idStr, false)
@@ -1177,7 +1353,12 @@ local function OpenHiddenManager()
                 end
                 local qName = "quest #" .. tostring(qID)
                 local cData = sfui.dj_camelot or (sfui.data and sfui.data.dj_camelot)
-                if cData then
+                if cData and cData.GetQuestDungeon then
+                    local qData = cData.GetQuestDungeon(qID)
+                    if qData and qData.quest and qData.quest.name then
+                        qName = qData.quest.name
+                    end
+                elseif cData then
                     for _, d in ipairs(cData.dungeons or {}) do
                         for _, q in ipairs(d.quests or {}) do
                             if q.id == qID or (q.chain and q.chainStart and q.chainStart.id == qID) then
@@ -1242,12 +1423,17 @@ local function GetEffectiveMode()
     return selectedMode
 end
 
-local function RefreshMapView()
+local function RefreshMapView(forcedFloor)
     if not mapPanel or not mapPanel:IsShown() then return end
     if sfui.dj_map and sfui.dj_map.Render then
-        sfui.dj_map.Render(frame, GetCurrentDungeon())
+        sfui.dj_map.Render(frame, GetCurrentDungeon(), forcedFloor)
     end
 end
+
+local EnsureExternalTabButtons
+local EnsureExternalPanelMounted
+local EnsureBossesInitialized
+local EnsureQuestsInitialized
 
 local function UpdateTabHighlights()
     if not frame then return end
@@ -1264,6 +1450,12 @@ local function UpdateTabHighlights()
     if theme.ApplyTabStyle then
         theme.ApplyTabStyle(frame.dungeonTabBtn, selectedTab == "dungeons")
         theme.ApplyTabStyle(frame.raidTabBtn, selectedTab == "raids")
+        for _, key in ipairs(EXTERNAL_TAB_ORDER) do
+            local btn = frame[EXTERNAL_TAB_DEFS[key].btnField]
+            if btn then
+                theme.ApplyTabStyle(btn, selectedTab == key)
+            end
+        end
         if frame.mapTab then
             theme.ApplyTabStyle(frame.mapTab, effMode == "map")
         end
@@ -1282,6 +1474,13 @@ local function UpdateTabHighlights()
             local ra = (selectedTab == "raids") and accent or dim
             SetTabButtonTextColor(frame.raidTabBtn, ra)
         end
+        for _, key in ipairs(EXTERNAL_TAB_ORDER) do
+            local btn = frame[EXTERNAL_TAB_DEFS[key].btnField]
+            if btn then
+                local ea = (selectedTab == key) and accent or dim
+                SetTabButtonTextColor(btn, ea)
+            end
+        end
         if frame.mapTab then
             local ma = (effMode == "map") and accent or dim
             SetTabButtonTextColor(frame.mapTab, ma)
@@ -1297,17 +1496,64 @@ local function UpdateTabHighlights()
     end
 end
 
-local function SyncActivePanel()
+local function SyncActivePanel(forcedFloor)
     if not frame then return end
+    local onExternal = IsExternalTab()
+
+    if sidebarFrame then sidebarFrame:SetShown(not onExternal) end
+    if frame.contentArea then frame.contentArea:SetShown(not onExternal) end
+    if frame.mapTab then frame.mapTab:SetShown(not onExternal) end
+    if frame.bossesTab then frame.bossesTab:SetShown(not onExternal) end
+    if frame.questsTab then frame.questsTab:SetShown(not onExternal) end
+    if frame.showMapBtn then frame.showMapBtn:SetShown(not onExternal) end
+    if frame.navWpBtn then frame.navWpBtn:SetShown(not onExternal) end
+    if frame.mapOptBtn then frame.mapOptBtn:SetShown(not onExternal) end
+
+    for _, key in ipairs(EXTERNAL_TAB_ORDER) do
+        local p = externalPanels[key]
+        if p and (not onExternal or key ~= selectedTab) and p:IsShown() then
+            p:Hide()
+        end
+    end
+
+    if onExternal then
+        if EnsureExternalTabButtons then EnsureExternalTabButtons() end
+        if EnsureExternalPanelMounted then EnsureExternalPanelMounted(selectedTab) end
+        if frame.mapMenu and frame.mapMenu:IsShown() then frame.mapMenu:Hide() end
+        if mapPanel then mapPanel:Hide() end
+        if bossPanel then bossPanel:Hide() end
+        if questPanel then questPanel:Hide() end
+
+        local activePanel = externalPanels[selectedTab]
+        if activePanel and not activePanel:IsShown() then
+            activePanel:Show()
+        end
+
+        UpdateTabHighlights()
+
+        local def = EXTERNAL_TAB_DEFS[selectedTab]
+        local mod = def and def.getModule()
+        if mod and mod.OnPanelShown then
+            mod.OnPanelShown()
+        end
+        return
+    end
+
     local effMode = GetEffectiveMode()
     if mapPanel then mapPanel:SetShown(effMode == "map") end
     if bossPanel then bossPanel:SetShown(effMode == "bosses") end
     if questPanel then questPanel:SetShown(effMode == "quests") end
 
+    if effMode == "bosses" and EnsureBossesInitialized then
+        EnsureBossesInitialized()
+    elseif effMode == "quests" and EnsureQuestsInitialized then
+        EnsureQuestsInitialized()
+    end
+
     UpdateTabHighlights()
 
     if effMode == "map" then
-        RefreshMapView()
+        RefreshMapView(forcedFloor)
     elseif effMode == "bosses" and RefreshBossView then
         RefreshBossView()
     elseif effMode == "quests" and RefreshQuestView then
@@ -1317,13 +1563,35 @@ end
 
 -- ─── Mode switching ──────────────────────────────────────────────────────────
 local function SetMode(mode)
+    if IsExternalTab() then
+        selectedTab = (lastJournalTab == "raids") and "raids" or "dungeons"
+        DJ_DB().lastTab = selectedTab
+        if RefreshSidebar then RefreshSidebar() end
+    end
     selectedMode = mode or "map"
     DJ_DB().lastMode = selectedMode
     SyncActivePanel()
 end
 
 local function SetTab(tab)
-    selectedTab = tab or "dungeons"
+    if EXTERNAL_TAB_DEFS[tab] then
+        if HasExternalTab(tab) then
+            if EnsureExternalTabButtons and frame then
+                EnsureExternalTabButtons()
+            end
+            if EnsureExternalPanelMounted and frame then
+                EnsureExternalPanelMounted(tab)
+            end
+            selectedTab = tab
+            DJ_DB().lastTab = tab
+            SyncActivePanel()
+            return
+        end
+        tab = "dungeons"
+    end
+
+    selectedTab = (tab == "raids") and "raids" or "dungeons"
+    lastJournalTab = selectedTab
     DJ_DB().lastTab = selectedTab
 
     -- Only reset selectedDungeonID if it does not belong to the newly selected tab
@@ -1358,6 +1626,96 @@ local function SetTab(tab)
     if RefreshSidebar then RefreshSidebar() end
     SyncActivePanel()
 end
+sfui.dungeonjournal.SetTab = SetTab
+
+local function MakeTopTab(parent, text, anchorRef, width)
+    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    btn:SetSize(width or 84, TAB_H)
+    if anchorRef then
+        btn:SetPoint("LEFT", anchorRef, "RIGHT", 4, 0)
+    else
+        btn:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, -(HEADER_H + 4))
+    end
+    local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("CENTER")
+    fs:SetText(text)
+    btn.fs = fs
+    if btn.SetFontString then btn:SetFontString(fs) end
+    if theme.ApplyTabStyle then
+        theme.ApplyTabStyle(btn, false)
+    else
+        common.apply_flat_backdrop(btn, { 0.08, 0.08, 0.10, 0.9 }, { 0.18, 0.18, 0.20, 1 })
+        fs:SetTextColor(0.6, 0.6, 0.6, 1)
+    end
+    return btn
+end
+
+EnsureExternalTabButtons = function()
+    if not frame or not frame.raidTabBtn then return end
+    local sidebarY = -(HEADER_H + TAB_H + 8)
+    local prevBtn = frame.raidTabBtn
+    for _, key in ipairs(EXTERNAL_TAB_ORDER) do
+        local def = EXTERNAL_TAB_DEFS[key]
+        if HasExternalTab(key) then
+            local btn = frame[def.btnField]
+            if not btn then
+                btn = MakeTopTab(frame, def.label, prevBtn, def.width)
+                btn:SetScript("OnClick", function() SetTab(key) end)
+                frame[def.btnField] = btn
+            else
+                btn:ClearAllPoints()
+                btn:SetPoint("LEFT", prevBtn, "RIGHT", 4, 0)
+            end
+            prevBtn = btn
+
+            local panel = externalPanels[key]
+            if not panel then
+                panel = CreateFrame("Frame", nil, frame)
+                panel:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, sidebarY)
+                panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8, 8)
+                panel:Hide()
+                externalPanels[key] = panel
+                frame[def.panelField] = panel
+            end
+        end
+    end
+end
+
+EnsureExternalPanelMounted = function(key)
+    if not frame or externalMounted[key] then return end
+    local def = EXTERNAL_TAB_DEFS[key]
+    if not def then return end
+    if not externalPanels[key] then
+        EnsureExternalTabButtons()
+    end
+    local panel = externalPanels[key]
+    local mod = def.getModule()
+    if panel and mod and mod.MountPanel then
+        externalMounted[key] = true
+        mod.MountPanel(panel, frame)
+        if externalThemeDirty[key] and mod.ApplyTheme then
+            local pal = externalThemeDirty[key]
+            externalThemeDirty[key] = nil
+            mod.ApplyTheme(pal)
+        end
+    end
+end
+
+EnsureBossesInitialized = function()
+    if bossesInitialized or not frame then return end
+    bossesInitialized = true
+    if sfui.dungeonjournal._initBosses and initPayload then
+        sfui.dungeonjournal._initBosses(initPayload)
+    end
+end
+
+EnsureQuestsInitialized = function()
+    if questsInitialized or not frame then return end
+    questsInitialized = true
+    if sfui.dungeonjournal._initQuests and initPayload then
+        sfui.dungeonjournal._initQuests(initPayload)
+    end
+end
 
 local function GetCurrentInstanceDungeon()
     if sfui.dj_camelot and sfui.dj_camelot.GetCurrentInstanceDungeon then
@@ -1388,7 +1746,11 @@ function sfui.dungeonjournal.SelectDungeon(dungeonID, mode, forceShowAll)
     local entry, tab = FindDungeon(dungeonID)
     if tab and tab ~= selectedTab then
         selectedTab = tab
+        lastJournalTab = tab
         DJ_DB().lastTab = tab
+    elseif IsExternalTab() then
+        selectedTab = (lastJournalTab == "raids") and "raids" or "dungeons"
+        DJ_DB().lastTab = selectedTab
     end
 
     if mode and (mode == "map" or mode == "bosses" or mode == "quests") then
@@ -1550,6 +1912,14 @@ function sfui.dungeonjournal.CreateFrame()
     selectedDungeonID = saved.lastDungeon or nil
     selectedMode      = saved.lastMode or "map"
     selectedTab       = saved.lastTab or "dungeons"
+    if not IsValidTab(selectedTab) then
+        selectedTab = "dungeons"
+    end
+    if selectedTab == "dungeons" or selectedTab == "raids" then
+        lastJournalTab = selectedTab
+    else
+        lastJournalTab = "dungeons"
+    end
 
     -- ── Main window ───────────────────────────────────────────────────────────
     frame             = CreateFrame("Frame", "SfuiDungeonJournalFrame", UIParent, "BackdropTemplate")
@@ -1572,7 +1942,7 @@ function sfui.dungeonjournal.CreateFrame()
     -- ── Header bar ────────────────────────────────────────────────────────────
     local createHeader = (theme and theme.CreateWindowHeader) or (sfui.theme and sfui.theme.CreateWindowHeader)
     if createHeader then
-        frame.headerBar = createHeader(frame, "dungeon journal")
+        frame.headerBar = createHeader(frame, "adventure guide")
     end
 
     local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
@@ -1892,40 +2262,24 @@ function sfui.dungeonjournal.CreateFrame()
         end
     end)
 
-    -- ── Dungeon / Raids top-level tabs (left group) ───────────────────────────
-    local function MakeTopTab(text, anchor, anchorRef)
-        local btn = CreateFrame("Button", nil, frame, "BackdropTemplate")
-        btn:SetSize(90, TAB_H)
-        if anchorRef then
-            btn:SetPoint("LEFT", anchorRef, "RIGHT", 4, 0)
-        else
-            btn:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -(HEADER_H + 4))
-        end
-        local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        fs:SetPoint("CENTER")
-        fs:SetText(text)
-        btn.fs = fs
-        if btn.SetFontString then btn:SetFontString(fs) end
-        if theme.ApplyTabStyle then
-            theme.ApplyTabStyle(btn, false)
-        else
-            common.apply_flat_backdrop(btn, { 0.08, 0.08, 0.10, 0.9 }, { 0.18, 0.18, 0.20, 1 })
-            fs:SetTextColor(0.6, 0.6, 0.6, 1)
-        end
-        return btn
-    end
-
-    frame.dungeonTabBtn = MakeTopTab("dungeons", "TOPLEFT")
-    frame.raidTabBtn    = MakeTopTab("raids", "LEFT", frame.dungeonTabBtn)
+    -- ── Dungeons / Raids / External top-level tabs (left group) ──────────────
+    frame.dungeonTabBtn = MakeTopTab(frame, "dungeons", nil, 84)
+    frame.raidTabBtn    = MakeTopTab(frame, "raids", frame.dungeonTabBtn, 70)
 
     frame.dungeonTabBtn:SetScript("OnClick", function() SetTab("dungeons") end)
     frame.raidTabBtn:SetScript("OnClick", function() SetTab("raids") end)
 
-    -- ── Boss / Quest mode tabs (right group, top aligned with dungeon tabs) ───
-    local function MakeModeTab(text, anchorRef, width)
+    -- ── Map / Boss / Quest mode tabs (right group, top aligned with top tabs)
+    local function MakeModeTab(text, anchorRef, width, rightAligned)
         local btn = CreateFrame("Button", nil, frame, "BackdropTemplate")
         btn:SetSize(width or 100, TAB_H)
-        if anchorRef then
+        if rightAligned then
+            if anchorRef then
+                btn:SetPoint("RIGHT", anchorRef, "LEFT", -4, 0)
+            else
+                btn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -(HEADER_H + 4))
+            end
+        elseif anchorRef then
             btn:SetPoint("LEFT", anchorRef, "RIGHT", 4, 0)
         else
             btn:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_W + 16, -(HEADER_H + 4))
@@ -1944,9 +2298,9 @@ function sfui.dungeonjournal.CreateFrame()
         return btn
     end
 
-    frame.mapTab    = MakeModeTab("map", nil, 68)
-    frame.bossesTab = MakeModeTab("bosses & loot", frame.mapTab, 106)
-    frame.questsTab = MakeModeTab("quests", frame.bossesTab, 80)
+    frame.questsTab = MakeModeTab("quests", nil, 80, true)
+    frame.bossesTab = MakeModeTab("bosses & loot", frame.questsTab, 106, true)
+    frame.mapTab    = MakeModeTab("map", frame.bossesTab, 68, true)
 
     frame.mapTab:SetScript("OnClick", function()
         if HasDungeonMap() then
@@ -1989,42 +2343,165 @@ function sfui.dungeonjournal.CreateFrame()
     questPanel:SetAllPoints(contentArea)
     questPanel:Hide()
 
+    -- ── External full-body tabs (upgrades / recipes / fishing) ─────────────────
+    EnsureExternalTabButtons()
+
+    frame:HookScript("OnShow", function()
+        if journalThemeDirty then
+            journalThemeDirty = false
+            if not IsExternalTab() then
+                if RefreshSidebar then RefreshSidebar() end
+                SyncActivePanel()
+            end
+        end
+    end)
+
+    frame:HookScript("OnHide", function()
+        if mapMenu and mapMenu:IsShown() then
+            mapMenu:Hide()
+        end
+        for _, key in ipairs(EXTERNAL_TAB_ORDER) do
+            local p = externalPanels[key]
+            if p and p:IsShown() then
+                p:Hide()
+            end
+        end
+    end)
+
     -- ── Theme registration ─────────────────────────────────────────────────────
     theme.ApplyWindowStyle(frame)
     theme.RegisterWindow(frame, function(f, pal)
         if not pal then pal = theme.GetPalette() end
         if f.headerBar then
-            theme.ApplyHeaderStyle(f.headerBar, "dungeon journal")
+            theme.ApplyHeaderStyle(f.headerBar, "adventure guide")
         end
         if f.sidebarFrame then
             theme.ApplyContainerStyle(f.sidebarFrame)
         end
+        for _, key in ipairs(EXTERNAL_TAB_ORDER) do
+            if externalMounted[key] then
+                local def = EXTERNAL_TAB_DEFS[key]
+                local mod = def and def.getModule()
+                if mod and mod.ApplyTheme then
+                    mod.ApplyTheme(pal)
+                end
+            elseif externalPanels[key] then
+                externalThemeDirty[key] = pal
+            end
+        end
         UpdateTabHighlights()
+        if not IsExternalTab() then
+            if f:IsShown() then
+                if RefreshSidebar then RefreshSidebar() end
+                SyncActivePanel()
+            else
+                journalThemeDirty = true
+            end
+        end
     end)
 
     frame:Hide()
     sfui.dungeonjournal.frame = frame
 
-    -- Signal submodules to bind to these panels
-    local payload = {
-        frame        = frame,
-        sidebarFrame = sidebarFrame,
-        bossPanel    = bossPanel,
-        questPanel   = questPanel,
+    -- Signal sidebar submodule to bind immediately; bosses & quests mount lazily on first visit
+    initPayload = {
+        frame         = frame,
+        sidebarFrame  = sidebarFrame,
+        bossPanel     = bossPanel,
+        questPanel    = questPanel,
+        upgradesPanel = externalPanels.upgrades,
+        recipesPanel  = externalPanels.recipes,
+        fishingPanel  = externalPanels.fishing,
     }
 
-    if sfui.dungeonjournal._initSidebar then sfui.dungeonjournal._initSidebar(payload) end
-    if sfui.dungeonjournal._initBosses then sfui.dungeonjournal._initBosses(payload) end
-    if sfui.dungeonjournal._initQuests then sfui.dungeonjournal._initQuests(payload) end
+    if sfui.dungeonjournal._initSidebar then sfui.dungeonjournal._initSidebar(initPayload) end
 
     if sfui.events and sfui.events.SendMessage then
-        sfui.events.SendMessage("SFUI_DJ_FRAME_CREATED", payload)
+        sfui.events.SendMessage("SFUI_DJ_FRAME_CREATED", initPayload)
     end
 
     return frame
 end
 
 local lastDJToggleTime = 0
+
+local function EnsureSubmodulesInitialized()
+    if not frame then return end
+    EnsureExternalTabButtons()
+    if not RefreshSidebar and initPayload then
+        initPayload.upgradesPanel = frame.upgradesPanel or externalPanels.upgrades
+        initPayload.recipesPanel  = frame.recipesPanel or externalPanels.recipes
+        initPayload.fishingPanel  = frame.fishingPanel or externalPanels.fishing
+        if sfui.dungeonjournal._initSidebar then sfui.dungeonjournal._initSidebar(initPayload) end
+    end
+end
+
+local function OpenJournalFromHidden()
+    frame:Show()
+
+    -- In-Instance Auto-Detection
+    local activeFloor = nil
+    local autoDetected = false
+    if DJ_DB().autoDetectInstance ~= false then
+        local activeDungeon, flIdx = GetCurrentInstanceDungeon()
+        if activeDungeon then
+            autoDetected        = true
+            selectedDungeonID   = activeDungeon.id
+            activeFloor         = flIdx
+            selectedTab         = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
+                "raids" or "dungeons"
+            lastJournalTab      = selectedTab
+            DJ_DB().lastDungeon = selectedDungeonID
+            DJ_DB().lastTab     = selectedTab
+        end
+    end
+
+    if not autoDetected and IsExternalTab() then
+        SyncActivePanel()
+        return
+    end
+
+    if not IsValidTab(selectedTab) then
+        selectedTab = "dungeons"
+        lastJournalTab = "dungeons"
+        DJ_DB().lastTab = "dungeons"
+    end
+
+    local list = GetList()
+    local currentEntry = selectedDungeonID and FindDungeon(selectedDungeonID)
+    local isValidInTab = false
+    local showAll = DJ_DB().showAllDungeons == true
+    if currentEntry then
+        for _, entry in ipairs(list) do
+            if entry.id == selectedDungeonID then
+                if showAll or sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+                    isValidInTab = true
+                end
+                break
+            end
+        end
+    end
+    if not isValidInTab then
+        local fallbackID = nil
+        if not showAll and list then
+            for _, entry in ipairs(list) do
+                if sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
+                    fallbackID = entry.id
+                    break
+                end
+            end
+        end
+        selectedDungeonID = fallbackID or (list and list[1] and list[1].id) or nil
+        DJ_DB().lastDungeon = selectedDungeonID
+    end
+
+    -- Default to map tab when opening a mapped dungeon
+    selectedMode = "map"
+    DJ_DB().lastMode = "map"
+
+    if RefreshSidebar then RefreshSidebar() end
+    SyncActivePanel(activeFloor)
+end
 
 -- ─── Public API ───────────────────────────────────────────────────────────────
 function sfui.dungeonjournal.Toggle()
@@ -2035,75 +2512,12 @@ function sfui.dungeonjournal.Toggle()
     if not frame then sfui.dungeonjournal.CreateFrame() end
     if not frame then return end
 
-    -- Self-heal in case submodules were not initialized
-    if not RefreshSidebar then
-        local payload = {
-            frame        = frame,
-            sidebarFrame = frame.sidebarFrame or sidebarFrame,
-            bossPanel    = frame.bossPanel or bossPanel,
-            questPanel   = frame.questPanel or questPanel,
-        }
-        if sfui.dungeonjournal._initSidebar then sfui.dungeonjournal._initSidebar(payload) end
-        if sfui.dungeonjournal._initBosses then sfui.dungeonjournal._initBosses(payload) end
-        if sfui.dungeonjournal._initQuests then sfui.dungeonjournal._initQuests(payload) end
-    end
+    EnsureSubmodulesInitialized()
 
     if frame:IsShown() then
         frame:Hide()
     else
-        frame:Show()
-
-        -- In-Instance Auto-Detection
-        local activeFloor = nil
-        if DJ_DB().autoDetectInstance ~= false then
-            local activeDungeon, flIdx = GetCurrentInstanceDungeon()
-            if activeDungeon then
-                selectedDungeonID   = activeDungeon.id
-                activeFloor         = flIdx
-                selectedTab         = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
-                "raids" or "dungeons"
-                DJ_DB().lastDungeon = selectedDungeonID
-                DJ_DB().lastTab     = selectedTab
-            end
-        end
-
-        local list = GetList()
-        local currentEntry = selectedDungeonID and FindDungeon(selectedDungeonID)
-        local isValidInTab = false
-        local showAll = DJ_DB().showAllDungeons == true
-        if currentEntry then
-            for _, entry in ipairs(list) do
-                if entry.id == selectedDungeonID then
-                    if showAll or sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-                        isValidInTab = true
-                    end
-                    break
-                end
-            end
-        end
-        if not isValidInTab then
-            local fallbackID = nil
-            if not showAll and list then
-                for _, entry in ipairs(list) do
-                    if sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-                        fallbackID = entry.id
-                        break
-                    end
-                end
-            end
-            selectedDungeonID = fallbackID or (list and list[1] and list[1].id) or nil
-            DJ_DB().lastDungeon = selectedDungeonID
-        end
-
-        -- Default to map tab when opening a mapped dungeon
-        selectedMode = "map"
-        DJ_DB().lastMode = "map"
-
-        if RefreshSidebar then RefreshSidebar() end
-        SyncActivePanel()
-        if activeFloor and frame.mapPanel and frame.mapPanel.ctrl and frame.mapPanel:IsShown() then
-            frame.mapPanel.ctrl:SetFloor(activeFloor)
-        end
+        OpenJournalFromHidden()
     end
 end
 
@@ -2111,73 +2525,23 @@ function sfui.dungeonjournal.Open()
     if not frame then sfui.dungeonjournal.CreateFrame() end
     if not frame then return end
 
-    -- Self-heal in case submodules were not initialized
-    if not RefreshSidebar then
-        local payload = {
-            frame        = frame,
-            sidebarFrame = frame.sidebarFrame or sidebarFrame,
-            bossPanel    = frame.bossPanel or bossPanel,
-            questPanel   = frame.questPanel or questPanel,
-        }
-        if sfui.dungeonjournal._initSidebar then sfui.dungeonjournal._initSidebar(payload) end
-        if sfui.dungeonjournal._initBosses then sfui.dungeonjournal._initBosses(payload) end
-        if sfui.dungeonjournal._initQuests then sfui.dungeonjournal._initQuests(payload) end
+    EnsureSubmodulesInitialized()
+
+    if not frame:IsShown() then
+        OpenJournalFromHidden()
     end
+end
+
+function sfui.dungeonjournal.OpenTab(tab)
+    if not frame then sfui.dungeonjournal.CreateFrame() end
+    if not frame then return end
+
+    EnsureSubmodulesInitialized()
 
     if not frame:IsShown() then
         frame:Show()
-
-        -- In-Instance Auto-Detection
-        local activeFloor = nil
-        if DJ_DB().autoDetectInstance ~= false then
-            local activeDungeon, flIdx = GetCurrentInstanceDungeon()
-            if activeDungeon then
-                selectedDungeonID   = activeDungeon.id
-                activeFloor         = flIdx
-                selectedTab         = (activeDungeon.category == "camelot_raid" or activeDungeon.category == "classic_raid") and
-                "raids" or "dungeons"
-                DJ_DB().lastDungeon = selectedDungeonID
-                DJ_DB().lastTab     = selectedTab
-            end
-        end
-
-        local list = GetList()
-        local currentEntry = selectedDungeonID and FindDungeon(selectedDungeonID)
-        local isValidInTab = false
-        local showAll = DJ_DB().showAllDungeons == true
-        if currentEntry then
-            for _, entry in ipairs(list) do
-                if entry.id == selectedDungeonID then
-                    if showAll or sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-                        isValidInTab = true
-                    end
-                    break
-                end
-            end
-        end
-        if not isValidInTab then
-            local fallbackID = nil
-            if not showAll and list then
-                for _, entry in ipairs(list) do
-                    if sfui.dungeonjournal.IsDungeonInLevelRange(entry) then
-                        fallbackID = entry.id
-                        break
-                    end
-                end
-            end
-            selectedDungeonID = fallbackID or (list and list[1] and list[1].id) or nil
-            DJ_DB().lastDungeon = selectedDungeonID
-        end
-
-        selectedMode = "map"
-        DJ_DB().lastMode = "map"
-
-        if RefreshSidebar then RefreshSidebar() end
-        SyncActivePanel()
-        if activeFloor and frame.mapPanel and frame.mapPanel.ctrl and frame.mapPanel:IsShown() then
-            frame.mapPanel.ctrl:SetFloor(activeFloor)
-        end
     end
+    SetTab(tab or "dungeons")
 end
 
 function sfui.dungeonjournal.GetOption(key)
@@ -2204,11 +2568,10 @@ end
 
 function sfui.dungeonjournal.SetOption(key, val)
     PersistCharOption(key, val)
-    if sfui.dungeonjournal.UpdatePins then
-        sfui.dungeonjournal.UpdatePins()
-    end
     if sfui.events and sfui.events.SendMessage then
         sfui.events.SendMessage("SFUI_DJ_SETTING_CHANGED", key, val)
+    elseif sfui.dungeonjournal.UpdatePins then
+        sfui.dungeonjournal.UpdatePins()
     end
 end
 
@@ -2230,6 +2593,14 @@ function sfui.dungeonjournal.ClearCache()
 end
 
 function sfui.dungeonjournal.Rebuild()
+    if IsExternalTab() then
+        local def = EXTERNAL_TAB_DEFS[selectedTab]
+        local mod = def and def.getModule()
+        if mod and def.onRebuild then
+            def.onRebuild(mod)
+        end
+        return
+    end
     if RefreshSidebar then RefreshSidebar() end
     SyncActivePanel()
 end
@@ -2258,19 +2629,6 @@ if sfui.RegisterModule then
         end
     end
     sfui.RegisterModule("dungeonjournal", sfui.dungeonjournal)
-end
-
--- ─── Live Theme Synchronization ──────────────────────────────────────────────
-if sfui.events and sfui.events.RegisterMessage then
-    sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
-        if frame and frame:IsShown() then
-            if sfui.theme and sfui.theme.ApplyWindowStyle then
-                sfui.theme.ApplyWindowStyle(frame)
-            end
-            if RefreshSidebar then RefreshSidebar() end
-            SyncActivePanel()
-        end
-    end)
 end
 
 -- ─── Safe Logout Persistence Guard ──────────────────────────────────────────

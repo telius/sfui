@@ -699,27 +699,9 @@ sfui.events.RegisterEvent("PLAYER_LOGIN", function(event)
             })
         elseif not isRetail and sfui.lootviewer_camelot and sfui.lootviewer_camelot.Toggle then
             table.insert(menuButtons, {
-                text = "|cffd1a652dungeon journal|r",
+                text = "|cffd1a652adventure guide|r",
                 func = function()
                     sfui.lootviewer_camelot.Toggle()
-                end,
-            })
-        end
-
-        if sfui.recipes and sfui.recipes.ToggleBrowser then
-            table.insert(menuButtons, {
-                text = "|cffffd100recipes|r",
-                func = function()
-                    sfui.recipes.ToggleBrowser()
-                end,
-            })
-        end
-
-        if not isRetail and sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
-            table.insert(menuButtons, {
-                text = "|cff33ccfffishing atlas|r",
-                func = function()
-                    sfui.fishing.atlas.Toggle()
                 end,
             })
         end

@@ -212,9 +212,13 @@ function nav.OpenFishingWater(mapID)
     if not atlas then return false end
     if mapID and atlas.OpenToZone then
         return atlas.OpenToZone(mapID)
+    elseif atlas.Open then
+        atlas.Open("waters")
+        return true
     elseif atlas.ShowTab then
         local f = atlas.GetFrame and atlas.GetFrame()
-        if not f or not f:IsShown() then
+        local isShown = (atlas.IsPanelVisible and atlas.IsPanelVisible()) or (f and f:IsShown())
+        if not isShown and atlas.Toggle then
             atlas.Toggle()
         end
         atlas.ShowTab("waters")
@@ -245,18 +249,18 @@ function nav.OpenItemSource(itemLinkOrID)
 
     local djFrame = sfui.dungeonjournal and sfui.dungeonjournal.GetFrame and sfui.dungeonjournal.GetFrame()
     local djOpen = djFrame and djFrame:IsShown()
+    local recInfo = sfui.recipes_debug_info and sfui.recipes_debug_info()
+    local recOpen = recInfo and recInfo.isBrowserOpen
     local recSpell = find_recipe_spell_for_item(id)
 
-    -- If Dungeon Journal is currently open and the clicked item is a recipe or crafted item, jump to Recipe Browser first
-    if djOpen and recSpell and sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
+    -- If Dungeon Journal is currently open (not already on the recipes tab) and the clicked item is a recipe or crafted item, jump to Recipe Browser first
+    if djOpen and not recOpen and recSpell and sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
         sfui.recipes.OpenBrowserToRecipe(recSpell)
         return true
     end
 
     -- 1. Recipe scroll item -> Recipe Browser (unless Recipe Browser is already open, then prefer drop source)
     local isRecipeScroll = sfui.recipes_camelot and sfui.recipes_camelot.items and sfui.recipes_camelot.items[id] ~= nil
-    local recInfo = sfui.recipes_debug_info and sfui.recipes_debug_info()
-    local recOpen = recInfo and recInfo.isBrowserOpen
     if isRecipeScroll and not recOpen and recSpell and sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
         sfui.recipes.OpenBrowserToRecipe(recSpell)
         return true
@@ -324,7 +328,8 @@ function nav.OpenRecipeOrFishing(itemLinkOrID)
     -- 2. Catchable fish & fishing containers: open Fishing Atlas (or cross-jump to Recipe Browser when Fishing Atlas is already open)
     elseif isFishingSpecies then
         local atlasFrame = sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.GetFrame and sfui.fishing.atlas.GetFrame()
-        local atlasOpen = atlasFrame and atlasFrame:IsShown()
+        local atlasOpen = (sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.IsPanelVisible and sfui.fishing.atlas.IsPanelVisible())
+            or (atlasFrame and atlasFrame:IsShown())
         local recInfo = sfui.recipes_debug_info and sfui.recipes_debug_info()
         local recOpen = recInfo and recInfo.isBrowserOpen
         if atlasOpen and not recOpen and (recSpell or hasReagentUses) then

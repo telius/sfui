@@ -491,52 +491,106 @@ function B.UpdateSpecButtons()
     end
 end
 
---- Create the main recipe browser frame
---- @return Frame frame
-function B.CreateBrowserFrame()
+local debouncedItemInfoHandle = nil
+
+--- Return whether the recipe browser panel is currently visible to the user
+--- @return boolean visible
+function B.IsPanelVisible()
+    local f = B.ui and B.ui.frame
+    if not f then return false end
+    if B.ui.hostFrame and B.ui.hostFrame ~= f then
+        return B.ui.hostFrame:IsShown() == true and f:IsShown() == true
+    end
+    return f:IsShown() == true
+end
+sfui.recipes.IsPanelVisible = B.IsPanelVisible
+
+local function RegisterItemInfoListener()
+    if debouncedItemInfoHandle then return end
+    if sfui.events and sfui.events.RegisterDebouncedEvent then
+        debouncedItemInfoHandle = sfui.events.RegisterDebouncedEvent("GET_ITEM_INFO_RECEIVED", 0.25, function()
+            if B.IsPanelVisible() then
+                B.UpdateList()
+            end
+        end)
+    end
+end
+
+local function UnregisterItemInfoListener()
+    if debouncedItemInfoHandle and sfui.events and sfui.events.UnregisterEvent then
+        sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", debouncedItemInfoHandle)
+        debouncedItemInfoHandle = nil
+    end
+end
+
+--- Refresh the recipe browser contents when shown or switched to
+function B.OnPanelShown()
+    local ui = B.ui
+    if not ui or not ui.frame then return end
+    local wanted = B.filterText or ""
+    if ui.searchBox and ui.searchBox.GetText and ui.searchBox:GetText() ~= wanted then
+        ui.searchBox:SetText(wanted)
+    end
+    B.UpdateProfessionTabs()
+    B.UpdateStateButtons()
+    B.UpdateEventsButton()
+    if B.UpdateZoneButton then B.UpdateZoneButton() end
+    B.UpdateSourceButtons()
+    if B.UpdateSpecButtons then B.UpdateSpecButtons() end
+    B.RebuildFilteredList()
+    B.ResetScroll()
+    B.UpdateList()
+end
+
+--- Apply the active sfui theme palette to the recipe browser panel
+--- @param pal table?
+function B.ApplyTheme(pal)
+    local ui = B.ui
+    local f = ui and ui.frame
+    if not f then return end
+    if not pal and theme and theme.GetPalette then
+        pal = theme.GetPalette()
+    end
+    if not ui.mounted then
+        if theme and theme.ApplyWindowStyle then
+            theme.ApplyWindowStyle(f)
+        end
+        if f.headerBar and theme and theme.ApplyHeaderStyle then
+            theme.ApplyHeaderStyle(f.headerBar, "recipe catalogue")
+        end
+    end
+    if f.listContainer and theme and theme.ApplyContainerStyle then
+        theme.ApplyContainerStyle(f.listContainer)
+    end
+    if ui.searchBox and theme and theme.ApplyInputStyle then
+        theme.ApplyInputStyle(ui.searchBox)
+    end
+    B.UpdateProfessionTabs()
+    if sfui.recipes and sfui.recipes.SetBarTexture then
+        sfui.recipes.SetBarTexture()
+    end
+    B.UpdateStateButtons()
+    B.UpdateEventsButton()
+    if B.UpdateZoneButton then B.UpdateZoneButton() end
+    B.UpdateSourceButtons()
+    if B.UpdateSpecButtons then B.UpdateSpecButtons() end
+    if B.IsPanelVisible() then
+        B.UpdateList()
+    end
+end
+
+local function BuildBrowserContents(container, topOffset, sidePad, bottomPad, visibleRows)
     local ui = B.ui
     local cfg = B.CFG
-    if ui.frame then return ui.frame end
-
-    local f = CreateFrame("Frame", "SfuiRecipeBrowserFrame", UIParent, "BackdropTemplate")
-    f:SetSize(cfg.FRAME_W, cfg.FRAME_H)
-    f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
-    f:SetFrameStrata("DIALOG")
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f:SetClampedToScreen(true)
-
-    if sfui.common and sfui.common.register_special_frame then
-        sfui.common.register_special_frame(f)
-    end
-
-    common.apply_flat_backdrop(f, { 0.05, 0.05, 0.07, 0.97 }, { 0.12, 0.12, 0.14, 1 })
-
-    -- ── Header Bar ────────────────────────────────────────────────────────────
-    local headerBar = (theme.CreateWindowHeader or sfui.theme.CreateWindowHeader)(f, "recipe catalogue")
-    f.headerBar = headerBar
-
-    -- ── Close Button ──────────────────────────────────────────────────────────
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    f.closeBtn = closeBtn
-    closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", 2, 2)
-    closeBtn:SetSize(28, 28)
-    closeBtn:SetFrameLevel((f:GetFrameLevel() or 1) + 20)
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
-    if theme and theme.ApplyCloseButtonStyle then
-        theme.ApplyCloseButtonStyle(closeBtn)
-    end
+    cfg.VISIBLE_ROWS = visibleRows
 
     -- ── Row 1: Profession Tabs & State Filters ────────────────────────────────
-    ui.profRow = CreateFrame("Frame", nil, f)
-    f.profRow = ui.profRow
-    ui.profRow:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -38)
-    ui.profRow:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -38)
+    ui.profRow = CreateFrame("Frame", nil, container)
+    container.profRow = ui.profRow
+    ui.profRow:SetPoint("TOPLEFT", container, "TOPLEFT", sidePad, topOffset)
+    ui.profRow:SetPoint("TOPRIGHT", container, "TOPRIGHT", -sidePad, topOffset)
     ui.profRow:SetHeight(24)
-    ui.profRow:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
+    ui.profRow:SetFrameLevel((container:GetFrameLevel() or 1) + 5)
 
     -- State filter buttons (all, unlearned, learned)
     local reverseStateFilters = { "learned", "unlearned", "all" }
@@ -571,15 +625,15 @@ function B.CreateBrowserFrame()
     B.UpdateStateButtons()
 
     -- ── Row 2: Completionist Progress Bar ─────────────────────────────────────
-    B.CreateProgressBar(f, ui.profRow)
+    B.CreateProgressBar(container, ui.profRow)
 
     -- ── Row 3: Search, Events, Zone & Source Filters ──────────────────────────
-    local toolbar = CreateFrame("Frame", nil, f)
-    f.toolbar = toolbar
+    local toolbar = CreateFrame("Frame", nil, container)
+    container.toolbar = toolbar
     toolbar:SetPoint("TOPLEFT", ui.progressBar, "BOTTOMLEFT", 0, -4)
     toolbar:SetPoint("TOPRIGHT", ui.progressBar, "BOTTOMRIGHT", 0, -4)
     toolbar:SetHeight(24)
-    toolbar:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
+    toolbar:SetFrameLevel((container:GetFrameLevel() or 1) + 5)
 
     -- Search Box
     local sb = CreateFrame("EditBox", nil, toolbar, "BackdropTemplate")
@@ -597,16 +651,26 @@ function B.CreateBrowserFrame()
     placeholder:SetPoint("LEFT", sb, "LEFT", 6, 0)
     placeholder:SetText("search recipes, npcs, zones...")
 
-    sb:SetScript("OnTextChanged", function(self, userInput)
-        local txt = self:GetText():trim()
-        placeholder:SetShown(txt == "")
-        B.filterText = txt
-        if not userInput then return end
+    local function ApplySearchText()
         B.activeReagentItemID = nil
         B.activeReagentSpellSet = nil
         B.RebuildFilteredList()
         B.ResetScroll()
         B.UpdateList()
+    end
+
+    sb:SetScript("OnTextChanged", function(self, userInput)
+        local txt = self:GetText():trim()
+        placeholder:SetShown(txt == "")
+        B.filterText = txt
+        if not userInput then return end
+        if txt == "" then
+            ApplySearchText()
+        elseif sfui.common and sfui.common.debounce then
+            sfui.common.debounce("recipes_search", 0.15, ApplySearchText)
+        else
+            ApplySearchText()
+        end
     end)
     sb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
@@ -752,12 +816,12 @@ function B.CreateBrowserFrame()
     B.UpdateSourceButtons()
 
     -- ── Row 4: Specialization & Sub-Category Filters ─────────────────────────
-    ui.specRow = CreateFrame("Frame", nil, f)
-    f.specRow = ui.specRow
+    ui.specRow = CreateFrame("Frame", nil, container)
+    container.specRow = ui.specRow
     ui.specRow:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
     ui.specRow:SetPoint("TOPRIGHT", toolbar, "BOTTOMRIGHT", 0, -4)
     ui.specRow:SetHeight(22)
-    ui.specRow:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
+    ui.specRow:SetFrameLevel((container:GetFrameLevel() or 1) + 5)
 
     ui.specLabel = ui.specRow:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     ui.specLabel:SetPoint("LEFT", ui.specRow, "LEFT", 4, 0)
@@ -770,10 +834,10 @@ function B.CreateBrowserFrame()
     B.UpdateSpecButtons()
 
     -- ── List Container & Rows ────────────────────────────────────────────────
-    local lc = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    f.listContainer = lc
+    local lc = CreateFrame("Frame", nil, container, "BackdropTemplate")
+    container.listContainer = lc
     lc:SetPoint("TOPLEFT", ui.specRow, "BOTTOMLEFT", 0, -6)
-    lc:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 26)
+    lc:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -sidePad, bottomPad)
     lc:EnableMouseWheel(true)
     lc:SetScript("OnMouseWheel", B.OnListMouseWheel)
     if theme and theme.ApplyContainerStyle then
@@ -818,75 +882,106 @@ function B.CreateBrowserFrame()
     ui.emptyStateText:SetJustifyH("CENTER")
     ui.emptyStateText:Hide()
 
-    -- Enable mouse wheel on entire main window
-    f:EnableMouseWheel(true)
-    f:SetScript("OnMouseWheel", B.OnListMouseWheel)
+    -- Enable mouse wheel on entire container
+    container:EnableMouseWheel(true)
+    container:SetScript("OnMouseWheel", B.OnListMouseWheel)
 
     -- Bottom Status Bar
-    ui.statusText = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    ui.statusText:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 8)
+    ui.statusText = container:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    ui.statusText:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", sidePad + 2, ui.mounted and 4 or 8)
     ui.statusText:SetText("loading catalogue...")
 
-    -- ESC dismiss
+    -- Refresh on show & dynamic item info listening
+    container:SetScript("OnShow", function()
+        RegisterItemInfoListener()
+        if not ui.mounted then
+            B.OnPanelShown()
+        end
+    end)
+
+    container:HookScript("OnHide", function()
+        UnregisterItemInfoListener()
+    end)
+end
+
+--- Mount the recipe browser panel inside a shared host container (Adventure Guide)
+--- @param parentContainer Frame
+--- @param hostWindow Frame?
+--- @return Frame panel
+function B.MountPanel(parentContainer, hostWindow)
+    if not parentContainer then return nil end
+    local ui = B.ui
+    if ui.mounted and ui.frame == parentContainer then
+        ui.hostFrame = hostWindow or ui.hostFrame
+        return ui.frame
+    end
+
+    ui.frame = parentContainer
+    ui.hostFrame = hostWindow or (parentContainer.GetParent and parentContainer:GetParent()) or parentContainer
+    ui.mounted = true
+
+    BuildBrowserContents(parentContainer, -2, 2, 22, 10)
+    B.ApplyTheme(theme and theme.GetPalette and theme.GetPalette())
+    return ui.frame
+end
+sfui.recipes.MountPanel = B.MountPanel
+
+--- Create the standalone recipe browser frame
+--- @return Frame frame
+function B.CreateBrowserFrame()
+    local ui = B.ui
+    local cfg = B.CFG
+    if ui.frame then return ui.frame end
+
+    local f = CreateFrame("Frame", "SfuiRecipeBrowserFrame", UIParent, "BackdropTemplate")
+    f:SetSize(cfg.FRAME_W, cfg.FRAME_H)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
+    f:SetFrameStrata("DIALOG")
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetClampedToScreen(true)
+
     if sfui.common and sfui.common.register_special_frame then
         sfui.common.register_special_frame(f)
     end
 
-    -- Refresh on show & dynamic item info listening
-    local debouncedItemInfoHandle = nil
-    f:SetScript("OnShow", function()
-        B.UpdateProfessionTabs()
-        B.UpdateStateButtons()
-        B.UpdateEventsButton()
-        if B.UpdateZoneButton then B.UpdateZoneButton() end
-        B.UpdateSourceButtons()
-        if B.UpdateSpecButtons then B.UpdateSpecButtons() end
-        B.RebuildFilteredList()
-        B.ResetScroll()
-        B.UpdateList()
+    common.apply_flat_backdrop(f, { 0.05, 0.05, 0.07, 0.97 }, { 0.12, 0.12, 0.14, 1 })
 
-        if sfui.events and sfui.events.RegisterDebouncedEvent then
-            debouncedItemInfoHandle = sfui.events.RegisterDebouncedEvent("GET_ITEM_INFO_RECEIVED", 0.25, function()
-                if f:IsShown() then
-                    B.UpdateList()
-                end
-            end)
-        end
-    end)
+    -- ── Header Bar ────────────────────────────────────────────────────────────
+    local headerBar = (theme.CreateWindowHeader or sfui.theme.CreateWindowHeader)(f, "recipe catalogue")
+    f.headerBar = headerBar
 
-    f:HookScript("OnHide", function()
-        if debouncedItemInfoHandle and sfui.events and sfui.events.UnregisterEvent then
-            sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", debouncedItemInfoHandle)
-            debouncedItemInfoHandle = nil
-        end
-    end)
+    -- ── Close Button ──────────────────────────────────────────────────────────
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    f.closeBtn = closeBtn
+    closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", 2, 2)
+    closeBtn:SetSize(28, 28)
+    closeBtn:SetFrameLevel((f:GetFrameLevel() or 1) + 20)
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
+    if theme and theme.ApplyCloseButtonStyle then
+        theme.ApplyCloseButtonStyle(closeBtn)
+    end
+
+    ui.frame = f
+    ui.hostFrame = f
+    ui.mounted = false
+
+    BuildBrowserContents(f, -38, 10, 26, 11)
 
     -- ── Theme registration ─────────────────────────────────────────────────────
     if theme and theme.ApplyWindowStyle then
         theme.ApplyWindowStyle(f)
     end
     if theme and theme.RegisterWindow then
-        theme.RegisterWindow(f, function(frame, pal)
-            if not pal and theme.GetPalette then pal = theme.GetPalette() end
-            if frame.headerBar and theme.ApplyHeaderStyle then
-                theme.ApplyHeaderStyle(frame.headerBar, "recipe catalogue")
-            end
-            if frame.listContainer and theme.ApplyContainerStyle then
-                theme.ApplyContainerStyle(frame.listContainer)
-            end
-            B.UpdateProfessionTabs()
-            if sfui.recipes and sfui.recipes.SetBarTexture then
-                sfui.recipes.SetBarTexture()
-            end
-            B.UpdateStateButtons()
-            B.UpdateEventsButton()
-            if B.UpdateZoneButton then B.UpdateZoneButton() end
-            B.UpdateSourceButtons()
-            if B.UpdateSpecButtons then B.UpdateSpecButtons() end
+        theme.RegisterWindow(f, function(_, pal)
+            B.ApplyTheme(pal)
         end)
     end
 
-    ui.frame = f
+    f:Hide()
     return f
 end
 
@@ -912,26 +1007,31 @@ function B:SelectProfession(prof)
     return false
 end
 
+local function OpenHostedOrStandalone()
+    if sfui.dungeonjournal and sfui.dungeonjournal.OpenTab then
+        sfui.dungeonjournal.OpenTab("recipes")
+        return
+    end
+    local f = B.CreateBrowserFrame()
+    local wasShown = f:IsShown()
+    f:Show()
+    if wasShown then
+        B.OnPanelShown()
+    end
+end
+
 --- Open the recipe browser window
 --- @param optionalProfession string|number?
 function sfui.recipes.OpenBrowser(optionalProfession)
-    local f = B.CreateBrowserFrame()
-    if optionalProfession then
+    if optionalProfession and optionalProfession ~= "" then
         B:SelectProfession(optionalProfession)
     end
-
-    B.UpdateProfessionTabs()
-    if B.UpdateSpecButtons then B.UpdateSpecButtons() end
-    B.RebuildFilteredList()
-    B.ResetScroll()
-    B.UpdateList()
-    f:Show()
+    OpenHostedOrStandalone()
 end
 
 --- Open the recipe browser window pre-filtered to a specific vendor
 --- @param vendorName string
 function sfui.recipes.OpenBrowserForVendor(vendorName)
-    local f = B.CreateBrowserFrame()
     B.activeReagentItemID = nil
     B.activeReagentSpellSet = nil
     if vendorName and vendorName ~= "" then
@@ -948,13 +1048,7 @@ function sfui.recipes.OpenBrowserForVendor(vendorName)
         end
     end
 
-    B.UpdateProfessionTabs()
-    B.UpdateSourceButtons()
-    if B.UpdateSpecButtons then B.UpdateSpecButtons() end
-    B.RebuildFilteredList()
-    B.ResetScroll()
-    B.UpdateList()
-    f:Show()
+    OpenHostedOrStandalone()
 end
 
 --- Open the recipe browser window pre-filtered to a specific recipe
@@ -965,7 +1059,6 @@ function sfui.recipes.OpenBrowserToRecipe(spellID)
 
     local db = sfui.recipes_camelot and sfui.recipes_camelot.recipes
     local r = db and db[spellID]
-    local f = B.CreateBrowserFrame()
 
     B.activeReagentItemID = nil
     B.activeReagentSpellSet = nil
@@ -999,16 +1092,7 @@ function sfui.recipes.OpenBrowserToRecipe(spellID)
         end
     end
 
-    B.UpdateProfessionTabs()
-    if B.UpdateStateButtons then B.UpdateStateButtons() end
-    if B.UpdateEventsButton then B.UpdateEventsButton() end
-    if B.UpdateZoneButton then B.UpdateZoneButton() end
-    B.UpdateSourceButtons()
-    if B.UpdateSpecButtons then B.UpdateSpecButtons() end
-    B.RebuildFilteredList()
-    B.ResetScroll()
-    B.UpdateList()
-    f:Show()
+    OpenHostedOrStandalone()
 end
 
 --- Open the recipe browser window pre-filtered to recipes consuming a given reagent item
@@ -1032,8 +1116,6 @@ function sfui.recipes.OpenBrowserForReagent(itemID)
             skillCounts[r.skillID] = (skillCounts[r.skillID] or 0) + 1
         end
     end
-
-    local f = B.CreateBrowserFrame()
 
     local bestSkillID = nil
     local bestKnownCount = 0
@@ -1080,21 +1162,17 @@ function sfui.recipes.OpenBrowserForReagent(itemID)
         B.ui.searchBox:SetText(label)
     end
 
-    B.UpdateProfessionTabs()
-    if B.UpdateStateButtons then B.UpdateStateButtons() end
-    if B.UpdateZoneButton then B.UpdateZoneButton() end
-    B.UpdateSourceButtons()
-    if B.UpdateSpecButtons then B.UpdateSpecButtons() end
-    B.RebuildFilteredList()
-    B.ResetScroll()
-    B.UpdateList()
-    f:Show()
+    OpenHostedOrStandalone()
     return true
 end
 
 --- Close the recipe browser window
 function sfui.recipes.CloseBrowser()
-    if B.ui.frame then
+    if B.ui.hostFrame and B.ui.hostFrame ~= B.ui.frame then
+        if B.IsPanelVisible() and sfui.dungeonjournal and sfui.dungeonjournal.Close then
+            sfui.dungeonjournal.Close()
+        end
+    elseif B.ui.frame and B.ui.frame:IsShown() then
         B.ui.frame:Hide()
     end
 end
@@ -1108,7 +1186,7 @@ function sfui.recipes.ToggleBrowser(optionalProfession)
     if (now - lastBrowserToggleTime) < 0.15 then return end
     lastBrowserToggleTime = now
 
-    if B.ui.frame and B.ui.frame:IsShown() then
+    if B.IsPanelVisible() and (not optionalProfession or optionalProfession == "") then
         sfui.recipes.CloseBrowser()
     else
         sfui.recipes.OpenBrowser(optionalProfession)
@@ -1133,7 +1211,7 @@ function sfui.recipes_debug_info()
             numSources = numSources + 1
         end
     end
-    local isShown = (B.ui and B.ui.frame and B.ui.frame:IsShown()) and true or false
+    local isShown = B.IsPanelVisible()
     local shownCount = (B.filteredRecipes and #B.filteredRecipes) or 0
     local curProf = "all"
     if B.selectedSkillID and B.playerProfessions then
@@ -1238,17 +1316,8 @@ end
 -- ─── Live Theme Synchronization ──────────────────────────────────────────────
 if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_THEME_CHANGED", function()
-        if B.ui.frame and B.ui.frame:IsShown() then
-            if sfui.theme and sfui.theme.ApplyWindowStyle then
-                sfui.theme.ApplyWindowStyle(B.ui.frame)
-            end
-            B.UpdateProfessionTabs()
-            B.UpdateStateButtons()
-            B.UpdateEventsButton()
-            if B.UpdateZoneButton then B.UpdateZoneButton() end
-            B.UpdateSourceButtons()
-            if B.UpdateSpecButtons then B.UpdateSpecButtons() end
-            B.UpdateList()
+        if not B.ui.mounted and B.IsPanelVisible() then
+            B.ApplyTheme()
         end
     end)
 end

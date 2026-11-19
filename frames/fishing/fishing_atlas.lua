@@ -28,6 +28,8 @@ local tostring = _G.tostring
 local date = _G.date
 
 local atlasFrame = nil
+local hostFrame = nil
+local isMounted = false
 local activeTab = "atlas"
 local selectedSpeciesID = nil
 local selectedZoneMapID = nil
@@ -36,6 +38,41 @@ local speciesFilterText = ""
 local speciesCategoryFilter = "all"
 local watersFilterText = ""
 local watersContinentFilter = "all"
+local themeVer = 1
+local lastSelectedCard = nil
+local lastSelectedZoneRow = nil
+
+local function SetStyledCardState(card, styleIdx, fallbackBg, fallbackBorder)
+    if card._cardStyleState == styleIdx and card._cardStyleThemeVer == themeVer then
+        return
+    end
+    card._cardStyleState = styleIdx
+    card._cardStyleThemeVer = themeVer
+    if theme and theme.ApplyCardStyle then
+        theme.ApplyCardStyle(card, styleIdx)
+    else
+        local bg = fallbackBg or ((styleIdx == 2) and { 0.25, 0.20, 0.06, 0.85 } or { 0.08, 0.08, 0.10, 0.7 })
+        local br = fallbackBorder or { 0.25, 0.25, 0.3, 0.7 }
+        common.apply_flat_backdrop(card, bg, br)
+    end
+end
+
+local function SyncAtlasItemInfoEvent(visible)
+    local events = sfui.events
+    if not events or not events.RegisterEvent then return end
+    if atlasFrame and atlasFrame._syncItemInfoEvent then
+        atlasFrame._syncItemInfoEvent(visible)
+    end
+end
+
+local function IsPanelVisible()
+    if not atlasFrame then return false end
+    if hostFrame and hostFrame ~= atlasFrame then
+        return hostFrame:IsShown() == true and atlasFrame:IsShown() == true
+    end
+    return atlasFrame:IsShown() == true
+end
+ATLAS.IsPanelVisible = IsPanelVisible
 
 -- ─── Formatting Helpers ──────────────────────────────────────────────────────
 
@@ -80,8 +117,117 @@ local BuildLogbookTab
 local RefreshAtlasView
 local RefreshWatersView
 local RefreshLogbookView
+local RefreshActiveTab
+local ApplyFilterButtonStyles
 
--- ─── Master Window Construction ──────────────────────────────────────────────
+-- ─── Master Window & Panel Construction ──────────────────────────────────────
+
+local function BuildAtlasContents(container, topOffset, sidePad, bottomPad)
+    -- Top Tab Row
+    local tabContainer = CreateFrame("Frame", nil, container)
+    tabContainer:SetPoint("TOPLEFT", container, "TOPLEFT", sidePad, topOffset)
+    tabContainer:SetSize(600, 28)
+    container.tabContainer = tabContainer
+
+    local tabs = {}
+    local tabDefs = {
+        { id = "atlas",   text = "fish atlas", icon = "Interface\\Icons\\INV_Misc_Fish_02" },
+        { id = "waters",  text = "waters",     icon = "Interface\\Icons\\Trade_Fishing" },
+        { id = "logbook", text = "logbook",    icon = "Interface\\Icons\\INV_Misc_Book_09" },
+    }
+
+    local prevTab = nil
+    for _, def in ipairs(tabDefs) do
+        local btn = CreateTabButton(tabContainer, def.id, def.text, def.icon, function(pickedID)
+            ATLAS.ShowTab(pickedID)
+        end)
+        if not prevTab then
+            btn:SetPoint("LEFT", tabContainer, "LEFT", 0, 0)
+        else
+            btn:SetPoint("LEFT", prevTab, "RIGHT", 6, 0)
+        end
+        prevTab = btn
+        tabs[def.id] = btn
+    end
+    container.tabs = tabs
+
+    -- Content Container
+    local content = CreateFrame("Frame", nil, container, "BackdropTemplate")
+    content:SetPoint("TOPLEFT", container, "TOPLEFT", sidePad, topOffset - 30)
+    content:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -sidePad, bottomPad)
+    container.content = content
+
+    -- Build Tab Panels
+    container.atlasPanel = BuildAtlasTab(content)
+    container.watersPanel = BuildWatersTab(content)
+    container.logbookPanel = BuildLogbookTab(content)
+end
+
+function ATLAS.ApplyTheme(pal)
+    if not atlasFrame then return end
+    themeVer = themeVer + 1
+    if not isMounted and atlasFrame.headerBar and theme and theme.ApplyHeaderStyle then
+        theme.ApplyHeaderStyle(atlasFrame.headerBar, "fishing atlas")
+    end
+    if atlasFrame.tabs and theme and theme.ApplyTabStyle then
+        for id, btn in pairs(atlasFrame.tabs) do
+            theme.ApplyTabStyle(btn, id == activeTab)
+        end
+    end
+    if atlasFrame.atlasPanel then
+        local ap = atlasFrame.atlasPanel
+        if ap.searchBox and theme and theme.ApplyInputStyle then
+            theme.ApplyInputStyle(ap.searchBox)
+        end
+        if ap.catBtns and ApplyFilterButtonStyles then
+            ApplyFilterButtonStyles(ap.catBtns, speciesCategoryFilter)
+        end
+        if ap.detail and theme and theme.ApplyCardStyle then
+            theme.ApplyCardStyle(ap.detail, 1)
+        end
+    end
+    if atlasFrame.watersPanel then
+        local wp = atlasFrame.watersPanel
+        if wp.searchBox and theme and theme.ApplyInputStyle then
+            theme.ApplyInputStyle(wp.searchBox)
+        end
+        if wp.continentBtns and ApplyFilterButtonStyles then
+            ApplyFilterButtonStyles(wp.continentBtns, watersContinentFilter)
+        end
+        if wp.detail and theme and theme.ApplyCardStyle then
+            theme.ApplyCardStyle(wp.detail, 1)
+        end
+    end
+    if atlasFrame.logbookPanel and theme and theme.ApplyCardStyle then
+        local lp = atlasFrame.logbookPanel
+        if lp.sessionCard then theme.ApplyCardStyle(lp.sessionCard, 1) end
+        if lp.recordsCard then theme.ApplyCardStyle(lp.recordsCard, 1) end
+        if lp.milestonesCard then theme.ApplyCardStyle(lp.milestonesCard, 1) end
+    end
+    if IsPanelVisible() and RefreshActiveTab then
+        RefreshActiveTab()
+    end
+end
+
+function ATLAS.MountPanel(parentContainer, hostWindow)
+    if not parentContainer then return nil end
+    if isMounted and atlasFrame == parentContainer then
+        hostFrame = hostWindow or hostFrame
+        return atlasFrame
+    end
+
+    atlasFrame = parentContainer
+    hostFrame = hostWindow or (parentContainer.GetParent and parentContainer:GetParent()) or parentContainer
+    isMounted = true
+
+    BuildAtlasContents(parentContainer, -2, 4, 4)
+    ATLAS.ApplyTheme(theme and theme.GetPalette and theme.GetPalette())
+    if parentContainer.HookScript then
+        parentContainer:HookScript("OnShow", function() SyncAtlasItemInfoEvent(true) end)
+        parentContainer:HookScript("OnHide", function() SyncAtlasItemInfoEvent(false) end)
+    end
+    return atlasFrame
+end
 
 local function CreateAtlasWindow()
     if atlasFrame then return atlasFrame end
@@ -117,63 +263,27 @@ local function CreateAtlasWindow()
     end
     f.closeBtn = closeBtn
 
+    atlasFrame = f
+    hostFrame = f
+    isMounted = false
+
+    BuildAtlasContents(f, -36, 12, 12)
+
     -- Register with theme engine
     if theme and theme.RegisterWindow then
-        theme.RegisterWindow(f, function(frame, pal)
-            if frame.tabs then
-                for id, btn in pairs(frame.tabs) do
-                    local isSelected = (id == activeTab)
-                    if theme and theme.ApplyTabStyle then
-                        theme.ApplyTabStyle(btn, isSelected)
-                    end
-                end
-            end
+        theme.RegisterWindow(f, function(_, pal)
+            ATLAS.ApplyTheme(pal)
         end, { title = "fishing atlas" })
     else
         common.apply_flat_backdrop(f, { 0.06, 0.06, 0.08, 0.96 }, { 0.22, 0.22, 0.26, 0.90 })
     end
 
-    -- Top Tab Row
-    local tabContainer = CreateFrame("Frame", nil, f)
-    tabContainer:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -36)
-    tabContainer:SetSize(600, 28)
-    f.tabContainer = tabContainer
-
-    local tabs = {}
-    local tabDefs = {
-        { id = "atlas",   text = "fish atlas", icon = "Interface\\Icons\\INV_Misc_Fish_02" },
-        { id = "waters",  text = "waters",     icon = "Interface\\Icons\\Trade_Fishing" },
-        { id = "logbook", text = "logbook",    icon = "Interface\\Icons\\INV_Misc_Book_09" },
-    }
-
-    local prevTab = nil
-    for _, def in ipairs(tabDefs) do
-        local btn = CreateTabButton(tabContainer, def.id, def.text, def.icon, function(pickedID)
-            ATLAS.ShowTab(pickedID)
-        end)
-        if not prevTab then
-            btn:SetPoint("LEFT", tabContainer, "LEFT", 0, 0)
-        else
-            btn:SetPoint("LEFT", prevTab, "RIGHT", 6, 0)
-        end
-        prevTab = btn
-        tabs[def.id] = btn
+    if f.HookScript then
+        f:HookScript("OnShow", function() SyncAtlasItemInfoEvent(true) end)
+        f:HookScript("OnHide", function() SyncAtlasItemInfoEvent(false) end)
     end
-    f.tabs = tabs
-
-    -- Content Container
-    local content = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    content:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -66)
-    content:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
-    f.content = content
-
-    -- Build Tab Panels
-    f.atlasPanel = BuildAtlasTab(content)
-    f.watersPanel = BuildWatersTab(content)
-    f.logbookPanel = BuildLogbookTab(content)
 
     f:Hide()
-    atlasFrame = f
     return f
 end
 
@@ -201,7 +311,16 @@ local function CreateSearchBox(parent, placeholderText, onChanged, width)
         local txt = self:GetText()
         local val = txt and txt:lower() or ""
         placeholder:SetShown(val == "")
-        onChanged(val)
+        self._pendingSearchVal = val
+        if val == "" then
+            onChanged("")
+        elseif common and common.debounce then
+            common.debounce("fishing_search_" .. placeholderText, 0.15, function()
+                onChanged(self._pendingSearchVal or "")
+            end)
+        else
+            onChanged(val)
+        end
     end)
     searchBox:SetScript("OnEscapePressed", function(self)
         self:ClearFocus()
@@ -244,7 +363,7 @@ local function CreateInfoCard(parent, titleText, w, h)
     return card
 end
 
-local function ApplyFilterButtonStyles(btns, activeID)
+ApplyFilterButtonStyles = function(btns, activeID)
     for _, ob in pairs(btns) do
         local isSelected = (ob.id == activeID)
         if theme and theme.ApplyTabStyle then
@@ -312,7 +431,19 @@ BuildAtlasTab = function(parent)
     scrollFrame:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -32)
     scrollFrame:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 4, 4)
     scrollFrame:SetWidth(498)
+    p.scrollFrame = scrollFrame
     p.scrollChild = scrollChild
+
+    local function onAtlasScroll(sf, offset)
+        if atlasFrame and atlasFrame.atlasPanel and atlasFrame.atlasPanel._renderVisible then
+            atlasFrame.atlasPanel._renderVisible(false, offset)
+        end
+    end
+    if scrollFrame.HookScript then
+        scrollFrame:HookScript("OnVerticalScroll", onAtlasScroll)
+    else
+        scrollFrame:SetScript("OnVerticalScroll", onAtlasScroll)
+    end
 
     -- Right Detail Panel (aligned below the top filter bar at y = -32)
     local detail = CreateFrame("Frame", nil, p, "BackdropTemplate")
@@ -462,6 +593,7 @@ BuildLogbookTab = function(parent)
     -- 2. Lifetime Records Card (Top Right)
     local recordsCard = CreateInfoCard(p, "lifetime records", 400, 200)
     recordsCard:SetPoint("TOPLEFT", sessionCard, "TOPRIGHT", 12, 0)
+    recordsCard:SetPoint("RIGHT", p, "RIGHT", -8, 0)
 
     -- 3. Milestones Card (Bottom)
     local milestonesCard = CreateInfoCard(p, "trainer milestones")
@@ -638,6 +770,15 @@ local function UpdateSpeciesDetail(speciesID)
     child:Show()
 end
 
+local function OnZoneSpeciesRowClick(self)
+    local itemID = self.speciesID
+    if not itemID then return end
+    if HandleSpeciesButtonModifierClick(itemID) then return end
+    ATLAS.ShowTab("atlas")
+    selectedSpeciesID = itemID
+    UpdateSpeciesDetail(itemID)
+end
+
 local function UpdateZoneDetail(mapID)
     if not atlasFrame or not atlasFrame.watersPanel then return end
     local det = atlasFrame.watersPanel.detail
@@ -692,16 +833,13 @@ local function UpdateZoneDetail(mapID)
                 nameFs:SetWordWrap(false)
                 row.nameFs = nameFs
 
+                row:SetScript("OnClick", OnZoneSpeciesRowClick)
                 BindSpeciesTooltip(row)
                 pool[i] = row
             end
 
             row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(i - 1) * 32)
-            if theme and theme.ApplyCardStyle then
-                theme.ApplyCardStyle(row, 2)
-            else
-                common.apply_flat_backdrop(row, { 0.1, 0.1, 0.12, 0.5 }, { 0.25, 0.25, 0.3, 0.5 })
-            end
+            SetStyledCardState(row, 2, { 0.1, 0.1, 0.12, 0.5 }, { 0.25, 0.25, 0.3, 0.5 })
 
             local itemID = entry[1]
             local share = entry[2]
@@ -722,13 +860,6 @@ local function UpdateZoneDetail(mapID)
             row.shareFs:SetText(string_format("%.1f%%  %scaught %d|r%s", share or 0, caughtCol, count, youTag))
 
             row.speciesID = itemID
-            row:SetScript("OnClick", function()
-                if HandleSpeciesButtonModifierClick(itemID) then return end
-                ATLAS.ShowTab("atlas")
-                selectedSpeciesID = itemID
-                UpdateSpeciesDetail(itemID)
-            end)
-
             row:Show()
         end
 
@@ -752,48 +883,63 @@ end
 
 -- ─── Tab View Refreshers ─────────────────────────────────────────────────────
 
-RefreshAtlasView = function()
+local function OnAtlasSpeciesCardClick(self)
+    if not self.speciesID then return end
+    if HandleSpeciesButtonModifierClick(self.speciesID) then return end
+    if lastSelectedCard and lastSelectedCard ~= self and lastSelectedCard:IsShown() then
+        SetStyledCardState(lastSelectedCard, 1)
+    end
+    selectedSpeciesID = self.speciesID
+    SetStyledCardState(self, 2)
+    lastSelectedCard = self
+    UpdateSpeciesDetail(self.speciesID)
+end
+
+local function RenderVisibleAtlasCards(force, scrollOffset)
     if not atlasFrame or not atlasFrame.atlasPanel then return end
     local p = atlasFrame.atlasPanel
-    local child = p.scrollChild
-    child:Hide()
-
-    local allSpecies = data.GetAllSpecies()
-    local savedSpecies = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.species or {}
-
-    local filtered = {}
-    for itemID, item in pairs(allSpecies) do
-        local name = data.GetSpeciesDisplay(itemID, false)
-        local matchSearch = (speciesFilterText == "") or (name:find(speciesFilterText, 1, true) ~= nil)
-
-        local matchCategory = true
-        if speciesCategoryFilter == "fish" and item.isContainer then
-            matchCategory = false
-        elseif speciesCategoryFilter == "containers" and not item.isContainer then
-            matchCategory = false
-        elseif speciesCategoryFilter == "caught" and (not savedSpecies[itemID] or savedSpecies[itemID].n <= 0) then
-            matchCategory = false
-        elseif speciesCategoryFilter == "missing" and savedSpecies[itemID] and savedSpecies[itemID].n > 0 then
-            matchCategory = false
+    local filtered = p.filteredSpecies
+    local pool = p.cardsPool
+    if not filtered or #filtered == 0 then
+        for i = 1, #pool do
+            pool[i]:Hide()
         end
-
-        if matchSearch and matchCategory then
-            filtered[#filtered + 1] = item
-        end
+        p._lastFirstRow = nil
+        p._lastLastRow = nil
+        return
     end
 
-    table_sort(filtered, function(a, b)
-        if a.minSkill ~= b.minSkill then return a.minSkill < b.minSkill end
-        return a.itemID < b.itemID
-    end)
-
-    -- Pool and render cards
-    local pool = p.cardsPool
     local CARD_W, CARD_H = 246, 46
+    local STEP_Y = CARD_H + 6
     local COLS = 2
+    local totalRows = math.ceil(#filtered / COLS)
 
-    for i, item in ipairs(filtered) do
-        local card = pool[i]
+    local vpH = (p.scrollFrame and p.scrollFrame.GetHeight and p.scrollFrame:GetHeight()) or 0
+    if vpH <= 10 then vpH = 440 end
+    local offset = scrollOffset
+    if offset == nil then
+        offset = (p.scrollFrame and p.scrollFrame.GetVerticalScroll and p.scrollFrame:GetVerticalScroll()) or 0
+    end
+    local firstRow = math.max(1, math_floor(offset / STEP_Y))
+    local lastRow = math.min(totalRows, firstRow + math.ceil(vpH / STEP_Y) + 1)
+
+    if not force and p._lastFirstRow == firstRow and p._lastLastRow == lastRow then
+        return
+    end
+    p._lastFirstRow = firstRow
+    p._lastLastRow = lastRow
+
+    local child = p.scrollChild
+    local savedSpecies = p.filteredSaved or {}
+    local startIdx = (firstRow - 1) * COLS + 1
+    local endIdx = math.min(#filtered, lastRow * COLS)
+    local used = 0
+
+    lastSelectedCard = nil
+    for idx = startIdx, endIdx do
+        used = used + 1
+        local item = filtered[idx]
+        local card = pool[used]
         if not card then
             card = CreateFrame("Button", nil, child, "BackdropTemplate")
             card:SetSize(CARD_W, CARD_H)
@@ -820,26 +966,25 @@ RefreshAtlasView = function()
             skillFs:SetJustifyH("RIGHT")
             card.skillFs = skillFs
 
-            card:SetScript("OnClick", function(self)
-                if HandleSpeciesButtonModifierClick(self.speciesID) then return end
-                selectedSpeciesID = self.speciesID
-                UpdateSpeciesDetail(self.speciesID)
-            end)
+            card:SetScript("OnClick", OnAtlasSpeciesCardClick)
             BindSpeciesTooltip(card)
 
-            pool[i] = card
+            pool[used] = card
         end
 
-        local col = (i - 1) % COLS
-        local row = math_floor((i - 1) / COLS)
-        card:SetPoint("TOPLEFT", child, "TOPLEFT", col * (CARD_W + 6), -row * (CARD_H + 6))
+        local col = (idx - 1) % COLS
+        local row = math_floor((idx - 1) / COLS)
+        card:ClearAllPoints()
+        card:SetPoint("TOPLEFT", child, "TOPLEFT", col * (CARD_W + 6), -row * STEP_Y)
 
         local displayText, texture = data.GetSpeciesDisplay(item.itemID, true)
         card.ico:SetTexture(texture or "Interface\\Icons\\INV_Misc_Fish_02")
         card.nameFs:SetText(displayText)
 
         local myCount, count = 0, (savedSpecies[item.itemID] and savedSpecies[item.itemID].n) or 0
-        if sfui.fishing and sfui.fishing.GetSpeciesCharBreakdown then
+        if sfui.fishing and sfui.fishing.GetSpeciesCounts then
+            myCount, count = sfui.fishing.GetSpeciesCounts(item.itemID)
+        elseif sfui.fishing and sfui.fishing.GetSpeciesCharBreakdown then
             myCount, count = sfui.fishing.GetSpeciesCharBreakdown(item.itemID)
         else
             myCount = count
@@ -855,27 +1000,101 @@ RefreshAtlasView = function()
         end
         card.skillFs:SetText(string_format("skill %d", item.minSkill or 0))
 
-        if theme and theme.ApplyCardStyle then
-            theme.ApplyCardStyle(card, (item.itemID == selectedSpeciesID) and 2 or 1)
-        else
-            common.apply_flat_backdrop(card, (item.itemID == selectedSpeciesID) and { 0.25, 0.20, 0.06, 0.85 } or { 0.08, 0.08, 0.10, 0.7 }, { 0.25, 0.25, 0.3, 0.7 })
+        local isSelected = (item.itemID == selectedSpeciesID)
+        SetStyledCardState(card, isSelected and 2 or 1)
+        if isSelected then
+            lastSelectedCard = card
         end
 
         card.speciesID = item.itemID
         card:Show()
     end
 
-    for i = #filtered + 1, #pool do
+    for i = used + 1, #pool do
         pool[i]:Hide()
     end
+end
 
-    local totalRows = math.ceil(#filtered / COLS)
-    child:SetHeight(math.max(totalRows * (CARD_H + 6), 10))
-    child:Show()
+RefreshAtlasView = function()
+    if not atlasFrame or not atlasFrame.atlasPanel then return end
+    local p = atlasFrame.atlasPanel
+    local child = p.scrollChild
+    child:Hide()
+
+    local sortedSpecies = data.GetSortedSpecies and data.GetSortedSpecies()
+    local savedSpecies = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.species or {}
+    local hasSearch = (speciesFilterText ~= "")
+    local cat = speciesCategoryFilter
+
+    local filtered = p.filteredSpecies or {}
+    for i = #filtered, 1, -1 do filtered[i] = nil end
+
+    if sortedSpecies then
+        for _, item in ipairs(sortedSpecies) do
+            local itemID = item.itemID
+            local matchCategory = true
+            if cat == "fish" then
+                matchCategory = not item.isContainer
+            elseif cat == "containers" then
+                matchCategory = (item.isContainer == true)
+            elseif cat == "caught" then
+                local sp = savedSpecies[itemID]
+                matchCategory = (sp ~= nil and sp.n > 0)
+            elseif cat == "missing" then
+                local sp = savedSpecies[itemID]
+                matchCategory = not (sp ~= nil and sp.n > 0)
+            end
+
+            if matchCategory then
+                if not hasSearch then
+                    filtered[#filtered + 1] = item
+                else
+                    local name = data.GetSpeciesDisplay(itemID, false)
+                    if name:find(speciesFilterText, 1, true) ~= nil then
+                        filtered[#filtered + 1] = item
+                    end
+                end
+            end
+        end
+    else
+        local allSpecies = data.GetAllSpecies()
+        for itemID, item in pairs(allSpecies) do
+            local matchCategory = true
+            if cat == "fish" and item.isContainer then
+                matchCategory = false
+            elseif cat == "containers" and not item.isContainer then
+                matchCategory = false
+            elseif cat == "caught" and (not savedSpecies[itemID] or savedSpecies[itemID].n <= 0) then
+                matchCategory = false
+            elseif cat == "missing" and savedSpecies[itemID] and savedSpecies[itemID].n > 0 then
+                matchCategory = false
+            end
+            if matchCategory then
+                local name = hasSearch and data.GetSpeciesDisplay(itemID, false) or nil
+                if not hasSearch or (name and name:find(speciesFilterText, 1, true) ~= nil) then
+                    filtered[#filtered + 1] = item
+                end
+            end
+        end
+        table_sort(filtered, function(a, b)
+            if a.minSkill ~= b.minSkill then return a.minSkill < b.minSkill end
+            return a.itemID < b.itemID
+        end)
+    end
+
+    p.filteredSpecies = filtered
+    p.filteredSaved = savedSpecies
+    p._renderVisible = RenderVisibleAtlasCards
 
     if not selectedSpeciesID and #filtered > 0 then
         selectedSpeciesID = filtered[1].itemID
     end
+
+    local totalRows = math.ceil(#filtered / 2)
+    child:SetHeight(math.max(totalRows * 52, 10))
+    RenderVisibleAtlasCards(true)
+    child:Show()
+
     if selectedSpeciesID then
         UpdateSpeciesDetail(selectedSpeciesID)
     end
@@ -885,6 +1104,17 @@ local CONTINENT_SECTIONS = {
     { key = "eastern_kingdoms", label = "eastern kingdoms" },
     { key = "kalimdor",         label = "kalimdor" },
 }
+
+local function OnWatersZoneRowClick(self)
+    if not self.mapID then return end
+    if lastSelectedZoneRow and lastSelectedZoneRow ~= self and lastSelectedZoneRow:IsShown() then
+        SetStyledCardState(lastSelectedZoneRow, 1)
+    end
+    selectedZoneMapID = self.mapID
+    SetStyledCardState(self, 2)
+    lastSelectedZoneRow = self
+    UpdateZoneDetail(self.mapID)
+end
 
 RefreshWatersView = function()
     if not atlasFrame or not atlasFrame.watersPanel then return end
@@ -901,18 +1131,29 @@ RefreshWatersView = function()
         kalimdor         = {},
     }
     local filteredAll = {}
+    local hasZoneSearch = (watersFilterText ~= "")
 
     for _, w in ipairs(waters) do
         local contKey = w.continent or (data.GetZoneContinent and data.GetZoneContinent(w.mapID)) or "eastern_kingdoms"
         local matchContinent = (watersContinentFilter == "all") or (contKey == watersContinentFilter)
         if matchContinent then
-            local name = data.GetZoneName(w.mapID) or ("map " .. w.mapID)
-            if (watersFilterText == "") or (name:find(watersFilterText, 1, true) ~= nil) then
+            if not hasZoneSearch then
                 local bucket = byContinent[contKey] or byContinent.eastern_kingdoms
                 bucket[#bucket + 1] = w
                 filteredAll[#filteredAll + 1] = w
+            else
+                local name = data.GetZoneName(w.mapID) or ("map " .. w.mapID)
+                if name:find(watersFilterText, 1, true) ~= nil then
+                    local bucket = byContinent[contKey] or byContinent.eastern_kingdoms
+                    bucket[#bucket + 1] = w
+                    filteredAll[#filteredAll + 1] = w
+                end
             end
         end
+    end
+
+    if not selectedZoneMapID and #filteredAll > 0 then
+        selectedZoneMapID = filteredAll[1].mapID
     end
 
     local pool = p.zoneRowsPool
@@ -922,6 +1163,7 @@ RefreshWatersView = function()
     local yOffset = 0
     local rowIdx = 0
     local headerIdx = 0
+    lastSelectedZoneRow = nil
 
     for _, sec in ipairs(CONTINENT_SECTIONS) do
         local list = byContinent[sec.key]
@@ -981,10 +1223,7 @@ RefreshWatersView = function()
                     badge:SetJustifyH("RIGHT")
                     row.badge = badge
 
-                    row:SetScript("OnClick", function(self)
-                        selectedZoneMapID = self.mapID
-                        UpdateZoneDetail(self.mapID)
-                    end)
+                    row:SetScript("OnClick", OnWatersZoneRowClick)
 
                     pool[rowIdx] = row
                 end
@@ -1001,10 +1240,10 @@ RefreshWatersView = function()
 
                 row.badge:SetText(string_format("%sskill %d|r  (|cffffffff%d caught|r)", skillCol, w.reqSkill, catchesCount))
 
-                if theme and theme.ApplyCardStyle then
-                    theme.ApplyCardStyle(row, (w.mapID == selectedZoneMapID) and 2 or 1)
-                else
-                    common.apply_flat_backdrop(row, (w.mapID == selectedZoneMapID) and { 0.25, 0.20, 0.06, 0.85 } or { 0.08, 0.08, 0.10, 0.7 }, { 0.25, 0.25, 0.3, 0.7 })
+                local isSelected = (w.mapID == selectedZoneMapID)
+                SetStyledCardState(row, isSelected and 2 or 1)
+                if isSelected then
+                    lastSelectedZoneRow = row
                 end
 
                 row.mapID = w.mapID
@@ -1024,9 +1263,6 @@ RefreshWatersView = function()
     child:SetHeight(math.max(yOffset, 10))
     child:Show()
 
-    if not selectedZoneMapID and #filteredAll > 0 then
-        selectedZoneMapID = filteredAll[1].mapID
-    end
     if selectedZoneMapID then
         UpdateZoneDetail(selectedZoneMapID)
     end
@@ -1113,7 +1349,7 @@ end
 
 -- ─── Tab Switching & Public API ──────────────────────────────────────────────
 
-local function RefreshActiveTab()
+RefreshActiveTab = function()
     if activeTab == "atlas" then
         RefreshAtlasView()
     elseif activeTab == "waters" then
@@ -1123,10 +1359,19 @@ local function RefreshActiveTab()
     end
 end
 
+function ATLAS.OnPanelShown()
+    ATLAS.ShowTab(activeTab)
+end
+
 function ATLAS.ShowTab(tabID)
     activeTab = tabID or "atlas"
     if not atlasFrame then
-        CreateAtlasWindow()
+        if sfui.dungeonjournal and sfui.dungeonjournal.CreateFrame then
+            sfui.dungeonjournal.CreateFrame()
+        end
+        if not atlasFrame then
+            CreateAtlasWindow()
+        end
     end
 
     atlasFrame.atlasPanel:SetShown(activeTab == "atlas")
@@ -1145,48 +1390,75 @@ function ATLAS.ShowTab(tabID)
     RefreshActiveTab()
 end
 
-function ATLAS.Toggle()
+function ATLAS.Open(tabID)
+    if tabID then
+        activeTab = tabID
+    end
+    if sfui.dungeonjournal and sfui.dungeonjournal.OpenTab then
+        sfui.dungeonjournal.OpenTab("fishing")
+        return
+    end
     local f = atlasFrame or CreateAtlasWindow()
-    if f:IsShown() then
-        f:Hide()
+    f:Show()
+    ATLAS.ShowTab(activeTab)
+end
+
+function ATLAS.Close()
+    if hostFrame and hostFrame ~= atlasFrame then
+        if IsPanelVisible() and sfui.dungeonjournal and sfui.dungeonjournal.Close then
+            sfui.dungeonjournal.Close()
+        end
+    elseif atlasFrame and atlasFrame:IsShown() then
+        atlasFrame:Hide()
+    end
+end
+
+function ATLAS.Toggle()
+    if IsPanelVisible() then
+        ATLAS.Close()
     else
-        f:Show()
-        ATLAS.ShowTab(activeTab)
+        ATLAS.Open()
     end
 end
 
 function ATLAS.OpenToSpecies(itemID)
     local id = tonumber(itemID)
     if not id then return false end
-    local f = atlasFrame or CreateAtlasWindow()
     speciesFilterText = ""
     speciesCategoryFilter = "all"
     selectedSpeciesID = id
-    if f.atlasPanel and f.atlasPanel.searchBox then
-        f.atlasPanel.searchBox:SetText("")
+    if atlasFrame and atlasFrame.atlasPanel then
+        if atlasFrame.atlasPanel.searchBox then
+            atlasFrame.atlasPanel.searchBox:SetText("")
+        end
+        if atlasFrame.atlasPanel.catBtns then
+            ApplyFilterButtonStyles(atlasFrame.atlasPanel.catBtns, "all")
+        end
     end
-    f:Show()
-    ATLAS.ShowTab("atlas")
+    ATLAS.Open("atlas")
     return true
 end
 
 function ATLAS.OpenToZone(mapID)
     local id = tonumber(mapID)
     if not id then return false end
-    local f = atlasFrame or CreateAtlasWindow()
     watersFilterText = ""
     watersContinentFilter = "all"
     selectedZoneMapID = id
-    if f.watersPanel and f.watersPanel.searchBox then
-        f.watersPanel.searchBox:SetText("")
+    if atlasFrame and atlasFrame.watersPanel then
+        if atlasFrame.watersPanel.searchBox then
+            atlasFrame.watersPanel.searchBox:SetText("")
+        end
+        if atlasFrame.watersPanel.continentBtns then
+            ApplyFilterButtonStyles(atlasFrame.watersPanel.continentBtns, "all")
+        end
     end
-    f:Show()
-    ATLAS.ShowTab("waters")
+    ATLAS.Open("waters")
     return true
 end
 
 function ATLAS.Update()
-    if atlasFrame and atlasFrame:IsShown() then
+    if IsPanelVisible() then
         RefreshActiveTab()
     end
 end
@@ -1219,21 +1491,56 @@ if events and events.RegisterMessage then
 end
 
 if events and events.RegisterEvent then
-    events.RegisterEvent("GET_ITEM_INFO_RECEIVED", function()
-        if not atlasFrame or not atlasFrame:IsShown() then return end
+    local itemInfoRegistered = false
+    local function OnAtlasItemInfoReceived()
+        if not IsPanelVisible() then return end
         if common and common.debounce then
             common.debounce("fishing_atlas_item_info", 0.25, ATLAS.Update)
         else
             ATLAS.Update()
         end
-    end)
+    end
+    local function UpdateItemInfoRegistration(visible)
+        if visible and not itemInfoRegistered then
+            itemInfoRegistered = true
+            events.RegisterEvent("GET_ITEM_INFO_RECEIVED", OnAtlasItemInfoReceived)
+        elseif not visible and itemInfoRegistered then
+            itemInfoRegistered = false
+            if events.UnregisterEvent then
+                events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", OnAtlasItemInfoReceived)
+            end
+        end
+    end
+    -- Hook dynamic binder for already-created or future atlasFrame
+    local origMount = ATLAS.MountPanel
+    ATLAS.MountPanel = function(...)
+        local f = origMount(...)
+        if f then
+            f._syncItemInfoEvent = UpdateItemInfoRegistration
+            if IsPanelVisible() then UpdateItemInfoRegistration(true) end
+        end
+        return f
+    end
+    local origOnShown = ATLAS.OnPanelShown
+    ATLAS.OnPanelShown = function(...)
+        if atlasFrame then atlasFrame._syncItemInfoEvent = UpdateItemInfoRegistration end
+        UpdateItemInfoRegistration(true)
+        return origOnShown(...)
+    end
+    local origShowTab = ATLAS.ShowTab
+    ATLAS.ShowTab = function(...)
+        local res = origShowTab(...)
+        if atlasFrame then atlasFrame._syncItemInfoEvent = UpdateItemInfoRegistration end
+        UpdateItemInfoRegistration(IsPanelVisible())
+        return res
+    end
 end
 
 -- ─── Item Tooltip Hint Provider ──────────────────────────────────────────────
 
 local function OnFishingItemTooltip(tip, ctxOrData)
     if not tip or not tip.AddLine or tip._sfuiInFishingAtlas or tip._sfuiFishingHintDone then return end
-    if not data or not data.GetAllSpecies then return end
+    if not data then return end
 
     local itemID = (ctxOrData and (ctxOrData.itemID or ctxOrData.id)) or nil
     if not itemID and tip.GetItem then
@@ -1244,12 +1551,23 @@ local function OnFishingItemTooltip(tip, ctxOrData)
     end
     if not itemID then return end
 
-    local allSpecies = data.GetAllSpecies()
-    if not allSpecies or not allSpecies[itemID] then return end
+    local spNames = data.SPECIES_NAMES
+    if spNames and not spNames[itemID] then
+        local saved = SfuiDB and SfuiDB.fishing and SfuiDB.fishing.species
+        if not (saved and saved[itemID]) then return end
+    end
+
+    if data.GetAllSpecies then
+        local allSpecies = data.GetAllSpecies()
+        if not allSpecies or not allSpecies[itemID] then return end
+    end
 
     tip._sfuiFishingHintDone = true
     local totalCaught = 0
-    if sfui.fishing and sfui.fishing.GetSpeciesCharBreakdown then
+    if sfui.fishing and sfui.fishing.GetSpeciesCounts then
+        local _, total = sfui.fishing.GetSpeciesCounts(itemID)
+        totalCaught = total or 0
+    elseif sfui.fishing and sfui.fishing.GetSpeciesCharBreakdown then
         local _, total = sfui.fishing.GetSpeciesCharBreakdown(itemID)
         totalCaught = total or 0
     elseif SfuiDB and SfuiDB.fishing and SfuiDB.fishing.species and SfuiDB.fishing.species[itemID] then

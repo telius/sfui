@@ -964,14 +964,30 @@ local nameToLiveTrainers = nil
 local isLiveIndexDirty = true
 local liveIndexVersion = 0
 local nonHostileSourcesCache = {}
+local sourceCache = {}
+local sourceCacheSkip = {}
+local sourceCacheFaction = nil
+
+local SOURCE_RESULT_MT = {
+    __index = function(t, k)
+        if k == "reagents" then
+            local rec = rawget(t, "_recipe")
+            return rec and rec.reagents or nil
+        end
+    end,
+}
 
 function sfui.recipes.InvalidateLiveIndices()
     isLiveIndexDirty = true
     liveIndexVersion = liveIndexVersion + 1
     if _G.wipe then
         _G.wipe(nonHostileSourcesCache)
+        _G.wipe(sourceCache)
+        _G.wipe(sourceCacheSkip)
     else
         nonHostileSourcesCache = {}
+        sourceCache = {}
+        sourceCacheSkip = {}
     end
 end
 
@@ -1021,15 +1037,44 @@ local function EnsureLiveIndices()
     isLiveIndexDirty = false
 end
 
+function sfui.recipes.HasLiveVendorItem(itemID)
+    if not itemID or not (SfuiDB and SfuiDB.contacts) then return false end
+    EnsureLiveIndices()
+    return (itemToLiveVendors and itemToLiveVendors[itemID]) ~= nil
+end
+
 --- Get all resolved source locations for a recipe
 --- @param id number spellID, scroll itemID, or output itemID
 --- @param skipBlizzardText? boolean skip C_TradeSkillUI.GetRecipeSourceText fallback when true
 --- @return table? result
 function sfui.recipes.GetSource(id, skipBlizzardText)
+    local curFaction = _G.UnitFactionGroup and _G.UnitFactionGroup("player")
+    if sourceCacheFaction ~= curFaction then
+        sourceCacheFaction = curFaction
+        if _G.wipe then
+            _G.wipe(nonHostileSourcesCache)
+            _G.wipe(sourceCache)
+            _G.wipe(sourceCacheSkip)
+        else
+            nonHostileSourcesCache = {}
+            sourceCache = {}
+            sourceCacheSkip = {}
+        end
+    end
+
+    if SfuiDB and SfuiDB.contacts then
+        EnsureLiveIndices()
+    end
+
     local recipe = sfui.recipes.GetRecipe(id)
     if not recipe then return nil end
 
     local spellID = recipe.id or id
+    local cache = skipBlizzardText and sourceCacheSkip or sourceCache
+    if not recipe.isDynamic and spellID and cache[spellID] then
+        return cache[spellID]
+    end
+
     local result = {
         recipeID     = spellID,
         name         = recipe.name,
@@ -1038,7 +1083,6 @@ function sfui.recipes.GetSource(id, skipBlizzardText)
         colors       = recipe.colors,
         output       = recipe.output,
         recipeItemID = recipe.recipeItemID,
-        reagents     = recipe.reagents,
         spec         = recipe.spec,
         faction      = recipe.faction,
         standing     = recipe.standing,
@@ -1046,13 +1090,14 @@ function sfui.recipes.GetSource(id, skipBlizzardText)
         isEvent      = recipe.isEvent,
         event        = recipe.event,
         sources      = {},
+        _recipe      = recipe,
     }
+    setmetatable(result, SOURCE_RESULT_MT)
 
     local seenKeys = {}
 
     -- 1. Prioritize Live Sightings (SfuiDB.contacts via reverse indices)
     if SfuiDB and SfuiDB.contacts then
-        EnsureLiveIndices()
 
         -- Check Live Vendors (O(1) lookup)
         if recipe.recipeItemID and itemToLiveVendors and itemToLiveVendors[recipe.recipeItemID] then
@@ -1261,6 +1306,9 @@ function sfui.recipes.GetSource(id, skipBlizzardText)
         end
     end
 
+    if not recipe.isDynamic and spellID then
+        cache[spellID] = result
+    end
     return result
 end
 

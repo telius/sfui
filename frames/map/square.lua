@@ -477,6 +477,18 @@ function square:SetEnabled(enabled)
     self:Apply()
 end
 
+local function hide_square_visuals_for_overlay()
+    if backdropFrame and backdropFrame.Hide then
+        backdropFrame:Hide()
+    end
+    if bronzeOverlay and bronzeOverlay.Hide then
+        bronzeOverlay:Hide()
+    end
+    if MinimapCluster and MinimapCluster.DielFrame and MinimapCluster.DielFrame.SetAlpha then
+        MinimapCluster.DielFrame:SetAlpha(0)
+    end
+end
+
 function square:Apply()
     if InCombatLockdown() then
         pendingApply = true
@@ -485,15 +497,7 @@ function square:Apply()
     pendingApply = false
 
     if is_overlay_active() then
-        if backdropFrame and backdropFrame.Hide then
-            backdropFrame:Hide()
-        end
-        if bronzeOverlay and bronzeOverlay.Hide then
-            bronzeOverlay:Hide()
-        end
-        if MinimapCluster and MinimapCluster.DielFrame and MinimapCluster.DielFrame.SetAlpha then
-            MinimapCluster.DielFrame:SetAlpha(0)
-        end
+        hide_square_visuals_for_overlay()
         if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
             sfui.map.overlay:RefreshLayout()
         end
@@ -568,14 +572,13 @@ end
 -- Lifecycle Initialization
 -- ------------------------------------------------------------------------------
 sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-    ensure_ground_textures()
-    if not isInitialized then
-        isInitialized = true
-        square:Apply()
-    else
-        -- Re-apply on reload or zone change to ensure textures remain suppressed
-        square:Apply()
+    isInitialized = true
+    if is_overlay_active() then
+        hide_square_visuals_for_overlay()
+        return
     end
+    ensure_ground_textures()
+    square:Apply()
 end)
 
 sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()

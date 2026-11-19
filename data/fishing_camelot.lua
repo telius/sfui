@@ -700,10 +700,31 @@ D.ZONE_CONTINENT = {
 
 -- ─── 4. Pre-Indexed Catalog of All Species ───────────────────────────────────
 local speciesCatalog = nil
+local sortedSpeciesList = nil
+local speciesDisplayCache = {}
+local watersCache = nil
+local watersSavedCount = -1
+
+local function CompareSpeciesZones(a, b)
+    return (a.share or 0) > (b.share or 0)
+end
+
+local function CompareSpeciesOrder(a, b)
+    if a.minSkill ~= b.minSkill then return a.minSkill < b.minSkill end
+    return a.itemID < b.itemID
+end
+
+local function CompareWatersOrder(a, b)
+    if a.reqSkill ~= b.reqSkill then
+        return a.reqSkill < b.reqSkill
+    end
+    return a.mapID < b.mapID
+end
 
 local function BuildSpeciesCatalog()
     if speciesCatalog then return speciesCatalog end
     speciesCatalog = {}
+    sortedSpeciesList = {}
 
     local function add_list(list, isClassic)
         for mapID, fishEntries in pairs(list) do
@@ -770,21 +791,25 @@ local function BuildSpeciesCatalog()
         end
     end
 
-    -- Sort zones per fish by highest drop percentage
+    -- Sort zones per fish by highest drop percentage and build pre-sorted list
     for _, item in pairs(speciesCatalog) do
         if item.minSkill == 9999 then item.minSkill = item.minSkillAny end
         if item.minSkill == 9999 then item.minSkill = 0 end
         item.minSkillAny = nil
-        table_sort(item.zones, function(a, b)
-            return (a.share or 0) > (b.share or 0)
-        end)
+        table_sort(item.zones, CompareSpeciesZones)
+        sortedSpeciesList[#sortedSpeciesList + 1] = item
     end
+    table_sort(sortedSpeciesList, CompareSpeciesOrder)
 
     return speciesCatalog
 end
 
 function D.InvalidateSpeciesCatalog()
     speciesCatalog = nil
+    sortedSpeciesList = nil
+    speciesDisplayCache = {}
+    watersCache = nil
+    watersSavedCount = -1
 end
 
 -- ─── 5. Public Query API ─────────────────────────────────────────────────────
@@ -801,14 +826,28 @@ end
 --- @param preferLink boolean|nil
 --- @return string displayText, string|number|nil texture, string|nil itemName, string|nil itemLink, number|nil quality
 function D.GetSpeciesDisplay(itemID, preferLink)
+    local cached = itemID and speciesDisplayCache[itemID]
+    if cached then
+        local txt = (preferLink ~= false and cached.lowerLink) or cached.lowerName
+        return txt, cached.texture, cached.lowerName, cached.lowerLink, cached.quality
+    end
     local common = sfui.common
     local name, link, quality, _, _, _, _, _, _, texture
     if common and common.get_item_info then
         name, link, quality, _, _, _, _, _, _, texture = common.get_item_info(itemID)
     end
-    local lowerLink = (preferLink ~= false and link) and link:gsub("%b[]", string.lower) or nil
+    local lowerLink = link and link:gsub("%b[]", string.lower) or nil
     local lowerName = (name and name:lower()) or (itemID and D.SPECIES_NAMES[itemID]) or ("item:" .. tostring(itemID or 0))
-    return (lowerLink or lowerName), texture, lowerName, lowerLink, quality
+    if itemID and name then
+        speciesDisplayCache[itemID] = {
+            texture   = texture,
+            lowerName = lowerName,
+            lowerLink = lowerLink,
+            quality   = quality,
+        }
+    end
+    local outLink = (preferLink ~= false) and lowerLink or nil
+    return (outLink or lowerName), texture, lowerName, outLink, quality
 end
 
 --- Returns the lowercase name for a zone mapID
@@ -1015,9 +1054,29 @@ function D.GetAllSpecies()
     return BuildSpeciesCatalog()
 end
 
+--- Returns the pre-sorted list of all cataloged species
+--- @return table
+function D.GetSortedSpecies()
+    if not speciesCatalog then
+        BuildSpeciesCatalog()
+    end
+    return sortedSpeciesList
+end
+
 --- Returns all known fishing zones with their requirement and continent
 --- @return table array of { mapID, reqSkill, continent, sub }
 function D.GetAllWaters()
+    local savedZones = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.zones
+    local savedCount = 0
+    if type(savedZones) == "table" then
+        for _ in pairs(savedZones) do
+            savedCount = savedCount + 1
+        end
+    end
+    if watersCache and watersSavedCount == savedCount then
+        return watersCache
+    end
+
     local waters = {}
     local seen = {}
     for mapID, req in pairs(D.ZONE_SKILL) do
@@ -1030,7 +1089,6 @@ function D.GetAllWaters()
             sub = D.ZONE_SKILL_PARTS[mapID],
         }
     end
-    local savedZones = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.zones
     if type(savedZones) == "table" then
         for mKey, zData in pairs(savedZones) do
             local mID = tonumber(mKey)
@@ -1044,12 +1102,9 @@ function D.GetAllWaters()
             end
         end
     end
-    table_sort(waters, function(a, b)
-        if a.reqSkill ~= b.reqSkill then
-            return a.reqSkill < b.reqSkill
-        end
-        return a.mapID < b.mapID
-    end)
+    table_sort(waters, CompareWatersOrder)
+    watersCache = waters
+    watersSavedCount = savedCount
     return waters
 end
 

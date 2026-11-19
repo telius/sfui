@@ -264,7 +264,7 @@ sfui.options.RegisterTab({
         local cb_mb_loot = create_checkbox(panel, "follower auto-pass loot rolls",
             function() return sync.GetSettings().mbFollowerPassLoot == true end,
             function(v) set_sync_setting("mbFollowerPassLoot", v) end,
-            "when not the party leader in a synced group, automatically passes on loot rolls unless the item is on this character's dungeon journal wishlist.")
+            "when not the party leader in a synced group, automatically passes on loot rolls unless the item is on this character's adventure guide wishlist.")
         cb_mb_loot:SetPoint("LEFT", cb_mb_corpse, "LEFT", COL_OFFSET_X, 0)
 
         local cb_mb_hud = create_checkbox(panel, "show party status & bag/gold hud",
@@ -298,16 +298,16 @@ sfui.options.RegisterTab({
             "synchronizes character levels, gold, professions, bags/bank, lockouts, currencies, and reputation.")
         cb_alts:SetPoint("TOPLEFT", mod_header, "BOTTOMLEFT", 0, -8)
 
-        local cb_quests = create_checkbox(panel, "sync quests, journal & wishlists",
+        local cb_quests = create_checkbox(panel, "sync quests, adventure guide & wishlists",
             function() return sync.GetSettings().syncQuests ~= false end,
             function(v) set_sync_setting("syncQuests", v) end,
-            "synchronizes active quests, party missing-quest markers, dungeon journal quest chains, and per-character loot wishlists.")
+            "synchronizes active quests, party missing-quest markers, adventure guide quest chains, and per-character loot wishlists.")
         cb_quests:SetPoint("TOPLEFT", cb_alts, "BOTTOMLEFT", 0, -6)
 
         local cb_waypoints = create_checkbox(panel, "sync map waypoints to peers",
             function() return sync.GetSettings().syncWaypoints ~= false end,
             function(v) set_sync_setting("syncWaypoints", v) end,
-            "automatically shares quest and dungeon journal map pins with online linked party peers.")
+            "automatically shares quest and adventure guide map pins with online linked party peers.")
         cb_waypoints:SetPoint("TOPLEFT", cb_quests, "BOTTOMLEFT", 0, -6)
 
         local cb_recipes = create_checkbox(panel, "sync recipes & known status",

@@ -379,13 +379,20 @@ local function update_compass(force)
             local x = delta * PX_PER_DEG
             local norm = absDelta / HALF_FOV_DEG
             local edgeAlpha = 1 - (norm * norm * 0.88)
+            local becameShown = false
             if not m.shown then
                 m.holder:Show()
                 m.shown = true
+                becameShown = true
             end
-            m.holder:ClearAllPoints()
-            m.holder:SetPoint("CENTER", stripFrame, "CENTER", x, 0)
-            m.holder:SetAlpha(edgeAlpha)
+            if becameShown or m._lastX == nil or math_abs(x - m._lastX) > 0.02 then
+                m._lastX = x
+                m.holder:SetPoint("CENTER", stripFrame, "CENTER", x, 0)
+            end
+            if becameShown or m._lastAlpha == nil or math_abs(edgeAlpha - m._lastAlpha) > 0.005 then
+                m._lastAlpha = edgeAlpha
+                m.holder:SetAlpha(edgeAlpha)
+            end
         end
     end
 end

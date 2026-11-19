@@ -397,7 +397,7 @@ function B.CreateRow(parent, index)
             or (self.bestSource and self.bestSource.mapID and self.bestSource.x and self.bestSource.y)
         if isDropBoss then
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cff00e5ffclick to view boss encounter in dungeon journal|r", 0.3, 0.85, 1)
+            GameTooltip:AddLine("|cff00e5ffclick to view boss encounter in adventure guide|r", 0.3, 0.85, 1)
         elseif hasCoords then
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("|cff80c0ffclick to set map waypoint with super-tracking|r", 0.7, 0.9, 1)

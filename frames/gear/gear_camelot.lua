@@ -485,38 +485,48 @@ function sfui.gear.GetLockSlots(specID)
 end
 
 -- -------------------------------------------------------------------------
--- CLASSIC STAT CLEANSE (Scrubs ArP & Exp)
+-- CLASSIC STAT CLEANSE (Scrubs ArP, Exp & BlockVal)
 -- -------------------------------------------------------------------------
 function sfui.gear.SanitizeStatOrder(specID, rawOrder, pool, isTank)
     local numStats = #pool
     local clean = {}
+    local seen = {}
     local dirty = false
     local statAbbrv = sfui.gear.statAbbrv or {}
 
-    for i = 1, numStats do
-        local st = rawOrder and rawOrder[i]
-        local isInvalid = not st or (not isTank and sfui.gear.DEFENSIVE_STATS and sfui.gear.DEFENSIVE_STATS[st])
-        if st == "ArP" or st == "Exp" or st == "ArmorPenetration" or st == "Expertise"
-            or (statAbbrv[st] == "arp" or statAbbrv[st] == "exp") then
-            isInvalid = true
-            dirty = true
-        end
-        if isInvalid then
-            for _, cand in ipairs(pool) do
-                local inUse = false
-                for k = 1, #clean do
-                    if clean[k] == cand then inUse = true; break end
-                end
-                if not inUse then
-                    st = cand
-                    break
-                end
+    if rawOrder then
+        for i = 1, #rawOrder do
+            local st = rawOrder[i]
+            local isInvalid = not st
+                or (not isTank and sfui.gear.DEFENSIVE_STATS and sfui.gear.DEFENSIVE_STATS[st])
+                or st == "ArP" or st == "Exp" or st == "ArmorPenetration" or st == "Expertise"
+                or st == "BlockVal" or st == "BlockValue" or st == "blockval"
+                or statAbbrv[st] == "arp" or statAbbrv[st] == "exp" or statAbbrv[st] == "bv" or statAbbrv[st] == "blockval"
+            if isInvalid or seen[st] then
+                dirty = true
+            elseif #clean < numStats then
+                seen[st] = true
+                clean[#clean + 1] = st
+            else
+                dirty = true
             end
         end
-        clean[i] = st or pool[i] or "none"
     end
 
-    if dirty and SfuiDB and SfuiDB.gear and SfuiDB.gear[specID] and SfuiDB.gear[specID].stat_order then
+    if #clean < numStats then
+        for _, cand in ipairs(pool) do
+            if not seen[cand] then
+                seen[cand] = true
+                clean[#clean + 1] = cand
+                if #clean >= numStats then break end
+            end
+        end
+        while #clean < numStats do
+            clean[#clean + 1] = pool[#clean + 1] or "none"
+        end
+    end
+
+    if (dirty or (rawOrder and #rawOrder ~= numStats)) and SfuiDB and SfuiDB.gear and SfuiDB.gear[specID] and SfuiDB.gear[specID].stat_order then
         SfuiDB.gear[specID].stat_order = {}
         for cIdx = 1, numStats do
             SfuiDB.gear[specID].stat_order[cIdx] = clean[cIdx]

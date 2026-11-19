@@ -221,6 +221,8 @@ function sfui.minimap.update_position(x, y, point, relPoint)
             if not cluster._sfuiConfigHooked and hooksecurefunc then
                 cluster._sfuiConfigHooked = true
                 hooksecurefunc(cluster, "UpdateMinimapConfig", function()
+                    local ov = sfui.map and sfui.map.overlay
+                    if ov and ov.IsActive and ov:IsActive() then return end
                     if not isRepositioning and not InCombatLockdown() then
                         sfui.minimap.update_position()
                     end

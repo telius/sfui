@@ -698,7 +698,7 @@ function sfui.mem.GetModuleStats()
 
         -- Dungeon Journal Module (Camelot / Classic)
         local djStats = {
-            name = "camelot dungeon journal",
+            name = "adventure guide",
             status = "|cff888888closed|r",
             line1 = "journal: none",
             line2 = "selected: none",

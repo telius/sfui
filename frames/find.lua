@@ -172,9 +172,14 @@ local function build_static_index()
     end, nil, "mailbox postal send mats boe", 18)
 
     if not sfui.isRetail and sfui.dungeonjournal then
-        staticIndex[#staticIndex + 1] = make_entry("command", "dungeon journal", "open maps, bosses, loot & dungeon quests", "Interface\\Icons\\INV_Misc_Book_09", function()
+        staticIndex[#staticIndex + 1] = make_entry("command", "adventure guide", "open dungeons, raids, upgrades, recipes & fishing", "Interface\\Icons\\INV_Misc_Book_09", function()
             sfui.dungeonjournal.Toggle()
-        end, nil, "atlas lootviewer instances raids wishlist", 24)
+        end, nil, "dungeon journal atlas lootviewer instances raids upgrades recipes fishing wishlist", 24)
+        if sfui.upgrades and sfui.upgrades.Open then
+            staticIndex[#staticIndex + 1] = make_entry("command", "gear upgrades", "/sfupgrades · open adventure guide to gear upgrades", "Interface\\Icons\\INV_Misc_Book_09", function()
+                sfui.upgrades.Open()
+            end, nil, "upgrades adventure guide gear bis quest dungeon vendor", 23)
+        end
     elseif sfui.isRetail and sfui.lootviewer and sfui.lootviewer.Toggle then
         staticIndex[#staticIndex + 1] = make_entry("command", "loot browser", "open retail encounter loot viewer", "Interface\\Icons\\INV_Misc_Book_09", function()
             sfui.lootviewer.Toggle()
@@ -182,15 +187,15 @@ local function build_static_index()
     end
 
     if not sfui.isRetail and sfui.recipes and sfui.recipes.ToggleBrowser then
-        staticIndex[#staticIndex + 1] = make_entry("command", "recipe browser", "/sf recipes · browse profession recipes & sources", "Interface\\Icons\\INV_Scroll_03", function()
+        staticIndex[#staticIndex + 1] = make_entry("command", "recipe catalogue", "/sf recipes · open adventure guide to recipe catalogue", "Interface\\Icons\\INV_Scroll_03", function()
             sfui.recipes.ToggleBrowser()
-        end, nil, "crafting professions patterns plans schematics", 23)
+        end, nil, "recipe browser crafting professions patterns plans schematics adventure guide", 23)
     end
 
     if not sfui.isRetail and sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
-        staticIndex[#staticIndex + 1] = make_entry("command", "fishing atlas", "/sf atlas · browse fish species, zones & logbook", "Interface\\Icons\\INV_Misc_Fish_02", function()
+        staticIndex[#staticIndex + 1] = make_entry("command", "fishing atlas", "/sf atlas · open adventure guide to fishing atlas", "Interface\\Icons\\INV_Misc_Fish_02", function()
             sfui.fishing.atlas.Toggle()
-        end, nil, "waters anglers catch", 21)
+        end, nil, "waters anglers catch fishing adventure guide", 21)
     end
 
     if sfui.portals and sfui.portals.Toggle then

@@ -280,6 +280,7 @@ sfui.common.get_inventory_item_link = sfui.items.get_inventory_item_link
 local itemStatsCache = {}
 local itemStatsCacheCount = 0
 local ITEM_STATS_CACHE_MAX = 2500
+local randomEnchantCache = {}
 
 local shieldStatsCache = {}
 local shieldStatsCacheCount = 0
@@ -291,6 +292,7 @@ local WEAPON_STATS_CACHE_MAX = 1000
 
 function sfui.items.clear_item_stats_cache()
     _G.wipe(itemStatsCache)
+    _G.wipe(randomEnchantCache)
     itemStatsCacheCount = 0
     _G.wipe(shieldStatsCache)
     shieldStatsCacheCount = 0
@@ -300,9 +302,15 @@ end
 sfui.common.clear_item_stats_cache = sfui.items.clear_item_stats_cache
 
 function sfui.items.parse_tooltip_stat_line(lineText, stats)
-    if not lineText or type(lineText) ~= "string" or not stats then return end
+    if not lineText or type(lineText) ~= "string" or not stats then return false end
     local clean = lineText:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
-    if not clean or clean == "" then return end
+    if not clean or clean == "" then return false end
+
+    if (_G.ITEM_RANDOM_ENCHANT and _G.ITEM_RANDOM_ENCHANT ~= "" and clean:find(_G.ITEM_RANDOM_ENCHANT, 1, true))
+        or clean:lower():find("random enchantment", 1, true)
+    then
+        return true
+    end
 
     -- 1. Classic Spell Power / Spell Damage and Healing (e.g. Scepter of the Abandoned)
     local sp = clean:match("[Ii]ncreases damage and healing .-by up to (%d+)")
@@ -356,9 +364,9 @@ function sfui.items.parse_tooltip_stat_line(lineText, stats)
     end
 
     -- 5. School-specific spell damage (Shadow, Fire, Frost, Holy, Nature, Arcane)
-    local schoolDmg = clean:match("[Ii]ncreases damage done by (%a+) spells .-by up to (%d+)")
-        or clean:match("[Ii]ncreases damage done by (%a+) spells .-by (%d+)")
-        or clean:match("%+(%d+)%s+(%a+)%s+[Ss]pell%s+[Dd]amage")
+    local schoolDmg = clean:match("[Ii]ncreases damage done by %a+ spells .-by up to (%d+)")
+        or clean:match("[Ii]ncreases damage done by %a+ spells .-by (%d+)")
+        or clean:match("%+(%d+)%s+%a+%s+[Ss]pell%s+[Dd]amage")
     if schoolDmg then
         local v = tonumber(schoolDmg)
         if v and v > 0 then
@@ -367,25 +375,23 @@ function sfui.items.parse_tooltip_stat_line(lineText, stats)
     end
 
     -- 6. Spell Critical Strike
-    local spellCrit = clean:match("[Ii]mproves your chance to get a critical strike with spells by (%d+)%%")
+    local spellCritPct = clean:match("[Ii]mproves your chance to get a critical strike with spells by (%d+)%%")
         or clean:match("[Ii]mproves your chance to get a critical strike with spells by up to (%d+)%%")
-        or clean:match("%+(%d+)%%?%s+[Ss]pell%s+[Cc]rit")
-    if spellCrit then
-        local v = tonumber(spellCrit)
-        if v and v > 0 then
-            stats["ITEM_MOD_CRIT_SPELL_RATING_SHORT"] = math.max(stats["ITEM_MOD_CRIT_SPELL_RATING_SHORT"] or 0, v)
-        end
+        or clean:match("%+(%d+)%%%s+[Ss]pell%s+[Cc]rit")
+    local spellCritFlat = (not spellCritPct) and clean:match("%+(%d+)%s+[Ss]pell%s+[Cc]rit")
+    local spellCritVal = (spellCritPct and (tonumber(spellCritPct) * 10)) or tonumber(spellCritFlat)
+    if spellCritVal and spellCritVal > 0 then
+        stats["ITEM_MOD_CRIT_SPELL_RATING_SHORT"] = math.max(stats["ITEM_MOD_CRIT_SPELL_RATING_SHORT"] or 0, spellCritVal)
     end
 
     -- 7. Spell Hit
-    local spellHit = clean:match("[Ii]mproves your chance to hit with spells by (%d+)%%")
+    local spellHitPct = clean:match("[Ii]mproves your chance to hit with spells by (%d+)%%")
         or clean:match("[Ii]mproves your chance to hit with spells by up to (%d+)%%")
-        or clean:match("%+(%d+)%%?%s+[Ss]pell%s+[Hh]it")
-    if spellHit then
-        local v = tonumber(spellHit)
-        if v and v > 0 then
-            stats["ITEM_MOD_HIT_SPELL_RATING_SHORT"] = math.max(stats["ITEM_MOD_HIT_SPELL_RATING_SHORT"] or 0, v)
-        end
+        or clean:match("%+(%d+)%%%s+[Ss]pell%s+[Hh]it")
+    local spellHitFlat = (not spellHitPct) and clean:match("%+(%d+)%s+[Ss]pell%s+[Hh]it")
+    local spellHitVal = (spellHitPct and (tonumber(spellHitPct) * 10)) or tonumber(spellHitFlat)
+    if spellHitVal and spellHitVal > 0 then
+        stats["ITEM_MOD_HIT_SPELL_RATING_SHORT"] = math.max(stats["ITEM_MOD_HIT_SPELL_RATING_SHORT"] or 0, spellHitVal)
     end
 
     -- 8. Armor Penetration
@@ -400,16 +406,16 @@ function sfui.items.parse_tooltip_stat_line(lineText, stats)
     end
 
     -- 9. Haste
-    local haste = clean:match("[Ii]ncreases attack speed by (%d+)%%")
+    local hastePct = clean:match("[Ii]ncreases attack speed by (%d+)%%")
         or clean:match("[Ii]ncreases your attack speed by (%d+)%%")
-        or clean:match("[Ii]ncreases haste by (%d+)")
+    local hasteFlat = (not hastePct) and (
+        clean:match("[Ii]ncreases haste by (%d+)")
         or clean:match("%+(%d+)%s+[Hh]aste%s+[Rr]ating")
         or clean:match("%+(%d+)%s+[Hh]aste")
-    if haste then
-        local v = tonumber(haste)
-        if v and v > 0 then
-            stats["ITEM_MOD_HASTE_RATING_SHORT"] = math.max(stats["ITEM_MOD_HASTE_RATING_SHORT"] or 0, v)
-        end
+    )
+    local hasteVal = (hastePct and (tonumber(hastePct) * 10)) or tonumber(hasteFlat)
+    if hasteVal and hasteVal > 0 then
+        stats["ITEM_MOD_HASTE_RATING_SHORT"] = math.max(stats["ITEM_MOD_HASTE_RATING_SHORT"] or 0, hasteVal)
     end
 
     -- 10. Expertise
@@ -459,40 +465,49 @@ function sfui.items.parse_tooltip_stat_line(lineText, stats)
     end
 
     -- 13. Block Rating / Chance
-    local block = clean:match("[Ii]ncreases your chance to block attacks by (%d+)%%")
-        or clean:match("%+(%d+)%%?%s+[Bb]lock%s+[Rr]ating")
-        or clean:match("%+(%d+)%%?%s+[Bb]lock$")
-    if block then
-        local v = tonumber(block)
-        if v and v > 0 then
-            stats["ITEM_MOD_BLOCK_RATING_SHORT"] = math.max(stats["ITEM_MOD_BLOCK_RATING_SHORT"] or 0, v)
-        end
+    local blockPct = clean:match("[Ii]ncreases your chance to block .-by (%d+)%%")
+        or clean:match("%+(%d+)%%%s+[Bb]lock%s+[Rr]ating")
+        or clean:match("%+(%d+)%%%s+[Bb]lock$")
+    local blockFlat = (not blockPct) and (
+        clean:match("[Ii]ncreases your block rating by (%d+)")
+        or clean:match("[Ii]ncreases block rating by (%d+)")
+        or clean:match("%+(%d+)%s+[Bb]lock%s+[Rr]ating")
+        or clean:match("%+(%d+)%s+[Bb]lock$")
+    )
+    local blockVal = (blockPct and (tonumber(blockPct) * 5)) or tonumber(blockFlat)
+    if blockVal and blockVal > 0 then
+        stats["ITEM_MOD_BLOCK_RATING_SHORT"] = math.max(stats["ITEM_MOD_BLOCK_RATING_SHORT"] or 0, blockVal)
     end
 
     -- 14. Physical / General Hit
-    if not spellHit then
-        local hit = clean:match("[Ii]mproves your chance to hit by (%d+)%%")
-            or clean:match("%+(%d+)%%?%s+[Hh]it%s+[Rr]ating")
-            or clean:match("%+(%d+)%%?%s+[Hh]it$")
-        if hit then
-            local v = tonumber(hit)
-            if v and v > 0 then
-                stats["ITEM_MOD_HIT_RATING_SHORT"] = math.max(stats["ITEM_MOD_HIT_RATING_SHORT"] or 0, v)
-            end
+    if not spellHitVal then
+        local hitPct = clean:match("[Ii]mproves your chance to hit by (%d+)%%")
+            or clean:match("%+(%d+)%%%s+[Hh]it%s+[Rr]ating")
+            or clean:match("%+(%d+)%%%s+[Hh]it$")
+        local hitFlat = (not hitPct) and (
+            clean:match("%+(%d+)%s+[Hh]it%s+[Rr]ating")
+            or clean:match("%+(%d+)%s+[Hh]it$")
+        )
+        local hitVal = (hitPct and (tonumber(hitPct) * 10)) or tonumber(hitFlat)
+        if hitVal and hitVal > 0 then
+            stats["ITEM_MOD_HIT_RATING_SHORT"] = math.max(stats["ITEM_MOD_HIT_RATING_SHORT"] or 0, hitVal)
         end
     end
 
     -- 15. Physical / General Crit
-    if not spellCrit then
-        local crit = clean:match("[Ii]mproves your chance to get a critical strike by (%d+)%%")
-            or clean:match("%+(%d+)%%?%s+[Cc]rit%s+[Rr]ating")
-            or clean:match("%+(%d+)%%?%s+[Cc]ritical%s+[Ss]trike")
-            or clean:match("%+(%d+)%%?%s+[Cc]rit$")
-        if crit then
-            local v = tonumber(crit)
-            if v and v > 0 then
-                stats["ITEM_MOD_CRIT_RATING_SHORT"] = math.max(stats["ITEM_MOD_CRIT_RATING_SHORT"] or 0, v)
-            end
+    if not spellCritVal then
+        local critPct = clean:match("[Ii]mproves your chance to get a critical strike by (%d+)%%")
+            or clean:match("%+(%d+)%%%s+[Cc]rit%s+[Rr]ating")
+            or clean:match("%+(%d+)%%%s+[Cc]ritical%s+[Ss]trike")
+            or clean:match("%+(%d+)%%%s+[Cc]rit$")
+        local critFlat = (not critPct) and (
+            clean:match("%+(%d+)%s+[Cc]rit%s+[Rr]ating")
+            or clean:match("%+(%d+)%s+[Cc]ritical%s+[Ss]trike")
+            or clean:match("%+(%d+)%s+[Cc]rit$")
+        )
+        local critVal = (critPct and (tonumber(critPct) * 10)) or tonumber(critFlat)
+        if critVal and critVal > 0 then
+            stats["ITEM_MOD_CRIT_RATING_SHORT"] = math.max(stats["ITEM_MOD_CRIT_RATING_SHORT"] or 0, critVal)
         end
     end
 
@@ -514,6 +529,38 @@ function sfui.items.parse_tooltip_stat_line(lineText, stats)
             end
         end
     end
+
+    -- 17. Dodge Rating / Chance
+    local dodgePct = clean:match("[Ii]ncreases your chance to dodge .-by (%d+)%%")
+        or clean:match("%+(%d+)%%%s+[Dd]odge%s+[Rr]ating")
+        or clean:match("%+(%d+)%%%s+[Dd]odge$")
+    local dodgeFlat = (not dodgePct) and (
+        clean:match("[Ii]ncreases your dodge rating by (%d+)")
+        or clean:match("[Ii]ncreases dodge rating by (%d+)")
+        or clean:match("%+(%d+)%s+[Dd]odge%s+[Rr]ating")
+        or clean:match("%+(%d+)%s+[Dd]odge$")
+    )
+    local dodgeVal = (dodgePct and (tonumber(dodgePct) * 10)) or tonumber(dodgeFlat)
+    if dodgeVal and dodgeVal > 0 then
+        stats["ITEM_MOD_DODGE_RATING_SHORT"] = math.max(stats["ITEM_MOD_DODGE_RATING_SHORT"] or 0, dodgeVal)
+    end
+
+    -- 18. Parry Rating / Chance
+    local parryPct = clean:match("[Ii]ncreases your chance to parry .-by (%d+)%%")
+        or clean:match("%+(%d+)%%%s+[Pp]arry%s+[Rr]ating")
+        or clean:match("%+(%d+)%%%s+[Pp]arry$")
+    local parryFlat = (not parryPct) and (
+        clean:match("[Ii]ncreases your parry rating by (%d+)")
+        or clean:match("[Ii]ncreases parry rating by (%d+)")
+        or clean:match("%+(%d+)%s+[Pp]arry%s+[Rr]ating")
+        or clean:match("%+(%d+)%s+[Pp]arry$")
+    )
+    local parryVal = (parryPct and (tonumber(parryPct) * 10)) or tonumber(parryFlat)
+    if parryVal and parryVal > 0 then
+        stats["ITEM_MOD_PARRY_RATING_SHORT"] = math.max(stats["ITEM_MOD_PARRY_RATING_SHORT"] or 0, parryVal)
+    end
+
+    return false
 end
 sfui.common.parse_tooltip_stat_line = sfui.items.parse_tooltip_stat_line
 
@@ -531,6 +578,7 @@ function sfui.items.get_item_stats(itemLink)
 
     if sfui.isRetail then
         itemStatsCache[itemLink] = raw or {}
+        randomEnchantCache[itemLink] = false
         return raw or {}
     end
 
@@ -538,6 +586,7 @@ function sfui.items.get_item_stats(itemLink)
         or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
         or (sfui.version and not sfui.version.retail)
 
+    local isRandomEnchant = false
     if isClassic then
         local foundTooltip = false
         local C_TooltipInfo = _G.C_TooltipInfo
@@ -548,7 +597,9 @@ function sfui.items.get_item_stats(itemLink)
                 for _, line in ipairs(tData.lines) do
                     local left = line.leftText
                     if left and type(left) == "string" then
-                        sfui.items.parse_tooltip_stat_line(left, stats)
+                        if sfui.items.parse_tooltip_stat_line(left, stats) then
+                            isRandomEnchant = true
+                        end
                     end
                 end
             end
@@ -569,7 +620,9 @@ function sfui.items.get_item_stats(itemLink)
                     if fsL then
                         local txt = fsL:GetText()
                         if txt then
-                            sfui.items.parse_tooltip_stat_line(txt, stats)
+                            if sfui.items.parse_tooltip_stat_line(txt, stats) then
+                                isRandomEnchant = true
+                            end
                         end
                     end
                 end
@@ -579,14 +632,26 @@ function sfui.items.get_item_stats(itemLink)
 
     if itemStatsCacheCount >= ITEM_STATS_CACHE_MAX then
         _G.wipe(itemStatsCache)
+        _G.wipe(randomEnchantCache)
         itemStatsCacheCount = 0
     end
     itemStatsCacheCount = itemStatsCacheCount + 1
     itemStatsCache[itemLink] = stats
+    randomEnchantCache[itemLink] = isRandomEnchant
 
     return stats
 end
 sfui.common.get_item_stats = sfui.items.get_item_stats
+
+function sfui.items.is_random_enchant_item(itemLink)
+    local link = normalize_item_arg(itemLink)
+    if not link then return false end
+    if randomEnchantCache[link] == nil then
+        sfui.items.get_item_stats(link)
+    end
+    return randomEnchantCache[link] == true
+end
+sfui.common.is_random_enchant_item = sfui.items.is_random_enchant_item
 
 function sfui.items.get_weapon_stats(itemLink)
     if not itemLink then return 0, 0, 0, 0 end

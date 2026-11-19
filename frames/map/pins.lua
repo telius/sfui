@@ -27,6 +27,8 @@ local _G                  = _G
 local CreateFrame         = _G.CreateFrame
 local InCombatLockdown    = _G.InCombatLockdown
 local UnitLevel           = _G.UnitLevel
+local UnitPosition        = _G.UnitPosition
+local GetPlayerFacing     = _G.GetPlayerFacing
 local IsShiftKeyDown      = _G.IsShiftKeyDown
 local C_Timer             = _G.C_Timer
 local C_Map               = _G.C_Map
@@ -40,9 +42,16 @@ local pairs               = _G.pairs
 local table_insert        = _G.table.insert
 local table_sort          = _G.table.sort
 local math_abs            = math.abs
+local math_cos            = math.cos
+local math_sin            = math.sin
+local math_min            = math.min
 local tostring            = tostring
 local wipe                = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
 local issecretvalue       = _G.issecretvalue
+
+local DEFAULT_BORDER_COLOR = { 0, 0, 0, 1 }
+local OUTDOOR_RADIUS       = { [0] = 116.666, [1] = 100, [2] = 83.333, [3] = 66.666, [4] = 50, [5] = 33.333 }
+local INDOOR_RADIUS        = { [0] = 50, [1] = 40, [2] = 33.333, [3] = 25, [4] = 16.666, [5] = 10 }
 
 local common              = sfui.common
 
@@ -89,8 +98,12 @@ local lastPlayerLevel     = nil
 
 local lastMinimapPX       = nil
 local lastMinimapPY       = nil
+local lastMinimapWX       = nil
+local lastMinimapWY       = nil
+local lastMinimapCont     = nil
 local lastMinimapFacing   = nil
 local lastMinimapRadius   = nil
+local lastMinimapRotated  = nil
 local lastMinimapMapID    = nil
 
 -- ─── Centralized Quest & Bag Status Cache ─────────────────────────────────────
@@ -131,10 +144,21 @@ local function RebuildActiveQuestCache()
     isQuestCacheValid = true
 end
 
-pins.IsQuestCompleted = sfui.common.is_quest_completed
+function pins.IsQuestCompleted(questID)
+    if not questID then return false end
+    local qs = sfui.queststate
+    if qs and qs.IsCompleted then
+        return qs.IsCompleted(questID) == true
+    end
+    return sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(questID) or false
+end
 
 function pins.IsQuestActive(questID)
     if not questID then return false end
+    local qs = sfui.queststate
+    if qs and qs.IsActive then
+        return qs.IsActive(questID) == true
+    end
     if not isQuestCacheValid then
         RebuildActiveQuestCache()
     end
@@ -531,9 +555,11 @@ function pins.HighlightPin(pinID, duration, targetSize)
     local function Pulse(pin)
         local base = pin.baseSize or 20
         local enlarged = targetSize or (base + 6)
+        pin._lastSize = enlarged
         pin:SetSize(enlarged, enlarged)
         C_Timer.After(duration, function()
             if pin and pin.SetSize then
+                pin._lastSize = base
                 pin:SetSize(base, base)
             end
         end)
@@ -604,7 +630,7 @@ local function SetupPinVisuals(pin, p)
     end
 
     if pin.SetRoundBorderColor then
-        pin:SetRoundBorderColor(p.borderColor or { 0, 0, 0, 1 })
+        pin:SetRoundBorderColor(p.borderColor or DEFAULT_BORDER_COLOR)
     elseif pin.SetBackdropBorderColor then
         local bc = p.borderColor
         pin:SetBackdropBorderColor(bc and bc[1] or 0, bc and bc[2] or 0, bc and bc[3] or 0, bc and bc[4] or 1)
@@ -700,13 +726,16 @@ local function CollectCandidatePinsForPlayer()
 
     CollectCandidatePins(playerMapID, reusablePlayerCandidateList)
 
-    -- Also check parent map if player is currently in a subzone/micro-map
+    -- Also check parent map only if player is currently in a micro-map or dungeon
     local mapInfo = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(playerMapID)
     local parentMapID = mapInfo and mapInfo.parentMapID
     if parentMapID and parentMapID > 0 and parentMapID ~= playerMapID then
-        CollectCandidatePins(parentMapID, scratchParentList)
-        for _, p in ipairs(scratchParentList) do
-            reusablePlayerCandidateList[#reusablePlayerCandidateList + 1] = p
+        local uiMapType = _G.Enum and _G.Enum.UIMapType
+        if (not uiMapType) or (mapInfo.mapType == nil) or (mapInfo.mapType == uiMapType.Micro) or (mapInfo.mapType == uiMapType.Dungeon) then
+            CollectCandidatePins(parentMapID, scratchParentList)
+            for _, p in ipairs(scratchParentList) do
+                reusablePlayerCandidateList[#reusablePlayerCandidateList + 1] = p
+            end
         end
     end
 
@@ -797,6 +826,8 @@ local function InvalidateMinimapPins()
     isMinimapPinsDirty = true
     cachedPlayerPins = nil
     cachedPlayerPinsMapID = nil
+    lastMinimapWX = nil
+    lastMinimapWY = nil
 end
 pins.InvalidateMinimapPins = InvalidateMinimapPins
 
@@ -812,16 +843,14 @@ pins.ReleaseMinimapPins = ReleaseMinimapPins
 
 local function GetMinimapViewRadius()
     if _G.C_Minimap and _G.C_Minimap.GetViewRadius then
-        local ok, r = pcall(_G.C_Minimap.GetViewRadius)
-        if ok and r and r > 0 then
+        local r = _G.C_Minimap.GetViewRadius()
+        if r and ((not issecretvalue) or (not issecretvalue(r))) and type(r) == "number" and r > 0 then
             return r
         end
     end
     local zoom = _G.Minimap and _G.Minimap.GetZoom and _G.Minimap:GetZoom() or 0
     local isInside = (_G.GetCVar and _G.GetCVar("minimapInsideZoom") == "1") or (_G.IsIndoors and _G.IsIndoors())
-    local outdoorRadius = { [0] = 116.666, [1] = 100, [2] = 83.333, [3] = 66.666, [4] = 50, [5] = 33.333 }
-    local indoorRadius  = { [0] = 50, [1] = 40, [2] = 33.333, [3] = 25, [4] = 16.666, [5] = 10 }
-    local t = isInside and indoorRadius or outdoorRadius
+    local t = isInside and INDOOR_RADIUS or OUTDOOR_RADIUS
     return t[zoom] or 100
 end
 
@@ -830,20 +859,24 @@ local function AcquireMinimapPin(parent, defaultSize)
     for _, pin in ipairs(minimapPinPool) do
         if not pin:IsShown() then
             pin:SetParent(parent)
-            pin:SetSize(defaultSize, defaultSize)
+            if pin._lastSize ~= defaultSize then
+                pin._lastSize = defaultSize
+                pin:SetSize(defaultSize, defaultSize)
+            end
             pin.baseSize = defaultSize
             pin.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             pin.icon:SetDesaturated(false)
             pin.icon:SetVertexColor(1, 1, 1, 1)
             if pin.SetRoundBorderColor then
-                pin:SetRoundBorderColor(0, 0, 0, 1)
+                pin:SetRoundBorderColor(DEFAULT_BORDER_COLOR)
             elseif pin.SetBackdropBorderColor then
                 pin:SetBackdropBorderColor(0, 0, 0, 1)
             end
             pin.countText:SetText("")
             pin.countText:SetTextColor(1, 1, 1, 1)
             pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-            if can_modify_pin(pin) and pin.EnableMouse then
+            if pin._mouseEnabled ~= minimapPinsMouseEnabled and can_modify_pin(pin) and pin.EnableMouse then
+                pin._mouseEnabled = minimapPinsMouseEnabled
                 pin:EnableMouse(minimapPinsMouseEnabled)
             end
             return pin
@@ -853,9 +886,11 @@ local function AcquireMinimapPin(parent, defaultSize)
     local pin = CreateFrame("Button", nil, parent)
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     if can_modify_pin(pin) and pin.EnableMouse then
+        pin._mouseEnabled = minimapPinsMouseEnabled
         pin:EnableMouse(minimapPinsMouseEnabled)
     end
     pin:SetSize(defaultSize, defaultSize)
+    pin._lastSize = defaultSize
     pin.baseSize = defaultSize
     pin:SetFrameStrata(parent:GetFrameStrata())
     pin:SetFrameLevel(parent:GetFrameLevel() + 5)
@@ -957,7 +992,7 @@ end
 local minimapPosCacheX = {}
 local minimapPosCacheY = {}
 
-local function RenderMinimapPins(force)
+local function RenderMinimapPins(force, extMapID, extFacing, extRadius, extRotated)
     local mm = _G.Minimap
     if not mm or not mm:IsShown() then
         ReleaseMinimapPins()
@@ -975,7 +1010,7 @@ local function RenderMinimapPins(force)
         return
     end
 
-    local playerMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local playerMapID = extMapID or (C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player"))
     if not playerMapID then
         ReleaseMinimapPins()
         lastMinimapMapID = nil
@@ -990,14 +1025,24 @@ local function RenderMinimapPins(force)
     local halfW = mmW * 0.5
     local halfH = mmH * 0.5
 
-    local viewRadius = GetMinimapViewRadius()
+    local viewRadius = (extRadius and extRadius > 0) and extRadius or GetMinimapViewRadius()
     if not viewRadius or viewRadius <= 0 then
         ReleaseMinimapPins()
         return
     end
 
-    local isRotated = _G.GetCVarBool and _G.GetCVarBool("rotateMinimap")
-    local facing = isRotated and ((_G.GetPlayerFacing and _G.GetPlayerFacing()) or 0) or 0
+    local isRotated
+    if extRotated ~= nil then
+        isRotated = extRotated and true or false
+    else
+        isRotated = (_G.GetCVarBool and _G.GetCVarBool("rotateMinimap")) and true or false
+    end
+    local facing
+    if extFacing ~= nil then
+        facing = isRotated and extFacing or 0
+    else
+        facing = isRotated and ((GetPlayerFacing and GetPlayerFacing()) or 0) or 0
+    end
 
     if isMinimapPinsDirty or not cachedPlayerPins or cachedPlayerPinsMapID ~= playerMapID then
         cachedPlayerPins, cachedPlayerPinsMapID = CollectCandidatePinsForPlayer()
@@ -1010,7 +1055,28 @@ local function RenderMinimapPins(force)
         return
     end
 
-    local primaryPos = C_Map.GetPlayerMapPosition(playerMapID, "player")
+    local wx, wy, ucont
+    if UnitPosition then
+        local ux, uy, _, uc = UnitPosition("player")
+        if ux ~= nil and uy ~= nil and ((not issecretvalue) or (not issecretvalue(ux) and not issecretvalue(uy) and not issecretvalue(uc))) then
+            wx, wy, ucont = ux, uy, uc
+        end
+    end
+
+    if not force
+        and playerMapID == lastMinimapMapID
+        and isRotated == lastMinimapRotated
+        and math_abs(facing - (lastMinimapFacing or 0)) < 0.01
+        and viewRadius == lastMinimapRadius
+        and wx ~= nil and wy ~= nil
+        and lastMinimapWX ~= nil and lastMinimapWY ~= nil
+        and ucont == lastMinimapCont
+        and math_abs(wx - lastMinimapWX) < 0.05
+        and math_abs(wy - lastMinimapWY) < 0.05 then
+        return
+    end
+
+    local primaryPos = C_Map and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(playerMapID, "player")
     local primaryPX, primaryPY = 0, 0
     if primaryPos then
         primaryPX, primaryPY = primaryPos:GetXY()
@@ -1018,25 +1084,36 @@ local function RenderMinimapPins(force)
 
     if not force
         and playerMapID == lastMinimapMapID
+        and isRotated == lastMinimapRotated
         and math_abs(primaryPX - (lastMinimapPX or 0)) < 0.00005
         and math_abs(primaryPY - (lastMinimapPY or 0)) < 0.00005
         and math_abs(facing - (lastMinimapFacing or 0)) < 0.01
         and viewRadius == lastMinimapRadius then
+        lastMinimapWX = wx
+        lastMinimapWY = wy
+        lastMinimapCont = ucont
         return
     end
 
     lastMinimapMapID    = playerMapID
     lastMinimapPX       = primaryPX
     lastMinimapPY       = primaryPY
+    lastMinimapWX       = wx
+    lastMinimapWY       = wy
+    lastMinimapCont     = ucont
     lastMinimapFacing   = facing
+    lastMinimapRotated  = isRotated
     lastMinimapRadius   = viewRadius
 
-    local cosF = isRotated and math.cos(facing) or 1
-    local sinF = isRotated and math.sin(facing) or 0
+    local cosF = isRotated and math_cos(facing) or 1
+    local sinF = isRotated and math_sin(facing) or 0
     local pixelsPerYard = halfW / viewRadius
     local maxDistYards = viewRadius * 1.15
     local maxDistYardsSq = maxDistYards * maxDistYards
     local defaultPinSize = (sfui.config and sfui.config.minimap and sfui.config.minimap.pinSize) or 14
+
+    local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+    local isSquare = (not overlayActive) and sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
 
     wipe(minimapPosCacheX)
     wipe(minimapPosCacheY)
@@ -1050,7 +1127,7 @@ local function RenderMinimapPins(force)
         local px = minimapPosCacheX[targetMapID]
         local py = minimapPosCacheY[targetMapID]
         if px == nil then
-            local pPos = C_Map.GetPlayerMapPosition(targetMapID, "player")
+            local pPos = C_Map and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(targetMapID, "player")
             if pPos then
                 px, py = pPos:GetXY()
             else
@@ -1080,12 +1157,10 @@ local function RenderMinimapPins(force)
                     local pixelX = rotX * pixelsPerYard
                     local pixelY = rotY * pixelsPerYard
 
-                    local pinSize = p.size and math.min(p.size, 16) or defaultPinSize
+                    local pinSize = p.size and math_min(p.size, 16) or defaultPinSize
                     local pinRadius = pinSize * 0.5
                     local margin = pinRadius + 1
 
-                    local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
-                    local isSquare = (not overlayActive) and sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
                     local inBounds = false
                     if isSquare then
                         inBounds = math_abs(pixelX) <= (halfW - margin) and math_abs(pixelY) <= (halfH - margin)
@@ -1103,24 +1178,30 @@ local function RenderMinimapPins(force)
                             activeMinimapPins[visibleCount] = pin
                             pin.pinData = p
                             pin.customID = p.id
-                            pin:SetSize(pinSize, pinSize)
-                            pin:ClearAllPoints()
+                            if pin._lastSize ~= pinSize then
+                                pin._lastSize = pinSize
+                                pin:SetSize(pinSize, pinSize)
+                            end
                             pin:SetPoint("CENTER", container, "CENTER", pixelX, pixelY)
                             SetupPinVisuals(pin, p)
-                            if can_modify_pin(pin) and pin.EnableMouse then
+                            if pin._mouseEnabled ~= minimapPinsMouseEnabled and can_modify_pin(pin) and pin.EnableMouse then
+                                pin._mouseEnabled = minimapPinsMouseEnabled
                                 pin:EnableMouse(minimapPinsMouseEnabled)
                             end
                             pin:Show()
                         else
-                            pin:SetSize(pinSize, pinSize)
-                            pin:ClearAllPoints()
+                            if pin._lastSize ~= pinSize then
+                                pin._lastSize = pinSize
+                                pin:SetSize(pinSize, pinSize)
+                            end
                             pin:SetPoint("CENTER", container, "CENTER", pixelX, pixelY)
                             if pin.pinData ~= p then
                                 pin.pinData = p
                                 pin.customID = p.id
                                 SetupPinVisuals(pin, p)
                             end
-                            if can_modify_pin(pin) and pin.EnableMouse then
+                            if pin._mouseEnabled ~= minimapPinsMouseEnabled and can_modify_pin(pin) and pin.EnableMouse then
+                                pin._mouseEnabled = minimapPinsMouseEnabled
                                 pin:EnableMouse(minimapPinsMouseEnabled)
                             end
                             if not pin:IsShown() then
@@ -1301,7 +1382,7 @@ local function InitPinEngine()
         sfui.events.RegisterEvent("MINIMAP_UPDATE_ZOOM", function()
             pins.RequestMinimapRefresh(0)
         end)
-        sfui.events.RegisterEvent("CVAR_UPDATE", function(cvarName)
+        sfui.events.RegisterEvent("CVAR_UPDATE", function(_, cvarName)
             if cvarName == "rotateMinimap" then
                 pins.RequestMinimapRefresh(0)
             end

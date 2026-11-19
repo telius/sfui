@@ -16,6 +16,9 @@ local _G                  = _G
 local GameTooltip         = sfui.common.get_tooltip()
 local IsControlKeyDown    = _G.IsControlKeyDown
 local ipairs              = _G.ipairs
+local pairs               = _G.pairs
+local tostring            = _G.tostring
+local wipe                = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
 local string_format       = string.format
 local table_insert        = _G.table.insert
 local table_sort          = _G.table.sort
@@ -42,13 +45,17 @@ function sfui.recipes.pins.SetOption(key, val)
     if SfuiDB and key == "showMapPins" then
         SfuiDB.recipesShowMapPins = val and true or false
     end
+    InvalidateProfListCache()
     pins.RequestRefresh(0)
 end
 
 sfui.recipes.GetOption = sfui.recipes.pins.GetOption
 sfui.recipes.SetOption = sfui.recipes.pins.SetOption
 function sfui.recipes.pins.GetActiveCount() return pins.GetActiveCount("recipes") end
-function sfui.recipes.pins.UpdatePins() pins.RequestRefresh(0) end
+function sfui.recipes.pins.UpdatePins()
+    InvalidateProfListCache()
+    pins.RequestRefresh(0)
+end
 
 -- ─── Source Type Color Palette & Icons ────────────────────────────────────────
 local SOURCE_COLORS = {
@@ -57,6 +64,22 @@ local SOURCE_COLORS = {
     quest   = { 1.00, 0.85, 0.20, 1.0 },
     drop    = { 1.00, 0.55, 0.20, 1.0 },
 }
+
+local SOURCE_BORDER_COLORS = {
+    vendor  = { 0.20, 1.00, 0.55, 0.90 },
+    trainer = { 0.20, 0.85, 1.00, 0.90 },
+    quest   = { 1.00, 0.85, 0.20, 0.90 },
+    drop    = { 1.00, 0.55, 0.20, 0.90 },
+}
+local DEFAULT_BORDER_COLOR = { 0.20, 0.85, 1.00, 0.90 }
+local RECIPE_TEX_COORD     = { 0.08, 0.92, 0.08, 0.92 }
+
+local function CompareGroupRecipes(a, b)
+    local skA = a.recipe.minSkill or (a.recipe.colors and a.recipe.colors[1]) or 0
+    local skB = b.recipe.minSkill or (b.recipe.colors and b.recipe.colors[1]) or 0
+    if skA ~= skB then return skA < skB end
+    return (a.recipe.name or "") < (b.recipe.name or "")
+end
 
 local SOURCE_ICONS = {
     vendor  = "Interface\\Icons\\INV_Scroll_03",
@@ -151,9 +174,14 @@ end
 local cachedProfList = nil
 local skillMapSources = {}
 local skillMapSourcesVersion = -1
+local recipePinCache = {}
+local recipePinCacheSig = nil
+local recipePinRev = 0
 
 local function InvalidateProfListCache()
     cachedProfList = nil
+    recipePinRev = recipePinRev + 1
+    wipe(recipePinCache)
 end
 
 local function GetCachedProfessions(B)
@@ -207,6 +235,17 @@ local function GetRecipePins(mapID, playerLevel, playerFaction)
     local profList = GetCachedProfessions(B)
     if #profList == 0 then return nil end
 
+    local liveVer = sfui.recipes.GetLiveIndexVersion and sfui.recipes.GetLiveIndexVersion() or 0
+    local sig = tostring(recipePinRev) .. ":" .. tostring(liveVer) .. ":" .. tostring(playerLevel or 0) .. ":" .. tostring(playerFaction or "")
+    if recipePinCacheSig ~= sig then
+        recipePinCacheSig = sig
+        wipe(recipePinCache)
+    end
+    local cached = recipePinCache[mapID]
+    if cached ~= nil then
+        return cached ~= false and cached or nil
+    end
+
     local mapGroups = {}
     local groupOrder = {}
 
@@ -250,19 +289,17 @@ local function GetRecipePins(mapID, playerLevel, playerFaction)
         end
     end
 
-    if #groupOrder == 0 then return nil end
+    if #groupOrder == 0 then
+        recipePinCache[mapID] = false
+        return nil
+    end
     local out = {}
 
     for _, g in ipairs(groupOrder) do
-        local col = SOURCE_COLORS[g.type] or { 0.20, 0.85, 1.00, 1.0 }
+        local borderCol = SOURCE_BORDER_COLORS[g.type] or DEFAULT_BORDER_COLOR
         local iconPath = SOURCE_ICONS[g.type] or SOURCE_ICONS.vendor
 
-        table_sort(g.recipes, function(a, b)
-            local skA = a.recipe.minSkill or (a.recipe.colors and a.recipe.colors[1]) or 0
-            local skB = b.recipe.minSkill or (b.recipe.colors and b.recipe.colors[1]) or 0
-            if skA ~= skB then return skA < skB end
-            return (a.recipe.name or "") < (b.recipe.name or "")
-        end)
+        table_sort(g.recipes, CompareGroupRecipes)
 
         local numRecipes = #g.recipes
         table_insert(out, {
@@ -273,8 +310,8 @@ local function GetRecipePins(mapID, playerLevel, playerFaction)
             y           = g.y,
             size        = 18,
             icon        = iconPath,
-            texCoord    = { 0.08, 0.92, 0.08, 0.92 },
-            borderColor = { col[1], col[2], col[3], 0.90 },
+            texCoord    = RECIPE_TEX_COORD,
+            borderColor = borderCol,
             count       = (numRecipes > 1 and numRecipes) or nil,
             title       = g.name or "recipe source",
             group       = g,
@@ -283,6 +320,7 @@ local function GetRecipePins(mapID, playerLevel, playerFaction)
         })
     end
 
+    recipePinCache[mapID] = out
     return out
 end
 
@@ -304,8 +342,8 @@ if sfui.events and sfui.events.RegisterEvent then
         "CHAT_MSG_SKILL",
         "TRADE_SKILL_SHOW",
         "CRAFT_SHOW",
-        "SPELLS_CHANGED",
         "NEW_RECIPE_LEARNED",
+        "PLAYER_TALENT_UPDATE",
         "PLAYER_ENTERING_WORLD",
     }
     for _, ev in ipairs(profEvents) do
@@ -315,6 +353,14 @@ end
 
 if sfui.events and sfui.events.RegisterMessage then
     sfui.events.RegisterMessage("SFUI_RECIPE_PINNED_CHANGED", function()
+        recipePinRev = recipePinRev + 1
+        wipe(recipePinCache)
         pins.RequestRefresh(0)
+    end)
+    sfui.events.RegisterMessage("SFUI_RECIPE_KNOWN_UPDATED", function()
+        InvalidateProfListCache()
+    end)
+    sfui.events.RegisterMessage("SFUI_RECIPE_BATCH_UPDATED", function()
+        InvalidateProfListCache()
     end)
 end

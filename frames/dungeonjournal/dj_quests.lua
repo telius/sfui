@@ -29,7 +29,7 @@ local ipairs             = _G.ipairs
 local pcall              = _G.pcall
 local tostring           = _G.tostring
 local type               = _G.type
-local wipe               = _G.wipe
+local wipe               = _G.wipe or function(t) for k in pairs(t) do t[k] = nil end end
 local math_ceil          = _G.math.ceil
 local math_max           = _G.math.max
 local string_format      = _G.string.format
@@ -49,7 +49,10 @@ local questHeaderFrame   = nil
 local questButtons       = {}
 local rewardButtons      = {}
 
-local selectedQuestIndex = 1
+local selectedQuestIndex   = 1
+local lastSelectedQuestBtn = nil
+local currentPeerSnapshot  = nil
+local currentQuestRewardSet = {}
 
 -- ─── Player Faction Helper ────────────────────────────────────────────────────
 local function GetPlayerFaction()
@@ -178,6 +181,91 @@ local function GetQuestObjectiveText(quest)
 end
 
 
+local RenderQuestDetail
+
+local function ApplyQuestButtonSelectedStyle(btn, isSelected, accent)
+    if not btn then return end
+    if btn._isDone then
+        if isSelected then
+            btn.nameText:SetTextColor(0.40, 0.95, 0.40, 1)
+            btn:SetBackdropColor(0.06, 0.18, 0.08, 0.95)
+            btn:SetBackdropBorderColor(0.25, 0.85, 0.35, 0.9)
+        else
+            btn.nameText:SetTextColor(0.55, 0.80, 0.55, 1)
+            btn:SetBackdropColor(0.04, 0.11, 0.05, 0.60)
+            btn:SetBackdropBorderColor(0.15, 0.45, 0.20, 0.70)
+        end
+    else
+        if isSelected then
+            btn.nameText:SetTextColor(accent[1], accent[2], accent[3], 1)
+            btn:SetBackdropColor(0.14, 0.14, 0.18, 0.95)
+            btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
+        else
+            if btn._isActive then
+                btn.nameText:SetTextColor(1, 1, 1, 1)
+            else
+                btn.nameText:SetTextColor(0.85, 0.85, 0.85, 1)
+            end
+            btn:SetBackdropColor(0.08, 0.08, 0.10, 0.0)
+            btn:SetBackdropBorderColor(0, 0, 0, 0)
+        end
+    end
+end
+
+local function OnQuestButtonClick(btn)
+    local idx = btn._questIdx
+    if not idx then return end
+    selectedQuestIndex = idx
+    DJ_DB().lastQuest = idx
+    local pal = theme and theme.GetPalette and theme.GetPalette()
+    local accent = (pal and pal.accentColor) or { 1, 0.78, 0.2, 1 }
+    if lastSelectedQuestBtn and lastSelectedQuestBtn ~= btn and lastSelectedQuestBtn:IsShown() then
+        ApplyQuestButtonSelectedStyle(lastSelectedQuestBtn, false, accent)
+    end
+    ApplyQuestButtonSelectedStyle(btn, true, accent)
+    lastSelectedQuestBtn = btn
+    if RenderQuestDetail then
+        RenderQuestDetail(btn._questData, GetCurrentDungeon(), currentPeerSnapshot)
+    end
+end
+
+local function OnRewardEnter(self)
+    local itemID = self.itemID
+    if not itemID then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    local itemLink = sfui.dungeonjournal and sfui.dungeonjournal.ResolveItemLink and sfui.dungeonjournal.ResolveItemLink(self, itemID)
+    if itemLink then
+        GameTooltip:SetHyperlink(itemLink)
+    else
+        GameTooltip:SetItemByID(itemID)
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("|cff888888<shift-click to link · ctrl-click to view>|r", 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+end
+
+local function OnRewardLeave()
+    GameTooltip:Hide()
+end
+
+local function OnRewardClick(self, mouseBtn)
+    if self.itemID and sfui.dungeonjournal and sfui.dungeonjournal.HandleItemClick then
+        sfui.dungeonjournal.HandleItemClick(self, mouseBtn, self.itemID)
+    end
+end
+
+local function OnSummaryBarEnter(self)
+    local inProg = self._inProg or 0
+    local completed = self._completed or 0
+    local total = self._total or 0
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("dungeon quest progress", 1, 0.82, 0)
+    GameTooltip:AddLine(string_format("in progress (picked up): %d / %d", inProg, total), 0, 0.9, 1)
+    GameTooltip:AddLine(string_format("completed: %d / %d", completed, total), 0, 1, 0)
+    GameTooltip:AddLine(string_format("not picked up: %d / %d", total - inProg - completed, total), 0.75, 0.75, 0.75)
+    GameTooltip:Show()
+end
+
 -- ─── Quest Button Pool ────────────────────────────────────────────────────────
 local function AcquireQuestButton(pool, parent)
     for _, btn in ipairs(pool) do
@@ -227,6 +315,7 @@ local function AcquireQuestButton(pool, parent)
     hi:SetBlendMode("ADD")
     hi:SetAlpha(0.25)
 
+    btn:SetScript("OnClick", OnQuestButtonClick)
     pool[#pool + 1] = btn
     return btn
 end
@@ -283,6 +372,9 @@ local function AcquireRewardButton(pool, parent)
     hi:SetBlendMode("ADD")
     hi:SetAlpha(0.2)
 
+    btn:SetScript("OnEnter", OnRewardEnter)
+    btn:SetScript("OnLeave", OnRewardLeave)
+    btn:SetScript("OnClick", OnRewardClick)
     pool[#pool + 1] = btn
     return btn
 end
@@ -293,16 +385,11 @@ local function ReleaseAll(pool)
     end
 end
 
-local function ResolveItemLink(btn, fallbackItemID)
-    if sfui.dungeonjournal and sfui.dungeonjournal.ResolveItemLink then
-        return sfui.dungeonjournal.ResolveItemLink(btn, fallbackItemID)
-    end
-end
-
 -- ─── Render Quest Detail ──────────────────────────────────────────────────────
-local function RenderQuestDetail(quest, dungeon)
+RenderQuestDetail = function(quest, dungeon, peerSnapshot)
     if not detailScroll or not detailContent then return end
     ReleaseAll(rewardButtons)
+    wipe(currentQuestRewardSet)
 
     local pal    = theme.GetPalette()
     local accent = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
@@ -922,8 +1009,14 @@ local function RenderQuestDetail(quest, dungeon)
     end
 
     -- 4b. Synced Characters Status (Party & Cross-Account Alts)
-    local peerStatuses = (quest.id and sfui.sync and sfui.sync.GetQuestPeerStatuses)
-        and sfui.sync.GetQuestPeerStatuses(quest.id, true) or nil
+    local peerStatuses
+    if quest.id and sfui.sync then
+        if peerSnapshot and sfui.sync.GetQuestPeerStatusesFromSnapshot then
+            peerStatuses = sfui.sync.GetQuestPeerStatusesFromSnapshot(peerSnapshot, quest.id, true)
+        elseif sfui.sync.GetQuestPeerStatuses then
+            peerStatuses = sfui.sync.GetQuestPeerStatuses(quest.id, true)
+        end
+    end
     if peerStatuses and #peerStatuses > 0 then
         if not info.syncLabel then
             info.syncLabel = info:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1088,6 +1181,7 @@ local function RenderQuestDetail(quest, dungeon)
         startY = startY + rLabelH + 6
 
         for _, itemID in ipairs(rewardItems) do
+            currentQuestRewardSet[itemID] = true
             local btn = AcquireRewardButton(rewardButtons, detailContent)
             btn:ClearAllPoints()
             btn:SetPoint("TOPLEFT", detailContent, "TOPLEFT", 8, -startY)
@@ -1164,26 +1258,6 @@ local function RenderQuestDetail(quest, dungeon)
                 btn.nameText:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
             end
 
-            btn:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                local itemLink = ResolveItemLink(self, itemID)
-                if itemLink then
-                    GameTooltip:SetHyperlink(itemLink)
-                else
-                    GameTooltip:SetItemByID(itemID)
-                end
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cff888888<shift-click to link · ctrl-click to view>|r", 0.6, 0.6, 0.6)
-                GameTooltip:Show()
-            end)
-            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-            btn:SetScript("OnClick", function(self, mouseBtn)
-                if sfui.dungeonjournal and sfui.dungeonjournal.HandleItemClick then
-                    sfui.dungeonjournal.HandleItemClick(self, mouseBtn, itemID)
-                end
-            end)
-
             btn:Show()
             startY = startY + REWARD_ROW_H + REWARD_ROW_PAD
         end
@@ -1225,6 +1299,7 @@ local function RefreshQuestView()
     local quests    = GetFilteredQuests(allQuests)
 
     ReleaseAll(questButtons)
+    lastSelectedQuestBtn = nil
 
     local pal        = theme.GetPalette()
     local accent     = pal and pal.accentColor or { 1, 0.78, 0.2, 1 }
@@ -1234,6 +1309,12 @@ local function RefreshQuestView()
     if savedQuest > #quests then savedQuest = 1 end
     selectedQuestIndex = savedQuest
 
+    local peerSnapshot = (sfui.sync and sfui.sync.CreateQuestPeerSnapshot and sfui.sync.CreateQuestPeerSnapshot()) or nil
+    currentPeerSnapshot = peerSnapshot
+
+    local inProg = 0
+    local completed = 0
+    local total = #quests
     local y = 0
     for idx, q in ipairs(quests) do
         local btn = AcquireQuestButton(questButtons, questListContent)
@@ -1246,6 +1327,16 @@ local function RefreshQuestView()
         local isDone     = IsQuestCompleted(q.id)
         local isActive   = not isDone and IsQuestInLog(q.id)
         local isSelected = (idx == selectedQuestIndex)
+        if isDone then
+            completed = completed + 1
+        elseif isActive then
+            inProg = inProg + 1
+        end
+
+        btn._questIdx  = idx
+        btn._questData = q
+        btn._isDone    = isDone
+        btn._isActive  = isActive
 
         -- Icon & Checkmark
         if isDone then
@@ -1276,38 +1367,16 @@ local function RefreshQuestView()
 
         -- Title & Background Styling
         local qTitle = q.name or ("quest #" .. (q.id or idx))
-        if isDone then
-            btn.nameText:SetText(qTitle)
-            if isSelected then
-                btn.nameText:SetTextColor(0.40, 0.95, 0.40, 1)
-                btn:SetBackdropColor(0.06, 0.18, 0.08, 0.95)
-                btn:SetBackdropBorderColor(0.25, 0.85, 0.35, 0.9)
-            else
-                btn.nameText:SetTextColor(0.55, 0.80, 0.55, 1)
-                btn:SetBackdropColor(0.04, 0.11, 0.05, 0.60)
-                btn:SetBackdropBorderColor(0.15, 0.45, 0.20, 0.70)
-            end
-        else
-            btn.nameText:SetText(qTitle)
-            if isSelected then
-                btn.nameText:SetTextColor(accent[1], accent[2], accent[3], 1)
-                btn:SetBackdropColor(0.14, 0.14, 0.18, 0.95)
-                btn:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.6)
-            else
-                if isActive then
-                    btn.nameText:SetTextColor(1, 1, 1, 1)
-                else
-                    btn.nameText:SetTextColor(0.85, 0.85, 0.85, 1)
-                end
-                btn:SetBackdropColor(0.08, 0.08, 0.10, 0.0)
-                btn:SetBackdropBorderColor(0, 0, 0, 0)
-            end
+        btn.nameText:SetText(qTitle)
+        ApplyQuestButtonSelectedStyle(btn, isSelected, accent)
+        if isSelected then
+            lastSelectedQuestBtn = btn
         end
 
         local minLvl = q.minLevel or
         (sfui.dj_camelot and sfui.dj_camelot.questMinLevels and sfui.dj_camelot.questMinLevels[q.id])
         local lvlStr = q.level and ("[" .. q.level .. "] ") or ""
-        local statusStr = ""
+        local statusStr
         if isDone then
             statusStr = lvlStr .. "|cff00ff00completed|r"
         elseif isActive then
@@ -1330,7 +1399,14 @@ local function RefreshQuestView()
         if shareable == false then
             badges[#badges + 1] = "|cff888888no share|r"
         end
-        local rowPeers = q.id and sfui.sync and sfui.sync.GetQuestPeerStatuses and sfui.sync.GetQuestPeerStatuses(q.id, true)
+        local rowPeers
+        if q.id and sfui.sync then
+            if peerSnapshot and sfui.sync.GetQuestPeerStatusesFromSnapshot then
+                rowPeers = sfui.sync.GetQuestPeerStatusesFromSnapshot(peerSnapshot, q.id, true)
+            elseif sfui.sync.GetQuestPeerStatuses then
+                rowPeers = sfui.sync.GetQuestPeerStatuses(q.id, true)
+            end
+        end
         if rowPeers and #rowPeers > 0 then
             local pCount, pHave = 0, 0
             for _, rp in ipairs(rowPeers) do
@@ -1348,7 +1424,14 @@ local function RefreshQuestView()
                 badges[#badges + 1] = string_format("%sparty %d/%d|r", clr, rdy, tot)
             end
         else
-            local missingParty = q.id and sfui.sync and sfui.sync.GetPartyMissingQuestPeers and sfui.sync.GetPartyMissingQuestPeers(q.id)
+            local missingParty
+            if q.id and sfui.sync then
+                if peerSnapshot and sfui.sync.GetPartyMissingQuestPeersFromSnapshot then
+                    missingParty = sfui.sync.GetPartyMissingQuestPeersFromSnapshot(peerSnapshot, q.id)
+                elseif sfui.sync.GetPartyMissingQuestPeers then
+                    missingParty = sfui.sync.GetPartyMissingQuestPeers(q.id)
+                end
+            end
             if missingParty and #missingParty > 0 then
                 badges[#badges + 1] = "|cffff5555[!party]|r"
             end
@@ -1359,13 +1442,6 @@ local function RefreshQuestView()
         else
             btn.statusText:SetText(statusStr)
         end
-
-        local currentIdx = idx
-        btn:SetScript("OnClick", function()
-            selectedQuestIndex = currentIdx
-            DJ_DB().lastQuest = currentIdx
-            RefreshQuestView()
-        end)
 
         btn:Show()
         y = y + QUEST_BTN_H + QUEST_BTN_PAD
@@ -1378,16 +1454,9 @@ local function RefreshQuestView()
 
     -- Update Top Notifier Bar (e.g. "(p 1/6 - c 3/6)")
     if questPanel and questPanel.questSummaryBar then
-        local inProg = 0
-        local completed = 0
-        local total = #quests
-        for _, q in ipairs(quests) do
-            if IsQuestCompleted(q.id) then
-                completed = completed + 1
-            elseif IsQuestInLog(q.id) then
-                inProg = inProg + 1
-            end
-        end
+        questPanel.questSummaryBar._inProg    = inProg
+        questPanel.questSummaryBar._completed = completed
+        questPanel.questSummaryBar._total     = total
 
         local hasVisibleProgress = (total > 0) and (completed < total) and (inProg > 0 or completed > 0)
 
@@ -1413,22 +1482,11 @@ local function RefreshQuestView()
                 questListScroll:SetPoint("BOTTOMRIGHT", questPanel.questListContainer, "BOTTOMRIGHT", -22, 4)
             end
         end
-
-        questPanel.questSummaryBar:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("dungeon quest progress", 1, 0.82, 0)
-            GameTooltip:AddLine(string_format("in progress (picked up): %d / %d", inProg, total), 0, 0.9, 1)
-            GameTooltip:AddLine(string_format("completed: %d / %d", completed, total), 0, 1, 0)
-            GameTooltip:AddLine(string_format("not picked up: %d / %d", total - inProg - completed, total), 0.75, 0.75,
-                0.75)
-            GameTooltip:Show()
-        end)
-        questPanel.questSummaryBar:SetScript("OnLeave", function() GameTooltip:Hide() end)
     end
 
     -- Render the currently selected quest details
     local currentQuest = quests[selectedQuestIndex]
-    RenderQuestDetail(currentQuest, dungeon)
+    RenderQuestDetail(currentQuest, dungeon, peerSnapshot)
 end
 
 -- ─── Debounced Item Load Refresh ──────────────────────────────────────────────
@@ -1437,22 +1495,7 @@ local isQuestRefreshQueued = false
 local function QueueQuestRefresh(itemID)
     if not questPanel or not questPanel:IsShown() then return end
     if isQuestRefreshQueued then return end
-
-    if itemID then
-        local dungeon      = GetCurrentDungeon()
-        local allQuests    = dungeon and dungeon.quests or {}
-        local quests       = GetFilteredQuests(allQuests)
-        local currentQuest = quests[selectedQuestIndex]
-        if not currentQuest or not currentQuest.rewardItems then return end
-        local found = false
-        for _, id in ipairs(currentQuest.rewardItems) do
-            if id == itemID then
-                found = true
-                break
-            end
-        end
-        if not found then return end
-    end
+    if itemID and not currentQuestRewardSet[itemID] then return end
 
     isQuestRefreshQueued = true
     if _G.C_Timer and _G.C_Timer.After then
@@ -1464,7 +1507,7 @@ local function QueueQuestRefresh(itemID)
                 local quests       = GetFilteredQuests(allQuests)
                 local currentQuest = quests[selectedQuestIndex]
                 if currentQuest then
-                    RenderQuestDetail(currentQuest, dungeon)
+                    RenderQuestDetail(currentQuest, dungeon, currentPeerSnapshot)
                 end
             end
         end)
@@ -1494,6 +1537,8 @@ local function OnFrameCreated(arg1, arg2)
     questSummaryBar:SetPoint("TOPRIGHT", questListContainer, "TOPRIGHT", -4, -4)
     questSummaryBar:SetHeight(22)
     common.apply_flat_backdrop(questSummaryBar, { 0.06, 0.06, 0.08, 0.85 }, { 0.18, 0.18, 0.22, 0.8 })
+    questSummaryBar:SetScript("OnEnter", OnSummaryBarEnter)
+    questSummaryBar:SetScript("OnLeave", OnRewardLeave)
 
     local sumText = questSummaryBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     questSummaryBar.text = sumText
@@ -1597,7 +1642,6 @@ sfui.dungeonjournal._initQuests = OnFrameCreated
 
 -- ─── Message & Event Hooks ───────────────────────────────────────────────────
 if sfui.events and sfui.events.RegisterMessage then
-    sfui.events.RegisterMessage("SFUI_DJ_FRAME_CREATED", OnFrameCreated)
     sfui.events.RegisterMessage("SFUI_DJ_CLEAR_CACHE", function()
         ReleaseAll(questButtons)
         ReleaseAll(rewardButtons)

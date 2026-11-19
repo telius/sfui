@@ -505,6 +505,29 @@ local function resolve_angler_meta(guid, cData)
     return shortName, coloredName, acctLabel, isRemoteAccount, (myGUID and guid == myGUID) or false, accountTag
 end
 
+local speciesCountCache = {}
+
+function sfui.fishing.InvalidateSpeciesCounts()
+    for k in pairs(speciesCountCache) do
+        speciesCountCache[k] = nil
+    end
+end
+
+--- Returns cached per-character & synced total catch count for a species (fast path without angler list allocation)
+--- @param itemID number
+--- @return number myCount, number totalCount
+function sfui.fishing.GetSpeciesCounts(itemID)
+    itemID = tonumber(itemID) or itemID
+    if not itemID then return 0, 0 end
+    local cached = speciesCountCache[itemID]
+    if cached then
+        return cached[1], cached[2]
+    end
+    local myCount, totalCount = sfui.fishing.GetSpeciesCharBreakdown(itemID)
+    speciesCountCache[itemID] = { myCount or 0, totalCount or 0 }
+    return myCount or 0, totalCount or 0
+end
+
 --- Returns per-character breakdown for a species across all synced characters/accounts
 --- @param itemID number
 --- @return number myCount, number totalCount, table anglers
@@ -793,6 +816,7 @@ function sfui.fishing.RebuildAggregates(forceResetRecords)
     SfuiDB.fishing.species = species
     SfuiDB.fishing.zones = zones
     SfuiDB.fishing.records = records
+    sfui.fishing.InvalidateSpeciesCounts()
 
     if sfui.fishing.hud and sfui.fishing.hud.Update then sfui.fishing.hud.Update() end
     if sfui.fishing.atlas and sfui.fishing.atlas.Update then sfui.fishing.atlas.Update() end
@@ -872,6 +896,7 @@ function sfui.fishing.RecordCatch(itemID, quantity, quality, mapID, link)
         z.catches = (z.catches or 0) + quantity
         z.fish[itemID] = (z.fish[itemID] or 0) + quantity
     end
+    speciesCountCache[itemID] = nil
 
     -- Rare catch announcement
     if quality and quality >= 2 then
@@ -1912,6 +1937,9 @@ sfui.RegisterModule("fishing", {
         sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", check_mount_or_taxi)
         sfui.events.RegisterEvent("TAXIMAP_OPENED", check_mount_or_taxi)
         sfui.events.RegisterUnitEvent("UNIT_AURA", "player", check_mount_or_taxi)
+        if sfui.events.RegisterMessage then
+            sfui.events.RegisterMessage("SFUI_SYNC_STATUS_UPDATED", sfui.fishing.InvalidateSpeciesCounts)
+        end
 
         defer_action(arm_fishing_keys)
     end,
@@ -1959,7 +1987,9 @@ function sfui.fishing_debug_info()
     _fishDebug.hudShown        = (hud and hud.GetFrame and hud.GetFrame() and hud.GetFrame():IsShown()) or false
     _fishDebug.hudLocked       = (hud and hud.IsLocked and hud.IsLocked()) or false
     _fishDebug.atlasCreated    = (atlas and atlas.GetFrame and atlas.GetFrame() ~= nil) or false
-    _fishDebug.atlasShown      = (atlas and atlas.GetFrame and atlas.GetFrame() and atlas.GetFrame():IsShown()) or false
+    _fishDebug.atlasShown      = (atlas and atlas.IsPanelVisible and atlas.IsPanelVisible())
+        or (atlas and atlas.GetFrame and atlas.GetFrame() and atlas.GetFrame():IsShown())
+        or false
     _fishDebug.atlasPools      = (atlas and atlas.GetPoolStats and atlas.GetPoolStats()) or nil
     _fishDebug.sessionCatches  = (s and s.catches) or 0
     _fishDebug.sessionCasts    = (s and s.casts) or 0

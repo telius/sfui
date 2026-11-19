@@ -148,14 +148,14 @@ function sfui.highest.ResolveStatWeights(specID, rule, specDB)
             isTankForWeights = TANK_SPECS[specID] == true
         end
 
-        local numStats = isClassicSpec and math.min(#order, 8) or 4
+        local numStats = isClassicSpec and #order or 4
         local curWeight = isClassicSpec and (numStats * 1.0) or 4.0
         local step = 1.0
 
         for i = 1, numStats do
             local stat = order[i]
             if stat and statKeys[stat] then
-                if not isTankForWeights and (stat == "Def" or stat == "Defense" or stat == "Dodge" or stat == "Parry" or stat == "Block" or stat == "Arm" or stat == "Armor") then
+                if not isTankForWeights and (stat == "Def" or stat == "Defense" or stat == "Dodge" or stat == "Parry" or stat == "Block" or stat == "BlockVal" or stat == "BlockValue" or stat == "Arm" or stat == "Armor") then
                     statWeights[statKeys[stat]] = 0
                 else
                     statWeights[statKeys[stat]] = (statWeights[statKeys[stat]] or 0) + curWeight
@@ -189,6 +189,16 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Item Scoring Logic
 -- ══════════════════════════════════════════════════════════════════════════════
+function sfui.highest.GetClassicQualityBonus(q)
+    if q == 5 then return 400
+    elseif q == 4 then return 150
+    elseif q == 3 then return 75
+    elseif q == 2 then return 30
+    elseif q == 1 then return 10
+    end
+    return 0
+end
+
 function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights, context)
     if itm.isLockedItem then
         itm.score = 9000000 + (itm.ilvl or 0)
@@ -206,27 +216,27 @@ function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights
     local usesAmmo = context.usesAmmo
     local prioritizeIlvl = context.prioritizeIlvl
 
+    local isWeapon = (slotID == 16 or slotID == 17 or (isClassicSpec and slotID == 18 and (itm.itemEquipLoc == "INVTYPE_RANGED" or itm.itemEquipLoc == "INVTYPE_RANGEDRIGHT" or itm.itemEquipLoc == "INVTYPE_THROWN")))
+    local equipLoc = itm.itemEquipLoc
+    local isAccessory = (equipLoc == "INVTYPE_CLOAK" or equipLoc == "INVTYPE_NECK" or equipLoc == "INVTYPE_FINGER")
+    local isCombatCore = isWeapon or equipLoc == "INVTYPE_SHIELD" or equipLoc == "INVTYPE_TRINKET" or equipLoc == "INVTYPE_RELIC" or equipLoc == "INVTYPE_AMMO"
+
     local baseMultiplier
     if isClassicSpec then
-        baseMultiplier = isPvP and 20 or 10
+        if isAccessory then
+            baseMultiplier = 1
+        elseif isCombatCore then
+            baseMultiplier = isPvP and 20 or 10
+        else
+            baseMultiplier = isPvP and 10 or 5
+        end
     else
         baseMultiplier = forceIlvl and 100000 or (isPvP and 100 or (prioritizeIlvl and 1000 or 10))
     end
     local score = itm.ilvl * baseMultiplier
 
-    local isWeapon = (slotID == 16 or slotID == 17 or (isClassicSpec and slotID == 18 and (itm.itemEquipLoc == "INVTYPE_RANGED" or itm.itemEquipLoc == "INVTYPE_RANGEDRIGHT" or itm.itemEquipLoc == "INVTYPE_THROWN")))
-
-    -- Feature 0: Classic / Vanilla Quality & Weapon DPS Weighting
-    -- Ensures: Epic > Rare > Uncommon > Common > Poor
+    -- Feature 0: Classic / Vanilla Weapon DPS, Shields & Armor Evaluation
     if isClassicSpec then
-        local q = itm.quality or 1
-        local qBonus = (q == 5 and 2500)
-            or (q == 4 and 1200)
-            or (q == 3 and 600)
-            or (q == 2 and 250)
-            or (q == 1 and 20)
-            or 0
-        score = score + qBonus
 
         -- Feature 0b: Weapon DPS & Speed Evaluation for Classic
         if isWeapon then
@@ -485,12 +495,17 @@ function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights
                             mappedStatName = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT"
                         elseif statName == "ITEM_MOD_EXPERTISE_RATING_SHORT" then
                             mappedStatName = "ITEM_MOD_EXPERTISE_RATING_SHORT"
+                        elseif statName == "ITEM_MOD_BLOCK_VALUE_SHORT" then
+                            mappedStatName = "ITEM_MOD_BLOCK_RATING_SHORT"
                         elseif not isClassicSpec and (statName == "ITEM_MOD_INTELLECT_SHORT" or statName == "ITEM_MOD_AGILITY_SHORT" or statName == "ITEM_MOD_STRENGTH_SHORT") then
                             mappedStatName = common.get_stat_key(rule.stat) or statName
                         end
 
                         if statWeights[mappedStatName] then
                             local add = (statAmount * statWeights[mappedStatName])
+                            if isClassicSpec and mappedStatName == "ITEM_MOD_ARMOR_SHORT" then
+                                add = add * 0.15
+                            end
                             score = score + add
                             statScore = statScore + add
                         end
@@ -503,6 +518,12 @@ function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights
                     end
                 end
             end
+        end
+    end
+    if isClassicSpec then
+        local qBonus = sfui.highest.GetClassicQualityBonus(itm.quality or 1)
+        if isCombatCore or statScore > 0 then
+            score = score + qBonus
         end
     end
     if itm.itemEquipLoc == "INVTYPE_TRINKET" then
