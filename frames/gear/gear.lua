@@ -619,6 +619,9 @@ sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
     if frame.closeBtn then
         sfui.theme.ApplyCloseButtonStyle(frame.closeBtn)
     end
+    if frame.upgradesBtn then
+        frame.upgradesBtn:SetFrameLevel((frame.closeBtn and frame.closeBtn:GetFrameLevel()) or ((frame:GetFrameLevel() or 1) + 20))
+    end
     if frame.content then
         sfui.theme.ApplyContainerStyle(frame.content)
     end
@@ -653,6 +656,25 @@ collapseBtn:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
 collapseBtn:SetFrameLevel(closeBtn:GetFrameLevel())
 gearFrame.collapseBtn = collapseBtn
 
+if not sfui.isRetail then
+    local upgradesBtn = common.create_flat_button(gearFrame, "upgrades", 54, 18)
+    upgradesBtn:ClearAllPoints()
+    upgradesBtn:SetPoint("RIGHT", collapseBtn, "LEFT", -4, 0)
+    upgradesBtn:SetFrameLevel(closeBtn:GetFrameLevel())
+    upgradesBtn:SetScript("OnClick", function()
+        if sfui.upgrades and sfui.upgrades.Toggle then
+            sfui.upgrades.Toggle()
+        end
+    end)
+    upgradesBtn:SetScript("OnEnter", function(b)
+        show_tooltip(b, "ANCHOR_TOP", "gear upgrades", {
+            { "browse dungeon, quest, and vendor upgrades in your level range.", 0.8, 0.8, 0.8, true },
+        })
+    end)
+    upgradesBtn:SetScript("OnLeave", function() hide_tooltip() end)
+    gearFrame.upgradesBtn = upgradesBtn
+end
+
 -- Collapsed Quick-Action Role Bar
 local collapsedRoleBar = CreateFrame("Frame", nil, gearFrame)
 collapsedRoleBar:SetSize(160, 24)
@@ -667,6 +689,7 @@ local function UpdateCollapseVisuals(frame)
     local curHeaderH = GetHeaderHeight()
     if frame.collapsed then
         if frame.collapseBtn then frame.collapseBtn:SetText("+") end
+        if frame.upgradesBtn then frame.upgradesBtn:Hide() end
         if frame.content then frame.content:Hide() end
         if frame.headerBar then frame.headerBar:Hide() end
         if frame.collapsedRoleBar then
@@ -689,6 +712,7 @@ local function UpdateCollapseVisuals(frame)
         end
     else
         if frame.collapseBtn then frame.collapseBtn:SetText("-") end
+        if frame.upgradesBtn then frame.upgradesBtn:Show() end
         if frame.content then frame.content:Show() end
         if frame.headerBar then frame.headerBar:Show() end
         if frame.collapsedRoleBar then frame.collapsedRoleBar:Hide() end
@@ -1176,6 +1200,9 @@ gearFrame:SetScript("OnShow", function(self)
                 end
                 ldb.pawn_weights = nil
                 ldb.pawn_string = nil
+                if sfui.upgrades and sfui.upgrades.MarkDirty then
+                    sfui.upgrades.MarkDirty()
+                end
                 sfui.gear.UpdateStatUI()
                 sfui.gear.Update()
             end)
@@ -1208,6 +1235,9 @@ gearFrame:SetScript("OnShow", function(self)
                     ldb.stat_equals = eq
                     ldb.pawn_weights = nil
                     ldb.pawn_string = nil
+                    if sfui.upgrades and sfui.upgrades.MarkDirty then
+                        sfui.upgrades.MarkDirty()
+                    end
                     sfui.gear.UpdateStatUI()
                     sfui.gear.Update()
                 end)

@@ -174,6 +174,10 @@ SlashCmdList["SFUI"] = function(msg)
         elseif sfui.recipes and sfui.recipes.ToggleBrowser then
             sfui.recipes.ToggleBrowser(arg ~= "" and arg or nil)
         end
+    elseif (cmd == "upgrades" or cmd == "upgrade" or cmd == "upg") and not sfui.isRetail then
+        if sfui.upgrades and sfui.upgrades.Toggle then
+            sfui.upgrades.Toggle(arg ~= "" and arg or nil)
+        end
     elseif cmd == "fish" or cmd == "fishing" or cmd == "atlas" then
         if not sfui.isRetail and (arg == "atlas" or arg == "book" or cmd == "atlas") then
             if sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
@@ -414,6 +418,16 @@ if not sfui.isRetail then
     SlashCmdList["SFUIOVERLAY"] = function(msg)
         if sfui.map and sfui.map.overlay and sfui.map.overlay.HandleSlash then
             sfui.map.overlay:HandleSlash(msg)
+        end
+    end
+
+    -- Dedicated Gear Upgrades Command (/sfupgrades, /upgrades) (Camelot only)
+    SLASH_SFUIUPGRADES1 = "/sfupgrades"
+    SLASH_SFUIUPGRADES2 = "/upgrades"
+    SlashCmdList["SFUIUPGRADES"] = function(msg)
+        if sfui.upgrades and sfui.upgrades.Toggle then
+            local raw = msg and _G.strtrim and _G.strtrim(msg) or (msg or "")
+            sfui.upgrades.Toggle(raw ~= "" and raw or nil)
         end
     end
 end

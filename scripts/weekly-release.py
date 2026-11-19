@@ -14,6 +14,7 @@ from datetime import datetime
 
 SFUI_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 TOC_FILE = os.path.join(SFUI_DIR, "sfui.toc")
+OVERLAY_TOC_FILE = os.path.join(SFUI_DIR, "sfui_overlay_maps", "sfui_overlay_maps.toc")
 CHANGELOG_FILE = os.path.join(SFUI_DIR, "CHANGELOG.md")
 
 def run_cmd(cmd, cwd=SFUI_DIR, check=True):
@@ -131,13 +132,23 @@ def main():
         set_github_output("release_version", next_ver)
         return
 
-    # 1. Update sfui.toc
+    # 1. Update sfui.toc & sfui_overlay_maps.toc
     with open(TOC_FILE, "r", encoding="utf-8") as f:
         toc_content = f.read()
     new_toc = re.sub(r"(##\s*Version:\s*)v\d+\.\d+", rf"\g<1>{next_ver}", toc_content)
     with open(TOC_FILE, "w", encoding="utf-8") as f:
         f.write(new_toc)
     print(f"updated {TOC_FILE} to {next_ver}")
+
+    add_files = ["sfui.toc", "CHANGELOG.md"]
+    if os.path.exists(OVERLAY_TOC_FILE):
+        with open(OVERLAY_TOC_FILE, "r", encoding="utf-8") as f:
+            ov_content = f.read()
+        new_ov = re.sub(r"(##\s*Version:\s*)v\d+\.\d+", rf"\g<1>{next_ver}", ov_content)
+        with open(OVERLAY_TOC_FILE, "w", encoding="utf-8") as f:
+            f.write(new_ov)
+        print(f"updated {OVERLAY_TOC_FILE} to {next_ver}")
+        add_files.append("sfui_overlay_maps/sfui_overlay_maps.toc")
 
     # 2. Update CHANGELOG.md (overwrite current only)
     with open(CHANGELOG_FILE, "w", encoding="utf-8") as f:
@@ -150,7 +161,7 @@ def main():
         run_cmd(["git", "config", "user.name", "github-actions[bot]"])
         run_cmd(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"])
 
-    run_cmd(["git", "add", "sfui.toc", "CHANGELOG.md"])
+    run_cmd(["git", "add", *add_files])
     commit_msg = f"chore: Bump version to {next_ver}"
     run_cmd(["git", "commit", "-m", commit_msg])
     run_cmd(["git", "tag", next_ver])
