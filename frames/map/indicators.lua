@@ -11,6 +11,27 @@ local InCombatLockdown = _G.InCombatLockdown
 local hooksecurefunc = _G.hooksecurefunc
 local UIParent = _G.UIParent
 local MinimapCluster = _G.MinimapCluster
+local issecretvalue = _G.issecretvalue
+
+local function can_modify_region(f)
+    if not f then return false end
+    if not (InCombatLockdown and InCombatLockdown()) then
+        return true
+    end
+    if f.IsProtected then
+        local prot = f:IsProtected()
+        if (issecretvalue and issecretvalue(prot)) or prot then
+            return false
+        end
+    end
+    if f.IsAnchoringRestricted then
+        local rest = f:IsAnchoringRestricted()
+        if (issecretvalue and issecretvalue(rest)) or rest then
+            return false
+        end
+    end
+    return true
+end
 
 -- ------------------------------------------------------------------------------
 -- Mail & Crafting Order Indicator Management
@@ -73,6 +94,8 @@ end
 function sfui.minimap.update_indicator_positions()
     local map = _G.Minimap
     if not map then return end
+    local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+    local anchor = (overlayActive and sfui.minimap and sfui.minimap.Holder) or map
 
     local dockMail = true
     if SfuiDB and SfuiDB.minimap_dock_mail ~= nil then
@@ -126,15 +149,15 @@ function sfui.minimap.update_indicator_positions()
             hook_mail_visibility(mail)
         end
     else
-        local isSquare = (sfui.minimap and sfui.minimap.square and sfui.minimap.square:IsEnabled())
+        local isSquare = (not overlayActive) and (sfui.minimap and sfui.minimap.square and sfui.minimap.square:IsEnabled())
         local posX = isSquare and 6 or 18
         local posY = isSquare and -6 or -18
 
         if indicator then
             isRepositioning[indicator] = true
-            indicator:SetParent(map)
+            indicator:SetParent(anchor)
             indicator:ClearAllPoints()
-            indicator:SetPoint("TOPLEFT", map, "TOPLEFT", posX, posY)
+            indicator:SetPoint("TOPLEFT", anchor, "TOPLEFT", posX, posY)
             indicator:SetFrameStrata("MEDIUM")
             indicator:SetFrameLevel(math_max(25, indicator:GetFrameLevel()))
             indicator:SetScale(0.75)
@@ -144,9 +167,9 @@ function sfui.minimap.update_indicator_positions()
 
         if mail and (not indicator or mail:GetParent() ~= indicator) then
             isRepositioning[mail] = true
-            mail:SetParent(map)
+            mail:SetParent(anchor)
             mail:ClearAllPoints()
-            mail:SetPoint("TOPLEFT", map, "TOPLEFT", posX, posY)
+            mail:SetPoint("TOPLEFT", anchor, "TOPLEFT", posX, posY)
             mail:SetFrameStrata("MEDIUM")
             mail:SetFrameLevel(math_max(25, mail:GetFrameLevel()))
             mail:SetScale(0.75)
@@ -159,7 +182,7 @@ function sfui.minimap.update_indicator_positions()
     if MinimapCluster and MinimapCluster.DielFrame then
         local diel = MinimapCluster.DielFrame
         local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
-        if isSquare then
+        if isSquare or overlayActive then
             diel:SetAlpha(0)
         else
             if map and diel:GetParent() ~= map then
@@ -198,9 +221,12 @@ function sfui.minimap.update_queue_status_position()
     local map = _G.Minimap
     if not btn or not map then return end
 
-    if InCombatLockdown() then return end
+    if not can_modify_region(btn) then return end
 
-    if btn:GetParent() ~= UIParent and btn:GetParent() ~= map then
+    local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+    local anchor = (overlayActive and sfui.minimap and sfui.minimap.Holder) or map
+
+    if btn:GetParent() ~= UIParent and btn:GetParent() ~= anchor then
         btn:SetParent(UIParent)
     end
     btn:SetFrameStrata("MEDIUM")
@@ -208,7 +234,7 @@ function sfui.minimap.update_queue_status_position()
     btn:SetScale(0.85)
 
     btn:ClearAllPoints()
-    btn:SetPoint("BOTTOMLEFT", map, "BOTTOMLEFT", -2, -2)
+    btn:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", -2, -2)
 end
 
 local function on_queue_status_anchor_changed(self)

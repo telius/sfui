@@ -290,6 +290,8 @@ function sfui.minimap.update_location_bar(overrideX, overrideY)
 
     local map = _G.Minimap
     if not map then return end
+    local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+    local anchor = (overlayActive and sfui.minimap and sfui.minimap.Holder) or map
 
     local zoneX = overrideX
         or (db and db.minimap_zone_x)
@@ -307,13 +309,13 @@ function sfui.minimap.update_location_bar(overrideX, overrideY)
     local r, g, b = get_zone_color()
     f.text:SetTextColor(r, g, b, 1)
 
-    local mapW = (map:GetWidth() and map:GetWidth() > 0) and map:GetWidth() or 200
+    local mapW = (anchor:GetWidth() and anchor:GetWidth() > 0) and anchor:GetWidth() or 200
     local targetW = math_max(160, mapW + 40)
     f:SetSize(targetW, 20)
     f.text:SetWidth(targetW)
 
     f:ClearAllPoints()
-    f:SetPoint("TOP", map, "TOP", zoneX, zoneY)
+    f:SetPoint("TOP", anchor, "TOP", zoneX, zoneY)
     f:Show()
 
     -- 1-second ticker when PvP timer is running to smoothly count down

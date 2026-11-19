@@ -45,6 +45,9 @@ function sfui.minimap.reset_zoom_timer()
         zoom_timer:Cancel()
         zoom_timer = nil
     end
+    if sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive() then
+        return
+    end
     if SfuiDB and SfuiDB.minimap_auto_zoom and Minimap and Minimap.GetZoom and Minimap:GetZoom() ~= DEFAULT_ZOOM then
         zoom_timer = C_Timer.NewTimer(SfuiDB.minimap_auto_zoom_delay or 5, set_default_zoom)
     end
@@ -169,6 +172,15 @@ function sfui.minimap.update_position(x, y, point, relPoint)
     isRepositioning = true
 
     decouple_minimap()
+
+    if sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive() then
+        if sfui.map.overlay.RefreshLayout then
+            sfui.map.overlay:RefreshLayout()
+        end
+        sfui.minimap.refresh()
+        isRepositioning = false
+        return
+    end
 
     local cluster = _G.MinimapCluster
     local map = _G.Minimap

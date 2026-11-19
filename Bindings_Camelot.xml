@@ -27,4 +27,7 @@
     <Binding name="SFUI_PET_SUMMON" category="SFUI">
         sfui.pets.SummonNext(true)
     </Binding>
+    <Binding name="SFUI_MAP_OVERLAY" category="SFUI">
+        if sfui and sfui.map and sfui.map.overlay and sfui.map.overlay.Toggle then sfui.map.overlay:Toggle() end
+    </Binding>
 </Bindings>

@@ -168,7 +168,8 @@ function RecipesModule:BuildBlocks(container)
                                                 end
                                             end
                                             table_insert(lines, {
-                                                text      = string_format("%s (%d/%d%s)", rName:lower(), curCount, req, altTag),
+                                                text      = string_format("%s (%d/%d%s)", rName:lower(), curCount, req,
+                                                    altTag),
                                                 completed = isDone,
                                             })
                                         end

@@ -42,8 +42,29 @@ local table_sort          = _G.table.sort
 local math_abs            = math.abs
 local tostring            = tostring
 local wipe                = _G.wipe or table.wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
+local issecretvalue       = _G.issecretvalue
 
 local common              = sfui.common
+
+local function can_modify_pin(pin)
+    if not pin then return false end
+    if not (InCombatLockdown and InCombatLockdown()) then
+        return true
+    end
+    if pin.IsProtected then
+        local prot = pin:IsProtected()
+        if (issecretvalue and issecretvalue(prot)) or prot then
+            return false
+        end
+    end
+    if pin.IsAnchoringRestricted then
+        local rest = pin:IsAnchoringRestricted()
+        if (issecretvalue and issecretvalue(rest)) or rest then
+            return false
+        end
+    end
+    return true
+end
 
 -- ─── Data Registries & Pools ──────────────────────────────────────────────────
 local providers           = {}     -- name -> provider table
@@ -770,6 +791,7 @@ pins.UpdatePins = RenderPins
 local cachedPlayerPins        = nil
 local cachedPlayerPinsMapID   = nil
 local minimapContainer        = nil
+local minimapPinsMouseEnabled = true
 
 local function InvalidateMinimapPins()
     isMinimapPinsDirty = true
@@ -821,12 +843,18 @@ local function AcquireMinimapPin(parent, defaultSize)
             pin.countText:SetText("")
             pin.countText:SetTextColor(1, 1, 1, 1)
             pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            if can_modify_pin(pin) and pin.EnableMouse then
+                pin:EnableMouse(minimapPinsMouseEnabled)
+            end
             return pin
         end
     end
 
     local pin = CreateFrame("Button", nil, parent)
     pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    if can_modify_pin(pin) and pin.EnableMouse then
+        pin:EnableMouse(minimapPinsMouseEnabled)
+    end
     pin:SetSize(defaultSize, defaultSize)
     pin.baseSize = defaultSize
     pin:SetFrameStrata(parent:GetFrameStrata())
@@ -1056,7 +1084,8 @@ local function RenderMinimapPins(force)
                     local pinRadius = pinSize * 0.5
                     local margin = pinRadius + 1
 
-                    local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
+                    local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+                    local isSquare = (not overlayActive) and sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
                     local inBounds = false
                     if isSquare then
                         inBounds = math_abs(pixelX) <= (halfW - margin) and math_abs(pixelY) <= (halfH - margin)
@@ -1078,6 +1107,9 @@ local function RenderMinimapPins(force)
                             pin:ClearAllPoints()
                             pin:SetPoint("CENTER", container, "CENTER", pixelX, pixelY)
                             SetupPinVisuals(pin, p)
+                            if can_modify_pin(pin) and pin.EnableMouse then
+                                pin:EnableMouse(minimapPinsMouseEnabled)
+                            end
                             pin:Show()
                         else
                             pin:SetSize(pinSize, pinSize)
@@ -1087,6 +1119,9 @@ local function RenderMinimapPins(force)
                                 pin.pinData = p
                                 pin.customID = p.id
                                 SetupPinVisuals(pin, p)
+                            end
+                            if can_modify_pin(pin) and pin.EnableMouse then
+                                pin:EnableMouse(minimapPinsMouseEnabled)
                             end
                             if not pin:IsShown() then
                                 pin:Show()
@@ -1279,6 +1314,15 @@ if sfui.events and sfui.events.RegisterEvent then
 end
 
 local _pinsDebug = {}
+function pins.SetMinimapPinsMouseEnabled(enabled)
+    minimapPinsMouseEnabled = enabled and true or false
+    for _, pin in ipairs(activeMinimapPins) do
+        if pin and can_modify_pin(pin) and pin.EnableMouse then
+            pin:EnableMouse(minimapPinsMouseEnabled)
+        end
+    end
+end
+
 function sfui.pins_debug_info()
     local wmf = _G.WorldMapFrame
     _pinsDebug.mapShown          = (wmf and wmf:IsShown()) and true or false

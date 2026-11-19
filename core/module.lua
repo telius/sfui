@@ -435,6 +435,7 @@ local DEFAULT_TAXONOMY = {
     logs           = { category = "general & utilities", client = "all", order = 80 },
     lootfeed       = { category = "general & utilities", client = "all", order = 90 },
     minimap        = { category = "general & utilities", client = "all", order = 100 },
+    overlay        = { category = "general & utilities", client = "classic", order = 105 },
     portals        = { category = "general & utilities", client = "all", order = 110 },
     ring           = { category = "general & utilities", client = "all", order = 120 },
     stats          = { category = "general & utilities", client = "all", order = 130 },

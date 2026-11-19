@@ -43,6 +43,10 @@ local isInitialized = false
 local pendingApply = false
 local backdropFrame = nil
 
+local function is_overlay_active()
+    return sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+end
+
 -- ------------------------------------------------------------------------------
 -- Ground Textures Watchdog
 -- ------------------------------------------------------------------------------
@@ -50,6 +54,7 @@ local backdropFrame = nil
 -- If desynced or hidden irregularly, ground textures remain disabled in the C++
 -- engine until character logout. Assert true whenever HybridMinimap is inactive.
 local function ensure_ground_textures()
+    if is_overlay_active() then return end
     if _G.C_Minimap and _G.C_Minimap.SetDrawGroundTextures then
         local hybrid = _G.HybridMinimap
         if not (hybrid and hybrid:IsShown()) then
@@ -64,6 +69,9 @@ end
 -- LibDBIcon, GatherMate, HandyNotes, Questie, TomTom, etc. query GetMinimapShape.
 -- Returning "SQUARE" causes them to calculate icons along square bounding edges.
 function _G.GetMinimapShape()
+    if is_overlay_active() then
+        return "ROUND"
+    end
     if square and square.IsEnabled and square:IsEnabled() then
         return "SQUARE"
     end
@@ -476,6 +484,22 @@ function square:Apply()
     end
     pendingApply = false
 
+    if is_overlay_active() then
+        if backdropFrame and backdropFrame.Hide then
+            backdropFrame:Hide()
+        end
+        if bronzeOverlay and bronzeOverlay.Hide then
+            bronzeOverlay:Hide()
+        end
+        if MinimapCluster and MinimapCluster.DielFrame and MinimapCluster.DielFrame.SetAlpha then
+            MinimapCluster.DielFrame:SetAlpha(0)
+        end
+        if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
+            sfui.map.overlay:RefreshLayout()
+        end
+        return
+    end
+
     local isSquare = self:IsEnabled()
 
     -- 1. Apply or revert mask texture
@@ -583,6 +607,7 @@ end)
 if Minimap and hooksecurefunc then
     hooksecurefunc(Minimap, "SetMaskTexture", function(self, mask)
         if square and square._internalMaskChange then return end
+        if is_overlay_active() then return end
         if square:IsEnabled() and mask ~= MASK_SQUARE_ATLAS and mask ~= MASK_SQUARE_FILEID and mask ~= MASK_SQUARE_PATH then
             square._internalMaskChange = true
             apply_minimap_mask(true)

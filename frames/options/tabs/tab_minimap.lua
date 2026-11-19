@@ -423,6 +423,125 @@ sfui.options.RegisterTab({
             loc_y_slider:SetSliderValue(defY)
             sfui.minimap.update_location_bar(defX, defY)
         end)
+
+        if not sfui.isRetail then
+            if SfuiDB then
+                if SfuiDB.overlay_size == nil then SfuiDB.overlay_size = 560 end
+                if SfuiDB.overlay_alpha == nil then SfuiDB.overlay_alpha = 0.85 end
+                if SfuiDB.overlay_combat_alpha == nil then SfuiDB.overlay_combat_alpha = 0.22 end
+                if SfuiDB.overlay_instance_alpha == nil then SfuiDB.overlay_instance_alpha = 0.35 end
+                if SfuiDB.overlay_hide_on_panels == nil then SfuiDB.overlay_hide_on_panels = true end
+                if SfuiDB.overlay_zoom == nil then SfuiDB.overlay_zoom = 1 end
+                if SfuiDB.overlay_pins_mode == nil then SfuiDB.overlay_pins_mode = "auto" end
+                if SfuiDB.overlay_alt_interactive == nil then SfuiDB.overlay_alt_interactive = true end
+                if SfuiDB.overlay_rotate == nil then SfuiDB.overlay_rotate = true end
+            end
+
+            local overlay_header = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
+            overlay_header:SetPoint("TOPLEFT", reset_loc_btn, "BOTTOMLEFT", 0, -18)
+            overlay_header:SetTextColor(white[1], white[2], white[3])
+            overlay_header:SetText("minimap overlay")
+
+            local toggle_overlay_btn = CreateFlatButton(minimap_panel, "toggle overlay", 120, 22)
+            toggle_overlay_btn:SetPoint("TOPLEFT", overlay_header, "BOTTOMLEFT", 0, -10)
+            toggle_overlay_btn:SetScript("OnClick", function()
+                if sfui.map and sfui.map.overlay and sfui.map.overlay.Toggle then
+                    sfui.map.overlay:Toggle()
+                end
+            end)
+
+            local alt_hover_cb = create_checkbox(minimap_panel, "alt-hover & scroll", "overlay_alt_interactive", function()
+                if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
+                    sfui.map.overlay:RefreshLayout()
+                end
+            end, "keeps center-screen overlay click-through unless holding alt (alt-hover tooltips, alt+scroll zoom, alt+shift+scroll opacity).")
+            alt_hover_cb:SetPoint("LEFT", toggle_overlay_btn, "RIGHT", 14, 0)
+
+            local rotate_overlay_cb = create_checkbox(minimap_panel, "rotate with player", "overlay_rotate", function()
+                if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
+                    sfui.map.overlay:RefreshLayout()
+                end
+            end, "rotates the overlay minimap and pins with your character's facing; restores your normal minimap rotation setting when closed.")
+            rotate_overlay_cb:SetPoint("LEFT", alt_hover_cb.text, "RIGHT", 20, 0)
+
+            local hide_panels_cb = create_checkbox(minimap_panel, "hide on ui panels", "overlay_hide_on_panels", function()
+                if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
+                    sfui.map.overlay:RefreshLayout()
+                end
+            end, "temporarily fades the overlay out while the world map or character panels are open.")
+            hide_panels_cb:SetPoint("TOPLEFT", toggle_overlay_btn, "BOTTOMLEFT", 0, -10)
+
+            local reset_overlay_pos_btn = CreateFlatButton(minimap_panel, "reset overlay pos", 130, 22)
+            reset_overlay_pos_btn:SetPoint("LEFT", hide_panels_cb.text, "RIGHT", 20, 0)
+            reset_overlay_pos_btn:SetScript("OnClick", function()
+                if sfui.map and sfui.map.overlay and sfui.map.overlay.HandleSlash then
+                    sfui.map.overlay:HandleSlash("resetpos")
+                end
+            end)
+
+            local pin_mode_label = minimap_panel:CreateFontString(nil, "OVERLAY", g.font)
+            pin_mode_label:SetPoint("TOPLEFT", hide_panels_cb, "BOTTOMLEFT", 0, -14)
+            pin_mode_label:SetTextColor(white[1], white[2], white[3])
+            pin_mode_label:SetText("pin source:")
+
+            local pin_mode_options = {
+                { text = "auto (active quests)", value = "auto" },
+                { text = "questiedb (active quests)", value = "questiedb" },
+                { text = "blizzard + sfui only", value = "blizzard" },
+                { text = "none (off)", value = "off" },
+            }
+            local cur_pin_mode = (SfuiDB and SfuiDB.overlay_pins_mode) or "auto"
+            local pin_mode_dropdown = create_dropdown(minimap_panel, 200, pin_mode_options, function(val)
+                if SfuiDB then
+                    SfuiDB.overlay_pins_mode = val
+                end
+                if sfui.map and sfui.map.overlay and sfui.map.overlay.HandleSlash then
+                    sfui.map.overlay:HandleSlash("pins " .. tostring(val))
+                end
+            end, cur_pin_mode)
+            pin_mode_dropdown:SetPoint("LEFT", pin_mode_label, "RIGHT", 10, 0)
+            pin_mode_dropdown.tooltip = "choose active quest pins (questie or lean questiedb), blizzard/sfui pins only, or off."
+
+            local overlay_size_slider = create_slider_input(minimap_panel, "overlay size:", "overlay_size", 240, 1000, 10,
+                function()
+                    if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
+                        sfui.map.overlay:RefreshLayout()
+                    end
+                end, "diameter of the center-screen overlay canvas in pixels.")
+            overlay_size_slider:SetPoint("TOPLEFT", pin_mode_label, "BOTTOMLEFT", 0, -14)
+
+            local overlay_zoom_slider = create_slider_input(minimap_panel, "overlay zoom:", "overlay_zoom", 0, 5, 1,
+                function(val)
+                    if sfui.map and sfui.map.overlay and sfui.map.overlay.HandleSlash then
+                        sfui.map.overlay:HandleSlash("zoom " .. tostring(val))
+                    end
+                end, "minimap zoom level used while the arpg overlay is active.")
+            overlay_zoom_slider:SetPoint("LEFT", overlay_size_slider, "RIGHT", 10, 0)
+
+            local overlay_alpha_slider = create_slider_input(minimap_panel, "contour opacity:", "overlay_alpha", 0.15, 1.0, 0.05,
+                function()
+                    if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
+                        sfui.map.overlay:RefreshLayout()
+                    end
+                end, "opacity of contour lines and wall hatching over gameplay.")
+            overlay_alpha_slider:SetPoint("TOPLEFT", overlay_size_slider, "BOTTOMLEFT", 0, -10)
+
+            local overlay_combat_alpha_slider = create_slider_input(minimap_panel, "combat opacity:", "overlay_combat_alpha", 0.05, 1.0, 0.05,
+                function()
+                    if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
+                        sfui.map.overlay:RefreshLayout()
+                    end
+                end, "maximum overlay opacity while in combat.")
+            overlay_combat_alpha_slider:SetPoint("LEFT", overlay_alpha_slider, "RIGHT", 10, 0)
+
+            local overlay_inst_alpha_slider = create_slider_input(minimap_panel, "instance opacity:", "overlay_instance_alpha", 0.10, 1.0, 0.05,
+                function()
+                    if sfui.map and sfui.map.overlay and sfui.map.overlay.RefreshLayout then
+                        sfui.map.overlay:RefreshLayout()
+                    end
+                end, "opacity of the native minimap fallback inside unmapped zones and dungeons.")
+            overlay_inst_alpha_slider:SetPoint("TOPLEFT", overlay_alpha_slider, "BOTTOMLEFT", 0, -10)
+        end
     end,
     onShow = function(minimap_panel)
         if minimap_panel and minimap_panel._refreshMoversBtn then

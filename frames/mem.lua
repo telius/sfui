@@ -880,6 +880,39 @@ function sfui.mem.GetModuleStats()
     end
     stats["pins"] = pinMod
 
+    -- ARPG Minimap Overlay (Camelot / Classic)
+    if not sfui.isRetail then
+        local ovMod = {
+            name = "minimap overlay",
+            status = "|cff888888standby|r",
+            line1 = "mode: off • pack: unloaded",
+            line2 = "tiles: 0/0 • pins: 0 • skips: 0",
+        }
+        local ovInfo = GetDebug("overlay_debug_info", "overlay")
+        if ovInfo then
+            if ovInfo.active then
+                if ovInfo.panelHidden then
+                    ovMod.status = "|cffffd200panel hidden|r"
+                elseif ovInfo.combatDimmed then
+                    ovMod.status = "|cffff9900combat dim|r"
+                else
+                    ovMod.status = "|cff00ff88active|r"
+                end
+            else
+                ovMod.status = "|cff888888standby|r"
+            end
+            ovMod.line1 = string_format("mode: %s • pack: %s",
+                tostring(ovInfo.mode or "off"),
+                ovInfo.packLoaded and "|cff00ff88loaded|r" or "unloaded")
+            ovMod.line2 = string_format("tiles: %d/%d • pins: %d • skips: %d",
+                tonumber(ovInfo.activeTiles) or 0,
+                tonumber(ovInfo.pooledTiles) or 0,
+                tonumber(ovInfo.activePins) or 0,
+                tonumber(ovInfo.idleSkips) or 0)
+        end
+        stats["overlay"] = ovMod
+    end
+
     -- Alt Mail Routing System
     local mailMod = {
         name = "alt mail routing",

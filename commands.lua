@@ -19,6 +19,7 @@ if not sfui.isRetail then
     _G["BINDING_NAME_CLICK SfuiTriageDeleteBtn:LeftButton"] = "triage: delete / purge active item"
     _G["BINDING_NAME_CLICK SfuiPurgeSoulShards:LeftButton"] = "purge excess soul shards"
     _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "dungeon journal"
+    _G["BINDING_NAME_SFUI_MAP_OVERLAY"] = "minimap overlay (arpg)"
 else
     _G["BINDING_NAME_SFUI_LOOTVIEWER"] = "loot browser"
 end
@@ -297,6 +298,10 @@ SlashCmdList["SFUI"] = function(msg)
         elseif sfui.common and sfui.common.print then
             sfui.common.print("sfuibug companion addon is not loaded.")
         end
+    elseif not sfui.isRetail and (cmd == "overlay" or cmd == "mapoverlay") then
+        if sfui.map and sfui.map.overlay and sfui.map.overlay.HandleSlash then
+            sfui.map.overlay:HandleSlash(arg)
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
@@ -401,6 +406,14 @@ if not sfui.isRetail then
             if sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
                 sfui.fishing.atlas.Toggle()
             end
+        end
+    end
+
+    -- Dedicated ARPG Minimap Overlay Command (/sfoverlay) (Camelot / Classic PoC)
+    SLASH_SFUIOVERLAY1 = "/sfoverlay"
+    SlashCmdList["SFUIOVERLAY"] = function(msg)
+        if sfui.map and sfui.map.overlay and sfui.map.overlay.HandleSlash then
+            sfui.map.overlay:HandleSlash(msg)
         end
     end
 end

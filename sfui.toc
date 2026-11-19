@@ -197,6 +197,7 @@ frames/map/square.lua
 frames/map/pins.lua [AllowLoadGameType camelot, classic]
 frames/map/zonelevels.lua [AllowLoadGameType camelot, classic]
 frames/map/gatherskill.lua [AllowLoadGameType camelot, classic]
+frames/map/overlay.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Dungeon Journal
 data/dj_camelot.lua [AllowLoadGameType camelot, classic]

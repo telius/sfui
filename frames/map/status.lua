@@ -195,10 +195,11 @@ function sfui.minimap.update_status()
     local f = get_or_create_weather_frame()
     local diel = get_day_light_indicator()
     local isSquare = sfui.map and sfui.map.square and sfui.map.square.IsEnabled and sfui.map.square:IsEnabled()
+    local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
 
-    -- Ensure Blizzard day/light indicator is visible and elevated above minimap border on round minimap, suppressed on square minimap
+    -- Ensure Blizzard day/light indicator is visible and elevated above minimap border on round minimap, suppressed on square/overlay
     if diel and diel.SetAlpha then
-        if isSquare then
+        if isSquare or overlayActive then
             diel:SetAlpha(0)
         else
             local map = _G.Minimap
@@ -236,7 +237,7 @@ function sfui.minimap.update_status()
     skin_weather_button(f, f.texture)
 
     f:ClearAllPoints()
-    if diel and not isSquare then
+    if diel and not isSquare and not overlayActive then
         if f:GetParent() ~= diel then
             f:SetParent(diel)
         end
@@ -251,7 +252,8 @@ function sfui.minimap.update_status()
         f:SetPoint("CENTER", diel, "CENTER", 22, -22)
     else
         local map = _G.Minimap
-        local targetParent = map or _G.UIParent
+        local cornerAnchor = (overlayActive and sfui.minimap and sfui.minimap.Holder) or map
+        local targetParent = cornerAnchor or _G.UIParent
         if f:GetParent() ~= targetParent then
             f:SetParent(targetParent)
         end
@@ -262,8 +264,8 @@ function sfui.minimap.update_status()
         f:SetFrameLevel(25)
         if f.SetFixedFrameStrata then f:SetFixedFrameStrata(true) end
         if f.SetFixedFrameLevel then f:SetFixedFrameLevel(true) end
-        if map then
-            f:SetPoint("TOPRIGHT", map, "TOPRIGHT", -4, -4)
+        if cornerAnchor then
+            f:SetPoint("TOPRIGHT", cornerAnchor, "TOPRIGHT", -4, -4)
         end
     end
 

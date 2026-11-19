@@ -538,7 +538,9 @@ function ButtonManager:arrange_buttons()
         end
     end
 
-    local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
+    local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+    local mapWidth = (overlayActive and ((sfui.minimap.Holder and sfui.minimap.Holder:GetWidth() and sfui.minimap.Holder:GetWidth() > 0 and sfui.minimap.Holder:GetWidth()) or (SfuiDB and SfuiDB.minimap_width)))
+        or (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0 and Minimap:GetWidth())
         or (SfuiDB and SfuiDB.minimap_width)
         or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
         or 220
@@ -581,7 +583,9 @@ function sfui.minimap.enable_button_manager(enabled)
         if not button_bar then
             -- Parent to UIParent to decouple from Blizzard Edit Mode
             button_bar = CreateFrame("Frame", "sfui_minimap_button_bar", UIParent, "BackdropTemplate")
-            local mapWidth = (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0) and Minimap:GetWidth()
+            local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+            local mapWidth = (overlayActive and ((sfui.minimap.Holder and sfui.minimap.Holder:GetWidth() and sfui.minimap.Holder:GetWidth() > 0 and sfui.minimap.Holder:GetWidth()) or (SfuiDB and SfuiDB.minimap_width)))
+                or (Minimap and Minimap:GetWidth() and Minimap:GetWidth() > 0 and Minimap:GetWidth())
                 or (SfuiDB and SfuiDB.minimap_width)
                 or (sfui.config and sfui.config.minimap and (sfui.config.minimap.width or sfui.config.minimap.default_size))
                 or 220
@@ -655,10 +659,14 @@ function sfui.minimap.enable_button_manager(enabled)
         end
         local clock = _G.TimeManagerClockButton
         if clock then
+            local overlayActive = sfui.map and sfui.map.overlay and sfui.map.overlay.IsActive and sfui.map.overlay:IsActive()
+            local cornerAnchor = (overlayActive and sfui.minimap and sfui.minimap.Holder) or Minimap
             clock.sfuiRepositioning = true
             clock:ClearAllPoints()
             clock:SetParent(sfui.minimap.Holder or Minimap or UIParent)
-            clock:SetPoint("TOPRIGHT", Minimap, "BOTTOMRIGHT", 0, -2)
+            if cornerAnchor then
+                clock:SetPoint("TOPRIGHT", cornerAnchor, "BOTTOMRIGHT", 0, -2)
+            end
             clock.sfuiRepositioning = nil
             clock.sfuiAnchored = nil
             clock:Show()

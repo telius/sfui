@@ -137,6 +137,7 @@ local FILE_MODULE_MAP = {
     ["frames/alts/mail_ui.lua"]              = "mail",
     ["frames/alts/mail_mailbox.lua"]         = "mail",
     ["frames/map/pins.lua"]                  = "pins",
+    ["frames/map/overlay.lua"]               = "overlay",
 }
 
 local function _extract_mod(file)
