@@ -1,0 +1,8 @@
+## Interface: 120105, 16001, 11509
+## Title: |cff6600ffsf|rui overlay maps
+## Author: teli
+## Version: v1.150
+## Notes: on-demand architectural minimap overlay tiles for sfui.
+## Dependencies: sfui
+## LoadOnDemand: 1
+data/overlay_maps_camelot.lua [AllowLoadGameType camelot, classic]

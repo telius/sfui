@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: write
     env:
-      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      # CF_API_KEY: ${{ secrets.CF_API_KEY }} -- skipped: bundled sfui_overlay_maps exceeds 100 MB CF archive limit
       GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
 
     steps:

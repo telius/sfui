@@ -13,7 +13,7 @@ jobs:
       contents: write # Required to create a release
     env:
       # Set these secrets in your repository settings (Settings > Secrets and variables > Actions)
-      CF_API_KEY: ${{ secrets.CF_API_KEY }}   # CurseForge API Token
+      # CF_API_KEY: ${{ secrets.CF_API_KEY }} -- skipped: bundled sfui_overlay_maps exceeds 100 MB CF archive limit
       # WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }} # Wago.io API Token
       GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }} # Automatically provided by GitHub
 
