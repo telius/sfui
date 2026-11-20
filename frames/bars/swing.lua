@@ -27,20 +27,21 @@ local UnitClass          = UnitClass
 local C_SwingTimer       = C_SwingTimer
 local Enum               = Enum
 
-local GetItemInfoInstant = sfui.common.get_item_instant_info
-local INVSLOT_OFFHAND    = _G.INVSLOT_OFFHAND or 17
-local INVSLOT_RANGED     = _G.INVSLOT_RANGED or 18
-local ITEM_CLASS_WEAPON  = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
+local GetItemInfoInstant       = sfui.common.get_item_instant_info
+local INVSLOT_OFFHAND          = _G.INVSLOT_OFFHAND or 17
+local INVSLOT_RANGED           = _G.INVSLOT_RANGED or 18
+local ITEM_CLASS_WEAPON        = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
+local ITEM_WEAPON_SUBCLASS_WAND = (Enum and Enum.ItemWeaponSubclass and Enum.ItemWeaponSubclass.Wand) or 19
 
-local SWING_MAIN_HAND    = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand) or 0
-local SWING_OFF_HAND     = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.OffHand) or 1
-local SWING_RANGED       = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.Ranged) or 2
-local SWING_TYPES        = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
+local SWING_MAIN_HAND          = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand) or 0
+local SWING_OFF_HAND           = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.OffHand) or 1
+local SWING_RANGED             = (Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.Ranged) or 2
+local SWING_TYPES              = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
 
-local OUT_OF_RANGE_ALPHA = 0.4
+local OUT_OF_RANGE_ALPHA       = 0.4
 
-local swingBars          = {}
-sfui.swing._bars         = swingBars
+local swingBars                = {}
+sfui.swing._bars               = swingBars
 local playerClass
 local function GetPlayerClass()
     if not playerClass then
@@ -57,8 +58,22 @@ local function IsWandCaster()
     local class = GetPlayerClass()
     return class == "WARLOCK" or class == "MAGE" or class == "PRIEST"
 end
-local isAutoRepeating = false
-local isAttacking = false
+
+local isAutoRepeating      = false
+local isAttacking          = false
+local hasOffHandWeapon     = false
+local hasRangedWeapon      = false
+local hasWandEquipped      = false
+local lastPrimarySwingType = SWING_MAIN_HAND
+local isUpdatingVisibility = false
+local _wantBar             = {}
+local _suppressedBar       = {}
+local ClearSwingTimer
+
+local function SharesMainHandSlot()
+    return IsWandCaster() or hasWandEquipped
+end
+sfui.swing.SharesMainHandSlot = SharesMainHandSlot
 
 local function IsMeleeAttacking()
     if isAttacking then return true end
@@ -72,40 +87,64 @@ local function IsMeleeAttacking()
     return false
 end
 
-local hasOffHandWeapon = false
-local hasRangedWeapon  = false
-
 -- ─── Helper: Cache equipped weapon states ───────────────────────────────────
 local function UpdateEquippedWeapons()
-    local _, offHandSpeed, rangedSpeed = UnitAttackSpeed("player")
+    local offHandSpeed, rangedSpeed
+    if _G.UnitAttackSpeed then
+        local _, oh, rng = _G.UnitAttackSpeed("player")
+        offHandSpeed, rangedSpeed = oh, rng
+    end
     if not rangedSpeed and _G.UnitRangedDamage then
         rangedSpeed = _G.UnitRangedDamage("player")
     end
     hasOffHandWeapon = IsAttackSpeedValid(offHandSpeed)
     hasRangedWeapon = IsAttackSpeedValid(rangedSpeed)
 
-    if not hasOffHandWeapon then
+    if not hasOffHandWeapon and GetInventoryItemID and GetItemInfoInstant then
         local offHandID = GetInventoryItemID("player", INVSLOT_OFFHAND)
-        if offHandID then
+        if offHandID and not (issecretvalue and issecretvalue(offHandID)) then
             local classID = select(6, GetItemInfoInstant(offHandID))
-            hasOffHandWeapon = (classID == ITEM_CLASS_WEAPON or classID == 2)
+            if classID and not (issecretvalue and issecretvalue(classID)) then
+                hasOffHandWeapon = (classID == ITEM_CLASS_WEAPON or classID == 2)
+            end
         end
     end
 
-    if not hasRangedWeapon then
-        local rangedID = GetInventoryItemID("player", INVSLOT_RANGED)
-        if rangedID then
-            local classID = select(6, GetItemInfoInstant(rangedID))
-            hasRangedWeapon = (classID == ITEM_CLASS_WEAPON or classID == 2)
+    hasWandEquipped = false
+    local rangedID = GetInventoryItemID and GetInventoryItemID("player", INVSLOT_RANGED)
+    if rangedID and not (issecretvalue and issecretvalue(rangedID)) and GetItemInfoInstant then
+        local classID, subClassID = select(6, GetItemInfoInstant(rangedID))
+        if classID and not (issecretvalue and issecretvalue(classID)) then
+            local isWeapon = (classID == ITEM_CLASS_WEAPON or classID == 2)
+            if subClassID and not (issecretvalue and issecretvalue(subClassID)) then
+                hasWandEquipped = isWeapon and (subClassID == ITEM_WEAPON_SUBCLASS_WAND or subClassID == 19)
+            end
+            if not hasRangedWeapon then
+                hasRangedWeapon = isWeapon
+            end
         end
     end
+end
+
+local function HasActiveSwingTimer(bar)
+    if not bar or bar.duration == nil or bar.endTime == nil then
+        return false
+    end
+    if issecretvalue and (issecretvalue(bar.endTime) or issecretvalue(bar.duration)) then
+        return false
+    end
+    -- Hidden/suppressed bars pause OnUpdate in WoW, so expire elapsed timers lazily here
+    if bar.endTime <= GetTime() then
+        ClearSwingTimer(bar)
+        return false
+    end
+    return true
 end
 
 -- ─── Helper: Can player swing this weapon type? ─────────────────────────────
 local function CanSwing(swingType)
     if swingType == SWING_MAIN_HAND then
-        local bar = swingBars[SWING_MAIN_HAND]
-        if bar and bar.duration ~= nil then
+        if HasActiveSwingTimer(swingBars[SWING_MAIN_HAND]) then
             return true
         end
         return IsMeleeAttacking()
@@ -113,8 +152,7 @@ local function CanSwing(swingType)
         if not hasOffHandWeapon then
             return false
         end
-        local bar = swingBars[SWING_OFF_HAND]
-        if bar and bar.duration ~= nil then
+        if HasActiveSwingTimer(swingBars[SWING_OFF_HAND]) then
             return true
         end
         return IsMeleeAttacking()
@@ -122,8 +160,7 @@ local function CanSwing(swingType)
         if not hasRangedWeapon then
             return false
         end
-        local bar = swingBars[SWING_RANGED]
-        if bar and bar.duration ~= nil then
+        if HasActiveSwingTimer(swingBars[SWING_RANGED]) then
             return true
         end
         return isAutoRepeating
@@ -165,7 +202,7 @@ local function UpdateRangeState(bar)
 end
 
 -- ─── Swing Timer State & Tick ───────────────────────────────────────────────
-local function ClearSwingTimer(bar)
+ClearSwingTimer = function(bar)
     bar.duration = nil
     bar.endTime = nil
     bar.statusBar:SetValue(0)
@@ -181,8 +218,12 @@ local function ClearSwingTimer(bar)
 
     if shouldHide and bar.backdrop and bar.backdrop:IsShown() then
         bar.backdrop:Hide()
-        if sfui.swing.UpdatePositions then
-            sfui.swing.UpdatePositions()
+        if not isUpdatingVisibility then
+            if SharesMainHandSlot() and sfui.swing.UpdateVisibility then
+                sfui.swing.UpdateVisibility()
+            elseif sfui.swing.UpdatePositions then
+                sfui.swing.UpdatePositions()
+            end
         end
     end
 end
@@ -223,7 +264,7 @@ local function GetBarColor(colorKey, swingType)
     local barCfg = cfg.swingBar or {}
     local colors = barCfg.colors or {}
 
-    if swingType == SWING_RANGED and IsWandCaster() then
+    if swingType == SWING_RANGED and SharesMainHandSlot() then
         return colors.wand or { 0.4, 0.0, 1.0, 1.0 }
     end
 
@@ -465,8 +506,8 @@ function sfui.swing.GetLowestPossibleBar()
         sfui.swing.UpdatePositions()
     end
 
-    -- Ranged/wand is always docked lowest when player has a ranged weapon or wand equipped
-    if hasRangedWeapon then
+    -- Ranged/wand is always docked lowest when player has a non-wand ranged weapon equipped
+    if hasRangedWeapon and not SharesMainHandSlot() then
         local rBar = swingBars[SWING_RANGED]
         if rBar and rBar.backdrop then
             return rBar.backdrop
@@ -514,30 +555,60 @@ function sfui.swing.UpdatePositions(anchorFrame, spacing)
         anchorFrame = (barMinus1 and (barMinus1:IsShown() or (SfuiDB == nil or SfuiDB.enablePowerBar ~= false))) and
             barMinus1 or bar0
     end
-    if not anchorFrame then return end
+
+    local customPos = SfuiDB and SfuiDB.swingBarPos
+    local hasCustomPos = customPos and customPos.point and customPos.x and customPos.y
+    if not anchorFrame and not hasCustomPos then return end
 
     local barCfg = cfg.swingBar or {}
     local swingSpacing = barCfg.spacing or 2
-    local customPos = SfuiDB and SfuiDB.swingBarPos
-    local currentAnchor = anchorFrame
 
-    local order = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
-    local isFirst = true
-    for _, sType in ipairs(order) do
-        local bar = swingBars[sType]
-        if bar and bar.backdrop then
-            bar.backdrop:ClearAllPoints()
-            if isFirst and customPos and customPos.point and customPos.x and customPos.y then
-                bar.backdrop:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x,
-                    customPos.y)
-                currentAnchor = bar.backdrop
-                isFirst = false
+    local mhBar = swingBars[SWING_MAIN_HAND]
+    local ohBar = swingBars[SWING_OFF_HAND]
+    local rBar = swingBars[SWING_RANGED]
+
+    if mhBar and mhBar.backdrop then
+        mhBar.backdrop:ClearAllPoints()
+        if hasCustomPos then
+            mhBar.backdrop:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x,
+                customPos.y)
+        else
+            local primarySpacing = spacing or swingSpacing
+            mhBar.backdrop:SetPoint("TOP", anchorFrame, "BOTTOM", 0, -primarySpacing)
+        end
+    end
+
+    local mhBackdrop = mhBar and mhBar.backdrop
+    if not mhBackdrop then return end
+
+    if SharesMainHandSlot() then
+        -- Shoot (wand) shares the exact primary slot position as MainHand
+        if rBar and rBar.backdrop then
+            rBar.backdrop:ClearAllPoints()
+            rBar.backdrop:SetPoint("TOP", mhBackdrop, "TOP", 0, 0)
+        end
+        if ohBar and ohBar.backdrop then
+            ohBar.backdrop:ClearAllPoints()
+            local primaryShown = mhBackdrop:IsShown() or (rBar and rBar.backdrop and rBar.backdrop:IsShown())
+            if primaryShown then
+                ohBar.backdrop:SetPoint("TOP", mhBackdrop, "BOTTOM", 0, -swingSpacing)
             else
-                local currentSpacing = isFirst and (spacing or swingSpacing) or swingSpacing
-                bar.backdrop:SetPoint("TOP", currentAnchor, "BOTTOM", 0, -currentSpacing)
+                ohBar.backdrop:SetPoint("TOP", mhBackdrop, "TOP", 0, 0)
+            end
+        end
+    else
+        local currentAnchor = mhBackdrop:IsShown() and mhBackdrop or nil
+        local secondaryOrder = { ohBar, rBar }
+        for _, bar in ipairs(secondaryOrder) do
+            if bar and bar.backdrop then
+                bar.backdrop:ClearAllPoints()
+                if currentAnchor then
+                    bar.backdrop:SetPoint("TOP", currentAnchor, "BOTTOM", 0, -swingSpacing)
+                else
+                    bar.backdrop:SetPoint("TOP", mhBackdrop, "TOP", 0, 0)
+                end
                 if bar.backdrop:IsShown() then
                     currentAnchor = bar.backdrop
-                    isFirst = false
                 end
             end
         end
@@ -550,17 +621,20 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
 
     local enabled = not (SfuiDB and SfuiDB.enableSwingBars == false)
     if not enabled then
+        isUpdatingVisibility = true
         for _, bar in pairs(swingBars) do
             bar.backdrop:Hide()
             ClearSwingTimer(bar)
             UpdateRangeCheckRegistration(bar)
         end
+        isUpdatingVisibility = false
         return
     end
     if isDragonflying == nil and common.is_dragonflying then isDragonflying = common.is_dragonflying() end
     if inVehicle == nil and common.is_in_vehicle then inVehicle = common.is_in_vehicle() end
 
     if isDragonflying or inVehicle then
+        isUpdatingVisibility = true
         for i = 1, 3 do
             local bar = swingBars[SWING_TYPES[i]]
             if bar then
@@ -569,6 +643,7 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
                 UpdateRangeCheckRegistration(bar)
             end
         end
+        isUpdatingVisibility = false
         return
     end
 
@@ -576,20 +651,53 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
 
     for i = 1, 3 do
         local sType = SWING_TYPES[i]
+        _wantBar[sType] = shouldShow and CanSwing(sType) or false
+        _suppressedBar[sType] = false
+    end
+
+    -- Mutually exclusive ownership when wand/ranged shares the MainHand position
+    if SharesMainHandSlot() and _wantBar[SWING_MAIN_HAND] and _wantBar[SWING_RANGED] then
+        local meleeActive = IsMeleeAttacking()
+        if isAutoRepeating and not meleeActive then
+            _wantBar[SWING_MAIN_HAND] = false
+            _suppressedBar[SWING_MAIN_HAND] = true
+        elseif meleeActive and not isAutoRepeating then
+            _wantBar[SWING_RANGED] = false
+            _suppressedBar[SWING_RANGED] = true
+        elseif lastPrimarySwingType == SWING_RANGED then
+            _wantBar[SWING_MAIN_HAND] = false
+            _suppressedBar[SWING_MAIN_HAND] = true
+        else
+            _wantBar[SWING_RANGED] = false
+            _suppressedBar[SWING_RANGED] = true
+        end
+    end
+
+    isUpdatingVisibility = true
+    local now = GetTime()
+    for i = 1, 3 do
+        local sType = SWING_TYPES[i]
         local bar = swingBars[sType]
         if bar then
-            local canSwing = CanSwing(sType)
-            if shouldShow and canSwing then
+            if _wantBar[sType] then
+                if bar.endTime and bar.duration and not (issecretvalue and (issecretvalue(bar.endTime) or issecretvalue(bar.duration))) and bar.duration > 0 then
+                    local remaining = bar.endTime - now
+                    local pct = math.max(0, math.min(1, (bar.duration - remaining) / bar.duration))
+                    bar.statusBar:SetValue(pct)
+                end
                 bar.backdrop:Show()
                 UpdateRangeCheckRegistration(bar)
                 UpdateRangeState(bar)
             else
                 bar.backdrop:Hide()
-                ClearSwingTimer(bar)
+                if not _suppressedBar[sType] then
+                    ClearSwingTimer(bar)
+                end
                 UpdateRangeCheckRegistration(bar)
             end
         end
     end
+    isUpdatingVisibility = false
 
     sfui.swing.UpdatePositions()
 end
@@ -612,7 +720,9 @@ end
 
 --- Returns the lowest visible swing bar backdrop (for any bottom-docking modules)
 function sfui.swing.GetLowestBar(includeHidden)
-    local order = { SWING_RANGED, SWING_OFF_HAND, SWING_MAIN_HAND }
+    local order = SharesMainHandSlot()
+        and { SWING_OFF_HAND, SWING_RANGED, SWING_MAIN_HAND }
+        or { SWING_RANGED, SWING_OFF_HAND, SWING_MAIN_HAND }
     for _, sType in ipairs(order) do
         local bar = swingBars[sType]
         if bar and bar.backdrop and (bar.backdrop:IsShown() or includeHidden) then
@@ -632,8 +742,12 @@ local function OnSwingEvent(event, ...)
         if bar then
             if swingType == SWING_MAIN_HAND or swingType == SWING_OFF_HAND then
                 isAttacking = true
+                if swingType == SWING_MAIN_HAND then
+                    lastPrimarySwingType = SWING_MAIN_HAND
+                end
             elseif swingType == SWING_RANGED then
                 isAutoRepeating = true
+                lastPrimarySwingType = SWING_RANGED
             end
             ResetSwingTimer(bar, duration)
             if not bar.backdrop:IsShown() then
@@ -668,6 +782,7 @@ local function OnSwingEvent(event, ...)
         end
     elseif event == "PLAYER_ENTER_COMBAT" then
         isAttacking = true
+        lastPrimarySwingType = SWING_MAIN_HAND
         if sfui.bars and sfui.bars.UpdateVisibility then
             sfui.bars.UpdateVisibility()
         else
@@ -684,6 +799,7 @@ local function OnSwingEvent(event, ...)
         sfui.swing.UpdatePositions()
     elseif event == "START_AUTOREPEAT_SPELL" then
         isAutoRepeating = true
+        lastPrimarySwingType = SWING_RANGED
         if sfui.bars and sfui.bars.UpdateVisibility then
             sfui.bars.UpdateVisibility()
         else
@@ -701,6 +817,7 @@ local function OnSwingEvent(event, ...)
     elseif event == "PLAYER_DEAD" then
         isAttacking = false
         isAutoRepeating = false
+        lastPrimarySwingType = SWING_MAIN_HAND
         if sfui.bars and sfui.bars.UpdateVisibility then
             sfui.bars.UpdateVisibility()
         else
@@ -717,10 +834,11 @@ local function OnSwingEvent(event, ...)
         if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LOGIN" then
             isAttacking = false
             isAutoRepeating = false
+            lastPrimarySwingType = SWING_MAIN_HAND
             playerClass = nil
-            UpdateBarColors()
         end
         UpdateEquippedWeapons()
+        UpdateBarColors()
         SuppressBlizzardSwingTimer()
         if sfui.bars and sfui.bars.UpdateVisibility then
             sfui.bars.UpdateVisibility()

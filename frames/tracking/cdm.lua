@@ -968,6 +968,7 @@ function sfui.cdm.create_panel(parent)
     sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_cdm_spec_changed)
     sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_cdm_spec_changed)
     sfui.events.RegisterEvent("SPEC_INVOLUNTARILY_CHANGED", on_cdm_spec_changed)
+    sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", on_cdm_spec_changed)
 
     cdmFrame:SetScript("OnShow", sfui.cdm.RefreshLayout)
     cdmFrame:SetScript("OnHide", function()

@@ -1072,7 +1072,7 @@
     "zone": "Wetlands",
     "subzone": "Menethil Harbor",
     "starter_qid": null,
-    "prereq_text": ""
+    "prereq_text": "Starts with  from  in Wetlands \\/way 9 56"
   },
   "95772": {
     "qid": 95772,
@@ -1100,9 +1100,9 @@
     "dungeon": "Excavation Site",
     "level": 24,
     "side": "Alliance",
-    "is_pre": false,
+    "is_pre": true,
     "is_drop": false,
-    "is_shareable": true,
+    "is_shareable": false,
     "npc_id": 1244,
     "npc_name": "Rethiel the Greenwarden",
     "coords": [
@@ -1112,7 +1112,7 @@
     "zone": "Wetlands",
     "subzone": "",
     "starter_qid": null,
-    "prereq_text": ""
+    "prereq_text": "Starts with  from  in Wetlands] \\/way 11 60"
   },
   "95647": {
     "qid": 95647,
@@ -1123,16 +1123,16 @@
     "is_pre": true,
     "is_drop": false,
     "is_shareable": false,
-    "npc_id": 3970,
-    "npc_name": "Llana",
+    "npc_id": 1480,
+    "npc_name": "Caitlin Grassman",
     "coords": [
-      35.0,
-      48.6
+      12.0,
+      59.0
     ],
-    "zone": "",
+    "zone": "Wetlands",
     "subzone": "",
     "starter_qid": null,
-    "prereq_text": ""
+    "prereq_text": "Starts with  in Ashenvale from , \\/way 35.0 48.6"
   },
   "95809": {
     "qid": 95809,
@@ -1146,7 +1146,7 @@
     "npc_id": null,
     "npc_name": "",
     "coords": null,
-    "zone": "",
+    "zone": "Follow-up",
     "subzone": "",
     "starter_qid": 95647,
     "prereq_text": ""
@@ -1160,10 +1160,10 @@
     "is_pre": true,
     "is_drop": false,
     "is_shareable": false,
-    "npc_id": null,
-    "npc_name": "",
+    "npc_id": 260326,
+    "npc_name": "Relic Guardian",
     "coords": null,
-    "zone": "",
+    "zone": "Inside Dungeon",
     "subzone": "",
     "starter_qid": null,
     "prereq_text": ""
@@ -1180,7 +1180,7 @@
     "npc_id": null,
     "npc_name": "",
     "coords": null,
-    "zone": "",
+    "zone": "Follow-up",
     "subzone": "",
     "starter_qid": 95810,
     "prereq_text": ""
@@ -1214,10 +1214,10 @@
     "is_pre": true,
     "is_drop": false,
     "is_shareable": false,
-    "npc_id": null,
-    "npc_name": "",
+    "npc_id": 260326,
+    "npc_name": "Relic Guardian",
     "coords": null,
-    "zone": "",
+    "zone": "Inside Dungeon",
     "subzone": "",
     "starter_qid": null,
     "prereq_text": ""
@@ -1234,7 +1234,7 @@
     "npc_id": null,
     "npc_name": "",
     "coords": null,
-    "zone": "",
+    "zone": "Follow Up",
     "subzone": "",
     "starter_qid": 95664,
     "prereq_text": ""
@@ -1248,16 +1248,16 @@
     "is_pre": true,
     "is_drop": false,
     "is_shareable": false,
-    "npc_id": 2787,
-    "npc_name": "Zaruk",
+    "npc_id": 13155,
+    "npc_name": "Deathstalker Agent",
     "coords": [
-      74.0,
-      36.0
+      51.0,
+      59.0
     ],
-    "zone": "",
+    "zone": "Wetlands",
     "subzone": "",
     "starter_qid": null,
-    "prereq_text": ""
+    "prereq_text": "Starts with  from  in Arathi Highlands \\/way 74 36."
   },
   "2841": {
     "qid": 2841,
@@ -1978,6 +1978,26 @@
     "starter_qid": null,
     "prereq_text": ""
   },
+  "1113": {
+    "qid": 1113,
+    "name": "Hearts of Zeal",
+    "dungeon": "Scarlet Monastery",
+    "level": 30,
+    "side": "Horde",
+    "is_pre": false,
+    "is_drop": false,
+    "is_shareable": true,
+    "npc_id": 2055,
+    "npc_name": "Master Apothecary Faranell",
+    "coords": [
+      48.0,
+      69.0
+    ],
+    "zone": "Undercity",
+    "subzone": "The Apothecarium",
+    "starter_qid": null,
+    "prereq_text": "Starts with  from  in Undercity \\/way 49 70."
+  },
   "1053": {
     "qid": 1053,
     "name": "In the Name of the Light",
@@ -2012,26 +2032,6 @@
     "coords": null,
     "zone": "Scarlet Monastery",
     "subzone": "Graveyard",
-    "starter_qid": null,
-    "prereq_text": ""
-  },
-  "1113": {
-    "qid": 1113,
-    "name": "Hearts of Zeal",
-    "dungeon": "Scarlet Monastery",
-    "level": 30,
-    "side": "Horde",
-    "is_pre": false,
-    "is_drop": false,
-    "is_shareable": true,
-    "npc_id": 2055,
-    "npc_name": "Master Apothecary Faranell",
-    "coords": [
-      48.0,
-      69.0
-    ],
-    "zone": "Undercity",
-    "subzone": "The Apothecarium",
     "starter_qid": null,
     "prereq_text": ""
   },
@@ -2072,8 +2072,8 @@
     ],
     "zone": "Undercity",
     "subzone": "The Apothecarium",
-    "starter_qid": 1149,
-    "prereq_text": "Complete 6 quests in chain, starting with"
+    "starter_qid": null,
+    "prereq_text": "Starts with  from  in Thousand Needles (6 quests) \\/way 54 42"
   },
   "1050": {
     "qid": 1050,
@@ -2153,7 +2153,7 @@
     "zone": "Undercity",
     "subzone": "Royal Quarter",
     "starter_qid": null,
-    "prereq_text": ""
+    "prereq_text": "Starts with  which drops from Razorfen Kraul"
   },
   "3636": {
     "qid": 3636,
@@ -2267,7 +2267,7 @@
     "zone": "Badlands",
     "subzone": "Kargath",
     "starter_qid": null,
-    "prereq_text": "Complete first"
+    "prereq_text": "Starts with  from  in Badlands \\/way 3 46"
   },
   "2283": {
     "qid": 2283,
@@ -2335,13 +2335,16 @@
     "is_pre": true,
     "is_drop": false,
     "is_shareable": false,
-    "npc_id": null,
-    "npc_name": "",
-    "coords": null,
+    "npc_id": 1356,
+    "npc_name": "Prospector Stormpike",
+    "coords": [
+      75.0,
+      13.0
+    ],
     "zone": "Uldaman",
     "subzone": "Lost Dwarves area",
     "starter_qid": null,
-    "prereq_text": "Complete first"
+    "prereq_text": "Starts with  from  in Ironforge \\/way 75 13"
   },
   "17": {
     "qid": 17,
@@ -2361,7 +2364,7 @@
     "zone": "Loch Modan",
     "subzone": "Thelsamar",
     "starter_qid": null,
-    "prereq_text": "Complete first"
+    "prereq_text": "Starts with  from  in Loch Modan \\/way 37 49"
   },
   "704": {
     "qid": 704,
@@ -2380,8 +2383,8 @@
     ],
     "zone": "Loch Modan",
     "subzone": "Ironband's Excavation Site",
-    "starter_qid": 707,
-    "prereq_text": "Complete 3 quests, starting with first"
+    "starter_qid": null,
+    "prereq_text": "Starts with from  in Ironforge \\/way 75 13"
   },
   "1139": {
     "qid": 1139,
@@ -2400,8 +2403,8 @@
     ],
     "zone": "Ironforge",
     "subzone": "Hall of Explorers",
-    "starter_qid": 720,
-    "prereq_text": "Complete 8 quests, starting with first"
+    "starter_qid": null,
+    "prereq_text": "Starts with  from  in Badlands \\/way 53 34"
   },
   "2198": {
     "qid": 2198,
@@ -2688,8 +2691,8 @@
     ],
     "zone": "Durotar",
     "subzone": "Sen'jin Village",
-    "starter_qid": 2933,
-    "prereq_text": "Complete 3 quests first, starting with"
+    "starter_qid": null,
+    "prereq_text": "Starts with  from  in The Hinterlands \\/way 23 58"
   },
   "96775": {
     "qid": 96775,
@@ -2728,8 +2731,8 @@
     ],
     "zone": "Blasted Lands",
     "subzone": "Nethergarde Keep",
-    "starter_qid": 2988,
-    "prereq_text": "Complete 3 quests first, starting with"
+    "starter_qid": null,
+    "prereq_text": "Starts with  from  in The Hinterlands \\/way 10 47"
   },
   "2768": {
     "qid": 2768,
@@ -2829,7 +2832,7 @@
     "zone": "Thousand Needles",
     "subzone": "Shimmering Flats",
     "starter_qid": null,
-    "prereq_text": "One group member must have  to summon Gahz'rilla - drop from   in The Hinterlands"
+    "prereq_text": "One group member must have  to summon Gahz'rilla - drop from  in The Hinterlands"
   },
   "3527": {
     "qid": 3527,
@@ -2849,7 +2852,27 @@
     "zone": "Tanaris",
     "subzone": "Steamwheedle Port",
     "starter_qid": null,
-    "prereq_text": "Complete first"
+    "prereq_text": "Starts with  from  in Tanaris \\/way 67 22"
+  },
+  "96776": {
+    "qid": 96776,
+    "name": "An'she's Radiance",
+    "dungeon": "Maraudon ",
+    "level": 43,
+    "side": "Horde",
+    "is_pre": false,
+    "is_drop": false,
+    "is_shareable": true,
+    "npc_id": 268557,
+    "npc_name": "Olana Brighthoof",
+    "coords": [
+      32.6,
+      24.0
+    ],
+    "zone": "Mulgore",
+    "subzone": "Skywatcher's Plateau",
+    "starter_qid": null,
+    "prereq_text": ""
   },
   "7068": {
     "qid": 7068,
@@ -2970,6 +2993,26 @@
     "subzone": "Nijel's Point",
     "starter_qid": null,
     "prereq_text": ""
+  },
+  "93404": {
+    "qid": 93404,
+    "name": "Rot and Regret",
+    "dungeon": "Maraudon ",
+    "level": 35,
+    "side": "Both",
+    "is_pre": false,
+    "is_drop": false,
+    "is_shareable": false,
+    "npc_id": 254674,
+    "npc_name": "Woodwyrd",
+    "coords": [
+      60.0,
+      72.0
+    ],
+    "zone": "Shen'dralas",
+    "subzone": "",
+    "starter_qid": null,
+    "prereq_text": "Starts with  from  in Shen'dralas \\/way 44 34"
   },
   "7028": {
     "qid": 7028,
@@ -3311,7 +3354,7 @@
       33.4,
       38.0
     ],
-    "zone": "Theramore",
+    "zone": "Dustwallow Marsh",
     "subzone": "Alcaz Island",
     "starter_qid": 95283,
     "prereq_text": "(leads to )"
@@ -3331,7 +3374,7 @@
       33.4,
       38.0
     ],
-    "zone": "Theramore",
+    "zone": "Dustwallow Marsh",
     "subzone": "Alcaz Island",
     "starter_qid": 95283,
     "prereq_text": "Starts from  from  in   \\/way 34.6 38.6"
@@ -3351,10 +3394,27 @@
       33.4,
       38.0
     ],
-    "zone": "Theramore",
+    "zone": "Dustwallow Marsh",
     "subzone": "Alcaz Island",
     "starter_qid": 95283,
     "prereq_text": "Starts from  from  in   \\/way 34.6 38.6"
+  },
+  "96335": {
+    "qid": 96335,
+    "name": "The Man in the Iron Chains",
+    "dungeon": "Alcaz Prison",
+    "level": 48,
+    "side": "Both",
+    "is_pre": false,
+    "is_drop": false,
+    "is_shareable": true,
+    "npc_id": 264770,
+    "npc_name": "Mason Connery",
+    "coords": null,
+    "zone": "In Dungeon",
+    "subzone": "",
+    "starter_qid": null,
+    "prereq_text": "Quest only appears if  is still alive."
   },
   "4081": {
     "qid": 4081,

@@ -1383,7 +1383,7 @@
       "name": "Badlands",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989284
+      "fetched_at": 1795161800
     },
     "1419": {
       "uimap": 1419,
@@ -3515,7 +3515,7 @@
       "name": "Searing Gorge",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989285
+      "fetched_at": 1795161802
     },
     "1428": {
       "uimap": 1428,
@@ -13547,12 +13547,12 @@
       "uimap": 2521,
       "wh_zone_id": 16593,
       "name": "Zephras Isle",
-      "total_count": 18717,
+      "total_count": 20145,
       "items": [
         {
           "id": 118,
           "name": "minor healing potion",
-          "count": 61,
+          "count": 65,
           "classs": 0,
           "subclass": 1,
           "quality": 1,
@@ -13579,7 +13579,7 @@
         {
           "id": 2455,
           "name": "minor mana potion",
-          "count": 56,
+          "count": 58,
           "classs": 0,
           "subclass": 1,
           "quality": 1,
@@ -13669,7 +13669,7 @@
         {
           "id": 6289,
           "name": "raw longjaw mud snapper",
-          "count": 7441,
+          "count": 7722,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13678,7 +13678,7 @@
         {
           "id": 6291,
           "name": "raw brilliant smallfish",
-          "count": 11587,
+          "count": 11988,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13687,7 +13687,7 @@
         {
           "id": 6292,
           "name": "10 pound mud snapper",
-          "count": 160,
+          "count": 165,
           "classs": 4,
           "subclass": -5,
           "quality": 1,
@@ -13696,7 +13696,7 @@
         {
           "id": 6294,
           "name": "12 pound mud snapper",
-          "count": 83,
+          "count": 87,
           "classs": 4,
           "subclass": -5,
           "quality": 1,
@@ -13723,7 +13723,7 @@
         {
           "id": 6643,
           "name": "bloated brilliant smallfish",
-          "count": 22,
+          "count": 23,
           "classs": 15,
           "subclass": 4,
           "quality": 2,
@@ -13766,13 +13766,13 @@
           "slot": 15
         }
       ],
-      "fetched_at": 1794989287
+      "fetched_at": 1795161803
     },
     "2482": {
       "uimap": 2482,
       "wh_zone_id": 616,
       "name": "Mount Hyjal",
-      "total_count": 896,
+      "total_count": 2374,
       "items": [
         {
           "id": 3820,
@@ -13921,7 +13921,7 @@
         {
           "id": 13757,
           "name": "lightning eel",
-          "count": 329,
+          "count": 348,
           "classs": 7,
           "subclass": 11,
           "quality": 1,
@@ -13930,7 +13930,7 @@
         {
           "id": 13758,
           "name": "raw redgill",
-          "count": 148,
+          "count": 160,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13939,7 +13939,7 @@
         {
           "id": 13759,
           "name": "raw nightfin snapper",
-          "count": 235,
+          "count": 261,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13948,7 +13948,7 @@
         {
           "id": 13760,
           "name": "raw sunscale salmon",
-          "count": 510,
+          "count": 527,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13957,7 +13957,7 @@
         {
           "id": 13889,
           "name": "raw whitescale salmon",
-          "count": 993,
+          "count": 1039,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -13966,7 +13966,7 @@
         {
           "id": 13890,
           "name": "raw plated armorfish",
-          "count": 302,
+          "count": 323,
           "classs": 12,
           "subclass": 0,
           "quality": 1,
@@ -13975,7 +13975,7 @@
         {
           "id": 13891,
           "name": "bloated whitescale salmon",
-          "count": 7,
+          "count": 15,
           "classs": 15,
           "subclass": 4,
           "quality": 2,
@@ -14081,18 +14081,18 @@
           "slot": 0
         }
       ],
-      "fetched_at": 1794989286
+      "fetched_at": 1795161802
     },
     "2548": {
       "uimap": 2548,
       "wh_zone_id": 16591,
       "name": "Riverglades",
-      "total_count": 8724,
+      "total_count": 11621,
       "items": [
         {
           "id": 1710,
           "name": "greater healing potion",
-          "count": 4,
+          "count": 5,
           "classs": 0,
           "subclass": 1,
           "quality": 1,
@@ -14101,7 +14101,7 @@
         {
           "id": 3820,
           "name": "stranglekelp",
-          "count": 272,
+          "count": 292,
           "classs": 7,
           "subclass": 9,
           "quality": 1,
@@ -14119,7 +14119,7 @@
         {
           "id": 4603,
           "name": "raw spotted yellowtail",
-          "count": 770,
+          "count": 848,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -14128,7 +14128,7 @@
         {
           "id": 6308,
           "name": "raw bristle whisker catfish",
-          "count": 477,
+          "count": 583,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -14137,7 +14137,7 @@
         {
           "id": 6309,
           "name": "17 pound catfish",
-          "count": 4,
+          "count": 5,
           "classs": 4,
           "subclass": -5,
           "quality": 1,
@@ -14164,7 +14164,7 @@
         {
           "id": 6355,
           "name": "sturdy locked chest",
-          "count": 19,
+          "count": 20,
           "classs": 15,
           "subclass": 4,
           "quality": 1,
@@ -14173,7 +14173,7 @@
         {
           "id": 6357,
           "name": "sealed crate",
-          "count": 21,
+          "count": 22,
           "classs": 15,
           "subclass": 4,
           "quality": 1,
@@ -14182,7 +14182,7 @@
         {
           "id": 6358,
           "name": "oily blackmouth",
-          "count": 1349,
+          "count": 1424,
           "classs": 7,
           "subclass": 11,
           "quality": 1,
@@ -14191,7 +14191,7 @@
         {
           "id": 6359,
           "name": "firefin snapper",
-          "count": 1252,
+          "count": 1349,
           "classs": 7,
           "subclass": 11,
           "quality": 1,
@@ -14200,7 +14200,7 @@
         {
           "id": 6362,
           "name": "raw rockscale cod",
-          "count": 2187,
+          "count": 2398,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -14209,7 +14209,7 @@
         {
           "id": 8365,
           "name": "raw mithril head trout",
-          "count": 815,
+          "count": 987,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -14227,7 +14227,7 @@
         {
           "id": 13422,
           "name": "stonescale eel",
-          "count": 1059,
+          "count": 1116,
           "classs": 7,
           "subclass": 11,
           "quality": 1,
@@ -14245,7 +14245,7 @@
         {
           "id": 21150,
           "name": "iron bound trunk",
-          "count": 158,
+          "count": 163,
           "classs": 15,
           "subclass": 4,
           "quality": 1,
@@ -14254,7 +14254,7 @@
         {
           "id": 21151,
           "name": "rumsey rum black label",
-          "count": 159,
+          "count": 177,
           "classs": 0,
           "subclass": 5,
           "quality": 1,
@@ -14263,7 +14263,7 @@
         {
           "id": 21153,
           "name": "raw greater sagefish",
-          "count": 1588,
+          "count": 1671,
           "classs": 7,
           "subclass": 8,
           "quality": 1,
@@ -14272,7 +14272,7 @@
         {
           "id": 21228,
           "name": "mithril bound trunk",
-          "count": 550,
+          "count": 572,
           "classs": 15,
           "subclass": 4,
           "quality": 1,
@@ -14297,7 +14297,7 @@
           "slot": 0
         }
       ],
-      "fetched_at": 1794989288
+      "fetched_at": 1795161804
     },
     "100718": {
       "uimap": 100718,
@@ -14305,7 +14305,7 @@
       "name": "Wailing Caverns",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989290
+      "fetched_at": 1795161806
     },
     "100719": {
       "uimap": 100719,
@@ -14313,7 +14313,7 @@
       "name": "Blackfathom Deeps",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989291
+      "fetched_at": 1795161807
     },
     "100796": {
       "uimap": 100796,
@@ -14321,7 +14321,7 @@
       "name": "Scarlet Monastery",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989292
+      "fetched_at": 1795161809
     },
     "101477": {
       "uimap": 101477,
@@ -14329,7 +14329,7 @@
       "name": "Sunken Temple",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989293
+      "fetched_at": 1795161809
     },
     "101977": {
       "uimap": 101977,
@@ -14337,7 +14337,7 @@
       "name": "Zul'Gurub",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989295
+      "fetched_at": 1795161811
     },
     "102017": {
       "uimap": 102017,
@@ -14345,7 +14345,7 @@
       "name": "Stratholme",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989296
+      "fetched_at": 1795161811
     },
     "102057": {
       "uimap": 102057,
@@ -14353,7 +14353,7 @@
       "name": "Scholomance",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989297
+      "fetched_at": 1795161813
     },
     "102100": {
       "uimap": 102100,
@@ -14361,7 +14361,7 @@
       "name": "Maraudon",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989298
+      "fetched_at": 1795161814
     },
     "102557": {
       "uimap": 102557,
@@ -14369,7 +14369,7 @@
       "name": "Dire Maul",
       "total_count": 0,
       "items": [],
-      "fetched_at": 1794989299
+      "fetched_at": 1795161815
     },
     "2652": {
       "uimap": 2652,
@@ -14396,7 +14396,7 @@
           "slot": 0
         }
       ],
-      "fetched_at": 1794989289
+      "fetched_at": 1795161806
     }
   },
   "species": {
@@ -14487,9 +14487,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 770,
-          "outof": 8724,
-          "share": 8.8
+          "count": 848,
+          "outof": 11621,
+          "share": 7.3
         },
         {
           "uimap": 2548,
@@ -14705,9 +14705,9 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 7441,
-          "outof": 18717,
-          "share": 39.8
+          "count": 7722,
+          "outof": 20145,
+          "share": 38.3
         },
         {
           "uimap": 2521,
@@ -14888,9 +14888,9 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 11587,
-          "outof": 18717,
-          "share": 61.9
+          "count": 11988,
+          "outof": 20145,
+          "share": 59.5
         },
         {
           "uimap": 2521,
@@ -14966,9 +14966,9 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 160,
-          "outof": 18717,
-          "share": 0.9
+          "count": 165,
+          "outof": 20145,
+          "share": 0.8
         }
       ]
     },
@@ -15030,8 +15030,8 @@
         {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 83,
-          "outof": 18717,
+          "count": 87,
+          "outof": 20145,
           "share": 0.4
         }
       ]
@@ -15074,7 +15074,7 @@
           "uimap": 2521,
           "name": "zephras isle",
           "count": 12,
-          "outof": 18717,
+          "outof": 20145,
           "share": 0.1
         }
       ]
@@ -15441,9 +15441,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 477,
-          "outof": 8724,
-          "share": 5.5
+          "count": 583,
+          "outof": 11621,
+          "share": 5.0
         },
         {
           "uimap": 2652,
@@ -15954,8 +15954,8 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 19,
-          "outof": 8724,
+          "count": 20,
+          "outof": 11621,
           "share": 0.2
         }
       ]
@@ -16026,8 +16026,8 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 21,
-          "outof": 8724,
+          "count": 22,
+          "outof": 11621,
           "share": 0.2
         }
       ]
@@ -16188,9 +16188,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 1349,
-          "outof": 8724,
-          "share": 15.5
+          "count": 1424,
+          "outof": 11621,
+          "share": 12.3
         },
         {
           "uimap": 2548,
@@ -16323,15 +16323,15 @@
           "uimap": 2482,
           "name": "mount hyjal",
           "count": 39,
-          "outof": 896,
-          "share": 4.4
+          "outof": 2374,
+          "share": 1.6
         },
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 1252,
-          "outof": 8724,
-          "share": 14.4
+          "count": 1349,
+          "outof": 11621,
+          "share": 11.6
         },
         {
           "uimap": 2548,
@@ -16485,9 +16485,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 2187,
-          "outof": 8724,
-          "share": 25.1
+          "count": 2398,
+          "outof": 11621,
+          "share": 20.6
         },
         {
           "uimap": 2548,
@@ -16612,17 +16612,10 @@
           "share": 0.1
         },
         {
-          "uimap": 2482,
-          "name": "mount hyjal",
-          "count": 1,
-          "outof": 896,
-          "share": 0.1
-        },
-        {
           "uimap": 2521,
           "name": "zephras isle",
-          "count": 22,
-          "outof": 18717,
+          "count": 23,
+          "outof": 20145,
           "share": 0.1
         }
       ]
@@ -16835,9 +16828,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 815,
-          "outof": 8724,
-          "share": 9.3
+          "count": 987,
+          "outof": 11621,
+          "share": 8.5
         },
         {
           "uimap": 2652,
@@ -16935,9 +16928,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 1059,
-          "outof": 8724,
-          "share": 12.1
+          "count": 1116,
+          "outof": 11621,
+          "share": 9.6
         },
         {
           "uimap": 102100,
@@ -17198,9 +17191,9 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
-          "count": 329,
-          "outof": 896,
-          "share": 36.7
+          "count": 348,
+          "outof": 2374,
+          "share": 14.7
         },
         {
           "uimap": 2482,
@@ -17353,9 +17346,9 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
-          "count": 148,
-          "outof": 896,
-          "share": 16.5
+          "count": 160,
+          "outof": 2374,
+          "share": 6.7
         },
         {
           "uimap": 2482,
@@ -17529,9 +17522,9 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
-          "count": 235,
-          "outof": 896,
-          "share": 26.2
+          "count": 261,
+          "outof": 2374,
+          "share": 11.0
         },
         {
           "uimap": 2482,
@@ -17719,9 +17712,9 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
-          "count": 510,
-          "outof": 896,
-          "share": 56.9
+          "count": 527,
+          "outof": 2374,
+          "share": 22.2
         },
         {
           "uimap": 2482,
@@ -18127,9 +18120,9 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
-          "count": 993,
-          "outof": 896,
-          "share": 110.8
+          "count": 1039,
+          "outof": 2374,
+          "share": 43.8
         },
         {
           "uimap": 2482,
@@ -18233,9 +18226,9 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
-          "count": 302,
-          "outof": 896,
-          "share": 33.7
+          "count": 323,
+          "outof": 2374,
+          "share": 13.6
         }
       ]
     },
@@ -18292,8 +18285,8 @@
           "uimap": 2482,
           "name": "mount hyjal",
           "count": 2,
-          "outof": 896,
-          "share": 0.2
+          "outof": 2374,
+          "share": 0.1
         }
       ]
     },
@@ -18342,8 +18335,8 @@
           "uimap": 2482,
           "name": "mount hyjal",
           "count": 2,
-          "outof": 896,
-          "share": 0.2
+          "outof": 2374,
+          "share": 0.1
         }
       ]
     },
@@ -18712,9 +18705,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 158,
-          "outof": 8724,
-          "share": 1.8
+          "count": 163,
+          "outof": 11621,
+          "share": 1.4
         },
         {
           "uimap": 2482,
@@ -18748,9 +18741,9 @@
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 1588,
-          "outof": 8724,
-          "share": 18.2
+          "count": 1671,
+          "outof": 11621,
+          "share": 14.4
         },
         {
           "uimap": 2548,
@@ -18799,15 +18792,15 @@
           "uimap": 2482,
           "name": "mount hyjal",
           "count": 5,
-          "outof": 896,
-          "share": 0.6
+          "outof": 2374,
+          "share": 0.2
         },
         {
           "uimap": 2548,
           "name": "riverglades",
-          "count": 550,
-          "outof": 8724,
-          "share": 6.3
+          "count": 572,
+          "outof": 11621,
+          "share": 4.9
         },
         {
           "uimap": 2548,
@@ -18894,9 +18887,9 @@
         {
           "uimap": 2482,
           "name": "mount hyjal",
-          "count": 7,
-          "outof": 896,
-          "share": 0.8
+          "count": 15,
+          "outof": 2374,
+          "share": 0.6
         }
       ]
     },
@@ -18910,8 +18903,8 @@
           "uimap": 2482,
           "name": "mount hyjal",
           "count": 2,
-          "outof": 896,
-          "share": 0.2
+          "outof": 2374,
+          "share": 0.1
         }
       ]
     },

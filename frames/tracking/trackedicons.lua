@@ -882,18 +882,27 @@ local function ApplyPanelAnchor(panelFrame, panelConfig)
         local resolvedTarget = nil
 
         for _, otherPanel in pairs(panels) do
-            if otherPanel.config and otherPanel.config.name == searchTarget then
+            if otherPanel ~= panelFrame and otherPanel.config and otherPanel.config.name == searchTarget then
                 if otherPanel:IsShown() or MatchesCurrentForm(otherPanel.config) then
                     resolvedTarget = otherPanel
                     break
-                elseif searchTarget == "CENTER" or searchTarget == "BATTLE" then
-                    for _, p in pairs(panels) do
-                        if p.config and p.config.enabled and IsPrimaryFormPanel(p.config) and (p:IsShown() or MatchesCurrentForm(p.config)) then
-                            resolvedTarget = p
-                            break
-                        end
-                    end
+                end
+            end
+        end
+
+        if not resolvedTarget and (searchTarget == "CENTER" or searchTarget == "BATTLE") then
+            for _, p in pairs(panels) do
+                if p ~= panelFrame and p.config and p.config.enabled and IsPrimaryFormPanel(p.config) and (p:IsShown() or MatchesCurrentForm(p.config)) then
+                    resolvedTarget = p
                     break
+                end
+            end
+            if not resolvedTarget then
+                for _, p in pairs(panels) do
+                    if p ~= panelFrame and p.config and p.config.enabled and IsPrimaryFormPanel(p.config) then
+                        resolvedTarget = p
+                        break
+                    end
                 end
             end
         end
@@ -1164,10 +1173,67 @@ end
 
 local _editModePrepared = false
 local _pendingEditModeSync = false
+local _registeredMoverKeys = {}
 
-local function GetPanelMoverLabel(panelConfig, index)
-    local rawName = (panelConfig and panelConfig.name) or ("panel " .. tostring(index))
-    return "icons: " .. string.lower(rawName)
+local function GetPanelMoverKey(panelConfig)
+    if not panelConfig then return "trackedicons_panel" end
+    if IsPrimaryFormPanel(panelConfig) then
+        return "trackedicons_center"
+    end
+    local rawName = panelConfig.name or ""
+    local upperName = string.upper(rawName)
+    if upperName == "UTILITY" then
+        return "trackedicons_utility"
+    elseif upperName == "LEFT" then
+        return "trackedicons_left"
+    elseif upperName == "RIGHT" then
+        return "trackedicons_right"
+    end
+    local slug = string.lower(rawName):gsub("[^a-z0-9]+", "_"):gsub("^_+", ""):gsub("_+$", "")
+    if slug == "" then slug = "panel" end
+    return "trackedicons_custom_" .. slug
+end
+sfui.trackedicons.GetPanelMoverKey = GetPanelMoverKey
+
+local function GetPanelMoverLabel(panelConfig, fallbackKey)
+    if panelConfig and panelConfig.name then
+        return "icons: " .. string.lower(panelConfig.name)
+    end
+    if fallbackKey == "trackedicons_center" then
+        return "icons: center"
+    end
+    return "icons: " .. tostring(fallbackKey or "panel")
+end
+
+local function ResolvePanelForMoverKey(key, allowPrimaryFallback)
+    if key == "trackedicons_center" then
+        local firstPrimary = nil
+        for _, p in pairs(panels) do
+            local pCfg = p and p.config
+            if pCfg and pCfg.enabled and IsPrimaryFormPanel(pCfg) then
+                if not firstPrimary then firstPrimary = p end
+                if MatchesCurrentForm(pCfg) then
+                    return p
+                end
+            end
+        end
+        if allowPrimaryFallback then
+            if firstPrimary then return firstPrimary end
+            for _, p in pairs(panels) do
+                if p and p.config and IsPrimaryFormPanel(p.config) then
+                    return p
+                end
+            end
+        end
+        return nil
+    end
+
+    for _, p in pairs(panels) do
+        if p and p.config and GetPanelMoverKey(p.config) == key then
+            return p
+        end
+    end
+    return nil
 end
 
 local function SyncSiblingFormPanels(sourceCfg)
@@ -1187,6 +1253,7 @@ local function SyncSiblingFormPanels(sourceCfg)
         end
     end
 end
+sfui.trackedicons.SyncSiblingFormPanels = SyncSiblingFormPanels
 
 local function RefreshDependentPanelAnchors(movedPanelFrame)
     for _, otherFrame in pairs(panels) do
@@ -1262,20 +1329,21 @@ local function EnsureEditModePrepared()
     end
 end
 
-local function EnsurePanelMoverRegistered(index, panelFrame)
-    if not panelFrame or not sfui.movers or not sfui.movers.Register then return end
-    local key = "trackedicons_" .. tostring(index)
-    local cfg = panelFrame.config
-    local label = GetPanelMoverLabel(cfg, index)
+local function EnsurePanelMoverRegistered(panelFrame)
+    if not panelFrame or not panelFrame.config or not sfui.movers or not sfui.movers.Register then return end
+    local key = GetPanelMoverKey(panelFrame.config)
+    local activePanel = ResolvePanelForMoverKey(key, true) or panelFrame
+    local cfg = activePanel.config or panelFrame.config
+    local label = GetPanelMoverLabel(cfg, key)
     local prefPt = GetPanelIconAnchor(cfg)
 
-    if panelFrame._moverRegistered and sfui.movers.registry and sfui.movers.registry[key] then
+    if _registeredMoverKeys[key] and sfui.movers.registry and sfui.movers.registry[key] then
         local reg = sfui.movers.registry[key]
         reg.label = label
         reg.preferredPoint = prefPt
         local mover = sfui.movers.list and sfui.movers.list[key]
         if mover then
-            mover.targetFrame = panelFrame
+            mover.targetFrame = activePanel
             if not mover._isDragging and mover.label then
                 mover.label:SetText(label)
             end
@@ -1283,18 +1351,18 @@ local function EnsurePanelMoverRegistered(index, panelFrame)
         return
     end
 
-    panelFrame._moverRegistered = true
-    sfui.movers.Register(panelFrame, {
+    _registeredMoverKeys[key] = true
+    sfui.movers.Register(activePanel, {
         key = key,
         label = label,
         preferredPoint = prefPt,
         customSize = function()
-            local p = panels[index]
+            local p = ResolvePanelForMoverKey(key, false)
             if not p then return 120, 40 end
             return p:GetWidth(), p:GetHeight()
         end,
         getPoint = function()
-            local p = panels[index]
+            local p = ResolvePanelForMoverKey(key, true)
             local pCfg = p and p.config
             local pPt = GetPanelIconAnchor(pCfg)
             if pCfg and pCfg.customMover then
@@ -1315,7 +1383,7 @@ local function EnsurePanelMoverRegistered(index, panelFrame)
             return pPt, UIParent, pPt, (pCfg and pCfg.x) or 0, (pCfg and pCfg.y) or 0
         end,
         setPoint = function(point, _relTo, relPoint, x, y)
-            local p = panels[index]
+            local p = ResolvePanelForMoverKey(key, true)
             local pCfg = p and p.config
             if not pCfg then return end
             local savedPt = point or GetPanelIconAnchor(pCfg)
@@ -1330,7 +1398,15 @@ local function EnsurePanelMoverRegistered(index, panelFrame)
             pCfg.y = y or 0
 
             SyncSiblingFormPanels(pCfg)
-            ApplyPanelAnchor(p, pCfg)
+            if IsPrimaryFormPanel(pCfg) then
+                for _, otherFrame in pairs(panels) do
+                    if otherFrame and otherFrame.config and IsPrimaryFormPanel(otherFrame.config) then
+                        ApplyPanelAnchor(otherFrame, otherFrame.config)
+                    end
+                end
+            else
+                ApplyPanelAnchor(p, pCfg)
+            end
             RefreshDependentPanelAnchors(p)
             sfui.trackedicons.SyncMovers()
             if sfui.trackedoptions and sfui.trackedoptions.SyncPanelPositionControls then
@@ -1338,14 +1414,14 @@ local function EnsurePanelMoverRegistered(index, panelFrame)
             end
         end,
         resetPosition = function()
-            local p = panels[index]
+            local p = ResolvePanelForMoverKey(key, true)
             local pCfg = p and p.config
             if not pCfg then return end
             sfui.trackedicons.ResetPanelPosition(pCfg)
         end,
         isEnabled = function()
             EnsureEditModePrepared()
-            local p = panels[index]
+            local p = ResolvePanelForMoverKey(key, false)
             local pCfg = p and p.config
             if not p or not pCfg or not pCfg.enabled then return false end
             return MatchesCurrentForm(pCfg)
@@ -1377,21 +1453,24 @@ function sfui.trackedicons.SyncMovers()
     if not m or not m.list or not m.registry then return end
 
     local replacementSelectedKey = nil
-    for idx, panelFrame in pairs(panels) do
-        local key = "trackedicons_" .. tostring(idx)
+    for key in pairs(_registeredMoverKeys) do
         local mover = m.list[key]
         local reg = m.registry[key]
         if mover and reg then
-            local cfg = panelFrame.config
-            local lbl = GetPanelMoverLabel(cfg, idx)
+            local panelFrame = ResolvePanelForMoverKey(key, false)
+            local cfg = panelFrame and panelFrame.config
+            local lbl = GetPanelMoverLabel(cfg, key)
             reg.label = lbl
             reg.preferredPoint = GetPanelIconAnchor(cfg)
+            if panelFrame then
+                mover.targetFrame = panelFrame
+            end
             if not mover._isDragging and mover.label then
                 mover.label:SetText(lbl)
             end
 
             if m.isUnlocked then
-                local enabled = (cfg and cfg.enabled and MatchesCurrentForm(cfg)) or false
+                local enabled = (panelFrame and cfg and cfg.enabled and MatchesCurrentForm(cfg)) or false
                 if enabled then
                     if not mover._isDragging then
                         if reg.customSize then
@@ -1473,7 +1552,7 @@ function sfui.trackedicons.Update(event)
                 HidePanelAndStopGlows(panels[i])
             end
 
-            EnsurePanelMoverRegistered(i, panels[i])
+            EnsurePanelMoverRegistered(panels[i])
         end
     end
 

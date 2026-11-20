@@ -67,6 +67,9 @@ local REASON_LABELS = {
     category_sendEngineering   = "engineering",
     category_sendInscription   = "inscription",
     category_sendComprehension = "comprehension",
+    category_sendLockboxes     = "lockboxes",
+    category_sendWaylaidCrates = "waylaid crates",
+    category_sendSealedWrits   = "sealed writs",
 }
 
 local function resolve_partner_alt(partnerGUID, partnerName)

@@ -1438,8 +1438,12 @@ function sfui.initialize_database()
     SfuiDB.trackedBars = SfuiDB.trackedBars or {}
     if SfuiDB.trackedBarsX == nil then SfuiDB.trackedBarsX = -300 end
     if SfuiDB.trackedBarsY == nil then SfuiDB.trackedBarsY = 300 end
-    if not SfuiDB.trackedBars.anchor or (SfuiDB.trackedBars.anchor.x == 0 and SfuiDB.trackedBars.anchor.y == 0) then
+    local tbAnchor = SfuiDB.trackedBars.anchor
+    local isLegacyZero = tbAnchor and (tbAnchor.point == nil) and (tbAnchor.x == 0 and tbAnchor.y == 0)
+    if not tbAnchor or (tbAnchor.x == nil and tbAnchor.y == nil) or isLegacyZero then
         SfuiDB.trackedBars.anchor = {
+            point = "BOTTOM",
+            relPoint = "BOTTOM",
             x = SfuiDB.trackedBarsX or -300,
             y = SfuiDB.trackedBarsY or 300,
         }

@@ -7210,7 +7210,7 @@
         }
       }
     ],
-    "fetched_at": 1794981734
+    "fetched_at": 1795154527
   },
   "first-aid": {
     "spells": [
@@ -8689,7 +8689,7 @@
         }
       }
     ],
-    "fetched_at": 1794981736
+    "fetched_at": 1795154529
   },
   "fishing": {
     "spells": [
@@ -11236,7 +11236,7 @@
           1,
           1
         ],
-        "trainingcost": 4500,
+        "trainingcost": 5000,
         "reagents": [
           [
             8836,
@@ -11294,7 +11294,7 @@
           1,
           1
         ],
-        "trainingcost": 9000,
+        "trainingcost": 10000,
         "reagents": [
           [
             8839,
@@ -11738,7 +11738,7 @@
           1,
           1
         ],
-        "trainingcost": 12600,
+        "trainingcost": 14000,
         "reagents": [
           [
             8846,
@@ -11900,7 +11900,7 @@
         "name": "Alchemy",
         "rank": "Artisan",
         "learnedat": 200,
-        "trainingcost": 45000,
+        "trainingcost": 50000,
         "source": [
           6
         ],
@@ -11987,7 +11987,7 @@
           1,
           1
         ],
-        "trainingcost": 9000,
+        "trainingcost": 10000,
         "reagents": [
           [
             8831,
@@ -12081,7 +12081,7 @@
           2,
           2
         ],
-        "trainingcost": 13500,
+        "trainingcost": 15000,
         "reagents": [
           [
             13422,
@@ -12887,6 +12887,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -13204,6 +13207,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -17780,6 +17784,18 @@
         "skill": 285,
         "level": 57,
         "quality": 2,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Doomforge Arcanasmith",
+            "t": 1,
+            "ti": 8900,
+            "z": 1584
+          }
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -19696,7 +19712,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250991,
@@ -19746,7 +19779,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250994,
@@ -19761,7 +19811,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250995,
@@ -19776,7 +19843,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250997,
@@ -19791,7 +19875,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250998,
@@ -19806,7 +19907,24 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sourcemore": [
+          {
+            "t": 1,
+            "ti": 248196,
+            "n": "Apothecary Durelle",
+            "st": "vendor",
+            "z": 17
+          },
+          {
+            "t": 1,
+            "ti": 256729,
+            "n": "Nina Surefire",
+            "st": "vendor",
+            "z": 44
+          }
+        ],
+        "sm_checked": true
       },
       {
         "id": 250999,
@@ -19954,21 +20072,21 @@
         "source": [
           16
         ],
+        "envChange": {
+          "status": "new",
+          "labels": [],
+          "lines": []
+        },
         "sourcemore": [
           {
             "n": "Mount Hyjal",
             "t": 7,
             "ti": 616
           }
-        ],
-        "envChange": {
-          "status": "new",
-          "labels": [],
-          "lines": []
-        }
+        ]
       }
     ],
-    "fetched_at": 1794981738
+    "fetched_at": 1795154531
   },
   "blacksmithing": {
     "spells": [
@@ -23789,7 +23907,8 @@
           ]
         ],
         "source": [
-          4
+          4,
+          5
         ],
         "envChange": {
           "status": "updated",
@@ -26158,6 +26277,9 @@
             4
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -27394,6 +27516,9 @@
             12810,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -38942,6 +39067,18 @@
         "skill": 205,
         "level": 46,
         "quality": 2,
+        "source": [
+          4
+        ],
+        "sourcemore": [
+          {
+            "c": -121,
+            "c2": 5,
+            "n": "The Old Ways",
+            "t": 5,
+            "ti": 2756
+          }
+        ],
         "envChange": {
           "status": "unconfirmed",
           "labels": [],
@@ -40488,11 +40625,9 @@
         "skill": 300,
         "level": 63,
         "quality": 3,
-        "envChange": {
-          "status": "unchanged",
-          "labels": [],
-          "lines": []
-        },
+        "source": [
+          2
+        ],
         "sourcemore": [
           {
             "n": "Foreman Marcrid",
@@ -40500,7 +40635,12 @@
             "ti": 1844,
             "z": 28
           }
-        ]
+        ],
+        "envChange": {
+          "status": "unchanged",
+          "labels": [],
+          "lines": []
+        }
       },
       {
         "id": 12837,
@@ -41766,7 +41906,8 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sm_checked": true
       },
       {
         "id": 251341,
@@ -41781,7 +41922,8 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sm_checked": true
       },
       {
         "id": 251342,
@@ -41796,7 +41938,8 @@
           "status": "new",
           "labels": [],
           "lines": []
-        }
+        },
+        "sm_checked": true
       },
       {
         "id": 251343,
@@ -45294,7 +45437,7 @@
         }
       }
     ],
-    "fetched_at": 1794981740
+    "fetched_at": 1795154533
   },
   "enchanting": {
     "spells": [
@@ -49860,6 +50003,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -53995,6 +54139,9 @@
             3
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -58114,7 +58261,7 @@
         }
       }
     ],
-    "fetched_at": 1794981742
+    "fetched_at": 1795154535
   },
   "engineering": {
     "spells": [
@@ -60370,7 +60517,6 @@
           ]
         ],
         "source": [
-          2,
           5
         ],
         "envChange": {
@@ -66652,6 +66798,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "new",
           "labels": [],
@@ -71730,7 +71879,7 @@
         }
       }
     ],
-    "fetched_at": 1794981744
+    "fetched_at": 1795154537
   },
   "leatherworking": {
     "spells": [
@@ -78123,6 +78272,9 @@
             1
           ]
         ],
+        "source": [
+          2
+        ],
         "envChange": {
           "status": "unchanged",
           "labels": [],
@@ -79652,6 +79804,9 @@
             14341,
             4
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "unchanged",
@@ -82647,6 +82802,9 @@
             7069,
             2
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -95448,6 +95606,17 @@
         "skill": 260,
         "level": 57,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "n": "Arkkoran Oracle",
+            "t": 1,
+            "ti": 6138,
+            "z": 16
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -95457,15 +95626,7 @@
             "Skill Leatherworking (260) instead of Leatherworking (285)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "n": "Arkkoran Oracle",
-            "t": 1,
-            "ti": 6138,
-            "z": 16
-          }
-        ]
+        }
       },
       {
         "id": 15755,
@@ -96260,6 +96421,18 @@
         "skill": 290,
         "level": 62,
         "quality": 3,
+        "source": [
+          2
+        ],
+        "sourcemore": [
+          {
+            "dd": -1,
+            "n": "Knot Thimblejack's Cache",
+            "t": 2,
+            "ti": 179501,
+            "z": 2557
+          }
+        ],
         "envChange": {
           "status": "updated",
           "labels": [
@@ -96269,16 +96442,7 @@
             "Skill Leatherworking (290) instead of Leatherworking (300)"
           ],
           "notShown": []
-        },
-        "sourcemore": [
-          {
-            "dd": -1,
-            "n": "Knot Thimblejack's Cache",
-            "t": 2,
-            "ti": 179501,
-            "z": 2557
-          }
-        ]
+        }
       },
       {
         "id": 18516,
@@ -102315,7 +102479,7 @@
         }
       }
     ],
-    "fetched_at": 1794981746
+    "fetched_at": 1795154539
   },
   "tailoring": {
     "spells": [
@@ -103764,7 +103928,8 @@
           ]
         ],
         "source": [
-          2
+          2,
+          16
         ],
         "envChange": {
           "status": "unchanged",
@@ -110153,6 +110318,7 @@
           ]
         ],
         "source": [
+          2,
           5
         ],
         "envChange": {
@@ -117661,6 +117827,9 @@
             14341,
             1
           ]
+        ],
+        "source": [
+          2
         ],
         "envChange": {
           "status": "new",
@@ -126536,6 +126705,6 @@
         }
       }
     ],
-    "fetched_at": 1794981748
+    "fetched_at": 1795154541
   }
 }

@@ -454,18 +454,21 @@ function mail.GetRoute(guid)
     local settings = mail.GetSettings()
     if not settings.routes[guid] then
         settings.routes[guid] = {
-            items           = {},
-            sendHerbs       = false,
-            sendOre         = false,
-            sendCloth       = false,
-            sendLeather     = false,
-            sendEnchanting  = false,
-            sendGems        = false,
-            sendElemental   = false,
-            sendCooking     = false,
+            items             = {},
+            sendHerbs         = false,
+            sendOre           = false,
+            sendCloth         = false,
+            sendLeather       = false,
+            sendEnchanting    = false,
+            sendGems          = false,
+            sendElemental     = false,
+            sendCooking       = false,
             sendEngineering   = false,
             sendInscription   = false,
             sendComprehension = false,
+            sendLockboxes     = false,
+            sendWaylaidCrates = false,
+            sendSealedWrits   = false,
         }
     end
     return settings.routes[guid]
@@ -756,19 +759,237 @@ local function IsComprehensionScroll(itemID, itemLink, classID, subclassID)
     return false
 end
 
---- Check if an item matches tradeskill category filters
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Lockboxes, Waylaid Crates & Sealed Writs (wowhead.com/forever + Classic/Retail)
+-- ─────────────────────────────────────────────────────────────────────────────
+local LOCKBOX_IDS = {
+    -- Classic / Forever Lockboxes & Quest Strongboxes
+    [4632]   = true, -- Ornate Bronze Lockbox
+    [4633]   = true, -- Heavy Bronze Lockbox
+    [4634]   = true, -- Iron Lockbox
+    [4636]   = true, -- Strong Iron Lockbox
+    [4637]   = true, -- Steel Lockbox
+    [4638]   = true, -- Reinforced Steel Lockbox
+    [5758]   = true, -- Mithril Lockbox
+    [5759]   = true, -- Thorium Lockbox
+    [5760]   = true, -- Eternium Lockbox
+    [12033]  = true, -- Thaurissan Family Jewels
+    -- Classic / Forever Locked Fishing Chests
+    [6354]   = true, -- Small Locked Chest
+    [6355]   = true, -- Sturdy Locked Chest
+    [13875]  = true, -- Ironbound Locked Chest
+    [13918]  = true, -- Reinforced Locked Chest
+    -- Classic / Forever Rogue Junkboxes
+    [16882]  = true, -- Battered Junkbox
+    [16883]  = true, -- Worn Junkbox
+    [16884]  = true, -- Sturdy Junkbox
+    [16885]  = true, -- Heavy Junkbox
+    -- TBC - Retail Lockboxes & Junkboxes
+    [29569]  = true, -- Strong Junkbox
+    [31952]  = true, -- Khorium Lockbox
+    [43575]  = true, -- Reinforced Junkbox
+    [43622]  = true, -- Froststeel Lockbox
+    [43624]  = true, -- Titanium Lockbox
+    [45986]  = true, -- Tiny Titanium Lockbox
+    [63349]  = true, -- Flame-Scarred Junkbox
+    [68729]  = true, -- Elementium Lockbox
+    [88165]  = true, -- Vine-Cracked Junkbox
+    [88567]  = true, -- Ghost Iron Lockbox
+    [106895] = true, -- Iron-Bound Junkbox
+    [116920] = true, -- True Steel Lockbox
+    [121331] = true, -- Leystone Lockbox
+    [169475] = true, -- Barnacled Lockbox
+    [179311] = true, -- Synvir Lockbox
+    [180522] = true, -- Phaedrum Lockbox
+    [180532] = true, -- Oxxein Lockbox
+    [180533] = true, -- Solenium Lockbox
+    [186161] = true, -- Stygian Lockbox
+    [190954] = true, -- Serevite Lockbox
+    [220376] = true, -- Bismuth Lockbox
+}
+mail.LOCKBOX_IDS = LOCKBOX_IDS
+
+local WAYLAID_CRATE_IDS = {
+    -- Forever Common Unfilled Waylaid Crates (Raw Materials)
+    [248682] = true, -- Waylaid Crate: Apprentice Herbs
+    [248683] = true, -- Waylaid Crate: Apprentice Ore
+    [248684] = true, -- Waylaid Crate: Apprentice Textiles
+    [248685] = true, -- Waylaid Crate: Apprentice Curiosities
+    [248686] = true, -- Waylaid Crate: Journeyman Herbs
+    [248687] = true, -- Waylaid Crate: Journeyman Ore
+    [248688] = true, -- Waylaid Crate: Journeyman Textiles
+    [248689] = true, -- Waylaid Crate: Journeyman Curiosities
+    [248690] = true, -- Waylaid Crate: Earthly Expert Herbs
+    [248691] = true, -- Waylaid Crate: Flowering Expert Herbs
+    [248692] = true, -- Waylaid Crate: Expert Ore
+    [248693] = true, -- Waylaid Crate: Expert Textiles
+    [248694] = true, -- Waylaid Crate: Expert Curiosities
+    [248695] = true, -- Waylaid Crate: Earthly Artisan Herbs
+    [248696] = true, -- Waylaid Crate: Flowering Artisan Herbs
+    [248697] = true, -- Waylaid Crate: Artisan Ore
+    [248698] = true, -- Waylaid Crate: Artisan Textiles
+    [248699] = true, -- Waylaid Crate: Artisan Curiosities
+    -- Forever Uncommon Unfilled Waylaid Crates (Crafted Goods)
+    [248702] = true, -- Waylaid Crate: Apprentice Fabrics
+    [248703] = true, -- Waylaid Crate: Apprentice Ingots
+    [248704] = true, -- Waylaid Crate: Apprentice Parts
+    [248705] = true, -- Waylaid Crate: Journeyman Fabrics
+    [248706] = true, -- Waylaid Crate: Journeyman Ingots
+    [248707] = true, -- Waylaid Crate: Journeyman Parts
+    [248708] = true, -- Waylaid Crate: Expert Fabrics
+    [248709] = true, -- Waylaid Crate: Expert Ingots
+    [248710] = true, -- Waylaid Crate: Expert Parts
+    [248711] = true, -- Waylaid Crate: Artisan Fabrics
+    [248712] = true, -- Waylaid Crate: Artisan Ingots
+    [248713] = true, -- Waylaid Crate: Artisan Parts
+}
+mail.WAYLAID_CRATE_IDS = WAYLAID_CRATE_IDS
+
+local SEALED_WRIT_IDS = {
+    [248206] = true, -- Sealed Craftsman's Writ
+    [262887] = true, -- Sealed Apprentice's Writ
+    [262888] = true, -- Sealed Journeyman's Writ
+    [262889] = true, -- Sealed Expert's Writ
+    [262890] = true, -- Sealed Artisan's Writ
+}
+mail.SEALED_WRIT_IDS = SEALED_WRIT_IDS
+
+local function InspectTooltipLockState(data)
+    if not data or not data.lines or #data.lines == 0 then return nil end
+    local issecret = (sfui.safety and sfui.safety.issecretvalue) or _G.issecretvalue
+    local lockedStr = (type(_G.LOCKED) == "string" and _G.LOCKED or "locked"):lower()
+    local openableStr = (type(_G.ITEM_OPENABLE) == "string" and _G.ITEM_OPENABLE or "<right click to open>"):lower()
+
+    local isLocked = false
+    local isOpenable = false
+    for _, line in ipairs(data.lines) do
+        local raw = line.leftText or (line.args and line.args[2] and line.args[2].stringVal)
+        if type(raw) == "string" and not (issecret and issecret(raw)) then
+            local text = raw:lower()
+            if text == lockedStr or text:find("requires lockpicking", 1, true) then
+                isLocked = true
+            elseif text == openableStr or text:find("right click to open", 1, true) then
+                isOpenable = true
+            end
+        end
+    end
+
+    if isLocked then return true end
+    if isOpenable then return false end
+    return nil
+end
+
+--- Check if an item is a locked lockbox, junkbox, or locked chest needing a rogue
+--- @param itemID number?
+--- @param itemLink string?
+--- @param classID number?
+--- @param subclassID number?
+--- @param bag number?
+--- @param slot number?
+--- @return boolean isLockbox
+local function IsLockbox(itemID, itemLink, classID, subclassID, bag, slot)
+    if not itemID and not itemLink then return false end
+
+    local questClass = (Enum and Enum.ItemClass and Enum.ItemClass.Questitem) or 12
+    if classID == questClass or classID == 12 then
+        return false
+    end
+
+    local miscClass = (Enum and Enum.ItemClass and Enum.ItemClass.Miscellaneous) or 15
+    local consClass = (Enum and Enum.ItemClass and Enum.ItemClass.Consumable) or 0
+    local isLockboxClass = (classID == nil or classID == miscClass or classID == 15 or classID == consClass or classID == 0)
+
+    local C_TooltipInfo = _G.C_TooltipInfo
+    local lockState = nil
+    if bag ~= nil and slot ~= nil and C_TooltipInfo and C_TooltipInfo.GetBagItem then
+        lockState = InspectTooltipLockState(C_TooltipInfo.GetBagItem(bag, slot))
+        if lockState == false then
+            return false
+        elseif lockState == true then
+            return (itemID and LOCKBOX_IDS[itemID] == true) or isLockboxClass
+        end
+    end
+
+    if itemID and LOCKBOX_IDS[itemID] then
+        return true
+    end
+
+    if lockState == nil and isLockboxClass and C_TooltipInfo and C_TooltipInfo.GetHyperlink and itemLink then
+        if InspectTooltipLockState(C_TooltipInfo.GetHyperlink(itemLink)) == true then
+            return true
+        end
+    end
+
+    return false
+end
+mail.IsLockbox = IsLockbox
+
+--- Check if an item is an unfilled Forever Waylaid Crate
+--- @param itemID number?
+--- @param itemLink string?
+--- @return boolean isWaylaidCrate
+local function IsWaylaidCrate(itemID, itemLink)
+    if not itemID and not itemLink then return false end
+    if itemID and WAYLAID_CRATE_IDS[itemID] then
+        return true
+    end
+
+    local itemName = GetItemInfo(itemLink or itemID)
+    local issecret = (sfui.safety and sfui.safety.issecretvalue) or _G.issecretvalue
+    if type(itemName) == "string" and not (issecret and issecret(itemName)) then
+        local lower = itemName:lower()
+        if lower:match("^waylaid%s+crate%s*:") or lower:match("^waylaid%s+supplies%s*:") then
+            return true
+        end
+    end
+
+    return false
+end
+mail.IsWaylaidCrate = IsWaylaidCrate
+
+--- Check if an item is a Sealed Writ envelope (Forever)
+--- @param itemID number?
+--- @param itemLink string?
+--- @return boolean isSealedWrit
+local function IsSealedWrit(itemID, itemLink)
+    if not itemID and not itemLink then return false end
+    if itemID and SEALED_WRIT_IDS[itemID] then
+        return true
+    end
+
+    local itemName = GetItemInfo(itemLink or itemID)
+    local issecret = (sfui.safety and sfui.safety.issecretvalue) or _G.issecretvalue
+    if type(itemName) == "string" and not (issecret and issecret(itemName)) then
+        if itemName:lower():match("^sealed%s+.+%s+writ$") then
+            return true
+        end
+    end
+
+    return false
+end
+mail.IsSealedWrit = IsSealedWrit
+
+--- Check if an item matches tradeskill or utility category filters
 --- @param classID number?
 --- @param subclassID number?
 --- @param categoryKey string
 --- @param itemID number?
 --- @param itemLink string?
+--- @param bag number?
+--- @param slot number?
 --- @return boolean matches
-local function MatchesTradeskillCategory(classID, subclassID, categoryKey, itemID, itemLink)
+local function MatchesTradeskillCategory(classID, subclassID, categoryKey, itemID, itemLink, bag, slot)
     local tradeClass = (Enum and Enum.ItemClass and Enum.ItemClass.Tradegoods) or 7
     local gemClass = (Enum and Enum.ItemClass and Enum.ItemClass.Gem) or 3
     local isTrade = (classID == tradeClass or classID == 7)
 
-    if categoryKey == "sendHerbs" then
+    if categoryKey == "sendLockboxes" then
+        return IsLockbox(itemID, itemLink, classID, subclassID, bag, slot)
+    elseif categoryKey == "sendWaylaidCrates" then
+        return IsWaylaidCrate(itemID, itemLink)
+    elseif categoryKey == "sendSealedWrits" then
+        return IsSealedWrit(itemID, itemLink)
+    elseif categoryKey == "sendHerbs" then
         return isTrade and subclassID == 9
     elseif categoryKey == "sendOre" then
         return isTrade and subclassID == 7
@@ -871,6 +1092,10 @@ end
 --- Find destination recipient for a specific bag item
 --- @param bag number
 local ROUTING_CAT_KEYS = {
+    "sendLockboxes",
+    "sendWaylaidCrates",
+    "sendSealedWrits",
+    "sendComprehension",
     "sendHerbs",
     "sendOre",
     "sendCloth",
@@ -881,7 +1106,6 @@ local ROUTING_CAT_KEYS = {
     "sendCooking",
     "sendEngineering",
     "sendInscription",
-    "sendComprehension",
 }
 
 --- @param slot number
@@ -926,20 +1150,18 @@ function mail.FindDestinationForBagItem(bag, slot, candidateAlts, preloadedInfo,
         end
     end
 
-    -- 2. Category match (herbs, ore, cloth, leather, enchanting, gems, elemental, cooking, engineering, inscription, comprehension)
-    if classID and subclassID then
+    -- 2. Category match (specific ID/utility categories first across all alts, then broad tradeskill filters)
+    for _, catKey in ipairs(ROUTING_CAT_KEYS) do
         for _, alt in ipairs(candidateAlts) do
             local route = settings.routes and settings.routes[alt.guid]
-            if route then
-                for _, catKey in ipairs(ROUTING_CAT_KEYS) do
-                    if route[catKey] and MatchesTradeskillCategory(classID, subclassID, catKey, itemID, itemLink) then
-                        return alt.guid, alt.name, alt.realm, "category_" .. catKey, info
-                    end
-                end
+            if route and route[catKey] and MatchesTradeskillCategory(classID, subclassID, catKey, itemID, itemLink, bag, slot) then
+                return alt.guid, alt.name, alt.realm, "category_" .. catKey, info
             end
         end
+    end
 
-        -- 2b. generic trade goods ("other"): route to the alt handling the profession that uses it most
+    -- 2b. generic trade goods ("other"): route to the alt handling the profession that uses it most
+    if classID and subclassID then
         local tradeClass = (Enum and Enum.ItemClass and Enum.ItemClass.Tradegoods) or 7
         if (classID == tradeClass or classID == 7) and subclassID == TRADE_OTHER_SUBCLASS then
             local catList = mail.GetReagentCategories(itemID)

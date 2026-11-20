@@ -37,23 +37,23 @@ local SRC_POOL = {
         { type = "trainer", cost = 1000 },
     },
     [9] = {
-        { type = "trainer", cost = 5000 },
-    },
-    [10] = {
         { type = "vendor", name = "apothecary durelle", npcID = 248196, zone = "the barrens", mapID = 1413, x = 0.5140, y = 0.3020 },
         { type = "vendor", name = "nina surefire", npcID = 256729, zone = "redridge mountains", mapID = 1433, x = 0.2700, y = 0.4500 },
+    },
+    [10] = {
+        { type = "trainer", cost = 5000 },
     },
     [11] = {
         { type = "trainer", cost = 100 },
     },
     [12] = {
-        { type = "trainer", cost = 250 },
+        { type = "trainer", cost = 10000 },
     },
     [13] = {
-        { type = "trainer", cost = 50 },
+        { type = "trainer", cost = 250 },
     },
     [14] = {
-        { type = "trainer", cost = 10000 },
+        { type = "trainer", cost = 50 },
     },
     [15] = {
         { type = "trainer", cost = 200 },
@@ -98,25 +98,25 @@ local SRC_POOL = {
         { type = "trainer", cost = 3000 },
     },
     [29] = {
-        { type = "vendor", name = "sutara plainstalker", npcID = 264078, zone = "mulgore", mapID = 1412, x = 0.3440, y = 0.2280 },
+        { type = "trainer", cost = 15000 },
     },
     [30] = {
-        { type = "vendor", name = "archmage alvareaux", npcID = 32287, zone = "alterac mountains", mapID = 1416, x = 0.1400, y = 0.6320 },
+        { type = "vendor", name = "sutara plainstalker", npcID = 264078, zone = "mulgore", mapID = 1412, x = 0.3440, y = 0.2280 },
     },
     [31] = {
-        { type = "trainer", cost = 400 },
+        { type = "vendor", name = "archmage alvareaux", npcID = 32287, zone = "alterac mountains", mapID = 1416, x = 0.1400, y = 0.6320 },
     },
     [32] = {
-        { type = "trainer", cost = 2800 },
+        { type = "trainer", cost = 400 },
     },
     [33] = {
-        { type = "trainer", cost = 750 },
+        { type = "trainer", cost = 2800 },
     },
     [34] = {
-        { type = "trainer", cost = 600 },
+        { type = "trainer", cost = 750 },
     },
     [35] = {
-        { type = "trainer", cost = 15000 },
+        { type = "trainer", cost = 600 },
     },
     [36] = {
         { type = "vendor", name = "aza'bek", npcID = 248198, zone = "the barrens", mapID = 1413, x = 0.4960, y = 0.2940 },
@@ -135,166 +135,166 @@ local SRC_POOL = {
         { type = "vendor", name = "vendor", zone = "feralas" },
     },
     [41] = {
-        { type = "trainer", cost = 9000 },
-    },
-    [42] = {
         { type = "trainer", cost = 7500 },
     },
-    [43] = {
+    [42] = {
         { type = "vendor", name = "magnus frostwake", npcID = 11278, zone = "western plaguelands", mapID = 1422, x = 0.6800, y = 0.7740 },
     },
-    [44] = {
+    [43] = {
         { type = "vendor", name = "rin'wosho the trader", npcID = 14921, zone = "stranglethorn vale", faction = "zandalar tribe", standing = "friendly", tokens = "zandalar honor token", mapID = 1434, x = 0.1500, y = 0.1600 },
     },
-    [45] = {
+    [44] = {
         { type = "pickpocket", name = "decoded true believer clippings" },
     },
-    [46] = {
+    [45] = {
         { type = "trainer", cost = 2600 },
     },
-    [47] = {
+    [46] = {
         { type = "drop", name = "zone drop", zone = "molten core" },
     },
-    [48] = {
+    [47] = {
         { type = "vendor", name = "meilosh", npcID = 11557, zone = "felwood", faction = "timbermaw hold", standing = "honored", mapID = 1448, x = 0.6540, y = 0.0280 },
     },
-    [49] = {
+    [48] = {
         { type = "drop", name = "mekgineer thermaplugg", npcID = 7800, zone = "gnomeregan" },
     },
-    [50] = {
+    [49] = {
         { type = "trainer", cost = 105 },
     },
-    [51] = {
+    [50] = {
         { type = "trainer", cost = 157 },
     },
-    [52] = {
+    [51] = {
         { type = "vendor", name = "kelsey yance", npcID = 2664, zone = "stranglethorn vale", mapID = 1434, x = 0.2820, y = 0.7440 },
     },
-    [53] = {
+    [52] = {
         { type = "vendor", name = "gikkix", npcID = 8137, zone = "tanaris", mapID = 1446, x = 0.6660, y = 0.2200 },
     },
-    [54] = {
+    [53] = {
         { type = "vendor", name = "qia", npcID = 11189, zone = "winterspring", mapID = 1452, x = 0.6120, y = 0.3720 },
     },
-    [55] = {
+    [54] = {
         { type = "vendor", name = "dala fairmaw", npcID = 256629, zone = "mount hyjal", mapID = 2482, x = 0.2100, y = 0.7860 },
     },
-    [56] = {
+    [55] = {
         { type = "trainer", cost = 450 },
     },
-    [57] = {
+    [56] = {
         { type = "trainer", cost = 6500 },
     },
-    [58] = {
+    [57] = {
         { type = "vendor", name = "alchemist pestlezugg", npcID = 5594, zone = "tanaris", mapID = 1446, x = 0.5080, y = 0.2700 },
     },
-    [59] = {
+    [58] = {
         { type = "trainer", cost = 800 },
     },
-    [60] = {
+    [59] = {
         { type = "vendor", name = "lokhtos darkbargainer", npcID = 12944, zone = "blackrock depths", faction = "thorium brotherhood", standing = "friendly", tokens = "dark iron ore x10" },
     },
-    [61] = {
+    [60] = {
         { type = "vendor", name = "lokhtos darkbargainer", npcID = 12944, zone = "blackrock depths", faction = "thorium brotherhood", standing = "honored", tokens = "dark iron ore x20" },
     },
-    [62] = {
+    [61] = {
         { type = "trainer", cost = 6200 },
     },
-    [63] = {
+    [62] = {
         { type = "drop", name = "arcanist doan", npcID = 6487, zone = "scarlet monastery" },
     },
-    [64] = {
+    [63] = {
         { type = "trainer", cost = 6000 },
     },
-    [65] = {
-        { type = "trainer", cost = 4500 },
+    [64] = {
+        { type = "trainer", cost = 9000 },
     },
-    [66] = {
+    [65] = {
         { type = "vendor", name = "meilosh", npcID = 11557, zone = "felwood", faction = "timbermaw hold", standing = "revered", mapID = 1448, x = 0.6540, y = 0.0280 },
     },
-    [67] = {
+    [66] = {
         { type = "vendor", name = "rin'wosho the trader", npcID = 14921, zone = "stranglethorn vale", faction = "zandalar tribe", standing = "honored", tokens = "zandalar honor token", mapID = 1434, x = 0.1500, y = 0.1600 },
     },
-    [68] = {
+    [67] = {
         { type = "drop", name = "zone drop", zone = "mount hyjal" },
     },
-    [69] = {
+    [68] = {
         { type = "drop", name = "goraluk anvilcrack", npcID = 10899, zone = "blackrock spire" },
     },
-    [70] = {
+    [69] = {
         { type = "vendor", name = "lokhtos darkbargainer", npcID = 12944, zone = "blackrock depths", faction = "thorium brotherhood", standing = "revered", tokens = "dark iron ore x25" },
     },
-    [71] = {
+    [70] = {
         { type = "trainer", cost = 3600 },
     },
-    [72] = {
+    [71] = {
         { type = "drop", name = "zone drop", zone = "azshara" },
     },
-    [73] = {
+    [72] = {
         { type = "vendor", name = "lorelae wintersong", npcID = 12022, zone = "moonglade", mapID = 1450, x = 0.4840, y = 0.4000 },
     },
-    [74] = {
+    [73] = {
         { type = "drop", name = "spectral researcher", npcID = 10499, zone = "scholomance" },
     },
-    [75] = {
+    [74] = {
         { type = "trainer", cost = 1200 },
     },
-    [76] = {
+    [75] = {
         { type = "trainer", cost = 1800 },
     },
-    [77] = {
+    [76] = {
         { type = "drop", name = "weapon technician", npcID = 8920, zone = "blackrock depths" },
     },
-    [78] = {
+    [77] = {
         { type = "vendor", name = "xizzer fizzbolt", npcID = 11185, zone = "winterspring", mapID = 1452, x = 0.6080, y = 0.3840 },
     },
-    [79] = {
+    [78] = {
         { type = "drop", name = "crimson inquisitor", npcID = 10426, zone = "stratholme" },
     },
-    [80] = {
+    [79] = {
         { type = "trainer", cost = 350 },
     },
-    [81] = {
+    [80] = {
         { type = "vendor", name = "darnall", npcID = 7940, zone = "moonglade", mapID = 1450, x = 0.5140, y = 0.3320 },
     },
-    [82] = {
+    [81] = {
         { type = "trainer", cost = 52 },
     },
-    [83] = {
+    [82] = {
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [84] = {
+    [83] = {
         { type = "drop", name = "zone drop", zone = "the barrens" },
     },
-    [85] = {
+    [84] = {
         { type = "vendor", name = "vendor", zone = "desolace" },
     },
-    [86] = {
+    [85] = {
         { type = "drop", name = "deadwind ogre mage", npcID = 7379, zone = "deadwind pass" },
     },
-    [87] = {
+    [86] = {
         { type = "trainer", cost = 263 },
     },
-    [88] = {
+    [87] = {
         { type = "trainer", cost = 8000 },
     },
-    [89] = {
+    [88] = {
         { type = "trainer", cost = 10800 },
     },
-    [90] = {
+    [89] = {
         { type = "drop", name = "zone drop", zone = "western plaguelands" },
     },
-    [91] = {
+    [90] = {
         { type = "drop", name = "blackrock slayer", npcID = 7027, zone = "burning steppes", mapID = 1428, x = 0.3920, y = 0.3420 },
     },
-    [92] = {
+    [91] = {
         { type = "drop", name = "zone drop", zone = "eastern plaguelands" },
     },
-    [93] = {
+    [92] = {
         { type = "vendor", name = "plugger spazzring", npcID = 9499, zone = "blackrock depths" },
     },
-    [94] = {
+    [93] = {
         { type = "drop", name = "azuregos", npcID = 6109 },
+    },
+    [94] = {
+        { type = "drop", name = "doomforge arcanasmith", npcID = 8900, zone = "blackrock depths" },
     },
     [95] = {
         { type = "drop", name = "cobalt mageweaver", npcID = 7437, zone = "winterspring", mapID = 1452, x = 0.5400, y = 0.5440 },
@@ -397,280 +397,280 @@ local SRC_POOL = {
         { type = "drop", name = "wastewander rogue", npcID = 5615, zone = "tanaris", mapID = 1446, x = 0.5840, y = 0.3640 },
     },
     [127] = {
-        { type = "drop", name = "zone drop", zone = "tanaris" },
+        { type = "trainer", cost = 4500 },
     },
     [128] = {
-        { type = "vendor", name = "zannok hidepiercer", npcID = 12956, zone = "silithus", mapID = 1451, x = 0.8180, y = 0.1780 },
+        { type = "drop", name = "zone drop", zone = "tanaris" },
     },
     [129] = {
-        { type = "drop", name = "blackrock soldier", npcID = 7025, zone = "burning steppes", mapID = 1428, x = 0.3920, y = 0.5540 },
+        { type = "vendor", name = "zannok hidepiercer", npcID = 12956, zone = "silithus", mapID = 1451, x = 0.8180, y = 0.1780 },
     },
     [130] = {
-        { type = "vendor", name = "meilosh", npcID = 11557, zone = "felwood", faction = "timbermaw hold", standing = "friendly", mapID = 1448, x = 0.6540, y = 0.0280 },
+        { type = "drop", name = "blackrock soldier", npcID = 7025, zone = "burning steppes", mapID = 1428, x = 0.3920, y = 0.5540 },
     },
     [131] = {
-        { type = "drop", name = "winterfall den watcher", npcID = 7440, zone = "winterspring", mapID = 1452, x = 0.2960, y = 0.3680 },
+        { type = "vendor", name = "meilosh", npcID = 11557, zone = "felwood", faction = "timbermaw hold", standing = "friendly", mapID = 1448, x = 0.6540, y = 0.0280 },
     },
     [132] = {
-        { type = "drop", name = "deadwood shaman", npcID = 7158, zone = "felwood", mapID = 1448, x = 0.6020, y = 0.0600 },
+        { type = "drop", name = "winterfall den watcher", npcID = 7440, zone = "winterspring", mapID = 1452, x = 0.2960, y = 0.3680 },
     },
     [133] = {
-        { type = "drop", name = "zone drop", zone = "un'goro crater" },
+        { type = "drop", name = "deadwood shaman", npcID = 7158, zone = "felwood", mapID = 1448, x = 0.6020, y = 0.0600 },
     },
     [134] = {
-        { type = "drop", name = "crimson battle mage", npcID = 10425, zone = "stratholme" },
+        { type = "drop", name = "zone drop", zone = "un'goro crater" },
     },
     [135] = {
+        { type = "drop", name = "crimson battle mage", npcID = 10425, zone = "stratholme" },
+    },
+    [136] = {
         { type = "quest", name = "leather for inclement weather", questID = 90854 },
         { type = "vendor", name = "pexmit", npcID = 266901, zone = "mount hyjal", mapID = 2482, x = 0.5880, y = 0.4180 },
     },
-    [136] = {
+    [137] = {
         { type = "drop", name = "zone drop", zone = "ragefire chasm" },
     },
-    [137] = {
+    [138] = {
         { type = "drop", name = "twilight fire guard", npcID = 5861, zone = "searing gorge", mapID = 1427, x = 0.1320, y = 0.4100 },
     },
-    [138] = {
+    [139] = {
         { type = "quest", name = "festive recipes", questID = 8878 },
     },
-    [139] = {
+    [140] = {
         { type = "quest", name = "i need a tailor", questID = 92814 },
         { type = "vendor", name = "vendor", zone = "desolace" },
     },
-    [140] = {
+    [141] = {
         { type = "quest", name = "goretusk liver pie", questID = 22 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [141] = {
+    [142] = {
         { type = "quest", name = "westfall stew", questID = 38 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [142] = {
+    [143] = {
         { type = "trainer", cost = 210 },
     },
-    [143] = {
+    [144] = {
         { type = "quest", name = "redridge goulash", questID = 92 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [144] = {
+    [145] = {
         { type = "quest", name = "seasoned wolf kabobs", questID = 90 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [145] = {
+    [146] = {
         { type = "quest", name = "beer basted boar ribs", questID = 384 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [146] = {
+    [147] = {
         { type = "quest", name = "crocolisk hunting", questID = 385 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [147] = {
+    [148] = {
         { type = "quest", name = "thelsamar blood sausages", questID = 418 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [148] = {
+    [149] = {
         { type = "quest", name = "selling fish", questID = 127 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [149] = {
+    [150] = {
         { type = "quest", name = "apprentice's duties", questID = 471 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [150] = {
+    [151] = {
         { type = "quest", name = "ormer's revenge", questID = 296 },
     },
-    [151] = {
+    [152] = {
         { type = "quest", name = "dusky crab cakes", questID = 93 },
         { type = "vendor", name = "kendor kabonka", npcID = 340, zone = "stormwind city", mapID = 1453, x = 0.7440, y = 0.3640 },
     },
-    [152] = {
+    [153] = {
         { type = "quest", name = "the rescue", questID = 498 },
     },
-    [153] = {
+    [154] = {
         { type = "quest", name = "elixir of pain", questID = 501 },
     },
-    [154] = {
+    [155] = {
         { type = "quest", name = "costly menace", questID = 564 },
     },
-    [155] = {
+    [156] = {
         { type = "quest", name = "quest", zone = "hillsbrad foothills" },
     },
-    [156] = {
+    [157] = {
         { type = "quest", name = "barbecued buzzard wings", questID = 703 },
     },
-    [157] = {
+    [158] = {
         { type = "quest", name = "recipe of the kaldorei", questID = 4161 },
     },
-    [158] = {
+    [159] = {
         { type = "vendor", name = "wunna darkmane", npcID = 3081, zone = "mulgore", mapID = 1412, x = 0.4540, y = 0.6180 },
     },
-    [159] = {
+    [160] = {
         { type = "vendor", name = "laird", npcID = 4200, zone = "darkshore", mapID = 1439, x = 0.3680, y = 0.4420 },
     },
-    [160] = {
+    [161] = {
         { type = "quest", name = "easy strider living", questID = 2178 },
         { type = "vendor", name = "tari'qa", npcID = 3482, zone = "the barrens", mapID = 1413, x = 0.5160, y = 0.3000 },
     },
-    [161] = {
+    [162] = {
         { type = "quest", name = "dig rat stew", questID = 862 },
     },
-    [162] = {
+    [163] = {
         { type = "vendor", name = "tari'qa", npcID = 3482, zone = "the barrens", mapID = 1413, x = 0.5160, y = 0.3000 },
     },
-    [163] = {
+    [164] = {
         { type = "trainer", cost = 315 },
     },
-    [164] = {
+    [165] = {
         { type = "vendor", name = "khara deepwater", npcID = 1684, zone = "loch modan", mapID = 1432, x = 0.3940, y = 0.3920 },
     },
-    [165] = {
+    [166] = {
         { type = "vendor", name = "smudge thunderwood", npcID = 6779, zone = "alterac mountains", mapID = 1416, x = 0.8600, y = 0.7940 },
     },
-    [166] = {
+    [167] = {
         { type = "vendor", name = "super-seller 680", npcID = 12246, zone = "desolace", mapID = 1443, x = 0.4040, y = 0.7920 },
     },
-    [167] = {
+    [168] = {
         { type = "vendor", name = "searing hatchling", npcID = 4323, zone = "dustwallow marsh" },
     },
-    [168] = {
+    [169] = {
         { type = "vendor", name = "abigail shiel", npcID = 2118, zone = "tirisfal glades", mapID = 1420, x = 0.6100, y = 0.5240 },
     },
-    [169] = {
+    [170] = {
         { type = "trainer", cost = 4210 },
     },
-    [170] = {
+    [171] = {
         { type = "drop", name = "pusillin", npcID = 14354, zone = "dire maul" },
     },
-    [171] = {
+    [172] = {
         { type = "vendor", name = "ogg'marr", npcID = 4879, zone = "dustwallow marsh", mapID = 1445, x = 0.3660, y = 0.3100 },
     },
-    [172] = {
+    [173] = {
         { type = "quest", name = "sharing the knowledge (calandrath)", questID = 8307, zone = "silithus" },
     },
-    [173] = {
+    [174] = {
         { type = "quest", name = "dirge's kickin' chimaerok chops (the scepter of the shifting sands)", questID = 8313, zone = "tanaris" },
     },
-    [174] = {
+    [175] = {
         { type = "drop", name = "frostmane seer", npcID = 1397, zone = "dun morogh", mapID = 1426, x = 0.4020, y = 0.4280 },
     },
-    [175] = {
+    [176] = {
         { type = "drop", name = "windshear geomancer", npcID = 4003, zone = "stonetalon mountains", mapID = 1442, x = 0.7160, y = 0.6040 },
     },
-    [176] = {
+    [177] = {
         { type = "drop", name = "torn fin oracle", npcID = 2376, zone = "hillsbrad foothills", mapID = 1424, x = 0.3540, y = 0.6640 },
     },
-    [177] = {
+    [178] = {
         { type = "drop", name = "woodpaw mystic", npcID = 5254, zone = "feralas" },
     },
-    [178] = {
+    [179] = {
         { type = "drop", name = "marsh oracle", npcID = 752, zone = "swamp of sorrows" },
     },
-    [179] = {
+    [180] = {
         { type = "drop", name = "monstrous plaguebat", npcID = 8602, zone = "eastern plaguelands" },
     },
-    [180] = {
+    [181] = {
         { type = "drop", name = "child of tortolla", npcID = 249224, zone = "mount hyjal" },
     },
-    [181] = {
+    [182] = {
         { type = "drop", name = "ghostfang alpha", npcID = 249225, zone = "mount hyjal" },
     },
-    [182] = {
+    [183] = {
         { type = "drop", name = "rabid shardtooth", npcID = 7446, zone = "winterspring" },
     },
-    [183] = {
+    [184] = {
         { type = "quest", name = "quest", zone = "mount hyjal" },
     },
-    [184] = {
+    [185] = {
         { type = "drop", name = "frostsaber pride watcher", npcID = 7434, zone = "winterspring" },
     },
-    [185] = {
+    [186] = {
         { type = "drop", name = "venomhide ravasaur", npcID = 6508, zone = "un'goro crater" },
     },
-    [186] = {
+    [187] = {
         { type = "drop", name = "ashenvale bear", npcID = 3809, zone = "ashenvale", mapID = 1440, x = 0.3200, y = 0.3880 },
     },
-    [187] = {
+    [188] = {
         { type = "drop", name = "bloodfen lashtail", npcID = 4357, zone = "dustwallow marsh" },
     },
-    [188] = {
+    [189] = {
         { type = "drop", name = "young stranglethorn raptor", npcID = 855, zone = "stranglethorn vale", mapID = 1434, x = 0.2340, y = 0.1540 },
         { type = "quest", name = "changing tastes", questID = 95697 },
     },
-    [189] = {
+    [190] = {
         { type = "drop", name = "lost one cook", npcID = 1106, zone = "swamp of sorrows" },
     },
-    [190] = {
+    [191] = {
         { type = "drop", name = "mottled raptor", npcID = 1020, zone = "wetlands", mapID = 1437, x = 0.2000, y = 0.4960 },
         { type = "drop", name = "sunscale screecher", npcID = 3255, zone = "the barrens", mapID = 1413, x = 0.4020, y = 0.2880 },
     },
-    [191] = {
+    [192] = {
         { type = "drop", name = "dire condor", npcID = 428, zone = "redridge mountains", mapID = 1433, x = 0.1810, y = 0.3680 },
     },
-    [192] = {
+    [193] = {
         { type = "drop", name = "spitelash enchantress", npcID = 7886, zone = "azshara" },
     },
-    [193] = {
+    [194] = {
         { type = "quest", name = "restocking the larders", questID = 92553 },
     },
-    [194] = {
+    [195] = {
         { type = "quest", name = "crab season", questID = 93317 },
     },
-    [195] = {
+    [196] = {
         { type = "quest", name = "a taste of the sea", questID = 95121 },
         { type = "vendor", name = "fimbo greasemitz", npcID = 259962, zone = "riverglades" },
     },
-    [196] = {
+    [197] = {
         { type = "quest", name = "paletusk harvesting", questID = 95162 },
         { type = "vendor", name = "vendor", zone = "riverglades" },
     },
-    [197] = {
+    [198] = {
         { type = "object", name = "recipe: raw plated armorfish", zone = "deadwind pass" },
     },
-    [198] = {
+    [199] = {
         { type = "trainer", cost = 842 },
     },
-    [199] = {
+    [200] = {
         { type = "drop", name = "syndicate mercenary", npcID = 2589, zone = "arathi highlands", mapID = 1417, x = 0.3120, y = 0.2620 },
     },
-    [200] = {
+    [201] = {
         { type = "drop", name = "gordunni shaman", npcID = 5236, zone = "feralas" },
     },
-    [201] = {
+    [202] = {
         { type = "quest", name = "a rest without pain", questID = 96622 },
         { type = "vendor", name = "pexmit", npcID = 266901, zone = "mount hyjal", mapID = 2482, x = 0.5880, y = 0.4180 },
     },
-    [202] = {
+    [203] = {
         { type = "drop", name = "lost one muckdweller", npcID = 760, zone = "swamp of sorrows", mapID = 1435, x = 0.4300, y = 0.3720 },
     },
-    [203] = {
+    [204] = {
         { type = "drop", name = "defias enchanter", npcID = 910, zone = "duskwood", mapID = 1431, x = 0.2100, y = 0.7220 },
     },
-    [204] = {
+    [205] = {
         { type = "drop", name = "syndicate sentry", npcID = 2243, zone = "alterac mountains" },
     },
-    [205] = {
+    [206] = {
         { type = "quest", name = "transmuted tincture", questID = 86812 },
     },
-    [206] = {
+    [207] = {
         { type = "trainer", cost = 1263 },
     },
-    [207] = {
+    [208] = {
         { type = "drop", name = "shadowforge tunneler", npcID = 2739, zone = "badlands" },
     },
-    [208] = {
+    [209] = {
         { type = "drop", name = "scarlet trainee", npcID = 6575, zone = "scarlet monastery" },
     },
-    [209] = {
+    [210] = {
         { type = "vendor", name = "bro'kin", npcID = 2480, zone = "alterac mountains", mapID = 1416, x = 0.3840, y = 0.3880 },
     },
-    [210] = {
+    [211] = {
         { type = "quest", name = "liquid stone", questID = 715 },
     },
-    [211] = {
-        { type = "trainer", cost = 12600 },
-    },
     [212] = {
-        { type = "trainer", cost = 13500 },
+        { type = "trainer", cost = 14000 },
     },
     [213] = {
         { type = "container", name = "small brown-wrapped package" },
@@ -923,7 +923,7 @@ local SRC_POOL = {
         { type = "drop", name = "quartermaster zigris", npcID = 9736, zone = "blackrock spire" },
     },
     [291] = {
-        { type = "trainer", name = "foreman marcrid", npcID = 1844, zone = "western plaguelands", mapID = 1422, x = 0.4360, y = 0.3480 },
+        { type = "drop", name = "foreman marcrid", npcID = 1844, zone = "western plaguelands", mapID = 1422, x = 0.4360, y = 0.3480 },
     },
     [292] = {
         { type = "drop", name = "bannok grimaxe", npcID = 9596, zone = "blackrock spire" },
@@ -1302,508 +1302,505 @@ local SRC_POOL = {
         { type = "drop", name = "doomforge craftsman", npcID = 8897, zone = "blackrock depths" },
     },
     [411] = {
-        { type = "drop", name = "doomforge arcanasmith", npcID = 8900, zone = "blackrock depths" },
-    },
-    [412] = {
         { type = "trainer", name = "cobalt mageweaver", npcID = 7437, zone = "winterspring", mapID = 1452, x = 0.5400, y = 0.5440 },
     },
-    [413] = {
+    [412] = {
         { type = "drop", name = "mossflayer shadowhunter", npcID = 8561, zone = "eastern plaguelands", mapID = 1423, x = 0.6340, y = 0.2360 },
     },
-    [414] = {
+    [413] = {
         { type = "object", name = "schematic on floor near golem lord argelmach", zone = "blackrock depths", mapID = 1584 },
     },
-    [415] = {
+    [414] = {
         { type = "vendor", name = "sovik", npcID = 3413, zone = "orgrimmar", mapID = 1454, x = 0.7500, y = 0.2440 },
     },
-    [416] = {
+    [415] = {
         { type = "vendor", name = "mazk snipeshot", npcID = 2685, zone = "stranglethorn vale", mapID = 1434, x = 0.2840, y = 0.7500 },
     },
-    [417] = {
+    [416] = {
         { type = "drop", name = "plugger spazzring", npcID = 9499, zone = "blackrock depths" },
     },
-    [418] = {
+    [417] = {
         { type = "object", name = "gordok tribute", zone = "dire maul" },
     },
-    [419] = {
+    [418] = {
         { type = "drop", name = "solakar flamewreath", npcID = 10264, zone = "blackrock spire" },
     },
-    [420] = {
+    [419] = {
         { type = "vendor", name = "zorbin fandazzle", npcID = 14637, zone = "feralas", mapID = 1444, x = 0.4480, y = 0.4340 },
     },
-    [421] = {
+    [420] = {
         { type = "quest", name = "firework launcher", questID = 8877 },
     },
-    [422] = {
+    [421] = {
         { type = "quest", name = "cluster launcher", questID = 8882 },
     },
-    [423] = {
+    [422] = {
         { type = "quest", name = "40 tickets - schematic: steam tonk controller", questID = 9249 },
         { type = "vendor", name = "gelvas grimegate", npcID = 14828 },
     },
-    [424] = {
+    [423] = {
         { type = "drop", name = "scarlet scout", npcID = 4281, zone = "tirisfal glades", mapID = 1420, x = 0.8160, y = 0.3280 },
     },
-    [425] = {
+    [424] = {
         { type = "drop", name = "dark iron demolitionist", npcID = 1054, zone = "wetlands" },
     },
-    [426] = {
+    [425] = {
         { type = "drop", name = "venture co. miner", npcID = 1094, zone = "stranglethorn vale" },
     },
-    [427] = {
+    [426] = {
         { type = "drop", name = "boulderfist shaman", npcID = 2570, zone = "arathi highlands" },
     },
-    [428] = {
+    [427] = {
         { type = "drop", name = "shadowforge geologist", npcID = 7030, zone = "uldaman" },
     },
-    [429] = {
+    [428] = {
         { type = "drop", name = "dark iron geologist", npcID = 5839, zone = "searing gorge" },
     },
-    [430] = {
+    [429] = {
         { type = "drop", name = "jade ooze", npcID = 2656, zone = "the hinterlands" },
     },
-    [431] = {
+    [430] = {
         { type = "drop", name = "dunemaul brute", npcID = 5474, zone = "tanaris" },
     },
-    [432] = {
+    [431] = {
         { type = "drop", name = "firegut ogre", npcID = 7033, zone = "burning steppes" },
     },
-    [433] = {
+    [432] = {
         { type = "drop", name = "scourge guard", npcID = 8527, zone = "eastern plaguelands" },
     },
-    [434] = {
+    [433] = {
         { type = "drop", name = "jaedenar legionnaire", npcID = 9862, zone = "felwood" },
     },
-    [435] = {
+    [434] = {
         { type = "drop", name = "blackmaw headhunter", npcID = 250027 },
     },
-    [436] = {
+    [435] = {
         { type = "quest", name = "itching for a fixing", questID = 91564 },
         { type = "vendor", name = "pexmit", npcID = 266901, zone = "mount hyjal", mapID = 2482, x = 0.5880, y = 0.4180 },
     },
-    [437] = {
+    [436] = {
         { type = "drop", name = "crowd pummeler 9-60", npcID = 6229, zone = "gnomeregan" },
     },
-    [438] = {
+    [437] = {
         { type = "drop", name = "decrepit harvester", npcID = 276061, zone = "tirisfal glades", mapID = 1420, x = 0.5200, y = 0.5500 },
         { type = "quest", name = "harvesting the harvesters", questID = 92911 },
     },
-    [439] = {
+    [438] = {
         { type = "drop", name = "crushridge warmonger", npcID = 2287, zone = "alterac mountains" },
     },
-    [440] = {
+    [439] = {
         { type = "trainer", cost = 78 },
     },
-    [441] = {
+    [440] = {
         { type = "drop", name = "haunting phantasm", npcID = 6427, zone = "scarlet monastery" },
     },
-    [442] = {
+    [441] = {
         { type = "drop", name = "dragonmaw centurion", npcID = 1036, zone = "wetlands", mapID = 1437, x = 0.4840, y = 0.4600 },
         { type = "vendor", name = "tunkk", npcID = 2819, zone = "arathi highlands", faction = "horde", mapID = 1417, x = 0.7480, y = 0.3440 },
     },
-    [443] = {
+    [442] = {
         { type = "drop", name = "daggerspine shorestalker", npcID = 2368, zone = "hillsbrad foothills", mapID = 1424, x = 0.5940, y = 0.7400 },
         { type = "vendor", name = "androd fadran", npcID = 2816, zone = "arathi highlands", faction = "alliance", mapID = 1417, x = 0.4500, y = 0.4680 },
     },
-    [444] = {
+    [443] = {
         { type = "quest", name = "kodo hide bag", questID = 769 },
     },
-    [445] = {
+    [444] = {
         { type = "vendor", name = "bloodsail raider", npcID = 1561, zone = "stranglethorn vale" },
     },
-    [446] = {
+    [445] = {
         { type = "quest", name = "deviate eradication", questID = 1487 },
     },
-    [447] = {
+    [446] = {
         { type = "quest", name = "moonglow vest", questID = 1582 },
     },
-    [448] = {
+    [447] = {
         { type = "drop", name = "redridge mongrel", npcID = 423, zone = "redridge mountains", mapID = 1433, x = 0.0890, y = 0.6580 },
         { type = "vendor", name = "clyde ranthal", npcID = 2697, zone = "redridge mountains", faction = "alliance", mapID = 1433, x = 0.8380, y = 0.7080 },
     },
-    [449] = {
+    [448] = {
         { type = "drop", name = "dragonmaw scout", npcID = 2103, zone = "wetlands", mapID = 1437, x = 0.4740, y = 0.7640 },
         { type = "vendor", name = "wenna silkbeard", npcID = 2679, zone = "wetlands", faction = "alliance", mapID = 1437, x = 0.2560, y = 0.2580 },
     },
-    [450] = {
+    [449] = {
         { type = "drop", name = "shadethicket raincaller", npcID = 3783, zone = "ashenvale", mapID = 1440, x = 0.3240, y = 0.6740 },
         { type = "vendor", name = "harlown darkweave", npcID = 6731, zone = "ashenvale", mapID = 1440, x = 0.1820, y = 0.6000 },
     },
-    [451] = {
+    [450] = {
         { type = "vendor", name = "zixil", npcID = 3537, zone = "hillsbrad foothills", mapID = 1424, x = 0.5040, y = 0.5080 },
     },
-    [452] = {
+    [451] = {
         { type = "object", name = "ancient treasure", zone = "uldaman" },
     },
-    [453] = {
+    [452] = {
         { type = "drop", name = "zone drop", zone = "feralas" },
     },
-    [454] = {
+    [453] = {
         { type = "trainer", cost = 3500 },
     },
-    [455] = {
+    [454] = {
         { type = "drop", name = "wastewander bandit", npcID = 5618, zone = "tanaris", mapID = 1446, x = 0.5880, y = 0.2340 },
     },
-    [456] = {
+    [455] = {
         { type = "drop", name = "wastewander shadow mage", npcID = 5617, zone = "tanaris", mapID = 1446, x = 0.5840, y = 0.3720 },
     },
-    [457] = {
+    [456] = {
         { type = "drop", name = "skeletal berserker", npcID = 10391, zone = "stratholme" },
     },
-    [458] = {
+    [457] = {
         { type = "drop", name = "atal'ai witch doctor", npcID = 5259, zone = "the temple of atal&apos;hakkar" },
         { type = "vendor", name = "masat t'andr", npcID = 11874, zone = "swamp of sorrows", faction = "alliance", mapID = 1435, x = 0.2620, y = 0.3140 },
     },
-    [459] = {
+    [458] = {
         { type = "drop", name = "portal seeker", npcID = 5981, zone = "blasted lands", mapID = 1419, x = 0.4440, y = 0.3340 },
     },
-    [460] = {
+    [459] = {
         { type = "vendor", name = "blimo gadgetspring", npcID = 12957, zone = "azshara", mapID = 1447, x = 0.4520, y = 0.9080 },
     },
-    [461] = {
+    [460] = {
         { type = "drop", name = "general drakkisath", npcID = 10363, zone = "blackrock spire" },
     },
-    [462] = {
+    [461] = {
         { type = "drop", name = "firegut brute", npcID = 7035, zone = "burning steppes", mapID = 1428, x = 0.7640, y = 0.3800 },
     },
-    [463] = {
+    [462] = {
         { type = "drop", name = "murk worm", npcID = 5226, zone = "sunken temple" },
     },
-    [464] = {
+    [463] = {
         { type = "vendor", name = "vilebranch hideskinner", npcID = 2644, zone = "the hinterlands", mapID = 1425, x = 0.5780, y = 0.6660 },
         { type = "vendor", name = "gigget zipcoil", npcID = 12958, zone = "the hinterlands", mapID = 1425, x = 0.3440, y = 0.3840 },
     },
-    [465] = {
+    [464] = {
         { type = "drop", name = "jaedenar cultist", npcID = 7112, zone = "felwood", mapID = 1448, x = 0.3500, y = 0.5920 },
     },
-    [466] = {
+    [465] = {
         { type = "drop", name = "jadefire trickster", npcID = 7107, zone = "felwood", mapID = 1448, x = 0.3640, y = 0.5640 },
     },
-    [467] = {
+    [466] = {
         { type = "drop", name = "firebrand grunt", npcID = 9259, zone = "blackrock spire" },
     },
-    [468] = {
+    [467] = {
         { type = "vendor", name = "cliff walker", npcID = 6148, zone = "azshara" },
         { type = "vendor", name = "blimo gadgetspring", npcID = 12957, zone = "azshara", mapID = 1447, x = 0.4520, y = 0.9080 },
     },
-    [469] = {
-        { type = "trainer", name = "arkkoran oracle", npcID = 6138, zone = "azshara", mapID = 1447, x = 0.7420, y = 0.4020 },
+    [468] = {
+        { type = "drop", name = "arkkoran oracle", npcID = 6138, zone = "azshara", mapID = 1447, x = 0.7420, y = 0.4020 },
     },
-    [470] = {
+    [469] = {
         { type = "vendor", name = "jase farlane", npcID = 12941, zone = "eastern plaguelands", mapID = 1423, x = 0.8040, y = 0.5760 },
     },
-    [471] = {
+    [470] = {
         { type = "vendor", name = "devilsaur", npcID = 6498, zone = "un'goro crater" },
         { type = "vendor", name = "nergal", npcID = 12959, zone = "un'goro crater", mapID = 1449, x = 0.4320, y = 0.0780 },
     },
-    [472] = {
+    [471] = {
         { type = "drop", name = "vilebranch hideskinner", npcID = 2644, zone = "the hinterlands", mapID = 1425, x = 0.5780, y = 0.6660 },
     },
-    [473] = {
+    [472] = {
         { type = "drop", name = "winterfall totemic", npcID = 7441, zone = "winterspring", mapID = 1452, x = 0.3040, y = 0.3600 },
     },
-    [474] = {
+    [473] = {
         { type = "drop", name = "cliff breaker", npcID = 6146, zone = "azshara", mapID = 1447, x = 0.4340, y = 0.7120 },
     },
-    [475] = {
+    [474] = {
         { type = "trainer", name = "son of arkkoroc", npcID = 6144, zone = "azshara", mapID = 1447, x = 0.5000, y = 0.5620 },
     },
-    [476] = {
+    [475] = {
         { type = "drop", name = "ghoul ravener", npcID = 10406, zone = "stratholme" },
     },
-    [477] = {
+    [476] = {
         { type = "drop", name = "anvilrage marshal", npcID = 8898, zone = "blackrock depths" },
     },
-    [478] = {
+    [477] = {
         { type = "trainer", name = "decaying horror", npcID = 1813, zone = "western plaguelands", mapID = 1422, x = 0.6120, y = 0.3520 },
     },
-    [479] = {
+    [478] = {
         { type = "drop", name = "blackrock battlemaster", npcID = 7029, zone = "burning steppes", mapID = 1428, x = 0.3920, y = 0.3440 },
     },
-    [480] = {
+    [479] = {
         { type = "drop", name = "firebrand legionnaire", npcID = 9260, zone = "blackrock spire" },
     },
-    [481] = {
+    [480] = {
         { type = "drop", name = "scholomance dark summoner", npcID = 11582, zone = "scholomance" },
     },
-    [482] = {
+    [481] = {
         { type = "drop", name = "winterfall ursa", npcID = 7438, zone = "winterspring", mapID = 1452, x = 0.6540, y = 0.3740 },
     },
-    [483] = {
+    [482] = {
         { type = "drop", name = "anvilrage captain", npcID = 8903, zone = "blackrock depths" },
     },
-    [484] = {
+    [483] = {
         { type = "vendor", name = "argus shadow mage", npcID = 2318, zone = "alterac mountains" },
         { type = "vendor", name = "rikqiz", npcID = 2699, zone = "stranglethorn vale", mapID = 1434, x = 0.2840, y = 0.7600 },
     },
-    [485] = {
+    [484] = {
         { type = "vendor", name = "withered ancient", npcID = 3919, zone = "ashenvale" },
     },
-    [486] = {
+    [485] = {
         { type = "vendor", name = "meilosh", npcID = 11557, zone = "felwood", faction = "argent dawn", standing = "exalted", mapID = 1448, x = 0.6540, y = 0.0280 },
     },
-    [487] = {
+    [486] = {
         { type = "trainer", cost = 45000 },
     },
-    [488] = {
+    [487] = {
         { type = "trainer", cost = 27000 },
     },
-    [489] = {
+    [488] = {
         { type = "drop", name = "black dragon whelp", npcID = 441, zone = "redridge mountains", mapID = 1433, x = 0.1260, y = 0.7250 },
         { type = "vendor", name = "amy davenport", npcID = 777, zone = "redridge mountains", mapID = 1433, x = 0.2380, y = 0.4760 },
     },
-    [490] = {
+    [489] = {
         { type = "drop", name = "blackhand assassin", npcID = 10318, zone = "blackrock spire" },
     },
-    [491] = {
+    [490] = {
         { type = "drop", name = "plaguehound", npcID = 8597, zone = "eastern plaguelands" },
     },
-    [492] = {
+    [491] = {
         { type = "drop", name = "unliving mossflayer", npcID = 11291, zone = "eastern plaguelands" },
     },
-    [493] = {
+    [492] = {
         { type = "drop", name = "shadowsworn adept", npcID = 6006, zone = "blasted lands" },
     },
-    [494] = {
+    [493] = {
         { type = "drop", name = "skeletal sorcerer", npcID = 1784, zone = "western plaguelands" },
     },
-    [495] = {
+    [494] = {
         { type = "drop", name = "shadowsworn cultist", npcID = 6004, zone = "blasted lands" },
     },
-    [496] = {
+    [495] = {
         { type = "drop", name = "tar creeper", npcID = 6527, zone = "un'goro crater" },
     },
-    [497] = {
+    [496] = {
         { type = "drop", name = "jaedenar adept", npcID = 7115, zone = "felwood" },
     },
-    [498] = {
+    [497] = {
         { type = "drop", name = "groddoc thunderer", npcID = 5262, zone = "feralas" },
     },
-    [499] = {
+    [498] = {
         { type = "drop", name = "incendosaur", npcID = 9318, zone = "searing gorge" },
     },
-    [500] = {
+    [499] = {
         { type = "drop", name = "ravasaur", npcID = 6505, zone = "un'goro crater" },
     },
-    [501] = {
+    [500] = {
         { type = "drop", name = "rage scar yeti", npcID = 5296, zone = "feralas" },
     },
-    [502] = {
+    [501] = {
         { type = "drop", name = "dunemaul ogre", npcID = 5471, zone = "tanaris" },
     },
-    [503] = {
+    [502] = {
         { type = "drop", name = "firebrand invoker", npcID = 9262, zone = "blackrock spire" },
     },
-    [504] = {
+    [503] = {
         { type = "drop", name = "eldreth seether", npcID = 11469, zone = "dire maul" },
     },
-    [505] = {
+    [504] = {
         { type = "drop", name = "blackmaw druid", npcID = 258516, zone = "blackmaw hold" },
     },
-    [506] = {
+    [505] = {
         { type = "drop", name = "warpwood treant", npcID = 11462, zone = "dire maul" },
     },
-    [507] = {
+    [506] = {
         { type = "drop", name = "sky shadow", npcID = 7376 },
     },
-    [508] = {
+    [507] = {
         { type = "drop", name = "spitelash battlemaster", npcID = 7885, zone = "azshara" },
     },
-    [509] = {
+    [508] = {
         { type = "drop", name = "putrid gargoyle", npcID = 8534, zone = "eastern plaguelands" },
     },
-    [510] = {
+    [509] = {
         { type = "drop", name = "shadowsworn thug", npcID = 6005, zone = "blasted lands" },
         { type = "quest", name = "leather technique", questID = 92817 },
     },
-    [511] = {
+    [510] = {
         { type = "drop", name = "scarlet hunter", npcID = 1831, zone = "western plaguelands" },
     },
-    [512] = {
+    [511] = {
         { type = "drop", name = "carrion vulture", npcID = 1809 },
     },
-    [513] = {
+    [512] = {
         { type = "drop", name = "entropic beast", npcID = 9878, zone = "felwood" },
     },
-    [514] = {
+    [513] = {
         { type = "drop", name = "primal ooze", npcID = 6557, zone = "un'goro crater" },
     },
-    [515] = {
+    [514] = {
         { type = "drop", name = "atal'alarion", npcID = 8580, zone = "sunken temple" },
     },
-    [516] = {
+    [515] = {
         { type = "drop", name = "deadwood warrior", npcID = 7153, zone = "felwood" },
     },
-    [517] = {
+    [516] = {
         { type = "drop", name = "dark iron taskmaster", npcID = 5846, zone = "searing gorge" },
     },
-    [518] = {
+    [517] = {
         { type = "drop", name = "highborne apparition", npcID = 6116, zone = "azshara" },
     },
-    [519] = {
+    [518] = {
         { type = "drop", name = "mordresh fire eye", npcID = 7357, zone = "razorfen kraul" },
     },
-    [520] = {
+    [519] = {
         { type = "quest", name = "leather technique", questID = 92817 },
         { type = "vendor", name = "vendor", zone = "desolace" },
     },
-    [521] = {
+    [520] = {
         { type = "drop", name = "kam deepfury", npcID = 1666, zone = "the stockade" },
     },
-    [522] = {
+    [521] = {
         { type = "drop", name = "shadowhorn stag", npcID = 3817, zone = "ashenvale", mapID = 1440, x = 0.3580, y = 0.6920 },
     },
-    [523] = {
+    [522] = {
         { type = "vendor", name = "vendor", zone = "blackfathom deeps" },
     },
-    [524] = {
+    [523] = {
         { type = "quest", name = "beasts of thunder ridge", questID = 96875 },
     },
-    [525] = {
+    [524] = {
         { type = "drop", name = "zone drop", zone = "shen'dralas" },
     },
-    [526] = {
+    [525] = {
         { type = "trainer", cost = 26 },
     },
-    [527] = {
+    [526] = {
         { type = "vendor", name = "shadowforge surveyor", npcID = 4844 },
     },
-    [528] = {
+    [527] = {
         { type = "vendor", name = "danielle zipstitch", npcID = 2668, zone = "duskwood", faction = "alliance", mapID = 1431, x = 0.7580, y = 0.4540 },
     },
-    [529] = {
+    [528] = {
         { type = "vendor", name = "narkk", npcID = 2663, zone = "stranglethorn vale", mapID = 1434, x = 0.2820, y = 0.7440 },
     },
-    [530] = {
+    [529] = {
         { type = "trainer", cost = 5500 },
     },
-    [531] = {
+    [530] = {
         { type = "vendor", name = "bloodsail swabby", npcID = 4506, zone = "stranglethorn vale" },
         { type = "vendor", name = "cowardly crosby", npcID = 2672, zone = "stranglethorn vale", mapID = 1434, x = 0.2700, y = 0.8240 },
     },
-    [532] = {
+    [531] = {
         { type = "trainer", cost = 7000 },
     },
-    [533] = {
+    [532] = {
         { type = "quest", name = "the undermarket", questID = 3402 },
     },
-    [534] = {
+    [533] = {
         { type = "vendor", name = "ice thistle yeti", npcID = 7458, zone = "winterspring" },
         { type = "vendor", name = "qia", npcID = 11189, zone = "winterspring", mapID = 1452, x = 0.6120, y = 0.3720 },
     },
-    [535] = {
+    [534] = {
         { type = "drop", name = "lingering highborne", npcID = 7864, zone = "azshara", mapID = 1447, x = 0.3400, y = 0.5860 },
     },
-    [536] = {
+    [535] = {
         { type = "drop", name = "unseen servant", npcID = 8538, zone = "eastern plaguelands", mapID = 1423, x = 0.5740, y = 0.6820 },
     },
-    [537] = {
+    [536] = {
         { type = "trainer", name = "thaurissan firewalker", npcID = 7037, zone = "burning steppes", mapID = 1428, x = 0.5400, y = 0.4000 },
     },
-    [538] = {
+    [537] = {
         { type = "trainer", name = "dark summoner", npcID = 8551, zone = "eastern plaguelands", mapID = 1423, x = 0.2940, y = 0.2380 },
     },
-    [539] = {
+    [538] = {
         { type = "drop", name = "overmaster pyron", npcID = 9026, zone = "eastern kingdoms", mapID = 1415, x = 0.4800, y = 0.6240 },
     },
-    [540] = {
+    [539] = {
         { type = "drop", name = "rotting cadaver", npcID = 4474, zone = "western plaguelands" },
     },
-    [541] = {
+    [540] = {
         { type = "drop", name = "atal'ai slave", npcID = 8318, zone = "sunken temple" },
     },
-    [542] = {
+    [541] = {
         { type = "drop", name = "spectral citizen", npcID = 10384, zone = "stratholme" },
     },
-    [543] = {
+    [542] = {
         { type = "trainer", name = "dark caster", npcID = 8526, zone = "eastern plaguelands", mapID = 1423, x = 0.5740, y = 0.6820 },
     },
-    [544] = {
+    [543] = {
         { type = "drop", name = "dark caster", npcID = 8526, zone = "eastern plaguelands", mapID = 1423, x = 0.5740, y = 0.6820 },
     },
-    [545] = {
+    [544] = {
         { type = "drop", name = "blackhand veteran", npcID = 9819, zone = "blackrock spire" },
     },
-    [546] = {
+    [545] = {
         { type = "drop", name = "zone drop", zone = "stratholme" },
     },
-    [547] = {
+    [546] = {
         { type = "drop", name = "firebrand pyromancer", npcID = 9264, zone = "blackrock spire" },
     },
-    [548] = {
+    [547] = {
         { type = "drop", name = "darkmaster gandling", npcID = 1853, zone = "scholomance" },
     },
-    [549] = {
+    [548] = {
         { type = "vendor", name = "shen'dralar provisioner", npcID = 14371, zone = "dire maul" },
     },
-    [550] = {
+    [549] = {
         { type = "drop", name = "magister kalendris", npcID = 11487, zone = "dire maul" },
     },
-    [551] = {
+    [550] = {
         { type = "drop", name = "gravelsnout surveyor", npcID = 4116, zone = "thousand needles" },
     },
-    [552] = {
+    [551] = {
         { type = "drop", name = "witherbark troll", npcID = 2552, zone = "arathi highlands" },
     },
-    [553] = {
+    [552] = {
         { type = "drop", name = "slitherblade sea witch", npcID = 4719, zone = "desolace" },
     },
-    [554] = {
+    [553] = {
         { type = "drop", name = "bloodscalp mystic", npcID = 701, zone = "stranglethorn vale" },
     },
-    [555] = {
+    [554] = {
         { type = "drop", name = "mirefin murloc", npcID = 4359, zone = "dustwallow marsh", mapID = 1445, x = 0.5620, y = 0.2180 },
     },
-    [556] = {
+    [555] = {
         { type = "drop", name = "saltscale oracle", npcID = 873, zone = "stranglethorn vale" },
     },
-    [557] = {
+    [556] = {
         { type = "drop", name = "dustbelcher mystic", npcID = 2907, zone = "badlands", mapID = 1418, x = 0.6460, y = 0.2540 },
     },
-    [558] = {
+    [557] = {
         { type = "drop", name = "haldarr trickster", npcID = 6126, zone = "azshara" },
     },
-    [559] = {
+    [558] = {
         { type = "drop", name = "inferno elemental", npcID = 5852, zone = "searing gorge" },
     },
-    [560] = {
+    [559] = {
         { type = "drop", name = "vilebranch soothsayer", npcID = 4467, zone = "the hinterlands" },
     },
-    [561] = {
+    [560] = {
         { type = "drop", name = "elder rage scar", npcID = 5297, zone = "feralas" },
     },
-    [562] = {
+    [561] = {
         { type = "drop", name = "skeletal terror", npcID = 1785, zone = "western plaguelands" },
     },
-    [563] = {
+    [562] = {
         { type = "drop", name = "suffering highborne", npcID = 7523, zone = "winterspring" },
     },
-    [564] = {
+    [563] = {
         { type = "quest", name = "threading a solution", questID = 95769 },
         { type = "vendor", name = "pexmit", npcID = 266901, zone = "mount hyjal", mapID = 2482, x = 0.5880, y = 0.4180 },
     },
-    [565] = {
+    [564] = {
         { type = "drop", name = "irontree stomper", npcID = 7139, zone = "felwood" },
     },
-    [566] = {
+    [565] = {
         { type = "drop", name = "tortured druid", npcID = 12178, zone = "silithus" },
     },
-    [567] = {
+    [566] = {
         { type = "drop", name = "searing ghoul", npcID = 1795, zone = "western plaguelands" },
     },
-    [568] = {
+    [567] = {
         { type = "drop", name = "venom belcher", npcID = 10417, zone = "stratholme" },
     },
-    [569] = {
+    [568] = {
         { type = "drop", name = "maraudine stormer", npcID = 4658, zone = "desolace" },
     },
-    [570] = {
+    [569] = {
         { type = "drop", name = "firemane flamecaller", npcID = 4334, zone = "dustwallow marsh" },
     },
-    [571] = {
+    [570] = {
         { type = "drop", name = "glassweb spider", npcID = 5856, zone = "searing gorge" },
     },
-    [572] = {
+    [571] = {
         { type = "drop", name = "hatecrest serpent guard", npcID = 5333, zone = "feralas" },
     },
 }
@@ -2410,55 +2407,55 @@ local RAW = {
     [818] = { "basic campfire", 185, 0, 332, 0, 0, 4, "4470:1" },
     [2149] = { "handstitched leather boots", 165, 0, 153, 2302, 0, 4, "2318:2,2320:1" },
     [2152] = { "light armor kit", 165, 0, 129, 2304, 0, 4, "2318:1" },
-    [2153] = { "handstitched leather pants", 165, 15, 528, 2303, 0, 13, "2318:4,2320:1" },
+    [2153] = { "handstitched leather pants", 165, 15, 528, 2303, 0, 14, "2318:4,2320:1" },
     [2158] = { "fine leather boots", 165, 65, 150, 2307, 2406, 2, "2318:7,2320:2" },
-    [2159] = { "fine leather cloak", 165, 50, 529, 2308, 0, 12, "2318:10,2321:2" },
+    [2159] = { "fine leather cloak", 165, 50, 529, 2308, 0, 13, "2318:10,2321:2" },
     [2160] = { "embossed leather vest", 165, 35, 308, 2300, 0, 11, "2318:8,2320:4" },
     [2161] = { "embossed leather boots", 165, 50, 117, 2309, 0, 11, "2318:8,2320:5" },
     [2162] = { "embossed leather cloak", 165, 40, 214, 2310, 0, 11, "2318:5,2320:2" },
     [2163] = { "white leather jerkin", 165, 40, 214, 2311, 2407, 2, "2318:8,2320:2,2324:1" },
     [2164] = { "fine leather gloves", 165, 50, 117, 2312, 2408, 2, "2318:4,2320:2,4231:1" },
-    [2165] = { "medium armor kit", 165, 75, 208, 2313, 0, 12, "2319:4,2320:1" },
-    [2166] = { "toughened leather armor", 165, 95, 215, 2314, 0, 56, "2319:10,2321:2,4231:2" },
-    [2167] = { "gray leather boots", 165, 75, 33, 2315, 0, 80, "2319:4,2321:2,4340:1" },
-    [2168] = { "dark leather cloak", 165, 85, 74, 2316, 0, 80, "2319:8,2321:1,4340:1" },
+    [2165] = { "medium armor kit", 165, 75, 208, 2313, 0, 13, "2319:4,2320:1" },
+    [2166] = { "toughened leather armor", 165, 95, 215, 2314, 0, 55, "2319:10,2321:2,4231:2" },
+    [2167] = { "gray leather boots", 165, 75, 33, 2315, 0, 79, "2319:4,2321:2,4340:1" },
+    [2168] = { "dark leather cloak", 165, 85, 74, 2316, 0, 79, "2319:8,2321:1,4340:1" },
     [2169] = { "dark leather tunic", 165, 75, 33, 2317, 2409, 2, "2319:6,2321:1,4340:1" },
-    [2329] = { "elixir of minor strength", 171, 15, 242, 2454, 0, 82, "765:1,2449:1,3371:1" },
+    [2329] = { "elixir of minor strength", 171, 15, 242, 2454, 0, 81, "765:1,2449:1,3371:1" },
     [2331] = { "minor mana potion", 171, 25, 131, 2455, 0, 11, "785:1,2447:1,3371:1" },
     [2332] = { "minor rejuvenation potion", 171, 40, 385, 2456, 0, 37, "785:2,2447:1,3371:1" },
     [2333] = { "elixir of lesser agility", 171, 140, 82, 3390, 3396, 2, "2452:1,3355:1,3372:1" },
-    [2334] = { "elixir of minor fortitude", 171, 50, 243, 2458, 0, 12, "2447:1,2449:2,3371:1" },
+    [2334] = { "elixir of minor fortitude", 171, 50, 243, 2458, 0, 13, "2447:1,2449:2,3371:1" },
     [2335] = { "swiftness potion", 171, 60, 244, 2459, 2555, 2, "2450:1,2452:1,3371:1" },
-    [2385] = { "brown linen vest", 197, 10, 551, 2568, 0, 13, "2320:1,2996:1" },
+    [2385] = { "brown linen vest", 197, 10, 551, 2568, 0, 14, "2320:1,2996:1" },
     [2386] = { "linen boots", 197, 40, 219, 2569, 0, 15, "2318:1,2320:1,2996:3" },
     [2387] = { "linen cloak", 197, 0, 317, 2570, 0, 4, "2320:1,2996:1" },
     [2389] = { "red linen robe", 197, 25, 61, 2572, 2598, 2, "2320:2,2604:2,2996:3" },
-    [2392] = { "red linen shirt", 197, 25, 61, 2575, 0, 13, "2320:1,2604:1,2996:2" },
-    [2393] = { "white linen shirt", 197, 1, 552, 2576, 0, 526, "2320:1,2324:1,2996:1" },
-    [2394] = { "blue linen shirt", 197, 25, 61, 2577, 0, 13, "2320:1,2996:2,6260:1" },
+    [2392] = { "red linen shirt", 197, 25, 61, 2575, 0, 14, "2320:1,2604:1,2996:2" },
+    [2393] = { "white linen shirt", 197, 1, 552, 2576, 0, 525, "2320:1,2324:1,2996:1" },
+    [2394] = { "blue linen shirt", 197, 25, 61, 2577, 0, 14, "2320:1,2996:2,6260:1" },
     [2395] = { "barbaric linen vest", 197, 40, 219, 2578, 0, 18, "2318:1,2321:1,2996:4" },
     [2396] = { "green linen shirt", 197, 40, 219, 2579, 0, 15, "2321:1,2605:1,2996:3" },
     [2397] = { "reinforced linen cape", 197, 35, 157, 2580, 0, 15, "2320:3,2996:2" },
     [2399] = { "green woolen vest", 197, 60, 62, 2582, 0, 18, "2321:2,2605:1,2997:2" },
     [2401] = { "woolen boots", 197, 70, 220, 2583, 0, 18, "2318:2,2321:2,2997:4" },
-    [2402] = { "woolen cape", 197, 55, 318, 2584, 0, 12, "2321:1,2997:1" },
+    [2402] = { "woolen cape", 197, 55, 318, 2584, 0, 13, "2321:1,2997:1" },
     [2403] = { "gray woolen robe", 197, 80, 319, 2585, 2601, 2, "2321:3,2997:4,4340:1" },
     [2406] = { "gray woolen shirt", 197, 80, 553, 2587, 0, 15, "2321:1,2997:2,4340:1" },
     [2538] = { "charred wolf meat", 185, 0, 230, 2679, 0, 4, "2672:1" },
-    [2539] = { "spiced wolf meat", 185, 10, 231, 2680, 0, 82, "2672:1,2678:1" },
+    [2539] = { "spiced wolf meat", 185, 10, 231, 2680, 0, 81, "2672:1,2678:1" },
     [2540] = { "roasted boar meat", 185, 0, 230, 2681, 0, 4, "769:1" },
-    [2541] = { "coyote steak", 185, 50, 51, 2684, 0, 50, "2673:1" },
-    [2542] = { "goretusk liver pie", 185, 50, 51, 724, 2697, 140, "723:1,2678:1" },
-    [2543] = { "westfall stew", 185, 75, 232, 733, 728, 141, "729:1,730:1,731:1" },
-    [2544] = { "crab cake", 185, 75, 232, 2683, 0, 142, "2674:1,2678:1" },
-    [2545] = { "cooked crab claw", 185, 85, 162, 2682, 2698, 83, "2675:1,2678:1" },
-    [2546] = { "dry pork ribs", 185, 80, 163, 2687, 0, 51, "2677:1,2678:1" },
-    [2547] = { "redridge goulash", 185, 100, 333, 1082, 2699, 143, "1080:1,1081:1" },
-    [2548] = { "succulent pork ribs", 185, 110, 334, 2685, 2700, 83, "2677:2,2692:1" },
-    [2549] = { "seasoned wolf kabob", 185, 100, 164, 1017, 2701, 144, "1015:2,2678:1" },
+    [2541] = { "coyote steak", 185, 50, 51, 2684, 0, 49, "2673:1" },
+    [2542] = { "goretusk liver pie", 185, 50, 51, 724, 2697, 141, "723:1,2678:1" },
+    [2543] = { "westfall stew", 185, 75, 232, 733, 728, 142, "729:1,730:1,731:1" },
+    [2544] = { "crab cake", 185, 75, 232, 2683, 0, 143, "2674:1,2678:1" },
+    [2545] = { "cooked crab claw", 185, 85, 162, 2682, 2698, 82, "2675:1,2678:1" },
+    [2546] = { "dry pork ribs", 185, 80, 163, 2687, 0, 50, "2677:1,2678:1" },
+    [2547] = { "redridge goulash", 185, 100, 333, 1082, 2699, 144, "1080:1,1081:1" },
+    [2548] = { "succulent pork ribs", 185, 110, 334, 2685, 2700, 82, "2677:2,2692:1" },
+    [2549] = { "seasoned wolf kabob", 185, 100, 164, 1017, 2701, 145, "1015:2,2678:1" },
     [2660] = { "rough sharpening stone", 164, 0, 182, 2862, 0, 4, "2835:1" },
     [2661] = { "copper chain belt", 164, 30, 183, 2851, 0, 11, "2840:6" },
-    [2662] = { "copper chain pants", 164, 15, 428, 2852, 0, 13, "2840:4" },
+    [2662] = { "copper chain pants", 164, 15, 428, 2852, 0, 14, "2840:4" },
     [2663] = { "copper bracers", 164, 0, 429, 2853, 0, 4, "2840:2" },
     [2664] = { "runed copper bracers", 164, 65, 430, 2854, 0, 7, "2840:10,3470:3" },
     [2665] = { "coarse sharpening stone", 164, 40, 262, 2863, 0, 11, "2836:1" },
@@ -2470,20 +2467,20 @@ local RAW = {
     [2673] = { "silvered bronze breastplate", 164, 105, 432, 2869, 5578, 2, "1705:1,2841:10,2842:2,3478:2" },
     [2674] = { "heavy sharpening stone", 164, 100, 264, 2871, 0, 8, "2838:1" },
     [2675] = { "shining silver breastplate", 164, 120, 433, 2870, 0, 8, "1206:2,1705:2,2841:20,2842:4,5500:2" },
-    [2737] = { "copper mace", 164, 15, 242, 2844, 0, 13, "2589:2,2840:6,2880:1" },
-    [2738] = { "copper axe", 164, 20, 167, 2845, 0, 13, "2589:2,2840:6,2880:1" },
-    [2739] = { "copper shortsword", 164, 25, 131, 2847, 0, 13, "2589:2,2840:6,2880:1" },
+    [2737] = { "copper mace", 164, 15, 242, 2844, 0, 14, "2589:2,2840:6,2880:1" },
+    [2738] = { "copper axe", 164, 20, 167, 2845, 0, 14, "2589:2,2840:6,2880:1" },
+    [2739] = { "copper shortsword", 164, 25, 131, 2847, 0, 14, "2589:2,2840:6,2880:1" },
     [2740] = { "bronze mace", 164, 85, 43, 2848, 0, 15, "2319:1,2841:6,2880:4" },
     [2741] = { "bronze axe", 164, 90, 434, 2849, 0, 15, "2319:1,2841:7,2880:4" },
     [2742] = { "bronze shortsword", 164, 95, 54, 2850, 0, 15, "2319:2,2841:5,2880:4" },
-    [2795] = { "beer basted boar ribs", 185, 25, 335, 2888, 2889, 145, "2886:1,2894:1" },
+    [2795] = { "beer basted boar ribs", 185, 25, 335, 2888, 2889, 146, "2886:1,2894:1" },
     [2881] = { "light leather", 165, 0, 288, 2318, 0, 4, "2934:3" },
     [2963] = { "bolt of linen cloth", 197, 0, 554, 2996, 0, 4, "2589:2" },
     [2964] = { "bolt of woolen cloth", 197, 55, 555, 2997, 0, 11, "2592:3" },
     [3115] = { "rough weightstone", 164, 0, 182, 3239, 0, 4, "2835:1" },
     [3116] = { "coarse weightstone", 164, 40, 262, 3240, 0, 11, "2836:1" },
     [3117] = { "heavy weightstone", 164, 100, 264, 3241, 0, 8, "2838:1" },
-    [3170] = { "minor troll's blood elixir", 171, 15, 386, 3382, 0, 13, "2447:1,2449:2,3371:1" },
+    [3170] = { "minor troll's blood elixir", 171, 15, 386, 3382, 0, 14, "2447:1,2449:2,3371:1" },
     [3171] = { "elixir of wisdom", 171, 90, 83, 3383, 0, 7, "785:1,2450:2,3371:1" },
     [3172] = { "minor magic resistance potion", 171, 110, 130, 3384, 3393, 2, "785:3,3355:1,3371:1" },
     [3173] = { "lesser mana potion", 171, 120, 132, 3385, 0, 16, "785:1,3371:1,3820:1" },
@@ -2494,22 +2491,22 @@ local RAW = {
     [3188] = { "elixir of ogre strength", 171, 150, 104, 3391, 6211, 2, "2449:1,3356:1,3372:1" },
     [3230] = { "elixir of minor agility", 171, 50, 243, 2457, 2553, 2, "765:1,2452:1,3371:1" },
     [3275] = { "linen bandage", 129, 0, 129, 1251, 0, 4, "2589:1" },
-    [3276] = { "heavy linen bandage", 129, 40, 364, 2581, 0, 50, "2589:2" },
-    [3277] = { "wool bandage", 129, 80, 239, 3530, 0, 12, "2592:1" },
+    [3276] = { "heavy linen bandage", 129, 40, 364, 2581, 0, 49, "2589:2" },
+    [3277] = { "wool bandage", 129, 80, 239, 3530, 0, 13, "2592:1" },
     [3278] = { "heavy wool bandage", 129, 115, 365, 3531, 0, 8, "2592:2" },
     [3292] = { "heavy copper broadsword", 164, 70, 138, 3487, 0, 7, "818:2,2319:2,2840:14,2880:2" },
-    [3293] = { "copper battle axe", 164, 30, 183, 3488, 0, 12, "774:2,2318:2,2840:12,2880:2,3470:2" },
+    [3293] = { "copper battle axe", 164, 30, 183, 3488, 0, 13, "774:2,2318:2,2840:12,2880:2,3470:2" },
     [3294] = { "thick war axe", 164, 45, 66, 3489, 0, 7, "2318:2,2840:10,2842:2,2880:2,3470:2" },
     [3295] = { "deadly bronze poniard", 164, 100, 265, 3490, 2883, 2, "1210:2,2319:2,2459:1,2841:4,3466:1,3478:2" },
     [3296] = { "heavy bronze mace", 164, 105, 109, 3491, 0, 8, "1206:1,1210:1,2319:2,2841:8,3466:1,3478:2" },
     [3297] = { "mighty iron hammer", 164, 120, 266, 3492, 3608, 2, "1705:2,2319:2,3391:1,3466:2,3478:2,3575:6" },
-    [3319] = { "copper chain boots", 164, 20, 167, 3469, 0, 13, "2840:8" },
+    [3319] = { "copper chain boots", 164, 20, 167, 3469, 0, 14, "2840:8" },
     [3320] = { "rough grinding stone", 164, 25, 435, 3470, 0, 11, "2835:2" },
     [3321] = { "copper chain vest", 164, 30, 183, 3471, 3609, 247, "774:1,2840:8,3470:2" },
     [3323] = { "runed copper gauntlets", 164, 35, 102, 3472, 0, 11, "2840:8,3470:2" },
     [3324] = { "runed copper pants", 164, 35, 102, 3473, 0, 15, "2320:3,2840:8,3470:3" },
     [3325] = { "gemmed copper gauntlets", 164, 35, 102, 3474, 3610, 2, "774:1,818:1,2840:8" },
-    [3326] = { "coarse grinding stone", 164, 50, 436, 3478, 0, 12, "2836:2" },
+    [3326] = { "coarse grinding stone", 164, 50, 436, 3478, 0, 13, "2836:2" },
     [3328] = { "rough bronze shoulders", 164, 85, 43, 3480, 0, 7, "1210:1,2841:5,3478:1" },
     [3330] = { "silvered bronze shoulders", 164, 100, 265, 3481, 2882, 2, "2841:8,2842:2,3478:2" },
     [3331] = { "silvered bronze boots", 164, 105, 109, 3482, 0, 7, "2841:6,2842:1,3478:2" },
@@ -2517,24 +2514,24 @@ local RAW = {
     [3334] = { "green iron boots", 164, 120, 266, 3484, 3611, 2, "1705:2,2605:1,3478:2,3575:4" },
     [3336] = { "green iron gauntlets", 164, 125, 267, 3485, 3612, 2, "2605:1,3478:2,3575:4,5498:2" },
     [3337] = { "heavy grinding stone", 164, 100, 437, 3486, 0, 8, "2838:3" },
-    [3370] = { "crocolisk steak", 185, 80, 163, 3662, 3678, 146, "2678:1,2924:1" },
-    [3371] = { "blood sausage", 185, 60, 233, 3220, 3679, 147, "3172:1,3173:1,3174:1" },
-    [3372] = { "murloc fin soup", 185, 90, 165, 3663, 3680, 148, "1468:2,2692:1" },
-    [3373] = { "crocolisk gumbo", 185, 120, 336, 3664, 3681, 149, "2692:1,3667:1" },
-    [3376] = { "curiously tasty omelet", 185, 130, 337, 3665, 3682, 150, "2692:1,3685:1" },
-    [3377] = { "gooey spider cake", 185, 110, 166, 3666, 3683, 151, "2251:2,2692:1" },
-    [3397] = { "big bear steak", 185, 110, 166, 3726, 3734, 152, "2692:1,3730:1" },
-    [3398] = { "hot lion chops", 185, 125, 338, 3727, 3735, 153, "2692:1,3731:1" },
-    [3399] = { "tasty lion steak", 185, 150, 339, 3728, 3736, 154, "3713:1,3731:2" },
-    [3400] = { "soothing turtle bisque", 185, 175, 34, 3729, 3737, 155, "3712:1,3713:1" },
-    [3448] = { "lesser invisibility potion", 171, 165, 245, 3823, 0, 9, "3355:1,3372:1,3818:1" },
+    [3370] = { "crocolisk steak", 185, 80, 163, 3662, 3678, 147, "2678:1,2924:1" },
+    [3371] = { "blood sausage", 185, 60, 233, 3220, 3679, 148, "3172:1,3173:1,3174:1" },
+    [3372] = { "murloc fin soup", 185, 90, 165, 3663, 3680, 149, "1468:2,2692:1" },
+    [3373] = { "crocolisk gumbo", 185, 120, 336, 3664, 3681, 150, "2692:1,3667:1" },
+    [3376] = { "curiously tasty omelet", 185, 130, 337, 3665, 3682, 151, "2692:1,3685:1" },
+    [3377] = { "gooey spider cake", 185, 110, 166, 3666, 3683, 152, "2251:2,2692:1" },
+    [3397] = { "big bear steak", 185, 110, 166, 3726, 3734, 153, "2692:1,3730:1" },
+    [3398] = { "hot lion chops", 185, 125, 338, 3727, 3735, 154, "2692:1,3731:1" },
+    [3399] = { "tasty lion steak", 185, 150, 339, 3728, 3736, 155, "3713:1,3731:2" },
+    [3400] = { "soothing turtle bisque", 185, 175, 34, 3729, 3737, 156, "3712:1,3713:1" },
+    [3448] = { "lesser invisibility potion", 171, 165, 245, 3823, 0, 10, "3355:1,3372:1,3818:1" },
     [3449] = { "shadow oil", 171, 165, 388, 3824, 6068, 1, "3369:4,3372:1,3818:4" },
     [3450] = { "elixir of lesser fortitude", 171, 175, 84, 3825, 3830, 2, "3355:1,3372:1,3821:1" },
     [3451] = { "troll's blood elixir", 171, 180, 172, 3826, 3831, 2, "2453:1,3357:1,3372:1" },
-    [3452] = { "mana potion", 171, 160, 173, 3827, 0, 9, "3356:1,3372:1,3820:1" },
+    [3452] = { "mana potion", 171, 160, 173, 3827, 0, 10, "3356:1,3372:1,3820:1" },
     [3453] = { "draught of detect lesser invisibility", 171, 195, 134, 3828, 3832, 2, "3358:1,3372:1,3818:1" },
-    [3454] = { "frost oil", 171, 200, 85, 3829, 14634, 209, "3358:4,3372:1,3819:2" },
-    [3491] = { "big bronze knife", 164, 80, 67, 3848, 0, 34, "818:1,2319:1,2841:6,2880:4,3470:2" },
+    [3454] = { "frost oil", 171, 200, 85, 3829, 14634, 210, "3358:4,3372:1,3819:2" },
+    [3491] = { "big bronze knife", 164, 80, 67, 3848, 0, 35, "818:1,2319:1,2841:6,2880:4,3470:2" },
     [3492] = { "hardened iron shortsword", 164, 135, 139, 3849, 12162, 1, "1705:2,3466:2,3486:1,3575:6,4234:3" },
     [3493] = { "jade serpentblade", 164, 150, 44, 3850, 3866, 2, "1529:2,3466:2,3486:2,3575:8,4234:3" },
     [3494] = { "solid iron maul", 164, 130, 268, 3851, 10858, 1, "2842:4,3466:2,3486:1,3575:8,4234:2" },
@@ -2548,25 +2545,25 @@ local RAW = {
     [3503] = { "golden scale coif", 164, 165, 141, 3837, 6047, 250, "3486:2,3577:2,3859:8" },
     [3504] = { "green iron shoulders", 164, 135, 139, 3840, 3870, 2, "2605:1,3486:1,3575:7" },
     [3505] = { "golden scale shoulders", 164, 150, 44, 3841, 3871, 2, "3486:1,3577:2,3859:6" },
-    [3506] = { "green iron leggings", 164, 130, 186, 3842, 0, 9, "2605:1,3486:1,3575:8" },
+    [3506] = { "green iron leggings", 164, 130, 186, 3842, 0, 10, "2605:1,3486:1,3575:8" },
     [3507] = { "golden scale leggings", 164, 145, 269, 3843, 3872, 2, "3486:1,3575:10,3577:2" },
-    [3508] = { "green iron hauberk", 164, 155, 272, 3844, 0, 42, "1206:2,1529:2,3486:4,3575:20,4255:1" },
+    [3508] = { "green iron hauberk", 164, 155, 272, 3844, 0, 41, "1206:2,1529:2,3486:4,3575:20,4255:1" },
     [3511] = { "golden scale cuirass", 164, 170, 438, 3845, 3873, 2, "1529:2,3486:4,3577:2,3859:12" },
     [3513] = { "polished steel boots", 164, 160, 184, 3846, 3874, 2, "1705:1,3486:2,3859:8,3864:1" },
     [3515] = { "golden scale boots", 164, 175, 140, 3847, 3875, 2, "3486:4,3577:4,3859:10,3864:1" },
-    [3753] = { "handstitched leather belt", 165, 25, 216, 4237, 0, 440, "2318:6,2320:1" },
+    [3753] = { "handstitched leather belt", 165, 25, 216, 4237, 0, 439, "2318:6,2320:1" },
     [3755] = { "linen bag", 197, 5, 320, 4238, 0, 11, "2320:3,2996:3" },
     [3756] = { "embossed leather gloves", 165, 40, 214, 4239, 0, 37, "2318:3,2320:2" },
     [3757] = { "woolen bag", 197, 50, 221, 4240, 0, 15, "2321:1,2997:3" },
     [3758] = { "green woolen bag", 197, 75, 63, 4241, 4292, 2, "2321:1,2605:1,2997:5" },
     [3759] = { "embossed leather pants", 165, 50, 117, 4242, 0, 15, "2318:6,2320:2,4231:1" },
-    [3760] = { "hillman's cloak", 165, 125, 154, 3719, 0, 34, "2321:2,4234:5" },
-    [3761] = { "fine leather tunic", 165, 60, 59, 4243, 0, 80, "2318:6,2320:4,4231:3" },
+    [3760] = { "hillman's cloak", 165, 125, 154, 3719, 0, 35, "2321:2,4234:5" },
+    [3761] = { "fine leather tunic", 165, 60, 59, 4243, 0, 79, "2318:6,2320:4,4231:3" },
     [3762] = { "hillman's leather vest", 165, 75, 33, 4244, 4293, 2, "2320:2,4231:2,4243:1" },
     [3763] = { "fine leather belt", 165, 55, 530, 4246, 0, 18, "2318:6,2320:2" },
     [3764] = { "hillman's leather gloves", 165, 120, 151, 4247, 0, 7, "2319:14,2321:4" },
     [3765] = { "dark leather gloves", 165, 95, 531, 4248, 7360, 2, "2312:1,2321:1,4233:1,4340:1" },
-    [3766] = { "dark leather belt", 165, 100, 60, 4249, 0, 31, "2321:2,4233:1,4246:1,4340:1" },
+    [3766] = { "dark leather belt", 165, 100, 60, 4249, 0, 32, "2321:2,4233:1,4246:1,4340:1" },
     [3767] = { "hillman's belt", 165, 95, 532, 4250, 4294, 2, "2319:8,2321:2,3383:1" },
     [3768] = { "hillman's shoulders", 165, 105, 291, 4251, 0, 7, "2319:4,2321:1,4233:1" },
     [3769] = { "dark leather shoulders", 165, 115, 309, 4252, 4296, 2, "2319:12,2321:2,3390:1,4340:1" },
@@ -2576,20 +2573,20 @@ local RAW = {
     [3773] = { "guardian armor", 165, 150, 121, 4256, 4299, 2, "2321:2,3824:1,4234:12,4236:2" },
     [3774] = { "green leather belt", 165, 135, 155, 4257, 0, 8, "2321:1,2605:1,4234:5,4236:1,7071:1" },
     [3775] = { "guardian belt", 165, 145, 217, 4258, 4298, 2, "2321:1,4234:4,4236:2,7071:1" },
-    [3776] = { "green leather bracers", 165, 155, 209, 4259, 0, 75, "2321:1,2605:1,4234:6,4236:2" },
+    [3776] = { "green leather bracers", 165, 155, 209, 4259, 0, 74, "2321:1,2605:1,4234:6,4236:2" },
     [3777] = { "guardian leather bracers", 165, 170, 310, 4260, 4300, 2, "4234:6,4236:2,4291:1" },
-    [3778] = { "gem-studded leather belt", 165, 160, 118, 4262, 14635, 441, "1529:2,2321:1,3864:1,4236:4,5500:2" },
+    [3778] = { "gem-studded leather belt", 165, 160, 118, 4262, 14635, 440, "1529:2,2321:1,3864:1,4236:4,5500:2" },
     [3779] = { "barbaric belt", 165, 175, 22, 4264, 4301, 2, "4096:2,4234:6,4236:2,4291:1,5633:1,7071:1" },
-    [3780] = { "heavy armor kit", 165, 125, 154, 4265, 0, 33, "2321:1,4234:5" },
-    [3813] = { "small silk pack", 197, 125, 40, 4245, 0, 59, "2321:3,4234:2,4305:3" },
-    [3816] = { "cured light hide", 165, 30, 533, 4231, 0, 13, "783:1,4289:1" },
+    [3780] = { "heavy armor kit", 165, 125, 154, 4265, 0, 34, "2321:1,4234:5" },
+    [3813] = { "small silk pack", 197, 125, 40, 4245, 0, 58, "2321:3,4234:2,4305:3" },
+    [3816] = { "cured light hide", 165, 30, 533, 4231, 0, 14, "783:1,4289:1" },
     [3817] = { "cured medium hide", 165, 75, 208, 4233, 0, 15, "4232:1,4289:1" },
     [3818] = { "cured heavy hide", 165, 125, 128, 4236, 0, 7, "4235:1,4289:3" },
     [3839] = { "bolt of silk cloth", 197, 100, 556, 4305, 0, 7, "4306:4" },
     [3840] = { "heavy linen gloves", 197, 25, 61, 4307, 0, 11, "2320:1,2996:2" },
     [3841] = { "green linen bracers", 197, 35, 157, 4308, 0, 15, "2320:2,2605:1,2996:3" },
     [3842] = { "handstitched linen britches", 197, 45, 321, 4309, 0, 18, "2321:2,2996:4" },
-    [3843] = { "heavy woolen gloves", 197, 60, 62, 4310, 0, 31, "2321:1,2997:3" },
+    [3843] = { "heavy woolen gloves", 197, 60, 62, 4310, 0, 32, "2321:1,2997:3" },
     [3844] = { "heavy woolen cloak", 197, 80, 319, 4311, 4346, 2, "2321:2,2997:3,5498:2" },
     [3845] = { "soft-soled linen boots", 197, 55, 318, 4312, 0, 18, "2318:2,2321:1,2996:5" },
     [3847] = { "red woolen boots", 197, 75, 557, 4313, 4345, 2, "2318:2,2321:1,2604:2,2997:4" },
@@ -2597,27 +2594,27 @@ local RAW = {
     [3849] = { "reinforced woolen shoulders", 197, 95, 222, 4315, 4347, 2, "2319:2,2321:2,2997:6" },
     [3850] = { "heavy woolen pants", 197, 85, 41, 4316, 0, 7, "2321:4,2997:5" },
     [3851] = { "phoenix pants", 197, 100, 47, 4317, 4349, 2, "2321:3,2997:6,5500:1" },
-    [3852] = { "gloves of meditation", 197, 105, 558, 4318, 0, 33, "2321:3,2997:4,3383:1" },
+    [3852] = { "gloves of meditation", 197, 105, 558, 4318, 0, 34, "2321:3,2997:4,3383:1" },
     [3854] = { "azure silk gloves", 197, 120, 322, 4319, 7114, 1, "2321:2,4234:2,4305:3,6260:2" },
-    [3855] = { "spidersilk boots", 197, 100, 47, 4320, 0, 33, "2319:4,3182:4,4305:2,5500:1" },
+    [3855] = { "spidersilk boots", 197, 100, 47, 4320, 0, 34, "2319:4,3182:4,4305:2,5500:1" },
     [3856] = { "spider silk slippers", 197, 115, 559, 4321, 4350, 2, "2321:2,3182:1,4305:3" },
     [3857] = { "enchanter's cowl", 197, 130, 323, 4322, 14630, 1, "2321:2,4305:3,4337:2" },
     [3858] = { "shadow hood", 197, 135, 324, 4323, 4351, 2, "3824:1,4291:1,4305:4" },
-    [3859] = { "azure silk vest", 197, 125, 40, 4324, 0, 33, "4305:5,6260:4" },
+    [3859] = { "azure silk vest", 197, 125, 40, 4324, 0, 34, "4305:5,6260:4" },
     [3860] = { "boots of the enchanter", 197, 140, 98, 4325, 4352, 2, "4291:1,4305:4,4337:2" },
     [3861] = { "long silken cloak", 197, 150, 223, 4326, 0, 8, "3827:1,4291:1,4305:4" },
-    [3862] = { "icy cloak", 197, 165, 48, 4327, 4355, 527, "3829:1,4291:2,4337:2,4339:3" },
+    [3862] = { "icy cloak", 197, 165, 48, 4327, 4355, 526, "3829:1,4291:2,4337:2,4339:3" },
     [3863] = { "spider belt", 197, 145, 158, 4328, 4353, 2, "4305:4,4337:2,7071:1" },
     [3864] = { "star belt", 197, 165, 48, 4329, 4356, 2, "3864:1,4234:4,4291:1,4339:4,7071:1" },
     [3865] = { "bolt of mageweave", 197, 140, 260, 4339, 0, 8, "4338:5" },
-    [3866] = { "stylish red shirt", 197, 85, 41, 4330, 0, 12, "2321:1,2604:2,2997:3" },
+    [3866] = { "stylish red shirt", 197, 85, 41, 4330, 0, 13, "2321:1,2604:2,2997:3" },
     [3868] = { "phoenix gloves", 197, 100, 47, 4331, 4348, 2, "2321:4,2324:2,2997:4,5500:1" },
-    [3869] = { "bright yellow shirt", 197, 110, 560, 4332, 14627, 528, "2321:1,4305:1,4341:1" },
+    [3869] = { "bright yellow shirt", 197, 110, 560, 4332, 14627, 527, "2321:1,4305:1,4341:1" },
     [3870] = { "dark silk shirt", 197, 120, 325, 4333, 6401, 1, "2321:1,4305:2,4340:2" },
     [3871] = { "formal white shirt", 197, 135, 561, 4334, 0, 7, "2321:1,2324:2,4305:3" },
     [3872] = { "rich purple silk shirt", 197, 150, 562, 4335, 4354, 2, "4291:1,4305:4,4342:1" },
-    [3873] = { "black swashbuckler's shirt", 197, 165, 563, 4336, 10728, 529, "2325:1,4291:1,4305:5" },
-    [3914] = { "brown linen pants", 197, 25, 61, 4343, 0, 13, "2320:1,2996:2" },
+    [3873] = { "black swashbuckler's shirt", 197, 165, 563, 4336, 10728, 528, "2325:1,4291:1,4305:5" },
+    [3914] = { "brown linen pants", 197, 25, 61, 4343, 0, 14, "2320:1,2996:2" },
     [3915] = { "brown linen shirt", 197, 0, 317, 4344, 0, 4, "2320:1,2996:1" },
     [3918] = { "rough blasting powder", 202, 0, 288, 4357, 0, 4, "2835:1" },
     [3919] = { "rough dynamite", 202, 0, 129, 4358, 0, 4, "2589:1,4357:1" },
@@ -2628,39 +2625,39 @@ local RAW = {
     [3925] = { "rough boomstick", 202, 50, 117, 4362, 0, 37, "4359:1,4361:1,4399:1" },
     [3926] = { "copper modulator", 202, 65, 150, 4363, 0, 396, "2589:2,2840:1,4359:2" },
     [3928] = { "mechanical squirrel", 202, 75, 491, 4401, 4408, 2, "774:2,2840:1,4359:1,4363:1" },
-    [3929] = { "coarse blasting powder", 202, 75, 290, 4364, 0, 12, "2836:1" },
-    [3930] = { "crafted heavy shot", 202, 75, 290, 8068, 0, 12, "2840:1,4364:1" },
-    [3931] = { "coarse dynamite", 202, 75, 208, 4365, 0, 12, "2589:1,4364:3" },
+    [3929] = { "coarse blasting powder", 202, 75, 290, 4364, 0, 13, "2836:1" },
+    [3930] = { "crafted heavy shot", 202, 75, 290, 8068, 0, 13, "2840:1,4364:1" },
+    [3931] = { "coarse dynamite", 202, 75, 208, 4365, 0, 13, "2589:1,4364:3" },
     [3932] = { "target dummy", 202, 85, 43, 4366, 0, 18, "2592:1,2841:1,4359:2,4363:1" },
     [3933] = { "small seaforium charge", 202, 100, 195, 4367, 4409, 2, "159:1,2318:1,4363:1,4364:2" },
-    [3934] = { "flying tiger goggles", 202, 100, 195, 4368, 0, 31, "818:2,2318:6" },
+    [3934] = { "flying tiger goggles", 202, 100, 195, 4368, 0, 32, "818:2,2318:6" },
     [3936] = { "deadly blunderbuss", 202, 105, 291, 4369, 0, 397, "2319:2,4359:4,4361:2,4399:1" },
-    [3937] = { "large copper bomb", 202, 105, 292, 4370, 0, 56, "2840:3,4364:4,4404:1" },
-    [3938] = { "bronze tube", 202, 105, 292, 4371, 0, 56, "2841:2,2880:1" },
+    [3937] = { "large copper bomb", 202, 105, 292, 4370, 0, 55, "2840:3,4364:4,4404:1" },
+    [3938] = { "bronze tube", 202, 105, 292, 4371, 0, 55, "2841:2,2880:1" },
     [3939] = { "lovingly crafted boomstick", 202, 120, 151, 4372, 13309, 1, "1206:3,4359:2,4371:2,4400:1" },
     [3940] = { "shadow goggles", 202, 120, 151, 4373, 4410, 2, "1210:2,2319:4" },
     [3941] = { "small bronze bomb", 202, 120, 492, 4374, 0, 7, "2592:1,2841:2,4364:4,4404:1" },
     [3942] = { "whirring bronze gizmo", 202, 125, 293, 4375, 0, 7, "2592:1,2841:2" },
-    [3944] = { "flame deflector", 202, 125, 293, 4376, 4411, 49, "4375:1,4402:1" },
+    [3944] = { "flame deflector", 202, 125, 293, 4376, 4411, 48, "4375:1,4402:1" },
     [3945] = { "heavy blasting powder", 202, 125, 111, 4377, 0, 7, "2838:1" },
     [3946] = { "heavy dynamite", 202, 125, 111, 4378, 0, 7, "2592:1,4377:2" },
     [3947] = { "crafted solid shot", 202, 125, 111, 8069, 0, 18, "2841:1,4377:1" },
     [3949] = { "silver-plated shotgun", 202, 130, 186, 4379, 0, 398, "2842:3,4371:2,4375:2,4400:1" },
-    [3950] = { "big bronze bomb", 202, 140, 493, 4380, 0, 34, "2841:3,4377:2,4404:1" },
+    [3950] = { "big bronze bomb", 202, 140, 493, 4380, 0, 35, "2841:3,4377:2,4404:1" },
     [3952] = { "minor recombobulator", 202, 140, 271, 4381, 14639, 399, "1206:1,2319:2,4371:1,4375:2" },
-    [3953] = { "bronze framework", 202, 145, 294, 4382, 0, 34, "2319:1,2592:1,2841:2" },
+    [3953] = { "bronze framework", 202, 145, 294, 4382, 0, 35, "2319:1,2592:1,2841:2" },
     [3954] = { "moonsight rifle", 202, 145, 185, 4383, 4412, 2, "1705:2,4371:3,4375:3,4400:1" },
-    [3955] = { "explosive sheep", 202, 150, 196, 4384, 0, 33, "2592:2,4375:1,4377:2,4382:1" },
-    [3956] = { "green tinted goggles", 202, 150, 196, 4385, 0, 33, "1206:2,2319:4,4368:1" },
+    [3955] = { "explosive sheep", 202, 150, 196, 4384, 0, 34, "2592:2,4375:1,4377:2,4382:1" },
+    [3956] = { "green tinted goggles", 202, 150, 196, 4385, 0, 34, "1206:2,2319:4,4368:1" },
     [3957] = { "ice deflector", 202, 155, 209, 4386, 13308, 1, "3829:1,4375:1" },
-    [3958] = { "iron strut", 202, 160, 494, 4387, 0, 59, "3575:2" },
-    [3959] = { "discombobulator ray", 202, 160, 118, 4388, 4413, 49, "1529:1,4306:2,4371:1,4375:3" },
+    [3958] = { "iron strut", 202, 160, 494, 4387, 0, 58, "3575:2" },
+    [3959] = { "discombobulator ray", 202, 160, 118, 4388, 4413, 48, "1529:1,4306:2,4371:1,4375:3" },
     [3960] = { "portable bronze mortar", 202, 165, 95, 4403, 4414, 2, "2319:4,4371:4,4377:4,4387:1" },
     [3961] = { "gyrochronatom", 202, 170, 495, 4389, 0, 117, "3575:1,10558:1" },
     [3962] = { "iron grenade", 202, 175, 210, 4390, 0, 8, "3575:1,4306:1,4377:1" },
     [3963] = { "compact harvest reaper kit", 202, 175, 210, 4391, 0, 8, "4234:4,4382:1,4387:2,4389:2" },
-    [3965] = { "advanced target dummy", 202, 185, 295, 4392, 0, 75, "4234:4,4382:1,4387:1,4389:1" },
-    [3966] = { "craftsman's monocle", 202, 185, 69, 4393, 4415, 49, "3864:2,4234:6" },
+    [3965] = { "advanced target dummy", 202, 185, 295, 4392, 0, 74, "4234:4,4382:1,4387:1,4389:1" },
+    [3966] = { "craftsman's monocle", 202, 185, 69, 4393, 4415, 48, "3864:2,4234:6" },
     [3967] = { "big iron bomb", 202, 190, 296, 4394, 0, 400, "3575:3,4377:3,4404:1" },
     [3968] = { "goblin land mine", 202, 195, 38, 4395, 4416, 2, "3575:2,4377:3,4389:1" },
     [3969] = { "mechanical dragonling", 202, 200, 30, 4396, 13311, 401, "3864:2,4382:1,4387:4,4389:4,7191:1" },
@@ -2670,27 +2667,27 @@ local RAW = {
     [3977] = { "crude scope", 202, 60, 59, 4405, 0, 15, "774:1,4359:1,4361:1" },
     [3978] = { "standard scope", 202, 110, 32, 4406, 0, 403, "1206:1,4371:1" },
     [3979] = { "accurate scope", 202, 180, 68, 4407, 13310, 1, "1529:1,3864:1,4371:1" },
-    [4094] = { "barbecued buzzard wing", 185, 175, 34, 4457, 4609, 156, "2692:1,3404:1" },
-    [4096] = { "raptor hide harness", 165, 140, 218, 4455, 13287, 442, "2321:2,4234:4,4461:6" },
-    [4097] = { "raptor hide belt", 165, 140, 218, 4456, 13288, 443, "2321:2,4234:4,4461:4" },
+    [4094] = { "barbecued buzzard wing", 185, 175, 34, 4457, 4609, 157, "2692:1,3404:1" },
+    [4096] = { "raptor hide harness", 165, 140, 218, 4455, 13287, 441, "2321:2,4234:4,4461:6" },
+    [4097] = { "raptor hide belt", 165, 140, 218, 4456, 13288, 442, "2321:2,4234:4,4461:4" },
     [4508] = { "minor discolored healing potion", 171, 50, 389, 4596, 4597, 26, "730:1,2447:1,3371:1" },
-    [4942] = { "lesser stoneshield potion", 171, 215, 174, 4623, 4624, 210, "3372:1,3821:1,3858:1" },
-    [5244] = { "kodo hide bag", 165, 35, 308, 5081, 5083, 444, "2318:4,2320:1,5082:3" },
-    [6412] = { "kaldorei spider kabob", 185, 10, 231, 5472, 5482, 157, "5465:1" },
+    [4942] = { "lesser stoneshield potion", 171, 215, 174, 4623, 4624, 211, "3372:1,3821:1,3858:1" },
+    [5244] = { "kodo hide bag", 165, 35, 308, 5081, 5083, 443, "2318:4,2320:1,5082:3" },
+    [6412] = { "kaldorei spider kabob", 185, 10, 231, 5472, 5482, 158, "5465:1" },
     [6413] = { "scorpid surprise", 185, 20, 167, 5473, 5483, 1, "5466:1" },
-    [6414] = { "roasted kodo meat", 185, 35, 102, 5474, 5484, 158, "2678:1,5467:1" },
-    [6415] = { "fillet of frenzy", 185, 50, 51, 5476, 5485, 159, "2678:1,5468:1" },
-    [6416] = { "strider stew", 185, 50, 51, 5477, 5486, 160, "4536:1,5469:1" },
-    [6417] = { "dig rat stew", 185, 90, 165, 5478, 5487, 161, "5051:1" },
-    [6418] = { "crispy lizard tail", 185, 100, 164, 5479, 5488, 162, "2692:1,5470:1" },
+    [6414] = { "roasted kodo meat", 185, 35, 102, 5474, 5484, 159, "2678:1,5467:1" },
+    [6415] = { "fillet of frenzy", 185, 50, 51, 5476, 5485, 160, "2678:1,5468:1" },
+    [6416] = { "strider stew", 185, 50, 51, 5477, 5486, 161, "4536:1,5469:1" },
+    [6417] = { "dig rat stew", 185, 90, 165, 5478, 5487, 162, "5051:1" },
+    [6418] = { "crispy lizard tail", 185, 100, 164, 5479, 5488, 163, "2692:1,5470:1" },
     [6419] = { "lean venison", 185, 110, 166, 5480, 5489, 1, "2678:4,5471:1" },
-    [6458] = { "ornate spyglass", 202, 135, 497, 5507, 0, 31, "1206:1,4363:1,4371:2,4375:2" },
-    [6499] = { "boiled clams", 185, 50, 51, 5525, 0, 50, "159:1,5503:1" },
-    [6500] = { "goblin deviled clams", 185, 125, 234, 5527, 0, 163, "2692:1,5504:1" },
+    [6458] = { "ornate spyglass", 202, 135, 497, 5507, 0, 32, "1206:1,4363:1,4371:2,4375:2" },
+    [6499] = { "boiled clams", 185, 50, 51, 5525, 0, 49, "159:1,5503:1" },
+    [6500] = { "goblin deviled clams", 185, 125, 234, 5527, 0, 164, "2692:1,5504:1" },
     [6501] = { "clam chowder", 185, 90, 165, 5526, 5528, 1, "1179:1,2678:1,5503:1" },
-    [6517] = { "pearl-handled dagger", 164, 85, 43, 5540, 0, 59, "2841:6,3466:1,3478:2,5498:2" },
+    [6517] = { "pearl-handled dagger", 164, 85, 43, 5540, 0, 58, "2841:6,3466:1,3478:2,5498:2" },
     [6518] = { "iridescent hammer", 164, 115, 439, 5541, 5543, 2, "2319:2,2841:10,3466:1,3478:2,5500:1" },
-    [6521] = { "pearl-clasped cloak", 197, 70, 220, 5542, 0, 31, "2321:2,2997:3,5498:1" },
+    [6521] = { "pearl-clasped cloak", 197, 70, 220, 5542, 0, 32, "2321:2,2997:3,5498:1" },
     [6617] = { "rage potion", 171, 60, 244, 5631, 5640, 1, "2450:1,3371:1,5635:1" },
     [6618] = { "great rage potion", 171, 175, 84, 5633, 5643, 1, "3356:1,3372:1,5637:1" },
     [6624] = { "free action potion", 171, 150, 104, 5634, 5642, 1, "3372:1,3820:1,6370:2" },
@@ -2704,18 +2701,18 @@ local RAW = {
     [6702] = { "murloc scale belt", 165, 65, 150, 5780, 5786, 1, "2318:6,2321:1,5784:8" },
     [6703] = { "murloc scale breastplate", 165, 70, 188, 5781, 5787, 1, "2318:8,2321:1,4231:1,5784:12" },
     [6704] = { "thick murloc armor", 165, 145, 217, 5782, 5788, 1, "2321:3,4234:10,4236:1,5785:12" },
-    [6705] = { "murloc scale bracers", 165, 165, 95, 5783, 5789, 445, "4234:14,4236:1,4291:1,5785:16" },
+    [6705] = { "murloc scale bracers", 165, 165, 95, 5783, 5789, 444, "4234:14,4236:1,4291:1,5785:16" },
     [7126] = { "handstitched leather vest", 165, 0, 153, 5957, 0, 4, "2318:3,2320:1" },
     [7133] = { "fine leather pants", 165, 80, 311, 5958, 5972, 2, "2319:8,2321:1,2997:1" },
-    [7135] = { "dark leather pants", 165, 90, 312, 5961, 0, 31, "2319:12,2321:1,4340:1" },
+    [7135] = { "dark leather pants", 165, 90, 312, 5961, 0, 32, "2319:12,2321:1,4340:1" },
     [7147] = { "guardian pants", 165, 135, 155, 5962, 0, 8, "2321:2,4234:12,4305:2" },
     [7149] = { "barbaric leggings", 165, 145, 217, 5963, 5973, 1, "1206:1,2321:2,4234:10" },
-    [7151] = { "barbaric shoulders", 165, 150, 121, 5964, 0, 75, "2321:2,4234:8,4236:1" },
+    [7151] = { "barbaric shoulders", 165, 150, 121, 5964, 0, 74, "2321:2,4234:8,4236:1" },
     [7153] = { "guardian cloak", 165, 160, 118, 5965, 5974, 2, "4234:14,4291:2,4305:2" },
     [7156] = { "guardian gloves", 165, 165, 95, 5966, 0, 39, "4234:4,4236:1,4291:1" },
-    [7179] = { "draught of water breathing", 171, 90, 83, 5996, 0, 56, "3371:1,3820:1,6370:2" },
+    [7179] = { "draught of water breathing", 171, 90, 83, 5996, 0, 55, "3371:1,3820:1,6370:2" },
     [7183] = { "elixir of minor defense", 171, 0, 390, 5997, 0, 4, "765:1,2447:1,3371:1" },
-    [7213] = { "giant clam scorcho", 185, 175, 34, 6038, 6039, 52, "2692:1,4655:1" },
+    [7213] = { "giant clam scorcho", 185, 175, 34, 6038, 6039, 51, "2692:1,4655:1" },
     [7221] = { "iron shield spike", 164, 125, 267, 6042, 6044, 2, "3478:4,3575:6" },
     [7222] = { "iron counterweight", 164, 140, 440, 6043, 6045, 2, "1705:1,3478:2,3575:4" },
     [7223] = { "golden scale bracers", 164, 160, 187, 6040, 0, 8, "3486:2,3859:5" },
@@ -2727,32 +2724,32 @@ local RAW = {
     [7259] = { "nature protection potion", 171, 190, 135, 6052, 6057, 1, "3357:1,3372:1,3820:1" },
     [7408] = { "heavy copper maul", 164, 40, 235, 6214, 0, 18, "2318:2,2840:12,2880:2" },
     [7418] = { "enchant bracer - inferior stamina", 333, 0, 470, 0, 0, 4, "247786:1" },
-    [7420] = { "enchant chest - inferior stamina", 333, 15, 471, 0, 0, 13, "10940:1" },
+    [7420] = { "enchant chest - inferior stamina", 333, 15, 471, 0, 0, 14, "10940:1" },
     [7421] = { "runed copper rod", 333, 0, 472, 6218, 0, 4, "6217:1,247786:1" },
     [7426] = { "enchant chest - minor absorption", 333, 40, 473, 0, 0, 11, "10938:1" },
     [7428] = { "enchant bracer - minor deflect", 333, 80, 474, 0, 0, 4, "10938:1" },
     [7430] = { "arclight spanner", 202, 50, 498, 6219, 0, 37, "2840:6" },
     [7443] = { "enchant chest - minor intellect", 333, 20, 475, 0, 6342, 1, "10938:1" },
     [7454] = { "enchant cloak - minor resistance", 333, 45, 476, 0, 0, 11, "10938:1,10940:1" },
-    [7457] = { "enchant bracer - minor stamina", 333, 50, 477, 0, 0, 12, "10940:2" },
-    [7623] = { "brown linen robe", 197, 25, 61, 6238, 0, 13, "2320:1,2996:3" },
-    [7624] = { "white linen robe", 197, 25, 61, 6241, 0, 13, "2320:1,2324:1,2996:3" },
+    [7457] = { "enchant bracer - minor stamina", 333, 50, 477, 0, 0, 13, "10940:2" },
+    [7623] = { "brown linen robe", 197, 25, 61, 6238, 0, 14, "2320:1,2996:3" },
+    [7624] = { "white linen robe", 197, 25, 61, 6241, 0, 14, "2320:1,2324:1,2996:3" },
     [7629] = { "red linen vest", 197, 35, 157, 6239, 6271, 2, "2320:1,2604:1,2996:3" },
     [7630] = { "blue linen vest", 197, 35, 157, 6240, 6270, 1, "2320:1,2996:3,6260:1" },
     [7633] = { "blue linen robe", 197, 45, 321, 6242, 6272, 1, "2320:2,2996:4,6260:2" },
     [7639] = { "blue overalls", 197, 75, 63, 6263, 6274, 1, "2321:2,2997:4,6260:2" },
     [7643] = { "greater adept's robe", 197, 90, 326, 6264, 6275, 1, "2321:3,2604:3,2997:5" },
     [7745] = { "enchant 2h weapon - minor impact", 333, 100, 105, 0, 0, 7, "10940:1,10978:1" },
-    [7748] = { "enchant chest - lesser stamina", 333, 60, 282, 0, 0, 12, "10938:1,10940:1" },
+    [7748] = { "enchant chest - lesser stamina", 333, 60, 282, 0, 0, 13, "10938:1,10940:1" },
     [7751] = { "brilliant smallfish", 185, 1, 103, 6290, 6325, 1, "6291:1" },
     [7752] = { "slitherskin mackerel", 185, 1, 103, 787, 6326, 1, "6303:1" },
     [7753] = { "longjaw mud snapper", 185, 50, 51, 4592, 6328, 1, "6289:1" },
-    [7754] = { "loch frenzy delight", 185, 50, 51, 6316, 6329, 164, "2678:1,6317:1" },
+    [7754] = { "loch frenzy delight", 185, 50, 51, 6316, 6329, 165, "2678:1,6317:1" },
     [7755] = { "bristle whisker catfish", 185, 100, 164, 4593, 6330, 1, "6308:1" },
     [7766] = { "enchant bracer - minor spirit", 333, 60, 282, 0, 6344, 2, "10938:1" },
     [7771] = { "enchant cloak - minor protection", 333, 70, 138, 0, 0, 15, "10940:2" },
     [7776] = { "enchant chest - lesser intellect", 333, 80, 197, 0, 6346, 342, "10938:2" },
-    [7779] = { "enchant bracer - minor agility", 333, 80, 197, 0, 0, 31, "10938:2,10940:1" },
+    [7779] = { "enchant bracer - minor agility", 333, 80, 197, 0, 0, 32, "10938:2,10940:1" },
     [7782] = { "enchant bracer - minor strength", 333, 80, 197, 0, 6347, 2, "10940:3" },
     [7786] = { "enchant weapon - minor beastslayer", 333, 90, 83, 0, 6348, 2, "10939:1,10940:2" },
     [7788] = { "enchant weapon - minor striking", 333, 90, 83, 0, 0, 7, "10938:1,10940:1,10978:1" },
@@ -2762,7 +2759,7 @@ local RAW = {
     [7818] = { "silver rod", 164, 75, 256, 6338, 0, 11, "2842:1,3470:2" },
     [7827] = { "rainbow fin albacore", 185, 50, 51, 5095, 6368, 1, "6361:1" },
     [7828] = { "rockscale cod", 185, 175, 340, 4594, 6369, 1, "6362:1" },
-    [7836] = { "blackmouth oil", 171, 80, 393, 6370, 0, 12, "3371:1,6358:2" },
+    [7836] = { "blackmouth oil", 171, 80, 393, 6370, 0, 13, "3371:1,6358:2" },
     [7837] = { "fire oil", 171, 130, 247, 6371, 0, 8, "3371:1,6359:2" },
     [7841] = { "swim speed potion", 171, 100, 105, 6372, 0, 8, "2452:1,3371:1,6370:1" },
     [7845] = { "elixir of fire power", 171, 140, 82, 6373, 0, 28, "3356:1,3372:1,6371:2" },
@@ -2773,36 +2770,36 @@ local RAW = {
     [7867] = { "enchant boots - minor agility", 333, 125, 133, 0, 6377, 345, "10940:3,10998:1" },
     [7892] = { "stylish blue shirt", 197, 95, 222, 6384, 6390, 2, "2321:1,2997:4,4340:1,6260:2" },
     [7893] = { "stylish green shirt", 197, 95, 222, 6385, 6391, 2, "2321:1,2605:2,2997:4,4340:1" },
-    [7928] = { "silk bandage", 129, 150, 366, 6450, 0, 9, "4306:1" },
+    [7928] = { "silk bandage", 129, 150, 366, 6450, 0, 10, "4306:1" },
     [7929] = { "heavy silk bandage", 129, 180, 367, 6451, 16112, 1, "4306:2" },
-    [7934] = { "anti-venom", 129, 80, 239, 6452, 0, 87, "1475:1" },
+    [7934] = { "anti-venom", 129, 80, 239, 6452, 0, 86, "1475:1" },
     [7935] = { "strong anti-venom", 129, 130, 368, 6453, 6454, 2, "1288:1" },
     [7953] = { "deviate scale cloak", 165, 65, 150, 6466, 6474, 125, "2321:1,4231:1,6470:8" },
     [7954] = { "deviate scale gloves", 165, 80, 311, 6467, 6475, 125, "2321:2,6470:6,6471:2" },
-    [7955] = { "deviate scale belt", 165, 90, 312, 6468, 6476, 446, "2321:2,6470:10,6471:10" },
-    [8238] = { "savory deviate delight", 185, 85, 162, 6657, 6661, 84, "2678:1,6522:1" },
-    [8240] = { "elixir of giant growth", 171, 90, 83, 6662, 6663, 84, "2449:1,3371:1,6522:1" },
+    [7955] = { "deviate scale belt", 165, 90, 312, 6468, 6476, 445, "2321:2,6470:10,6471:10" },
+    [8238] = { "savory deviate delight", 185, 85, 162, 6657, 6661, 83, "2678:1,6522:1" },
+    [8240] = { "elixir of giant growth", 171, 90, 83, 6662, 6663, 83, "2449:1,3371:1,6522:1" },
     [8243] = { "flash bomb", 202, 185, 295, 4852, 6672, 404, "4306:1,4377:1,4611:1" },
-    [8322] = { "moonglow vest", 165, 65, 534, 6709, 6710, 447, "2318:6,2320:4,4231:1,5498:1" },
+    [8322] = { "moonglow vest", 165, 65, 534, 6709, 6710, 446, "2318:6,2320:4,4231:1,5498:1" },
     [8334] = { "practice lock", 202, 100, 297, 6712, 0, 18, "2841:1,2880:1,4359:2" },
     [8339] = { "ez-thro dynamite", 202, 100, 297, 6714, 6716, 2, "2589:1,4364:3,260794:1" },
     [8367] = { "ironforge breastplate", 164, 100, 441, 6731, 6735, 251, "818:2,2840:16,3470:3" },
-    [8465] = { "simple dress", 197, 25, 61, 6786, 0, 13, "2320:1,2324:1,2996:2,6260:1" },
-    [8467] = { "white woolen dress", 197, 85, 41, 6787, 0, 12, "2321:1,2324:4,2997:3" },
+    [8465] = { "simple dress", 197, 25, 61, 6786, 0, 14, "2320:1,2324:1,2996:2,6260:1" },
+    [8467] = { "white woolen dress", 197, 85, 41, 6787, 0, 13, "2321:1,2324:4,2997:3" },
     [8483] = { "white swashbuckler's shirt", 197, 125, 128, 6795, 0, 7, "2324:2,4291:1,4305:3" },
-    [8489] = { "red swashbuckler's shirt", 197, 140, 306, 6796, 0, 33, "2604:2,4291:1,4305:3" },
+    [8489] = { "red swashbuckler's shirt", 197, 140, 306, 6796, 0, 34, "2604:2,4291:1,4305:3" },
     [8604] = { "herb baked egg", 185, 0, 103, 6888, 0, 4, "2678:1,6889:1" },
     [8607] = { "smoked bear meat", 185, 40, 235, 6890, 6892, 1, "3173:1" },
-    [8758] = { "azure silk pants", 197, 115, 564, 7046, 0, 34, "2321:3,4305:4,6260:2" },
-    [8760] = { "azure silk hood", 197, 120, 325, 7048, 0, 34, "2321:1,4305:2,6260:2" },
-    [8762] = { "silk headband", 197, 125, 128, 7050, 0, 33, "2321:2,4305:3" },
+    [8758] = { "azure silk pants", 197, 115, 564, 7046, 0, 35, "2321:3,4305:4,6260:2" },
+    [8760] = { "azure silk hood", 197, 120, 325, 7048, 0, 35, "2321:1,4305:2,6260:2" },
+    [8762] = { "silk headband", 197, 125, 128, 7050, 0, 34, "2321:2,4305:3" },
     [8764] = { "earthen vest", 197, 135, 324, 7051, 0, 117, "2321:2,4305:3,7067:1" },
     [8766] = { "azure silk belt", 197, 140, 98, 7052, 0, 8, "2321:2,4305:4,6260:2,7070:1,7071:1" },
-    [8768] = { "iron buckle", 164, 125, 442, 7071, 0, 12, "3575:1" },
+    [8768] = { "iron buckle", 164, 125, 442, 7071, 0, 13, "3575:1" },
     [8770] = { "robe of power", 197, 155, 224, 7054, 0, 8, "4291:2,4339:2,7067:2,7068:2,7069:2,7070:2" },
     [8772] = { "crimson silk belt", 197, 140, 98, 7055, 0, 8, "2604:2,4291:1,4305:4,7071:1" },
     [8774] = { "green silken shoulders", 197, 145, 158, 7057, 0, 8, "4291:2,4305:5" },
-    [8776] = { "linen belt", 197, 15, 565, 7026, 0, 13, "2320:1,2996:1" },
+    [8776] = { "linen belt", 197, 15, 565, 7026, 0, 14, "2320:1,2996:1" },
     [8780] = { "hands of darkness", 197, 120, 322, 7047, 7092, 2, "2321:2,4234:2,4305:3,6048:2" },
     [8782] = { "truefaith gloves", 197, 125, 40, 7049, 7091, 2, "929:4,2321:1,4234:2,4305:3" },
     [8784] = { "green silk armor", 197, 130, 323, 7065, 7090, 2, "2605:2,4291:1,4305:5" },
@@ -2814,22 +2811,22 @@ local RAW = {
     [8797] = { "earthen silk belt", 197, 160, 327, 7061, 7086, 2, "4234:4,4291:2,4305:5,7067:4,7071:1" },
     [8799] = { "crimson silk pantaloons", 197, 160, 118, 7062, 0, 28, "2604:2,4291:2,4305:4" },
     [8802] = { "crimson silk robe", 197, 170, 159, 7063, 7088, 1, "2604:4,3827:2,4291:1,4305:8,7068:4" },
-    [8804] = { "crimson silk gloves", 197, 175, 225, 7064, 0, 9, "2604:4,4291:2,4304:2,4305:6,6371:2,7068:2" },
+    [8804] = { "crimson silk gloves", 197, 175, 225, 7064, 0, 10, "2604:4,4291:2,4304:2,4305:6,6371:2,7068:2" },
     [8880] = { "copper dagger", 164, 25, 131, 7166, 0, 11, "2318:1,2840:6,2880:1,3470:1" },
-    [8895] = { "goblin rocket boots", 202, 130, 15, 7189, 7192, 49, "4234:4,9061:2,10026:1,10559:2,10560:1" },
+    [8895] = { "goblin rocket boots", 202, 130, 15, 7189, 7192, 48, "4234:4,9061:2,10026:1,10559:2,10560:1" },
     [9058] = { "handstitched leather cloak", 165, 0, 153, 7276, 0, 4, "2318:2,2320:1" },
     [9059] = { "handstitched leather bracers", 165, 0, 153, 7277, 0, 4, "2318:2,2320:3" },
     [9060] = { "light leather quiver", 165, 25, 216, 7278, 0, 11, "2318:4,2320:2" },
     [9062] = { "small leather ammo pouch", 165, 25, 216, 7279, 0, 11, "2318:3,2320:4" },
     [9064] = { "rugged leather pants", 165, 30, 289, 7280, 7288, 2, "2318:5,2320:5" },
     [9065] = { "light leather bracers", 165, 45, 535, 7281, 0, 37, "2318:6,2320:4" },
-    [9068] = { "light leather pants", 165, 70, 188, 7282, 0, 31, "2318:10,2321:1,4231:1" },
-    [9070] = { "black whelp cloak", 165, 75, 33, 7283, 7289, 448, "2319:4,2321:1,7286:12" },
-    [9072] = { "red whelp gloves", 165, 95, 215, 7284, 7290, 449, "2319:4,2321:1,7287:6" },
+    [9068] = { "light leather pants", 165, 70, 188, 7282, 0, 32, "2318:10,2321:1,4231:1" },
+    [9070] = { "black whelp cloak", 165, 75, 33, 7283, 7289, 447, "2319:4,2321:1,7286:12" },
+    [9072] = { "red whelp gloves", 165, 95, 215, 7284, 7290, 448, "2319:4,2321:1,7287:6" },
     [9074] = { "nimble leather gloves", 165, 95, 215, 7285, 0, 7, "2319:6,2321:1,2457:1" },
     [9145] = { "fletcher's gloves", 165, 100, 60, 7348, 0, 7, "2319:8,2321:2,5116:4" },
-    [9146] = { "herbalist's gloves", 165, 110, 32, 7349, 7361, 450, "2319:8,2321:2,3356:4" },
-    [9147] = { "earthen leather shoulders", 165, 110, 32, 7352, 7362, 451, "2319:6,2321:2,7067:1" },
+    [9146] = { "herbalist's gloves", 165, 110, 32, 7349, 7361, 449, "2319:8,2321:2,3356:4" },
+    [9147] = { "earthen leather shoulders", 165, 110, 32, 7352, 7362, 450, "2319:6,2321:2,7067:1" },
     [9148] = { "pilferer's gloves", 165, 115, 309, 7358, 7363, 2, "2319:10,2321:2,5373:2" },
     [9149] = { "heavy earthen gloves", 165, 120, 151, 7359, 7364, 2, "2319:12,2321:2,2997:2,7067:2" },
     [9193] = { "heavy quiver", 165, 125, 154, 7371, 0, 7, "2321:2,4234:8" },
@@ -2841,12 +2838,12 @@ local RAW = {
     [9201] = { "dusky bracers", 165, 160, 118, 7378, 0, 27, "2325:1,4234:16,4291:2" },
     [9202] = { "green whelp bracers", 165, 165, 95, 7386, 7451, 1, "4234:8,4291:2,7392:6" },
     [9206] = { "dusky belt", 165, 170, 310, 7387, 0, 19, "2325:2,4234:10,4305:2,7071:1" },
-    [9207] = { "dusky boots", 165, 175, 22, 7390, 7452, 452, "3824:1,4234:8,4291:2,7428:2" },
+    [9207] = { "dusky boots", 165, 175, 22, 7390, 7452, 451, "3824:1,4234:8,4291:2,7428:2" },
     [9208] = { "swift boots", 165, 175, 22, 7391, 7453, 2, "2459:2,4234:10,4291:1,4337:2" },
-    [9269] = { "gnomish universal remote", 202, 125, 499, 7506, 7560, 49, "774:1,814:2,818:1,2841:6,4375:1" },
+    [9269] = { "gnomish universal remote", 202, 125, 499, 7506, 7560, 48, "774:1,814:2,818:1,2841:6,4375:1" },
     [9271] = { "aquadynamic fish attractor", 202, 150, 298, 6533, 0, 7, "2841:2,4364:1,6530:1" },
     [9273] = { "goblin jumper cables", 202, 165, 500, 7148, 7561, 405, "814:2,1210:2,3575:6,4306:2,4375:2,7191:1" },
-    [9513] = { "thistle tea", 185, 60, 233, 7676, 18160, 165, "159:1,2452:1" },
+    [9513] = { "thistle tea", 185, 60, 233, 7676, 18160, 166, "159:1,2452:1" },
     [9811] = { "barbaric iron shoulders", 164, 135, 139, 7913, 7978, 252, "1210:2,3486:2,3575:8,5635:4" },
     [9813] = { "barbaric iron breastplate", 164, 135, 139, 7914, 7979, 253, "3486:4,3575:20" },
     [9814] = { "barbaric iron helm", 164, 150, 44, 7915, 7980, 254, "3575:10,5635:2,5637:2" },
@@ -2856,153 +2853,153 @@ local RAW = {
     [9918] = { "solid sharpening stone", 164, 175, 189, 7964, 0, 19, "7912:1" },
     [9920] = { "solid grinding stone", 164, 175, 189, 7966, 0, 19, "7912:4" },
     [9921] = { "solid weightstone", 164, 175, 189, 7965, 0, 19, "7912:1" },
-    [9926] = { "heavy mithril shoulder", 164, 180, 68, 7918, 0, 9, "3860:8,4234:6" },
-    [9928] = { "heavy mithril gauntlet", 164, 180, 68, 7919, 0, 9, "3860:6,4338:4" },
-    [9931] = { "mithril plate pants", 164, 185, 69, 7920, 0, 9, "3860:12" },
+    [9926] = { "heavy mithril shoulder", 164, 180, 68, 7918, 0, 10, "3860:8,4234:6" },
+    [9928] = { "heavy mithril gauntlet", 164, 180, 68, 7919, 0, 10, "3860:6,4338:4" },
+    [9931] = { "mithril plate pants", 164, 185, 69, 7920, 0, 10, "3860:12" },
     [9933] = { "heavy mithril pants", 164, 185, 443, 7921, 7975, 2, "1705:2,3860:10" },
-    [9935] = { "steel plate helm", 164, 190, 142, 7922, 0, 9, "3859:14,7966:1" },
+    [9935] = { "steel plate helm", 164, 190, 142, 7922, 0, 10, "3859:14,7966:1" },
     [9937] = { "mithril plate bracers", 164, 190, 273, 7924, 7995, 1, "3860:8,3864:2" },
     [9939] = { "mithril shield spike", 164, 190, 273, 7967, 7976, 2, "3860:4,6037:2,7966:4" },
     [9945] = { "ornate mithril pants", 164, 195, 38, 7926, 7983, 257, "3860:12,6037:1,7909:1,7966:1" },
     [9950] = { "ornate mithril gloves", 164, 195, 444, 7927, 7984, 258, "3860:10,4338:6,6037:1,7966:1" },
     [9952] = { "ornate mithril shoulders", 164, 200, 90, 7928, 7985, 259, "3860:12,4304:6,6037:1" },
-    [9954] = { "truesilver gauntlets", 164, 200, 30, 7938, 0, 14, "3860:10,3864:3,5966:1,6037:8,7909:3,7966:2" },
+    [9954] = { "truesilver gauntlets", 164, 200, 30, 7938, 0, 12, "3860:10,3864:3,5966:1,6037:8,7909:3,7966:2" },
     [9957] = { "orcish war leggings", 164, 205, 445, 7929, 0, 4, "3860:12,7067:1" },
-    [9959] = { "heavy mithril breastplate", 164, 205, 31, 7930, 0, 35, "3860:16" },
-    [9961] = { "mithril coif", 164, 205, 31, 7931, 0, 35, "3860:10,4338:6" },
+    [9959] = { "heavy mithril breastplate", 164, 205, 31, 7930, 0, 29, "3860:16" },
+    [9961] = { "mithril coif", 164, 205, 31, 7931, 0, 29, "3860:10,4338:6" },
     [9964] = { "mithril spurs", 164, 210, 274, 7969, 7989, 2, "3860:4,7966:3" },
     [9966] = { "mithril plate shoulders", 164, 210, 274, 7932, 7991, 2, "3860:14,3864:4,4304:4" },
     [9968] = { "heavy mithril boots", 164, 210, 6, 7933, 0, 260, "3860:14,4304:4" },
     [9970] = { "heavy mithril helm", 164, 220, 446, 7934, 7990, 2, "3860:14,7909:1" },
     [9972] = { "ornate mithril breastplate", 164, 215, 447, 7935, 0, 4, "3860:16,6037:6,7077:1,7966:1" },
-    [9974] = { "truesilver breastplate", 164, 220, 70, 7939, 0, 14, "3860:12,6037:24,7910:4,7966:2,7971:4" },
+    [9974] = { "truesilver breastplate", 164, 220, 70, 7939, 0, 12, "3860:12,6037:24,7910:4,7966:2,7971:4" },
     [9979] = { "ornate mithril boots", 164, 220, 275, 7936, 0, 4, "3860:14,4304:4,6037:2,7909:1,7966:1" },
     [9980] = { "ornate mithril helm", 164, 220, 275, 7937, 0, 4, "3860:16,6037:2,7966:1,7971:1" },
     [9983] = { "copper claymore", 164, 25, 131, 7955, 0, 11, "2318:1,2840:10,2880:2,3470:1" },
-    [9985] = { "bronze warhammer", 164, 100, 448, 7956, 0, 12, "2319:1,2841:8,3466:1" },
+    [9985] = { "bronze warhammer", 164, 100, 448, 7956, 0, 13, "2319:1,2841:8,3466:1" },
     [9986] = { "bronze greatsword", 164, 105, 109, 7957, 0, 7, "2319:2,2841:12,3466:2" },
     [9987] = { "bronze battle axe", 164, 110, 55, 7958, 0, 7, "2319:2,2841:14,3466:1" },
-    [9993] = { "heavy mithril axe", 164, 185, 449, 7941, 0, 14, "3860:12,3864:2,4234:4,7966:1" },
+    [9993] = { "heavy mithril axe", 164, 185, 449, 7941, 0, 12, "3860:12,3864:2,4234:4,7966:1" },
     [9995] = { "blue glittering axe", 164, 195, 450, 7942, 7992, 2, "3860:16,4304:4,7909:2,7966:1" },
     [9997] = { "wicked mithril blade", 164, 200, 53, 7943, 8029, 261, "3860:14,4304:2,6037:4,7966:1" },
-    [10001] = { "big black mace", 164, 205, 451, 7945, 0, 35, "1210:4,3860:16,4304:2,7966:1,7971:1" },
-    [10003] = { "the shatterer", 164, 210, 452, 7954, 0, 35, "1529:5,3860:24,3864:5,4304:4,6037:6,7075:4,7966:4" },
+    [10001] = { "big black mace", 164, 205, 451, 7945, 0, 29, "1210:4,3860:16,4304:2,7966:1,7971:1" },
+    [10003] = { "the shatterer", 164, 210, 452, 7954, 0, 29, "1529:5,3860:24,3864:5,4304:4,6037:6,7075:4,7966:4" },
     [10005] = { "dazzling mithril rapier", 164, 215, 453, 7944, 7993, 2, "1206:2,1705:2,3860:14,4338:2,7909:1,7966:1" },
-    [10007] = { "phantom blade", 164, 220, 454, 7961, 0, 35, "3823:2,3860:28,4304:2,6037:8,7081:6,7909:6,7966:4" },
+    [10007] = { "phantom blade", 164, 220, 454, 7961, 0, 29, "3823:2,3860:28,4304:2,6037:8,7081:6,7909:6,7966:4" },
     [10009] = { "runed mithril hammer", 164, 220, 455, 7946, 8028, 99, "3860:18,4304:4,7075:2,7966:1" },
-    [10011] = { "blight", 164, 225, 91, 7959, 0, 35, "3860:28,4304:6,6037:10,7966:6,7972:10" },
-    [10013] = { "ebon shiv", 164, 230, 456, 7947, 8030, 43, "3860:12,4304:2,6037:6,7910:2,7966:1" },
-    [10015] = { "truesilver champion", 164, 235, 457, 7960, 0, 35, "3860:30,4304:6,6037:16,7081:4,7910:6,7966:8", { spec = "weaponsmith" } },
+    [10011] = { "blight", 164, 225, 91, 7959, 0, 29, "3860:28,4304:6,6037:10,7966:6,7972:10" },
+    [10013] = { "ebon shiv", 164, 230, 456, 7947, 8030, 42, "3860:12,4304:2,6037:6,7910:2,7966:1" },
+    [10015] = { "truesilver champion", 164, 235, 457, 7960, 0, 29, "3860:30,4304:6,6037:16,7081:4,7910:6,7966:8", { spec = "weaponsmith" } },
     [10482] = { "cured thick hide", 165, 175, 536, 8172, 0, 27, "8150:1,8169:1" },
     [10487] = { "thick armor kit", 165, 175, 22, 8173, 0, 27, "4291:1,4304:5" },
     [10490] = { "comfortable leather hat", 165, 175, 22, 8174, 8384, 2, "4234:12,4236:2,4291:2" },
     [10499] = { "nightscape tunic", 165, 180, 68, 8175, 0, 28, "4291:2,4304:7" },
     [10507] = { "nightscape headband", 165, 180, 68, 8176, 0, 28, "4291:2,4304:5" },
-    [10509] = { "turtle scale gloves", 165, 180, 68, 8187, 8385, 453, "4304:6,8167:8,8343:1" },
+    [10509] = { "turtle scale gloves", 165, 180, 68, 8187, 8385, 452, "4304:6,8167:8,8343:1" },
     [10511] = { "turtle scale breastplate", 165, 185, 69, 8189, 0, 28, "4304:6,8167:12,8343:1" },
     [10516] = { "nightscape shoulders", 165, 185, 69, 8192, 8409, 1, "4291:3,4304:8,4338:6" },
-    [10518] = { "turtle scale bracers", 165, 185, 69, 8198, 0, 454, "4304:8,8167:12,8343:1" },
+    [10518] = { "turtle scale bracers", 165, 185, 69, 8198, 0, 453, "4304:8,8167:12,8343:1" },
     [10520] = { "big voodoo robe", 165, 190, 142, 8200, 8386, 2, "4304:10,8151:4,8343:1" },
-    [10525] = { "tough scorpid breastplate", 165, 195, 38, 8203, 8395, 455, "4291:4,4304:12,8154:12" },
+    [10525] = { "tough scorpid breastplate", 165, 195, 38, 8203, 8395, 454, "4291:4,4304:12,8154:12" },
     [10529] = { "wild leather shoulders", 165, 195, 38, 8210, 8403, 26, "4304:10,8153:1,8172:1" },
     [10531] = { "big voodoo mask", 165, 195, 38, 8201, 8387, 2, "4304:8,8151:6,8343:1" },
-    [10533] = { "tough scorpid bracers", 165, 195, 38, 8205, 8397, 456, "4291:2,4304:10,8154:4" },
+    [10533] = { "tough scorpid bracers", 165, 195, 38, 8205, 8397, 455, "4291:2,4304:10,8154:4" },
     [10542] = { "tough scorpid gloves", 165, 200, 30, 8204, 8398, 122, "4291:2,4304:6,8154:8" },
     [10544] = { "wild leather vest", 165, 200, 30, 8211, 8404, 26, "4304:12,8153:2,8172:1" },
     [10546] = { "wild leather helmet", 165, 200, 30, 8214, 8405, 26, "4304:10,8153:2,8172:1" },
     [10548] = { "nightscape pants", 165, 205, 31, 8193, 0, 20, "4291:4,4304:14" },
-    [10550] = { "nightscape cloak", 165, 205, 0, 8195, 8388, 525, "4291:4,4304:12" },
+    [10550] = { "nightscape cloak", 165, 205, 0, 8195, 8388, 524, "4291:4,4304:12" },
     [10552] = { "turtle scale helm", 165, 205, 31, 8191, 0, 20, "4304:14,8167:24,8343:1" },
     [10554] = { "tough scorpid boots", 165, 210, 6, 8209, 8399, 126, "4291:6,4304:12,8154:12" },
-    [10556] = { "turtle scale leggings", 165, 210, 6, 8185, 0, 65, "4304:14,8167:28,8343:1" },
-    [10558] = { "nightscape boots", 165, 210, 6, 8197, 0, 65, "4304:16,8343:2" },
+    [10556] = { "turtle scale leggings", 165, 210, 6, 8185, 0, 127, "4304:14,8167:28,8343:1" },
+    [10558] = { "nightscape boots", 165, 210, 6, 8197, 0, 127, "4304:16,8343:2" },
     [10560] = { "big voodoo pants", 165, 215, 537, 8202, 8389, 2, "4304:10,8152:6,8343:2" },
     [10562] = { "big voodoo cloak", 165, 215, 114, 8216, 8390, 2, "4304:14,8152:4,8343:2" },
-    [10564] = { "tough scorpid shoulders", 165, 215, 114, 8207, 8400, 127, "4304:12,8154:16,8343:2" },
+    [10564] = { "tough scorpid shoulders", 165, 215, 114, 8207, 8400, 128, "4304:12,8154:16,8343:2" },
     [10566] = { "wild leather boots", 165, 220, 70, 8213, 8406, 26, "4304:14,8153:4,8172:2" },
     [10568] = { "tough scorpid leggings", 165, 220, 70, 8206, 8401, 126, "4304:14,8154:8,8343:2" },
-    [10570] = { "tough scorpid helm", 165, 225, 15, 8208, 8402, 127, "4304:10,8154:20,8343:2" },
+    [10570] = { "tough scorpid helm", 165, 225, 15, 8208, 8402, 128, "4304:10,8154:20,8343:2" },
     [10572] = { "wild leather leggings", 165, 225, 15, 8212, 8407, 26, "4304:16,8153:2,8172:2" },
     [10574] = { "wild leather cloak", 165, 225, 15, 8215, 8408, 26, "4304:16,8153:2,8172:2" },
-    [10619] = { "dragonscale gauntlets", 165, 200, 90, 8347, 0, 41, "4304:24,8165:12,8172:2,8343:4", { spec = "dragonscale leatherworking" } },
-    [10621] = { "wolfshead helm", 165, 200, 30, 8345, 0, 14, "4304:18,8146:8,8172:2,8343:4,8368:2", { spec = "tribal leatherworking" } },
-    [10630] = { "gauntlets of the sea", 165, 205, 31, 8346, 0, 14, "4304:20,7075:2,7079:8,8172:1,8343:4", { spec = "elemental leatherworking" } },
-    [10632] = { "helm of fire", 165, 225, 15, 8348, 0, 14, "4304:40,7075:4,7077:8,8172:2,8343:4", { spec = "elemental leatherworking" } },
-    [10647] = { "feathered breastplate", 165, 225, 15, 8349, 0, 14, "4304:40,7971:2,8168:40,8172:4,8343:4", { spec = "tribal leatherworking" } },
-    [10650] = { "dragonscale breastplate", 165, 230, 192, 8367, 0, 41, "4304:40,8165:30,8172:4,8343:4", { spec = "dragonscale leatherworking" } },
+    [10619] = { "dragonscale gauntlets", 165, 200, 90, 8347, 0, 64, "4304:24,8165:12,8172:2,8343:4", { spec = "dragonscale leatherworking" } },
+    [10621] = { "wolfshead helm", 165, 200, 30, 8345, 0, 12, "4304:18,8146:8,8172:2,8343:4,8368:2", { spec = "tribal leatherworking" } },
+    [10630] = { "gauntlets of the sea", 165, 205, 31, 8346, 0, 12, "4304:20,7075:2,7079:8,8172:1,8343:4", { spec = "elemental leatherworking" } },
+    [10632] = { "helm of fire", 165, 225, 15, 8348, 0, 12, "4304:40,7075:4,7077:8,8172:2,8343:4", { spec = "elemental leatherworking" } },
+    [10647] = { "feathered breastplate", 165, 225, 15, 8349, 0, 12, "4304:40,7971:2,8168:40,8172:4,8343:4", { spec = "tribal leatherworking" } },
+    [10650] = { "dragonscale breastplate", 165, 230, 192, 8367, 0, 64, "4304:40,8165:30,8172:4,8343:4", { spec = "dragonscale leatherworking" } },
     [10840] = { "mageweave bandage", 129, 210, 369, 8544, 16113, 1, "4338:1" },
     [10841] = { "heavy mageweave bandage", 129, 240, 370, 8545, 0, 4, "4338:2" },
     [11447] = { "draught of water walking", 171, 180, 0, 8827, 288206, 246, "3357:1,3372:1,6370:1" },
-    [11448] = { "greater mana potion", 171, 205, 248, 6149, 0, 41, "3358:1,3372:1,3821:1" },
-    [11449] = { "elixir of agility", 171, 185, 175, 8949, 0, 57, "3372:1,3820:1,3821:1" },
-    [11450] = { "elixir of defense", 171, 195, 134, 8951, 0, 42, "3355:1,3372:1,3821:1" },
-    [11451] = { "oil of immolation", 171, 205, 248, 8956, 0, 88, "3821:1,4625:1,8925:1" },
+    [11448] = { "greater mana potion", 171, 205, 248, 6149, 0, 64, "3358:1,3372:1,3821:1" },
+    [11449] = { "elixir of agility", 171, 185, 175, 8949, 0, 56, "3372:1,3820:1,3821:1" },
+    [11450] = { "elixir of defense", 171, 195, 134, 8951, 0, 41, "3355:1,3372:1,3821:1" },
+    [11451] = { "oil of immolation", 171, 205, 248, 8956, 0, 87, "3821:1,4625:1,8925:1" },
     [11452] = { "restorative potion", 171, 210, 394, 9030, 0, 4, "3821:1,7067:1,8925:1" },
     [11453] = { "magic resistance potion", 171, 210, 35, 9036, 9293, 2, "3358:1,8831:1,8925:1" },
     [11454] = { "inlaid mithril cylinder", 164, 200, 140, 9060, 10713, 3, "3577:1,3860:5,6037:1" },
     [11456] = { "goblin rocket fuel", 171, 210, 35, 9061, 10644, 3, "3372:1,4625:1,9260:1" },
     [11458] = { "wildvine potion", 171, 225, 53, 9144, 9294, 2, "8153:1,8831:1,8925:1" },
-    [11459] = { "philosopher's stone", 171, 225, 176, 9149, 9303, 58, "3575:4,4625:4,8831:4,9262:1" },
-    [11460] = { "draught of detect undead", 171, 230, 249, 9154, 0, 65, "8836:1,8925:1" },
-    [11461] = { "arcane elixir", 171, 235, 177, 9155, 0, 41, "3821:1,8839:1,8925:1" },
+    [11459] = { "philosopher's stone", 171, 225, 176, 9149, 9303, 57, "3575:4,4625:4,8831:4,9262:1" },
+    [11460] = { "draught of detect undead", 171, 230, 249, 9154, 0, 10, "8836:1,8925:1" },
+    [11461] = { "arcane elixir", 171, 235, 177, 9155, 0, 12, "3821:1,8839:1,8925:1" },
     [11464] = { "invisibility potion", 171, 235, 177, 9172, 9295, 2, "8838:1,8845:1,8925:1" },
-    [11465] = { "elixir of greater intellect", 171, 235, 177, 9179, 0, 89, "3358:1,8839:1,8925:1" },
-    [11466] = { "gift of arthas", 171, 240, 178, 9088, 9296, 90, "8836:1,8839:1,8925:1" },
-    [11467] = { "elixir of greater agility", 171, 240, 178, 9187, 0, 89, "3821:1,8838:1,8925:1" },
+    [11465] = { "elixir of greater intellect", 171, 235, 177, 9179, 0, 88, "3358:1,8839:1,8925:1" },
+    [11466] = { "gift of arthas", 171, 240, 178, 9088, 9296, 89, "8836:1,8839:1,8925:1" },
+    [11467] = { "elixir of greater agility", 171, 240, 178, 9187, 0, 88, "3821:1,8838:1,8925:1" },
     [11468] = { "draught of dream vision", 171, 240, 178, 9197, 9297, 2, "8831:3,8925:1" },
     [11472] = { "elixir of greater strength", 171, 245, 250, 9206, 9298, 2, "8838:1,8846:1,8925:1" },
     [11473] = { "ghost dye", 171, 245, 250, 9210, 9302, 40, "4342:1,8845:2,8925:1" },
     [11476] = { "elixir of shadow power", 171, 250, 136, 9264, 9301, 1, "8845:3,8925:1" },
     [11477] = { "potion of demon slaying", 171, 250, 136, 9224, 9300, 1, "8845:1,8846:1,8925:1" },
-    [11478] = { "draught of detect demon", 171, 250, 136, 9233, 0, 211, "8846:2,8925:1" },
-    [11479] = { "transmute: iron to gold", 171, 225, 176, 3577, 9304, 58, "3575:1" },
-    [11480] = { "transmute: mithril to truesilver", 171, 225, 176, 6037, 9305, 58, "3860:1" },
+    [11478] = { "draught of detect demon", 171, 250, 136, 9233, 0, 212, "8846:2,8925:1" },
+    [11479] = { "transmute: iron to gold", 171, 225, 176, 3577, 9304, 57, "3575:1" },
+    [11480] = { "transmute: mithril to truesilver", 171, 225, 176, 6037, 9305, 57, "3860:1" },
     [11643] = { "golden scale gauntlets", 164, 180, 458, 9366, 9367, 262, "3486:4,3577:4,3859:10,3864:1" },
     [12044] = { "simple linen pants", 197, 0, 566, 10045, 0, 4, "2320:1,2996:1" },
-    [12045] = { "simple linen boots", 197, 20, 567, 10046, 0, 13, "2318:1,2320:1,2996:2" },
+    [12045] = { "simple linen boots", 197, 20, 567, 10046, 0, 14, "2318:1,2320:1,2996:2" },
     [12046] = { "simple kilt", 197, 50, 221, 10047, 0, 18, "2321:1,2996:4" },
     [12047] = { "colorful kilt", 197, 70, 220, 10048, 10316, 2, "2321:1,2604:3,2997:5" },
     [12048] = { "black mageweave vest", 197, 170, 159, 9998, 0, 20, "4291:3,4339:2" },
     [12049] = { "black mageweave leggings", 197, 170, 159, 9999, 0, 20, "4291:3,4339:2" },
     [12050] = { "black mageweave robe", 197, 175, 225, 10001, 0, 20, "4339:3,8343:1" },
-    [12052] = { "shadoweave pants", 197, 175, 225, 10002, 0, 9, "4339:3,8343:1,10285:2" },
-    [12053] = { "black mageweave gloves", 197, 180, 160, 10003, 0, 9, "4339:2,8343:2" },
-    [12055] = { "shadoweave robe", 197, 180, 160, 10004, 0, 530, "4339:3,8343:1,10285:2" },
+    [12052] = { "shadoweave pants", 197, 175, 225, 10002, 0, 10, "4339:3,8343:1,10285:2" },
+    [12053] = { "black mageweave gloves", 197, 180, 160, 10003, 0, 10, "4339:2,8343:2" },
+    [12055] = { "shadoweave robe", 197, 180, 160, 10004, 0, 529, "4339:3,8343:1,10285:2" },
     [12056] = { "red mageweave vest", 197, 180, 160, 10007, 10300, 2, "2604:2,4339:3,8343:1" },
     [12059] = { "white bandit mask", 197, 180, 170, 10008, 10301, 2, "2324:1,4339:1,8343:1" },
     [12060] = { "red mageweave pants", 197, 180, 160, 10009, 10302, 2, "2604:2,4339:3,8343:1" },
     [12061] = { "orange mageweave shirt", 197, 180, 170, 10056, 0, 19, "4339:1,6261:1,8343:1" },
-    [12062] = { "stormcloth pants", 197, 185, 0, 10010, 254681, 569, "4339:4,7079:2,8343:2" },
-    [12063] = { "stormcloth gloves", 197, 185, 0, 10011, 254682, 139, "4339:3,7079:2,8343:2" },
+    [12062] = { "stormcloth pants", 197, 185, 0, 10010, 254681, 568, "4339:4,7079:2,8343:2" },
+    [12063] = { "stormcloth gloves", 197, 185, 0, 10011, 254682, 140, "4339:3,7079:2,8343:2" },
     [12064] = { "orange martial shirt", 197, 185, 568, 10052, 10311, 1, "4339:2,6261:2,8343:1" },
-    [12065] = { "mageweave bag", 197, 190, 42, 10050, 0, 9, "4291:2,4339:4" },
+    [12065] = { "mageweave bag", 197, 190, 42, 10050, 0, 10, "4291:2,4339:4" },
     [12066] = { "red mageweave gloves", 197, 190, 42, 10018, 10312, 2, "2604:2,4339:3,8343:2" },
-    [12067] = { "dreamweave gloves", 197, 190, 42, 10019, 0, 9, "4339:4,8153:4,8343:2,10286:2" },
+    [12067] = { "dreamweave gloves", 197, 190, 42, 10019, 0, 10, "4339:4,8153:4,8343:2,10286:2" },
     [12068] = { "stormcloth vest", 197, 190, 0, 10020, 254683, 3, "4339:5,7079:3,8343:2" },
-    [12069] = { "cindercloth robe", 197, 190, 42, 10042, 0, 9, "4339:5,7077:2,8343:2" },
-    [12070] = { "dreamweave vest", 197, 190, 42, 10021, 0, 9, "4339:6,8153:6,8343:2,10286:2" },
-    [12071] = { "shadoweave gloves", 197, 190, 42, 10023, 0, 64, "4339:5,8343:2,10285:5" },
-    [12072] = { "black mageweave headband", 197, 190, 42, 10024, 0, 64, "4339:3,8343:2" },
-    [12073] = { "black mageweave boots", 197, 190, 42, 10026, 0, 64, "4304:2,4339:3,8343:2" },
-    [12074] = { "black mageweave shoulders", 197, 190, 42, 10027, 0, 64, "4339:3,8343:2" },
+    [12069] = { "cindercloth robe", 197, 190, 42, 10042, 0, 10, "4339:5,7077:2,8343:2" },
+    [12070] = { "dreamweave vest", 197, 190, 42, 10021, 0, 10, "4339:6,8153:6,8343:2,10286:2" },
+    [12071] = { "shadoweave gloves", 197, 190, 42, 10023, 0, 63, "4339:5,8343:2,10285:5" },
+    [12072] = { "black mageweave headband", 197, 190, 42, 10024, 0, 63, "4339:3,8343:2" },
+    [12073] = { "black mageweave boots", 197, 190, 42, 10026, 0, 63, "4304:2,4339:3,8343:2" },
+    [12074] = { "black mageweave shoulders", 197, 190, 42, 10027, 0, 63, "4339:3,8343:2" },
     [12075] = { "lavender mageweave shirt", 197, 190, 569, 10054, 10314, 1, "4339:2,4342:2,8343:2" },
-    [12076] = { "shadoweave shoulders", 197, 195, 49, 10028, 0, 57, "4339:5,8343:2,10285:4" },
-    [12077] = { "simple black dress", 197, 195, 328, 10053, 0, 9, "2324:1,2325:1,4339:3,8343:1" },
+    [12076] = { "shadoweave shoulders", 197, 195, 49, 10028, 0, 56, "4339:5,8343:2,10285:4" },
+    [12077] = { "simple black dress", 197, 195, 328, 10053, 0, 10, "2324:1,2325:1,4339:3,8343:1" },
     [12078] = { "red mageweave shoulders", 197, 195, 49, 10029, 10315, 2, "2604:2,4339:4,8343:3" },
-    [12079] = { "red mageweave bag", 197, 195, 49, 10051, 0, 57, "2604:2,4339:5,8343:2" },
+    [12079] = { "red mageweave bag", 197, 195, 49, 10051, 0, 56, "2604:2,4339:5,8343:2" },
     [12080] = { "pink mageweave shirt", 197, 195, 328, 10055, 10317, 1, "4339:3,8343:1,10290:1" },
-    [12081] = { "admiral's hat", 197, 200, 570, 10030, 10318, 531, "4339:3,4589:6,8343:2" },
-    [12082] = { "shadoweave boots", 197, 200, 226, 10031, 0, 532, "4304:2,4339:6,8343:3,10285:6" },
-    [12083] = { "stormcloth headband", 197, 200, 0, 10032, 254684, 570, "4339:4,7079:4,8343:2" },
+    [12081] = { "admiral's hat", 197, 200, 570, 10030, 10318, 530, "4339:3,4589:6,8343:2" },
+    [12082] = { "shadoweave boots", 197, 200, 226, 10031, 0, 531, "4304:2,4339:6,8343:3,10285:6" },
+    [12083] = { "stormcloth headband", 197, 200, 0, 10032, 254684, 569, "4339:4,7079:4,8343:2" },
     [12084] = { "red mageweave headband", 197, 200, 226, 10033, 10320, 2, "2604:2,4339:4,8343:2" },
     [12085] = { "tuxedo shirt", 197, 200, 571, 10034, 10321, 1, "4339:4,8343:2" },
-    [12086] = { "shadoweave mask", 197, 200, 572, 10025, 10463, 533, "4339:2,8343:2,10285:8" },
-    [12087] = { "stormcloth shoulders", 197, 200, 0, 10038, 254685, 571, "4339:5,7079:6,8343:3" },
-    [12088] = { "cindercloth boots", 197, 200, 226, 10044, 0, 42, "4304:2,4339:5,7077:1,8343:3" },
+    [12086] = { "shadoweave mask", 197, 200, 572, 10025, 10463, 532, "4339:2,8343:2,10285:8" },
+    [12087] = { "stormcloth shoulders", 197, 200, 0, 10038, 254685, 570, "4339:5,7079:6,8343:3" },
+    [12088] = { "cindercloth boots", 197, 200, 226, 10044, 0, 41, "4304:2,4339:5,7077:1,8343:3" },
     [12089] = { "tuxedo pants", 197, 140, 573, 10035, 10323, 1, "4339:4,8343:3" },
-    [12090] = { "stormcloth boots", 197, 205, 0, 10039, 254686, 572, "4304:2,4339:6,7079:6,8343:3" },
+    [12090] = { "stormcloth boots", 197, 205, 0, 10039, 254686, 571, "4304:2,4339:6,7079:6,8343:3" },
     [12091] = { "white wedding dress", 197, 140, 574, 10040, 10325, 1, "2324:1,4339:5,8343:3" },
-    [12092] = { "dreamweave circlet", 197, 205, 78, 10041, 0, 42, "1529:1,4339:8,6037:1,8153:4,8343:3,10286:2" },
+    [12092] = { "dreamweave circlet", 197, 205, 78, 10041, 0, 41, "1529:1,4339:8,6037:1,8153:4,8343:3,10286:2" },
     [12093] = { "tuxedo jacket", 197, 140, 575, 10036, 10326, 1, "4339:5,8343:3" },
     [12259] = { "silvered bronze leggings", 164, 130, 268, 10423, 10424, 2, "2841:12,2842:4,3478:2" },
     [12260] = { "rough copper vest", 164, 0, 182, 10421, 0, 4, "2840:4" },
@@ -3017,10 +3014,10 @@ local RAW = {
     [12595] = { "mithril blunderbuss", 202, 205, 31, 10508, 0, 118, "3860:4,4400:1,7068:2,10559:1,10560:1" },
     [12596] = { "hi-impact mithril slugs", 202, 210, 503, 10512, 0, 407, "3860:1,10505:1" },
     [12597] = { "deadly scope", 202, 210, 6, 10546, 10602, 1, "4304:2,7909:2,10559:1" },
-    [12599] = { "mithril casing", 202, 215, 299, 10561, 0, 76, "3860:3" },
-    [12603] = { "mithril frag bomb", 202, 215, 299, 10514, 0, 76, "10505:1,10560:1,10561:1" },
+    [12599] = { "mithril casing", 202, 215, 299, 10561, 0, 75, "3860:3" },
+    [12603] = { "mithril frag bomb", 202, 215, 299, 10514, 0, 75, "10505:1,10560:1,10561:1" },
     [12607] = { "catseye ultra goggles", 202, 220, 70, 10501, 10603, 2, "4304:4,7909:2,10592:1" },
-    [12609] = { "catseye draught", 171, 200, 85, 10592, 0, 88, "3372:1,3818:1,3821:1" },
+    [12609] = { "catseye draught", 171, 200, 85, 10592, 0, 87, "3372:1,3818:1,3821:1" },
     [12614] = { "mithril heavy-bore rifle", 202, 220, 70, 10510, 10604, 2, "3860:6,3864:2,4400:1,10559:2,10560:1" },
     [12615] = { "spellpower goggles xtreme", 202, 225, 15, 10502, 10605, 2, "4304:4,7910:2" },
     [12616] = { "parachute cloak", 202, 225, 15, 10518, 10606, 2, "4339:4,10285:2,10505:4,10560:1" },
@@ -3028,33 +3025,33 @@ local RAW = {
     [12618] = { "rose colored goggles", 202, 230, 119, 10503, 0, 119, "4304:6,7910:2" },
     [12619] = { "hi-explosive bomb", 202, 235, 300, 10562, 0, 39, "10505:2,10560:1,10561:2" },
     [12620] = { "sniper scope", 202, 240, 9, 10548, 10608, 2, "6037:2,7910:1,10559:1" },
-    [12621] = { "mithril gyro-shot", 202, 245, 504, 10513, 0, 32, "3860:2,10505:2" },
-    [12622] = { "green lens", 202, 245, 57, 10504, 0, 32, "1529:3,4304:8,7909:3,8153:2,10286:2" },
+    [12621] = { "mithril gyro-shot", 202, 245, 504, 10513, 0, 33, "3860:2,10505:2" },
+    [12622] = { "green lens", 202, 245, 57, 10504, 0, 33, "1529:3,4304:8,7909:3,8153:2,10286:2" },
     [12624] = { "mithril mechanical dragonling", 202, 250, 5, 10576, 10609, 409, "3860:14,6037:4,7077:4,7910:2,9060:2,9061:2" },
     [12715] = { "goblin rocket fuel recipe", 202, 205, 211, 10644, 0, 8, "10647:1,10648:1", { spec = "goblin engineering" } },
     [12716] = { "goblin mortar", 202, 205, 31, 10577, 0, 16, "3860:4,7068:1,10505:5,10558:1,10559:2", { spec = "goblin engineering" } },
     [12717] = { "goblin mining helmet", 202, 205, 31, 10542, 0, 16, "3860:8,3864:1,7067:4", { spec = "goblin engineering" } },
     [12718] = { "goblin construction helmet", 202, 205, 31, 10543, 0, 16, "3860:8,3864:1,7068:4", { spec = "goblin engineering" } },
-    [12754] = { "the big one", 202, 235, 300, 10586, 0, 46, "9061:1,10507:6,10560:1,10561:1", { spec = "goblin engineering" } },
+    [12754] = { "the big one", 202, 235, 300, 10586, 0, 45, "9061:1,10507:6,10560:1,10561:1", { spec = "goblin engineering" } },
     [12755] = { "goblin bomb dispenser", 202, 230, 505, 10587, 0, 39, "4407:2,6037:6,10505:4,10560:1,10561:2", { spec = "goblin engineering" } },
     [12758] = { "goblin rocket helmet", 202, 245, 57, 10588, 0, 28, "3860:4,9061:4,10543:1,10560:1", { spec = "goblin engineering" } },
-    [12759] = { "gnomish death ray", 202, 240, 9, 10645, 0, 32, "7972:4,9060:1,10559:2,10560:1,12808:1", { spec = "goblin engineering" } },
+    [12759] = { "gnomish death ray", 202, 240, 9, 10645, 0, 33, "7972:4,9060:1,10559:2,10560:1,12808:1", { spec = "goblin engineering" } },
     [12760] = { "goblin sapper charge", 202, 205, 506, 10646, 0, 16, "4338:1,10505:3,10560:1", { spec = "goblin engineering" } },
     [12895] = { "inlaid mithril cylinder plans", 202, 205, 211, 10713, 0, 16, "10647:1,10648:1" },
     [12897] = { "gnomish goggles", 202, 210, 6, 10545, 0, 16, "4234:2,8151:2,10500:1,10558:2,10559:1" },
     [12899] = { "gnomish shrink ray", 202, 205, 31, 10716, 0, 16, "1529:2,3860:4,8151:4,10559:1,10560:1" },
-    [12902] = { "gnomish net-o-matic projector", 202, 210, 6, 10720, 0, 76, "3860:4,4337:4,10285:2,10505:2,10559:1" },
+    [12902] = { "gnomish net-o-matic projector", 202, 210, 6, 10720, 0, 75, "3860:4,4337:4,10285:2,10505:2,10559:1" },
     [12903] = { "gnomish harm prevention belt", 202, 215, 114, 10721, 0, 27, "3860:4,6037:2,7387:1,7909:2,10560:1" },
     [12905] = { "gnomish rocket boots", 202, 225, 15, 10724, 0, 119, "4234:4,4389:4,10026:1,10505:8,10559:2" },
     [12906] = { "gnomish battle chicken", 202, 230, 119, 10725, 0, 39, "1529:2,3860:6,6037:6,9060:2,10558:1,10561:1" },
-    [12907] = { "gnomish mind control cap", 202, 235, 19, 10726, 0, 46, "3860:10,4338:4,6037:4,7910:2,10558:1" },
-    [12908] = { "goblin dragon gun", 202, 240, 9, 10727, 0, 32, "3860:6,6037:6,9061:4,10559:2,10560:1" },
+    [12907] = { "gnomish mind control cap", 202, 235, 19, 10726, 0, 45, "3860:10,4338:4,6037:4,7910:2,10558:1" },
+    [12908] = { "goblin dragon gun", 202, 240, 9, 10727, 0, 33, "3860:6,6037:6,9061:4,10559:2,10560:1" },
     [13028] = { "goldthorn tea", 185, 175, 341, 10841, 0, 4, "159:1,3821:1" },
     [13240] = { "the mortar: reloaded", 202, 205, 0, 10577, 0, 16, "3860:1,10505:3,10577:1" },
-    [13378] = { "enchant shield - minor stamina", 333, 105, 478, 0, 0, 34, "10940:1,10998:1" },
+    [13378] = { "enchant shield - minor stamina", 333, 105, 478, 0, 0, 35, "10940:1,10998:1" },
     [13380] = { "enchant 2h weapon - lesser spirit", 333, 110, 130, 0, 11038, 346, "10940:3,10998:1" },
     [13419] = { "enchant cloak - minor agility", 333, 110, 130, 0, 11039, 347, "10998:1" },
-    [13421] = { "enchant cloak - lesser protection", 333, 115, 283, 0, 0, 59, "10940:3,10978:1" },
+    [13421] = { "enchant cloak - lesser protection", 333, 115, 283, 0, 0, 58, "10940:3,10978:1" },
     [13464] = { "enchant shield - lesser protection", 333, 115, 283, 0, 11081, 2, "10940:1,10978:1" },
     [13485] = { "enchant shield - lesser spirit", 333, 130, 171, 0, 0, 16, "10940:2,10998:1" },
     [13501] = { "enchant bracer - lesser stamina", 333, 130, 171, 0, 0, 16, "11083:1" },
@@ -3070,19 +3067,19 @@ local RAW = {
     [13622] = { "enchant bracer - lesser intellect", 333, 150, 104, 0, 0, 19, "11082:1" },
     [13626] = { "enchant chest - minor stats", 333, 150, 104, 0, 0, 19, "10998:1,11083:1,11084:1" },
     [13628] = { "runed golden rod", 333, 150, 104, 11130, 0, 19, "5500:1,11082:1,11083:1,11128:1" },
-    [13631] = { "enchant shield - lesser stamina", 333, 155, 198, 0, 0, 46, "11134:1" },
-    [13635] = { "enchant cloak - defense", 333, 155, 198, 0, 0, 46, "11083:1,11138:1" },
-    [13637] = { "enchant boots - lesser agility", 333, 160, 173, 0, 0, 32, "11083:1" },
+    [13631] = { "enchant shield - lesser stamina", 333, 155, 198, 0, 0, 45, "11134:1" },
+    [13635] = { "enchant cloak - defense", 333, 155, 198, 0, 0, 45, "11083:1,11138:1" },
+    [13637] = { "enchant boots - lesser agility", 333, 160, 173, 0, 0, 33, "11083:1" },
     [13640] = { "enchant chest - greater stamina", 333, 160, 173, 0, 0, 349, "11083:2" },
-    [13642] = { "enchant bracer - spirit", 333, 165, 245, 0, 0, 32, "11134:1" },
-    [13644] = { "enchant boots - lesser stamina", 333, 170, 199, 0, 0, 32, "11083:2" },
+    [13642] = { "enchant bracer - spirit", 333, 165, 245, 0, 0, 33, "11134:1" },
+    [13644] = { "enchant boots - lesser stamina", 333, 170, 199, 0, 0, 33, "11083:2" },
     [13646] = { "enchant bracer - lesser deflection", 333, 170, 199, 0, 11163, 1, "11083:1,11134:1" },
-    [13648] = { "enchant bracer - stamina", 333, 170, 199, 0, 0, 32, "11083:3" },
+    [13648] = { "enchant bracer - stamina", 333, 170, 199, 0, 0, 33, "11083:3" },
     [13653] = { "enchant weapon - lesser beastslayer", 333, 175, 84, 0, 11164, 2, "5637:1,11138:1" },
     [13655] = { "enchant weapon - lesser elemental slayer", 333, 175, 84, 0, 11165, 2, "7067:1,11138:1" },
     [13657] = { "enchant cloak - fire resistance", 333, 175, 84, 0, 0, 28, "7068:1,11134:1" },
     [13659] = { "enchant shield - spirit", 333, 180, 172, 0, 0, 350, "11134:1,11137:1" },
-    [13661] = { "enchant bracer - strength", 333, 180, 172, 0, 0, 71, "11137:1" },
+    [13661] = { "enchant bracer - strength", 333, 180, 172, 0, 0, 70, "11137:1" },
     [13663] = { "enchant chest - greater intellect", 333, 185, 175, 0, 0, 351, "11134:1" },
     [13687] = { "enchant boots - lesser spirit", 333, 190, 135, 0, 11167, 2, "11134:2" },
     [13689] = { "enchant shield - lesser block", 333, 195, 134, 0, 11168, 2, "11135:1,11137:1,11139:1" },
@@ -3102,8 +3099,8 @@ local RAW = {
     [13858] = { "enchant chest - superior stamina", 333, 220, 202, 0, 0, 354, "11137:3" },
     [13868] = { "enchant gloves - advanced herbalism", 333, 225, 148, 0, 11205, 355, "8838:1,11137:2" },
     [13882] = { "enchant cloak - lesser agility", 333, 225, 148, 0, 11206, 2, "11174:1" },
-    [13887] = { "enchant gloves - strength", 333, 225, 148, 0, 0, 9, "11137:2,11174:1" },
-    [13890] = { "enchant boots - minor speed", 333, 225, 148, 0, 0, 9, "7909:1,11174:1,11177:1" },
+    [13887] = { "enchant gloves - strength", 333, 225, 148, 0, 0, 10, "11137:2,11174:1" },
+    [13890] = { "enchant boots - minor speed", 333, 225, 148, 0, 0, 10, "7909:1,11174:1,11177:1" },
     [13898] = { "enchant weapon - fiery weapon", 333, 265, 72, 0, 11207, 356, "7078:1,11177:2" },
     [13905] = { "enchant shield - greater spirit", 333, 230, 203, 0, 0, 111, "11174:2,11176:1" },
     [13915] = { "enchant weapon - demonslaying", 333, 230, 203, 0, 11208, 2, "9224:1,11176:1,11177:1" },
@@ -3111,21 +3108,21 @@ local RAW = {
     [13931] = { "enchant bracer - deflection", 333, 235, 204, 0, 11223, 1, "11174:2,11176:1" },
     [13933] = { "enchant shield - frost resistance", 333, 235, 204, 0, 11224, 99, "3829:1,11178:1" },
     [13935] = { "enchant boots - agility", 333, 235, 204, 0, 0, 357, "11175:1" },
-    [13937] = { "enchant 2h weapon - greater impact", 333, 240, 205, 0, 0, 62, "11176:1,11178:1" },
-    [13939] = { "enchant bracer - greater strength", 333, 240, 205, 0, 0, 62, "11174:2,11176:1" },
-    [13941] = { "enchant chest - stats", 333, 245, 149, 0, 0, 62, "11175:1,11176:1,11178:1" },
-    [13943] = { "enchant weapon - greater striking", 333, 245, 149, 0, 0, 62, "11175:1,11178:1" },
+    [13937] = { "enchant 2h weapon - greater impact", 333, 240, 205, 0, 0, 61, "11176:1,11178:1" },
+    [13939] = { "enchant bracer - greater strength", 333, 240, 205, 0, 0, 61, "11174:2,11176:1" },
+    [13941] = { "enchant chest - stats", 333, 245, 149, 0, 0, 61, "11175:1,11176:1,11178:1" },
+    [13943] = { "enchant weapon - greater striking", 333, 245, 149, 0, 0, 61, "11175:1,11178:1" },
     [13945] = { "enchant bracer - greater stamina", 333, 245, 149, 0, 11225, 2, "11176:3" },
     [13947] = { "enchant gloves - riding skill", 333, 250, 206, 0, 11226, 112, "11176:2,11178:1" },
-    [13948] = { "enchant gloves - minor haste", 333, 250, 206, 0, 0, 57, "8153:1,11178:1" },
-    [14293] = { "lesser magic wand", 333, 10, 479, 11287, 0, 13, "4470:1,10938:1" },
-    [14379] = { "golden rod", 164, 125, 459, 11128, 0, 12, "3478:2,3577:1" },
+    [13948] = { "enchant gloves - minor haste", 333, 250, 206, 0, 0, 56, "8153:1,11178:1" },
+    [14293] = { "lesser magic wand", 333, 10, 479, 11287, 0, 14, "4470:1,10938:1" },
+    [14379] = { "golden rod", 164, 125, 459, 11128, 0, 13, "3478:2,3577:1" },
     [14380] = { "truesilver rod", 164, 175, 89, 11144, 0, 19, "3486:1,6037:1" },
     [14807] = { "greater magic wand", 333, 70, 138, 11288, 0, 15, "4470:1,10938:2" },
-    [14809] = { "lesser mystic wand", 333, 155, 198, 11289, 0, 46, "11134:1,11291:1" },
+    [14809] = { "lesser mystic wand", 333, 155, 198, 11289, 0, 45, "11134:1,11291:1" },
     [14810] = { "greater mystic wand", 333, 175, 84, 217287, 0, 28, "11134:1,11137:1,11291:1" },
-    [14930] = { "quickdraw quiver", 165, 200, 30, 8217, 0, 71, "4291:4,4304:12,8172:1,8949:1" },
-    [14932] = { "thick leather ammo pouch", 165, 200, 30, 8218, 0, 71, "4291:6,4304:10,8172:1,8951:1" },
+    [14930] = { "quickdraw quiver", 165, 200, 30, 8217, 0, 70, "4291:4,4304:12,8172:1,8949:1" },
+    [14932] = { "thick leather ammo pouch", 165, 200, 30, 8218, 0, 70, "4291:6,4304:10,8172:1,8951:1" },
     [15255] = { "mechanical repair kit", 202, 200, 152, 11590, 0, 16, "3860:1,4338:1,10505:1" },
     [15292] = { "dark iron pulverizer", 164, 240, 190, 11608, 11610, 263, "7077:4,11371:18", { spec = "weaponsmith" } },
     [15293] = { "dark iron mail", 164, 245, 143, 11606, 11614, 100, "7077:2,11371:10" },
@@ -3135,23 +3132,23 @@ local RAW = {
     [15596] = { "smoking heart of the mountain", 333, 265, 72, 11811, 11813, 358, "7078:1,11382:1,14343:3" },
     [15628] = { "pet bombling", 202, 205, 507, 11825, 11828, 3, "3860:6,4394:1,7077:1,7191:1" },
     [15633] = { "lil' smoky", 202, 205, 211, 11826, 11827, 3, "3860:2,4389:2,6037:1,7075:1,7191:1" },
-    [15833] = { "dreamless sleep potion", 171, 230, 249, 12190, 0, 41, "8831:3,8925:1" },
-    [15853] = { "lean wolf steak", 185, 125, 234, 12209, 12227, 166, "1015:1,2678:1" },
+    [15833] = { "dreamless sleep potion", 171, 230, 249, 12190, 0, 12, "8831:3,8925:1" },
+    [15853] = { "lean wolf steak", 185, 125, 234, 12209, 12227, 167, "1015:1,2678:1" },
     [15855] = { "roast raptor", 185, 175, 34, 12210, 12228, 1, "2692:1,12184:1" },
     [15856] = { "hot wolf ribs", 185, 175, 34, 13851, 12229, 1, "2692:1,12203:1" },
     [15861] = { "jungle stew", 185, 175, 34, 12212, 12231, 1, "159:1,4536:2,12202:1" },
     [15863] = { "carrion surprise", 185, 175, 34, 12213, 12232, 1, "2692:1,12037:1" },
     [15865] = { "mystery stew", 185, 175, 34, 12214, 12233, 1, "2596:1,12037:1" },
-    [15906] = { "dragonbreath chili", 185, 200, 168, 12217, 12239, 167, "2692:1,4402:1,12037:1" },
-    [15910] = { "heavy kodo stew", 185, 200, 168, 12215, 12240, 85, "159:1,3713:1,12204:2" },
+    [15906] = { "dragonbreath chili", 185, 200, 168, 12217, 12239, 168, "2692:1,4402:1,12037:1" },
+    [15910] = { "heavy kodo stew", 185, 200, 168, 12215, 12240, 84, "159:1,3713:1,12204:2" },
     [15915] = { "spiced chili crab", 185, 225, 64, 12216, 16111, 1, "2692:2,12206:1" },
     [15933] = { "monster omelet", 185, 225, 64, 12218, 16110, 1, "3713:2,12207:1" },
-    [15935] = { "crispy bat wing", 185, 1, 103, 12224, 12226, 168, "2678:1,12223:1" },
-    [15972] = { "glinting steel dagger", 164, 155, 272, 12259, 0, 42, "1206:1,3466:2,3859:10,4234:1,7067:1" },
+    [15935] = { "crispy bat wing", 185, 1, 103, 12224, 12226, 169, "2678:1,12223:1" },
+    [15972] = { "glinting steel dagger", 164, 155, 272, 12259, 0, 41, "1206:1,3466:2,3859:10,4234:1,7067:1" },
     [15973] = { "searing golden blade", 164, 165, 141, 12260, 12261, 266, "3577:4,3859:10,4234:2,7068:2" },
-    [16639] = { "dense grinding stone", 164, 225, 145, 12644, 0, 14, "12365:4" },
-    [16640] = { "dense weightstone", 164, 225, 145, 12643, 0, 14, "12365:1" },
-    [16641] = { "dense sharpening stone", 164, 225, 145, 12404, 0, 14, "12365:1" },
+    [16639] = { "dense grinding stone", 164, 225, 145, 12644, 0, 12, "12365:4" },
+    [16640] = { "dense weightstone", 164, 225, 145, 12643, 0, 12, "12365:1" },
+    [16641] = { "dense sharpening stone", 164, 225, 145, 12404, 0, 12, "12365:1" },
     [16642] = { "thorium armor", 164, 225, 277, 12405, 12682, 2, "11188:4,12359:16,12361:1" },
     [16643] = { "thorium belt", 164, 225, 277, 12406, 12683, 2, "11186:4,12359:12" },
     [16644] = { "thorium bracers", 164, 230, 192, 12408, 12684, 2, "11184:4,12359:12" },
@@ -3171,7 +3168,7 @@ local RAW = {
     [16658] = { "imperial plate helm", 164, 270, 92, 12427, 12701, 273, "7910:2,12359:34" },
     [16659] = { "radiant circlet", 164, 270, 92, 12417, 12702, 3, "7077:4,12359:18", { spec = "armorsmith" } },
     [16660] = { "dawnbringer shoulders", 164, 265, 110, 12625, 12698, 1, "7080:2,12359:20,12360:4,12364:2", { spec = "armorsmith" } },
-    [16661] = { "storm gauntlets", 165, 270, 92, 12632, 12703, 43, "7080:4,8170:20,12361:4,12810:4,14341:1" },
+    [16661] = { "storm gauntlets", 165, 270, 92, 12632, 12703, 42, "7080:4,8170:20,12361:4,12810:4,14341:1" },
     [16662] = { "thorium leggings", 164, 275, 56, 12414, 12704, 2, "11186:4,12359:26" },
     [16663] = { "imperial plate chest", 164, 275, 56, 12422, 12705, 274, "7910:2,12359:40" },
     [16664] = { "runic plate shoulders", 164, 275, 56, 12610, 12706, 275, "3577:6,12359:20,12360:2" },
@@ -3180,7 +3177,7 @@ local RAW = {
     [16724] = { "whitesoul helm", 164, 290, 106, 12633, 12711, 278, "3577:6,6037:6,12359:20,12655:4,12800:2" },
     [16725] = { "radiant leggings", 164, 280, 146, 12420, 12713, 2, "7077:4,12359:20" },
     [16726] = { "runic plate helm", 164, 280, 146, 12612, 12714, 279, "6037:2,12359:30,12360:2,12364:1" },
-    [16728] = { "helm of the great chief", 165, 290, 538, 12636, 12716, 457, "8168:60,8170:40,12364:2,12799:6,12810:4,14341:1" },
+    [16728] = { "helm of the great chief", 165, 290, 538, 12636, 12716, 456, "8168:60,8170:40,12364:2,12799:6,12810:4,14341:1" },
     [16729] = { "lionheart helm", 164, 300, 1, 12640, 12717, 2, "8146:40,12359:80,12360:12,12361:10,12800:4" },
     [16730] = { "imperial plate leggings", 164, 280, 146, 12429, 12715, 280, "7910:2,12359:44" },
     [16731] = { "runic breastplate", 164, 285, 278, 12613, 12718, 281, "7910:1,12359:40,12360:2" },
@@ -3189,175 +3186,175 @@ local RAW = {
     [16742] = { "enchanted thorium helm", 164, 300, 1, 12620, 12725, 283, "7076:6,12360:6,12655:16,12799:2,12800:1" },
     [16744] = { "enchanted thorium leggings", 164, 300, 1, 12619, 12726, 284, "7080:6,12360:10,12361:2,12364:1,12655:20" },
     [16745] = { "enchanted thorium breastplate", 164, 300, 1, 12618, 12727, 285, "7076:4,7080:4,12360:8,12364:2,12655:24,12800:2" },
-    [16746] = { "invulnerable mail", 165, 295, 539, 12641, 12728, 69, "12364:6,12800:6,12810:30,14341:2,249427:20,249429:10" },
-    [16969] = { "ornate thorium handaxe", 164, 250, 279, 12773, 12819, 43, "8170:4,12359:20,12644:2,12799:2" },
+    [16746] = { "invulnerable mail", 165, 295, 539, 12641, 12728, 68, "12364:6,12800:6,12810:30,14341:2,249427:20,249429:10" },
+    [16969] = { "ornate thorium handaxe", 164, 250, 279, 12773, 12819, 42, "8170:4,12359:20,12644:2,12799:2" },
     [16970] = { "dawn's edge", 164, 250, 279, 12774, 12821, 286, "7910:4,8170:4,12359:30,12361:4,12644:2,12655:4", { spec = "weaponsmith" } },
-    [16971] = { "huge thorium battleaxe", 164, 255, 193, 12775, 12823, 43, "8170:6,12359:40,12644:6" },
+    [16971] = { "huge thorium battleaxe", 164, 255, 193, 12775, 12823, 42, "8170:6,12359:40,12644:6" },
     [16973] = { "enchanted battlehammer", 164, 255, 193, 12776, 12824, 26, "8170:4,12359:20,12364:2,12655:6,12804:4" },
     [16978] = { "blazing rapier", 164, 255, 193, 12777, 12825, 287, "7077:4,7078:4,12644:2,12655:10,12800:2", { spec = "weaponsmith" } },
     [16983] = { "serenity", 164, 260, 461, 12781, 12827, 101, "12360:2,12361:2,12364:1,12655:6,12799:2,12804:4", { spec = "weaponsmith" } },
     [16984] = { "volcanic hammer", 164, 265, 280, 12792, 12828, 288, "7077:4,7910:4,8170:4,12359:30", { spec = "weaponsmith" } },
     [16985] = { "corruption", 164, 265, 280, 12782, 12830, 101, "8170:4,12359:40,12360:2,12361:2,12644:2,12662:16,12808:8" },
     [16988] = { "hammer of the titans", 164, 300, 1, 12796, 12833, 289, "7076:10,12359:50,12360:15,12809:4,12810:6" },
-    [16990] = { "arcanite champion", 164, 300, 1, 12790, 12834, 69, "12360:15,12644:2,12799:4,12800:8,12810:8,12811:1", { spec = "master swordsmith" } },
+    [16990] = { "arcanite champion", 164, 300, 1, 12790, 12834, 68, "12360:15,12644:2,12799:4,12800:8,12810:8,12811:1", { spec = "master swordsmith" } },
     [16991] = { "annihilator", 164, 300, 56, 12798, 12835, 290, "12359:40,12360:12,12364:8,12644:2,12808:10,12810:4", { spec = "master swordsmith" } },
     [16992] = { "frostguard", 164, 300, 1, 12797, 12836, 291, "7080:4,12360:18,12361:8,12644:2,12800:8,12810:4" },
-    [16993] = { "masterwork stormhammer", 164, 300, 1, 12794, 12837, 69, "7076:6,12364:8,12655:20,12799:8,12810:4" },
+    [16993] = { "masterwork stormhammer", 164, 300, 1, 12794, 12837, 68, "7076:6,12364:8,12655:20,12799:8,12810:4" },
     [16994] = { "arcanite reaper", 164, 300, 1, 12784, 12838, 292, "12360:20,12644:2,12810:6" },
     [16995] = { "heartseeker", 164, 300, 1, 12783, 12839, 293, "7910:6,12360:10,12644:4,12655:10,12799:6,12800:6,12810:2" },
-    [17180] = { "enchanted thorium", 333, 250, 86, 12655, 0, 14, "11176:3,12359:1" },
-    [17181] = { "enchanted leather", 333, 250, 86, 12810, 0, 14, "8170:1,16202:1" },
-    [17187] = { "transmute: arcanite", 171, 275, 36, 12360, 12958, 58, "12359:1,12363:1" },
-    [17551] = { "stonescale oil", 171, 250, 86, 13423, 0, 212, "3372:1,13422:1" },
-    [17552] = { "mighty rage potion", 171, 255, 395, 13442, 13476, 91, "8846:3,8925:1" },
+    [17180] = { "enchanted thorium", 333, 250, 86, 12655, 0, 12, "11176:3,12359:1" },
+    [17181] = { "enchanted leather", 333, 250, 86, 12810, 0, 12, "8170:1,16202:1" },
+    [17187] = { "transmute: arcanite", 171, 275, 36, 12360, 12958, 57, "12359:1,12363:1" },
+    [17551] = { "stonescale oil", 171, 250, 86, 13423, 0, 29, "3372:1,13422:1" },
+    [17552] = { "mighty rage potion", 171, 255, 395, 13442, 13476, 90, "8846:3,8925:1" },
     [17553] = { "superior mana potion", 171, 260, 396, 13443, 13477, 1, "8838:2,8839:2,8925:1" },
     [17554] = { "elixir of greater defense", 171, 265, 397, 13445, 13478, 1, "8838:1,8925:1,13423:2" },
-    [17555] = { "elixir of the sages", 171, 270, 398, 13447, 13479, 92, "8925:1,13463:1,13466:2" },
+    [17555] = { "elixir of the sages", 171, 270, 398, 13447, 13479, 91, "8925:1,13463:1,13466:2" },
     [17557] = { "elixir of brute force", 171, 275, 179, 13453, 13481, 213, "8846:2,8925:1,13466:2" },
     [17559] = { "transmute: air to fire", 171, 275, 36, 7078, 13482, 214, "7082:1", { faction = "argent dawn", standing = "friendly" } },
-    [17560] = { "transmute: fire to earth", 171, 275, 36, 7076, 13483, 93, "7078:1" },
-    [17561] = { "transmute: earth to water", 171, 275, 36, 7080, 13484, 66, "7076:1", { faction = "timbermaw hold", standing = "revered" } },
-    [17562] = { "transmute: water to air", 171, 275, 36, 7082, 13485, 43, "7080:1" },
+    [17560] = { "transmute: fire to earth", 171, 275, 36, 7076, 13483, 92, "7078:1" },
+    [17561] = { "transmute: earth to water", 171, 275, 36, 7080, 13484, 65, "7076:1", { faction = "timbermaw hold", standing = "revered" } },
+    [17562] = { "transmute: water to air", 171, 275, 36, 7082, 13485, 42, "7080:1" },
     [17563] = { "transmute: undeath to water", 171, 275, 36, 7080, 13486, 2, "12808:1" },
-    [17564] = { "transmute: water to undeath", 171, 275, 36, 12808, 13487, 94, "7080:1" },
+    [17564] = { "transmute: water to undeath", 171, 275, 36, 12808, 13487, 93, "7080:1" },
     [17565] = { "transmute: life to earth", 171, 275, 36, 7076, 13488, 215, "12803:1" },
     [17566] = { "transmute: earth to life", 171, 275, 36, 12803, 13489, 2, "7076:1" },
     [17570] = { "greater stoneshield potion", 171, 280, 251, 13455, 13490, 2, "8925:1,10620:1,13423:3" },
     [17571] = { "elixir of the mongoose", 171, 280, 251, 13452, 13491, 2, "8925:1,13465:2,13466:2" },
     [17572] = { "purification potion", 171, 285, 180, 13462, 13492, 3, "8925:1,13466:2,13467:2" },
-    [17573] = { "greater arcane elixir", 171, 285, 180, 13454, 13493, 3, "8925:1,13463:3,13465:1" },
+    [17573] = { "greater arcane elixir", 171, 285, 180, 13454, 13493, 94, "8925:1,13463:3,13465:1" },
     [17574] = { "greater fire protection potion", 171, 290, 87, 13457, 13494, 216, "7068:1,8925:1,13463:1" },
     [17575] = { "greater frost protection potion", 171, 290, 87, 13456, 13495, 217, "7070:1,8925:1,13463:1" },
-    [17576] = { "greater nature protection potion", 171, 290, 87, 13458, 13496, 90, "7067:1,8925:1,13463:1" },
+    [17576] = { "greater nature protection potion", 171, 290, 87, 13458, 13496, 89, "7067:1,8925:1,13463:1" },
     [17577] = { "greater arcane protection potion", 171, 290, 87, 13461, 13497, 95, "8925:1,11176:1,13463:1" },
-    [17578] = { "greater shadow protection potion", 171, 290, 87, 13459, 13499, 92, "3824:1,8925:1,13463:1" },
+    [17578] = { "greater shadow protection potion", 171, 290, 87, 13459, 13499, 91, "3824:1,8925:1,13463:1" },
     [17580] = { "major mana potion", 171, 295, 399, 13444, 13501, 218, "8925:1,13463:3,13467:2" },
-    [17632] = { "alchemist's stone", 171, 275, 88, 13503, 13517, 55, "7076:8,7078:8,7080:8,7082:8,9262:2,12803:8,13468:4" },
+    [17632] = { "alchemist's stone", 171, 275, 88, 13503, 13517, 54, "7076:8,7078:8,7080:8,7082:8,9262:2,12803:8,13468:4" },
     [17634] = { "flask of petrification", 171, 300, 88, 13506, 13518, 219, "8925:1,13423:30,13465:10,13468:1" },
     [17635] = { "flask of the titans", 171, 300, 88, 13510, 13519, 220, "8846:30,8925:1,13423:10,13468:1" },
     [17636] = { "flask of distilled wisdom", 171, 300, 88, 13511, 13520, 221, "8925:1,13463:30,13467:10,13468:1" },
     [17637] = { "flask of supreme power", 171, 300, 88, 13512, 13521, 222, "8925:1,13463:30,13465:10,13468:1" },
     [17638] = { "flask of chromatic resistance", 171, 300, 88, 13513, 13522, 223, "8925:1,13465:10,13467:30,13468:1" },
-    [18238] = { "spotted yellowtail", 185, 225, 64, 6887, 13939, 53, "4603:1" },
-    [18239] = { "cooked glossy mightfish", 185, 225, 64, 13927, 13940, 52, "3713:1,13754:1" },
-    [18240] = { "grilled squid", 185, 240, 236, 13928, 13942, 53, "3713:1,13755:1" },
-    [18241] = { "filet of redgill", 185, 225, 64, 13930, 13941, 52, "13758:1" },
-    [18242] = { "hot smoked bass", 185, 240, 236, 13929, 13943, 52, "2692:2,13756:1" },
-    [18243] = { "nightfin soup", 185, 250, 237, 13931, 13945, 53, "159:1,13759:1" },
-    [18244] = { "poached sunscale salmon", 185, 250, 237, 13932, 13946, 53, "13760:1" },
+    [18238] = { "spotted yellowtail", 185, 225, 64, 6887, 13939, 52, "4603:1" },
+    [18239] = { "cooked glossy mightfish", 185, 225, 64, 13927, 13940, 51, "3713:1,13754:1" },
+    [18240] = { "grilled squid", 185, 240, 236, 13928, 13942, 52, "3713:1,13755:1" },
+    [18241] = { "filet of redgill", 185, 225, 64, 13930, 13941, 51, "13758:1" },
+    [18242] = { "hot smoked bass", 185, 240, 236, 13929, 13943, 51, "2692:2,13756:1" },
+    [18243] = { "nightfin soup", 185, 250, 237, 13931, 13945, 52, "159:1,13759:1" },
+    [18244] = { "poached sunscale salmon", 185, 250, 237, 13932, 13946, 52, "13760:1" },
     [18245] = { "lobster stew", 185, 275, 127, 13933, 13947, 40, "159:1,13888:1" },
     [18246] = { "mightfish steak", 185, 275, 127, 13934, 13948, 40, "2692:1,3713:1,13893:1" },
     [18247] = { "baked salmon", 185, 275, 127, 13935, 13949, 40, "3713:1,13889:1" },
-    [18401] = { "bolt of runecloth", 197, 205, 576, 14048, 0, 14, "14047:5" },
-    [18402] = { "runecloth belt", 197, 210, 227, 13856, 0, 14, "14048:3,14341:1" },
+    [18401] = { "bolt of runecloth", 197, 205, 576, 14048, 0, 12, "14047:5" },
+    [18402] = { "runecloth belt", 197, 210, 227, 13856, 0, 12, "14048:3,14341:1" },
     [18403] = { "frostweave tunic", 197, 210, 227, 13869, 14466, 2, "7079:2,14048:5,14341:1" },
     [18404] = { "frostweave robe", 197, 210, 227, 13868, 14467, 2, "7079:2,14048:5,14341:1" },
-    [18405] = { "runecloth bag", 197, 215, 16, 14046, 14468, 534, "8170:2,14048:5,14341:1,249409:2,249430:4" },
-    [18406] = { "runecloth robe", 197, 215, 16, 13858, 14469, 81, "14048:5,14227:1,14341:1" },
+    [18405] = { "runecloth bag", 197, 215, 16, 14046, 14468, 533, "8170:2,14048:5,14341:1,249409:2,249430:4" },
+    [18406] = { "runecloth robe", 197, 215, 16, 13858, 14469, 80, "14048:5,14227:1,14341:1" },
     [18407] = { "runecloth tunic", 197, 215, 16, 13857, 14470, 2, "14048:5,14227:1,14341:1" },
-    [18408] = { "cindercloth vest", 197, 215, 16, 14042, 14471, 137, "7077:3,14048:5,14341:1" },
-    [18409] = { "runecloth cloak", 197, 220, 577, 13860, 14472, 81, "14048:4,14227:1,14341:1" },
-    [18410] = { "ghostweave belt", 197, 220, 578, 14143, 14473, 535, "9210:2,14048:3,14227:1,14341:1" },
+    [18408] = { "cindercloth vest", 197, 215, 16, 14042, 14471, 138, "7077:3,14048:5,14341:1" },
+    [18409] = { "runecloth cloak", 197, 220, 577, 13860, 14472, 80, "14048:4,14227:1,14341:1" },
+    [18410] = { "ghostweave belt", 197, 220, 578, 14143, 14473, 534, "9210:2,14048:3,14227:1,14341:1" },
     [18411] = { "frostweave gloves", 197, 215, 16, 13870, 14474, 2, "7080:1,14048:3,14341:1" },
-    [18412] = { "cindercloth gloves", 197, 225, 99, 14043, 14476, 137, "7077:3,14048:4,14341:1" },
+    [18412] = { "cindercloth gloves", 197, 225, 99, 14043, 14476, 138, "7077:3,14048:4,14341:1" },
     [18413] = { "ghostweave gloves", 197, 225, 99, 14142, 14477, 2, "9210:2,14048:4,14227:1,14341:1" },
     [18414] = { "brightcloth robe", 197, 225, 99, 14100, 14478, 2, "3577:2,14048:5,14341:1" },
     [18415] = { "brightcloth gloves", 197, 225, 99, 14101, 14479, 2, "3577:2,14048:4,14341:1" },
-    [18416] = { "ghostweave vest", 197, 225, 99, 14141, 14480, 536, "9210:4,14048:6,14227:1,14341:1" },
-    [18417] = { "runecloth gloves", 197, 230, 79, 13863, 14481, 54, "8170:4,14048:4,14341:1" },
-    [18418] = { "cindercloth cloak", 197, 230, 79, 14044, 14482, 537, "7078:1,14048:5,14341:1" },
-    [18419] = { "felcloth pants", 197, 230, 79, 14107, 14483, 73, "14048:5,14256:4,14341:1" },
+    [18416] = { "ghostweave vest", 197, 225, 99, 14141, 14480, 535, "9210:4,14048:6,14227:1,14341:1" },
+    [18417] = { "runecloth gloves", 197, 230, 79, 13863, 14481, 53, "8170:4,14048:4,14341:1" },
+    [18418] = { "cindercloth cloak", 197, 230, 79, 14044, 14482, 536, "7078:1,14048:5,14341:1" },
+    [18419] = { "felcloth pants", 197, 230, 79, 14107, 14483, 72, "14048:5,14256:4,14341:1" },
     [18420] = { "brightcloth cloak", 197, 230, 79, 14103, 14484, 2, "3577:2,14048:4,14341:1" },
-    [18421] = { "wizardweave leggings", 197, 230, 79, 14132, 14485, 538, "11176:1,14048:6,14341:1" },
-    [18422] = { "cloak of fire", 197, 235, 579, 14134, 14486, 539, "7068:4,7077:4,7078:4,14048:6,14341:1" },
-    [18423] = { "runecloth boots", 197, 235, 50, 13864, 14488, 81, "8170:4,14048:4,14227:2,14341:1" },
+    [18421] = { "wizardweave leggings", 197, 230, 79, 14132, 14485, 537, "11176:1,14048:6,14341:1" },
+    [18422] = { "cloak of fire", 197, 235, 579, 14134, 14486, 538, "7068:4,7077:4,7078:4,14048:6,14341:1" },
+    [18423] = { "runecloth boots", 197, 235, 50, 13864, 14488, 80, "8170:4,14048:4,14227:2,14341:1" },
     [18424] = { "frostweave pants", 197, 235, 50, 13871, 14489, 2, "7080:1,14048:6,14341:1" },
     [18434] = { "cindercloth pants", 197, 235, 50, 14045, 14490, 123, "7078:1,14048:6,14341:1" },
     [18436] = { "robe of winter night", 197, 245, 123, 14136, 14493, 95, "7080:4,12808:4,14048:10,14256:12,14341:1" },
     [18437] = { "felcloth boots", 197, 240, 228, 14108, 14492, 2, "8170:4,14048:6,14256:4,14341:1" },
-    [18438] = { "runecloth pants", 197, 240, 228, 13865, 14491, 540, "14048:6,14227:2,14341:1" },
-    [18439] = { "brightcloth pants", 197, 245, 123, 14104, 14494, 541, "3577:4,14048:6,14227:1,14341:1" },
-    [18440] = { "mooncloth leggings", 197, 245, 580, 14137, 14497, 94, "14048:6,14341:1,14342:4" },
-    [18441] = { "ghostweave pants", 197, 245, 123, 14144, 14495, 542, "9210:4,14048:6,14341:1" },
+    [18438] = { "runecloth pants", 197, 240, 228, 13865, 14491, 539, "14048:6,14227:2,14341:1" },
+    [18439] = { "brightcloth pants", 197, 245, 123, 14104, 14494, 540, "3577:4,14048:6,14227:1,14341:1" },
+    [18440] = { "mooncloth leggings", 197, 245, 580, 14137, 14497, 93, "14048:6,14341:1,14342:4" },
+    [18441] = { "ghostweave pants", 197, 245, 123, 14144, 14495, 541, "9210:4,14048:6,14341:1" },
     [18442] = { "felcloth hood", 197, 245, 123, 14111, 14496, 2, "14048:5,14256:4,14341:1" },
     [18444] = { "runecloth headband", 197, 250, 161, 13866, 14498, 2, "14048:4,14227:2,14341:1" },
     [18445] = { "mooncloth bag", 197, 255, 80, 14155, 14499, 2, "14048:4,14341:1,14342:1,249409:4,249430:2,249431:10" },
-    [18446] = { "wizardweave robe", 197, 255, 80, 14128, 14500, 543, "11176:2,14048:8,14341:1" },
+    [18446] = { "wizardweave robe", 197, 255, 80, 14128, 14500, 542, "11176:2,14048:8,14341:1" },
     [18447] = { "mooncloth vest", 197, 270, 581, 14138, 14501, 2, "14048:6,14341:1,14342:4" },
     [18448] = { "mooncloth shoulders", 197, 275, 329, 14139, 14507, 2, "14048:5,14341:1,14342:5" },
     [18449] = { "runecloth shoulders", 197, 260, 124, 13867, 14504, 2, "8170:4,14048:7,14227:2,14341:1" },
-    [18450] = { "wizardweave turban", 197, 260, 124, 14130, 14505, 544, "7910:1,11176:4,14048:6,14341:1" },
-    [18451] = { "felcloth robe", 197, 260, 124, 14106, 14506, 68, "12662:4,14048:8,14256:8,14341:2" },
+    [18450] = { "wizardweave turban", 197, 260, 124, 14130, 14505, 543, "7910:1,11176:4,14048:6,14341:1" },
+    [18451] = { "felcloth robe", 197, 260, 124, 14106, 14506, 67, "12662:4,14048:8,14256:8,14341:2" },
     [18452] = { "mooncloth circlet", 197, 280, 125, 14140, 14509, 2, "12800:1,12810:2,14048:4,14341:2,14342:6" },
     [18453] = { "felcloth shoulders", 197, 265, 582, 14112, 14508, 2, "8170:4,12662:4,14048:7,14256:6,14341:2" },
-    [18454] = { "gloves of spell mastery", 197, 295, 126, 14146, 14511, 545, "9210:8,12364:4,12810:6,13926:4,14048:10,14341:2,14342:8,249431:10" },
+    [18454] = { "gloves of spell mastery", 197, 295, 126, 14146, 14511, 544, "9210:8,12364:4,12810:6,13926:4,14048:10,14341:2,14342:8,249431:10" },
     [18455] = { "bottomless bag", 197, 300, 7, 14156, 14510, 2, "14048:8,14341:2,14342:12,14344:2,249428:5,249429:5,249431:8" },
-    [18456] = { "truefaith vestments", 197, 295, 126, 14154, 14512, 546, "9210:8,12811:2,13926:2,14048:12,14341:2,14342:8,249431:10" },
-    [18457] = { "robe of the archmage", 197, 295, 126, 14152, 14513, 547, "7076:8,7078:8,7080:8,7082:8,14048:12,14341:2,249431:10" },
-    [18458] = { "robe of the void", 197, 295, 126, 14153, 14514, 548, "7078:8,12662:20,12808:8,14048:12,14256:40,14341:2,249431:10" },
-    [18560] = { "mooncloth", 197, 230, 583, 14342, 14526, 54, "14256:2" },
+    [18456] = { "truefaith vestments", 197, 295, 126, 14154, 14512, 545, "9210:8,12811:2,13926:2,14048:12,14341:2,14342:8,249431:10" },
+    [18457] = { "robe of the archmage", 197, 295, 126, 14152, 14513, 546, "7076:8,7078:8,7080:8,7082:8,14048:12,14341:2,249431:10" },
+    [18458] = { "robe of the void", 197, 295, 126, 14153, 14514, 547, "7078:8,12662:20,12808:8,14048:12,14256:40,14341:2,249431:10" },
+    [18560] = { "mooncloth", 197, 230, 583, 14342, 14526, 53, "14256:2" },
     [18629] = { "runecloth bandage", 129, 260, 371, 14529, 0, 4, "14047:1" },
     [18630] = { "heavy runecloth bandage", 129, 290, 372, 14530, 0, 4, "14047:2" },
-    [19047] = { "cured rugged hide", 165, 225, 540, 15407, 0, 9, "8171:1,15409:1" },
-    [19048] = { "heavy scorpid bracers", 165, 255, 192, 15077, 15724, 128, "8170:4,14341:1,15408:4" },
+    [19047] = { "cured rugged hide", 165, 225, 540, 15407, 0, 10, "8171:1,15409:1" },
+    [19048] = { "heavy scorpid bracers", 165, 255, 192, 15077, 15724, 129, "8170:4,14341:1,15408:4" },
     [19049] = { "wicked leather gauntlets", 165, 235, 19, 15083, 15725, 1, "2325:1,8170:8,14341:1" },
-    [19050] = { "green dragonscale breastplate", 165, 235, 19, 15045, 15726, 458, "8170:20,14341:2,15412:25", { spec = "dragonscale leatherworking" } },
-    [19051] = { "heavy scorpid vest", 165, 240, 9, 15076, 15727, 459, "8170:6,14341:1,15408:6", { spec = "tribal leatherworking" } },
-    [19052] = { "wicked leather bracers", 165, 240, 9, 15084, 15728, 72, "2325:1,8170:8,14341:1", { spec = "elemental leatherworking" } },
-    [19053] = { "chimeric gloves", 165, 240, 9, 15074, 15729, 460, "8170:6,14341:1,15423:6" },
-    [19054] = { "red dragonscale breastplate", 165, 290, 26, 15047, 15730, 461, "8170:40,14341:1,15414:30", { spec = "dragonscale leatherworking" } },
+    [19050] = { "green dragonscale breastplate", 165, 235, 19, 15045, 15726, 457, "8170:20,14341:2,15412:25", { spec = "dragonscale leatherworking" } },
+    [19051] = { "heavy scorpid vest", 165, 240, 9, 15076, 15727, 458, "8170:6,14341:1,15408:6", { spec = "tribal leatherworking" } },
+    [19052] = { "wicked leather bracers", 165, 240, 9, 15084, 15728, 71, "2325:1,8170:8,14341:1", { spec = "elemental leatherworking" } },
+    [19053] = { "chimeric gloves", 165, 240, 9, 15074, 15729, 459, "8170:6,14341:1,15423:6" },
+    [19054] = { "red dragonscale breastplate", 165, 290, 26, 15047, 15730, 460, "8170:40,14341:1,15414:30", { spec = "dragonscale leatherworking" } },
     [19055] = { "runic leather gauntlets", 165, 245, 57, 15091, 15731, 2, "8170:10,14047:6,14341:1", { spec = "elemental leatherworking" } },
-    [19058] = { "rugged armor kit", 165, 225, 541, 15564, 0, 9, "8170:5", { spec = "elemental leatherworking" } },
-    [19059] = { "volcanic leggings", 165, 245, 57, 15054, 15732, 462, "7075:1,7078:1,8170:6,14341:1", { spec = "dragonscale leatherworking" } },
-    [19060] = { "green dragonscale leggings", 165, 245, 57, 15046, 15733, 463, "8170:20,14341:1,15412:25", { spec = "dragonscale leatherworking" } },
+    [19058] = { "rugged armor kit", 165, 225, 541, 15564, 0, 10, "8170:5", { spec = "elemental leatherworking" } },
+    [19059] = { "volcanic leggings", 165, 245, 57, 15054, 15732, 461, "7075:1,7078:1,8170:6,14341:1", { spec = "dragonscale leatherworking" } },
+    [19060] = { "green dragonscale leggings", 165, 245, 57, 15046, 15733, 462, "8170:20,14341:1,15412:25", { spec = "dragonscale leatherworking" } },
     [19061] = { "living shoulders", 165, 245, 57, 15061, 15734, 40, "8170:12,12803:4,14341:1" },
-    [19062] = { "ironfeather shoulders", 165, 245, 57, 15067, 15735, 464, "1529:2,8170:24,14341:1,15420:80", { spec = "elemental leatherworking" } },
+    [19062] = { "ironfeather shoulders", 165, 245, 57, 15067, 15735, 463, "1529:2,8170:24,14341:1,15420:80", { spec = "elemental leatherworking" } },
     [19063] = { "chimeric boots", 165, 250, 5, 15073, 15737, 2, "8170:4,14341:1,15423:8", { spec = "elemental leatherworking" } },
-    [19064] = { "heavy scorpid gauntlets", 165, 250, 5, 15078, 15738, 129, "8170:6,14341:1,15408:8", { spec = "elemental leatherworking" } },
-    [19065] = { "runic leather bracers", 165, 250, 5, 15092, 15739, 465, "7971:1,8170:6,14047:6,14341:1", { spec = "elemental leatherworking" } },
-    [19066] = { "frostsaber boots", 165, 250, 5, 15071, 15740, 54, "8170:4,14341:1,15422:6", { spec = "tribal leatherworking" } },
+    [19064] = { "heavy scorpid gauntlets", 165, 250, 5, 15078, 15738, 130, "8170:6,14341:1,15408:8", { spec = "elemental leatherworking" } },
+    [19065] = { "runic leather bracers", 165, 250, 5, 15092, 15739, 464, "7971:1,8170:6,14047:6,14341:1", { spec = "elemental leatherworking" } },
+    [19066] = { "frostsaber boots", 165, 250, 5, 15071, 15740, 53, "8170:4,14341:1,15422:6", { spec = "tribal leatherworking" } },
     [19067] = { "stormshroud pants", 165, 250, 5, 15057, 15741, 1, "7080:2,7082:2,8170:16,14341:1" },
-    [19068] = { "warbear harness", 165, 250, 5, 15064, 20253, 130, "8170:28,14341:1,15419:12", { spec = "tribal leatherworking", faction = "timbermaw hold", standing = "friendly" } },
+    [19068] = { "warbear harness", 165, 250, 5, 15064, 20253, 131, "8170:28,14341:1,15419:12", { spec = "tribal leatherworking", faction = "timbermaw hold", standing = "friendly" } },
     [19070] = { "heavy scorpid belt", 165, 255, 20, 15082, 15743, 2, "8170:6,14341:1,15408:8" },
-    [19071] = { "wicked leather headband", 165, 255, 20, 15086, 15744, 466, "2325:1,8170:12,14341:1" },
+    [19071] = { "wicked leather headband", 165, 255, 20, 15086, 15744, 465, "2325:1,8170:12,14341:1" },
     [19072] = { "runic leather belt", 165, 255, 20, 15093, 15745, 2, "8170:12,14047:10,14341:1" },
     [19073] = { "chimeric leggings", 165, 255, 20, 15072, 15746, 2, "8170:8,14341:1,15423:8" },
-    [19074] = { "frostsaber leggings", 165, 260, 10, 15069, 15747, 131, "8170:6,14341:1,15422:8", { spec = "tribal leatherworking" } },
-    [19075] = { "heavy scorpid leggings", 165, 260, 10, 15079, 15748, 91, "8170:8,14341:1,15408:12" },
-    [19076] = { "volcanic breastplate", 165, 260, 10, 15053, 15749, 467, "7076:1,7078:1,8170:8,14341:1" },
-    [19077] = { "blue dragonscale breastplate", 165, 260, 10, 15048, 15751, 468, "8170:28,14341:1,15407:1,15415:30" },
-    [19078] = { "living leggings", 165, 260, 10, 15060, 15752, 132, "8170:16,12803:6,14341:1,15407:1" },
-    [19079] = { "stormshroud armor", 165, 260, 10, 15056, 15753, 469, "7080:3,7082:3,8170:16,14341:1,15407:1" },
-    [19080] = { "warbear woolies", 165, 260, 10, 15065, 20254, 130, "8170:24,14341:1,15419:14", { spec = "tribal leatherworking", faction = "timbermaw hold", standing = "friendly" } },
+    [19074] = { "frostsaber leggings", 165, 260, 10, 15069, 15747, 132, "8170:6,14341:1,15422:8", { spec = "tribal leatherworking" } },
+    [19075] = { "heavy scorpid leggings", 165, 260, 10, 15079, 15748, 90, "8170:8,14341:1,15408:12" },
+    [19076] = { "volcanic breastplate", 165, 260, 10, 15053, 15749, 466, "7076:1,7078:1,8170:8,14341:1" },
+    [19077] = { "blue dragonscale breastplate", 165, 260, 10, 15048, 15751, 467, "8170:28,14341:1,15407:1,15415:30" },
+    [19078] = { "living leggings", 165, 260, 10, 15060, 15752, 133, "8170:16,12803:6,14341:1,15407:1" },
+    [19079] = { "stormshroud armor", 165, 260, 10, 15056, 15753, 468, "7080:3,7082:3,8170:16,14341:1,15407:1" },
+    [19080] = { "warbear woolies", 165, 260, 10, 15065, 20254, 131, "8170:24,14341:1,15419:14", { spec = "tribal leatherworking", faction = "timbermaw hold", standing = "friendly" } },
     [19081] = { "chimeric vest", 165, 265, 25, 15075, 15755, 2, "8170:10,14341:1,15423:10" },
-    [19082] = { "runic leather headband", 165, 265, 25, 15094, 15756, 470, "8170:14,14047:10,14341:1" },
+    [19082] = { "runic leather headband", 165, 265, 25, 15094, 15756, 469, "8170:14,14047:10,14341:1" },
     [19083] = { "wicked leather pants", 165, 265, 25, 15087, 15757, 2, "2325:3,8170:16,14341:1,15407:1" },
-    [19084] = { "devilsaur gauntlets", 165, 265, 25, 15063, 15758, 471, "8170:30,14341:1,15417:8", { spec = "tribal leatherworking" } },
-    [19085] = { "black dragonscale breastplate", 165, 265, 25, 15050, 15759, 93, "8170:40,14341:2,15407:1,15416:60" },
-    [19086] = { "ironfeather breastplate", 165, 265, 25, 15066, 15760, 472, "1529:1,8170:40,14341:1,15407:1,15420:120", { spec = "tribal leatherworking" } },
-    [19087] = { "frostsaber gloves", 165, 270, 21, 15070, 15761, 473, "8170:6,14341:1,15422:10", { spec = "tribal leatherworking" } },
-    [19088] = { "heavy scorpid helm", 165, 270, 21, 15080, 15762, 128, "8170:8,14341:1,15407:1,15408:12" },
-    [19089] = { "blue dragonscale shoulders", 165, 270, 21, 15049, 15763, 474, "8170:28,12810:2,14341:1,15407:1,15415:30" },
-    [19090] = { "stormshroud shoulders", 165, 270, 21, 15058, 15764, 475, "7080:3,7082:3,8170:12,12810:2,14341:1" },
+    [19084] = { "devilsaur gauntlets", 165, 265, 25, 15063, 15758, 470, "8170:30,14341:1,15417:8", { spec = "tribal leatherworking" } },
+    [19085] = { "black dragonscale breastplate", 165, 265, 25, 15050, 15759, 92, "8170:40,14341:2,15407:1,15416:60" },
+    [19086] = { "ironfeather breastplate", 165, 265, 25, 15066, 15760, 471, "1529:1,8170:40,14341:1,15407:1,15420:120", { spec = "tribal leatherworking" } },
+    [19087] = { "frostsaber gloves", 165, 270, 21, 15070, 15761, 472, "8170:6,14341:1,15422:10", { spec = "tribal leatherworking" } },
+    [19088] = { "heavy scorpid helm", 165, 270, 21, 15080, 15762, 129, "8170:8,14341:1,15407:1,15408:12" },
+    [19089] = { "blue dragonscale shoulders", 165, 270, 21, 15049, 15763, 473, "8170:28,12810:2,14341:1,15407:1,15415:30" },
+    [19090] = { "stormshroud shoulders", 165, 270, 21, 15058, 15764, 474, "7080:3,7082:3,8170:12,12810:2,14341:1" },
     [19091] = { "runic leather pants", 165, 275, 39, 15095, 15765, 2, "8170:18,12810:2,14047:12,14341:1" },
-    [19092] = { "wicked leather belt", 165, 275, 39, 15088, 15768, 476, "2325:2,8170:14,14341:2" },
+    [19092] = { "wicked leather belt", 165, 275, 39, 15088, 15768, 475, "2325:2,8170:14,14341:2" },
     [19093] = { "onyxia scale cloak", 165, 300, 27, 15138, 0, 4, "14044:1,14341:1,15410:1" },
-    [19094] = { "black dragonscale shoulders", 165, 270, 542, 15051, 15770, 477, "8170:44,12810:2,14341:1,15407:1,15416:45" },
-    [19095] = { "living breastplate", 165, 290, 26, 15059, 15771, 478, "8170:16,12803:8,14341:2,14342:2,15407:1" },
-    [19097] = { "devilsaur leggings", 165, 290, 26, 15062, 15772, 133, "8170:30,14341:1,15407:1,15417:14", { spec = "tribal leatherworking" } },
-    [19098] = { "wicked leather armor", 165, 280, 58, 15085, 15773, 74, "2325:4,8170:20,14256:6,14341:2,15407:2" },
-    [19100] = { "heavy scorpid shoulders", 165, 280, 58, 15081, 15774, 479, "8170:14,14341:2,15407:1,15408:14" },
-    [19101] = { "volcanic shoulders", 165, 280, 58, 15055, 15775, 480, "7076:1,7078:1,8170:10,14341:2" },
-    [19102] = { "runic leather armor", 165, 285, 120, 15090, 15776, 481, "8170:22,12810:4,14047:16,14341:2,15407:1" },
-    [19103] = { "runic leather shoulders", 165, 285, 120, 15096, 15777, 134, "8170:16,12810:4,14047:18,14341:2,15407:1" },
-    [19104] = { "frostsaber tunic", 165, 290, 26, 15068, 15779, 482, "8170:12,14341:2,15407:1,15422:12", { spec = "tribal leatherworking" } },
-    [19107] = { "black dragonscale leggings", 165, 290, 26, 15052, 15781, 483, "8170:40,12810:4,14341:2,15407:1,15416:60" },
+    [19094] = { "black dragonscale shoulders", 165, 270, 542, 15051, 15770, 476, "8170:44,12810:2,14341:1,15407:1,15416:45" },
+    [19095] = { "living breastplate", 165, 290, 26, 15059, 15771, 477, "8170:16,12803:8,14341:2,14342:2,15407:1" },
+    [19097] = { "devilsaur leggings", 165, 290, 26, 15062, 15772, 134, "8170:30,14341:1,15407:1,15417:14", { spec = "tribal leatherworking" } },
+    [19098] = { "wicked leather armor", 165, 280, 58, 15085, 15773, 73, "2325:4,8170:20,14256:6,14341:2,15407:2" },
+    [19100] = { "heavy scorpid shoulders", 165, 280, 58, 15081, 15774, 478, "8170:14,14341:2,15407:1,15408:14" },
+    [19101] = { "volcanic shoulders", 165, 280, 58, 15055, 15775, 479, "7076:1,7078:1,8170:10,14341:2" },
+    [19102] = { "runic leather armor", 165, 285, 120, 15090, 15776, 480, "8170:22,12810:4,14047:16,14341:2,15407:1" },
+    [19103] = { "runic leather shoulders", 165, 285, 120, 15096, 15777, 135, "8170:16,12810:4,14047:18,14341:2,15407:1" },
+    [19104] = { "frostsaber tunic", 165, 290, 26, 15068, 15779, 481, "8170:12,14341:2,15407:1,15422:12", { spec = "tribal leatherworking" } },
+    [19107] = { "black dragonscale leggings", 165, 290, 26, 15052, 15781, 482, "8170:40,12810:4,14341:2,15407:1,15416:60" },
     [19435] = { "mooncloth boots", 197, 265, 584, 15802, 0, 4, "7971:2,14048:6,14341:1,14342:4" },
     [19567] = { "salt shaker", 202, 250, 5, 15846, 0, 20, "10558:1,10560:4,10561:1,12359:6" },
     [19666] = { "silver skeleton key", 164, 75, 462, 15869, 0, 11, "2842:1,3470:1" },
-    [19667] = { "golden skeleton key", 164, 125, 111, 15870, 0, 12, "3486:1,3577:1" },
+    [19667] = { "golden skeleton key", 164, 125, 111, 15870, 0, 13, "3486:1,3577:1" },
     [19668] = { "truesilver skeleton key", 164, 175, 194, 15871, 0, 19, "6037:1,7966:1" },
-    [19669] = { "arcanite skeleton key", 164, 250, 86, 15872, 0, 14, "12360:1,12644:1" },
+    [19669] = { "arcanite skeleton key", 164, 250, 86, 15872, 0, 12, "12360:1,12644:1" },
     [19788] = { "dense blasting powder", 202, 250, 86, 15992, 0, 20, "12365:2" },
     [19790] = { "thorium grenade", 202, 260, 10, 15993, 16041, 1, "12359:3,14047:3,15992:3,15994:1" },
     [19791] = { "thorium widget", 202, 260, 10, 15994, 16042, 1, "12359:3,14047:1" },
@@ -3366,23 +3363,23 @@ local RAW = {
     [19794] = { "spellpower goggles xtreme plus", 202, 270, 21, 15999, 16045, 121, "7910:4,10502:1,12810:2,14047:8" },
     [19795] = { "thorium tube", 202, 275, 39, 16000, 16047, 1, "12359:6" },
     [19796] = { "dark iron rifle", 202, 275, 39, 16004, 16048, 410, "8170:4,10546:2,11371:6,12361:2,12799:2,16000:2" },
-    [19799] = { "dark iron bomb", 202, 285, 120, 16005, 16049, 77, "11371:1,14047:3,15992:3,15994:2" },
+    [19799] = { "dark iron bomb", 202, 285, 120, 16005, 16049, 76, "11371:1,14047:3,15992:3,15994:2" },
     [19800] = { "thorium shells", 202, 285, 120, 15997, 16051, 120, "12359:2,15992:1" },
     [19814] = { "masterwork target dummy", 202, 275, 39, 16023, 16046, 1, "6037:1,8170:2,10561:1,14047:4,15994:2,16000:1" },
-    [19815] = { "delicate arcanite converter", 202, 285, 120, 16006, 16050, 78, "12360:1,14227:1" },
-    [19819] = { "voice amplification modulator", 202, 290, 26, 16009, 16052, 79, "10558:1,12799:1,15994:1,16006:2" },
-    [19825] = { "master engineer's goggles", 202, 290, 26, 16008, 16053, 411, "10500:1,12364:2,12810:4" },
-    [19830] = { "arcanite dragonling", 202, 300, 1, 16022, 16054, 412, "10558:4,10576:1,12655:10,12810:6,15994:6,16006:8" },
+    [19815] = { "delicate arcanite converter", 202, 285, 120, 16006, 16050, 77, "12360:1,14227:1" },
+    [19819] = { "voice amplification modulator", 202, 290, 26, 16009, 16052, 78, "10558:1,12799:1,15994:1,16006:2" },
+    [19825] = { "master engineer's goggles", 202, 290, 26, 16008, 16053, 94, "10500:1,12364:2,12810:4" },
+    [19830] = { "arcanite dragonling", 202, 300, 1, 16022, 16054, 411, "10558:4,10576:1,12655:10,12810:6,15994:6,16006:8" },
     [19831] = { "arcane bomb", 202, 300, 1, 16040, 16055, 2, "12359:3,14047:1,16006:1" },
-    [19833] = { "flawless arcanite rifle", 202, 300, 1, 16007, 16056, 413, "7076:2,7078:2,12360:10,12800:2,12810:2,16000:2" },
+    [19833] = { "flawless arcanite rifle", 202, 300, 1, 16007, 16056, 412, "7076:2,7078:2,12360:10,12800:2,12810:2,16000:2" },
     [20008] = { "enchant bracer - greater intellect", 333, 255, 480, 0, 16214, 359, "16202:2" },
     [20009] = { "enchant bracer - superior spirit", 333, 270, 284, 0, 16218, 2, "11176:7,16202:2" },
     [20010] = { "enchant bracer - superior strength", 333, 295, 93, 0, 16246, 113, "16203:6,16204:6" },
     [20011] = { "enchant bracer - superior stamina", 333, 300, 3, 0, 16251, 2, "16204:15" },
-    [20012] = { "enchant gloves - greater agility", 333, 270, 284, 0, 16219, 72, "16202:2,16204:2" },
+    [20012] = { "enchant gloves - greater agility", 333, 270, 284, 0, 16219, 71, "16202:2,16204:2" },
     [20013] = { "enchant gloves - greater strength", 333, 295, 93, 0, 16244, 360, "16203:4,16204:4" },
     [20014] = { "enchant cloak - greater resistance", 333, 265, 72, 0, 16216, 361, "7075:1,7077:1,7079:1,7081:1,7972:1,16202:1" },
-    [20015] = { "enchant cloak - superior defense", 333, 285, 285, 0, 16224, 73, "16204:8" },
+    [20015] = { "enchant cloak - superior defense", 333, 285, 285, 0, 16224, 72, "16204:8" },
     [20016] = { "enchant shield - superior spirit", 333, 280, 481, 0, 16222, 362, "16203:2,16204:4" },
     [20017] = { "enchant shield - greater stamina", 333, 265, 72, 0, 16217, 1, "11176:6" },
     [20020] = { "enchant boots - greater stamina", 333, 260, 482, 0, 16215, 2, "11176:6" },
@@ -3394,54 +3391,54 @@ local RAW = {
     [20029] = { "enchant weapon - icy chill", 333, 285, 285, 0, 16223, 365, "7080:1,7082:1,13467:1,14343:4" },
     [20030] = { "enchant 2h weapon - superior impact", 333, 295, 93, 0, 16247, 366, "14344:4,16204:10" },
     [20031] = { "enchant weapon - superior striking", 333, 300, 3, 0, 16250, 367, "14344:2,16203:10" },
-    [20032] = { "enchant weapon - lifestealing", 333, 300, 3, 0, 16254, 74, "12803:6,12808:6,14344:6" },
+    [20032] = { "enchant weapon - lifestealing", 333, 300, 3, 0, 16254, 73, "12803:6,12808:6,14344:6" },
     [20033] = { "enchant weapon - unholy weapon", 333, 295, 93, 0, 16248, 368, "12808:4,14344:4" },
     [20034] = { "enchant weapon - crusader", 333, 300, 3, 0, 16252, 369, "12811:2,14344:4" },
     [20035] = { "enchant 2h weapon - major spirit", 333, 300, 3, 0, 16255, 370, "14344:2,16203:12" },
     [20036] = { "enchant 2h weapon - major intellect", 333, 300, 3, 0, 16249, 371, "14344:2,16203:12" },
-    [20051] = { "runed arcanite rod", 333, 290, 94, 16207, 16243, 73, "13926:1,14343:4,14344:2,16203:4,16204:10,16206:1" },
-    [20201] = { "arcanite rod", 164, 250, 86, 16206, 0, 14, "12360:3,12644:1" },
+    [20051] = { "runed arcanite rod", 333, 290, 94, 16207, 16243, 72, "13926:1,14343:4,14344:2,16203:4,16204:10,16206:1" },
+    [20201] = { "arcanite rod", 164, 250, 86, 16206, 0, 12, "12360:3,12644:1" },
     [20626] = { "undermine clam chowder", 185, 225, 64, 16766, 16767, 1, "1179:1,2692:1,7974:2" },
     [20648] = { "medium leather", 165, 75, 543, 2319, 0, 7, "2318:4" },
     [20649] = { "heavy leather", 165, 125, 544, 4234, 0, 8, "2319:5" },
     [20650] = { "thick leather", 165, 175, 304, 4304, 0, 20, "4234:6" },
-    [20848] = { "flarecore mantle", 197, 300, 7, 16980, 17017, 61, "12810:6,14048:12,14341:2,17010:4,17011:4", { faction = "thorium brotherhood", standing = "honored" } },
-    [20849] = { "flarecore gloves", 197, 300, 7, 16979, 17018, 60, "7078:4,12810:2,14048:8,14341:2,17010:6", { faction = "thorium brotherhood", standing = "friendly" } },
-    [20853] = { "corehound boots", 165, 295, 313, 16982, 17022, 60, "14341:2,17010:6,17011:2,17012:20", { faction = "thorium brotherhood", standing = "friendly" } },
-    [20854] = { "molten helm", 165, 300, 1, 16983, 17023, 60, "14341:2,17010:3,17011:6,17012:15", { faction = "thorium brotherhood", standing = "friendly" } },
+    [20848] = { "flarecore mantle", 197, 300, 7, 16980, 17017, 60, "12810:6,14048:12,14341:2,17010:4,17011:4", { faction = "thorium brotherhood", standing = "honored" } },
+    [20849] = { "flarecore gloves", 197, 300, 7, 16979, 17018, 59, "7078:4,12810:2,14048:8,14341:2,17010:6", { faction = "thorium brotherhood", standing = "friendly" } },
+    [20853] = { "corehound boots", 165, 295, 313, 16982, 17022, 59, "14341:2,17010:6,17011:2,17012:20", { faction = "thorium brotherhood", standing = "friendly" } },
+    [20854] = { "molten helm", 165, 300, 1, 16983, 17023, 59, "14341:2,17010:3,17011:6,17012:15", { faction = "thorium brotherhood", standing = "friendly" } },
     [20855] = { "black dragonscale boots", 165, 300, 1, 16984, 17025, 23, "12810:6,14341:2,15416:30,17010:4,17011:3" },
-    [20872] = { "fiery chain girdle", 164, 270, 92, 16989, 17049, 60, "11371:6,17010:3,17011:3", { faction = "thorium brotherhood", standing = "friendly" } },
-    [20873] = { "fiery chain shoulders", 164, 300, 1, 16988, 17053, 61, "11371:16,17010:4,17011:5", { faction = "thorium brotherhood", standing = "honored" } },
+    [20872] = { "fiery chain girdle", 164, 270, 92, 16989, 17049, 59, "11371:6,17010:3,17011:3", { faction = "thorium brotherhood", standing = "friendly" } },
+    [20873] = { "fiery chain shoulders", 164, 300, 1, 16988, 17053, 60, "11371:16,17010:4,17011:5", { faction = "thorium brotherhood", standing = "honored" } },
     [20874] = { "dark iron bracers", 164, 270, 92, 17014, 17051, 294, "11371:4,17010:2,17011:2", { spec = "armorsmith", faction = "thorium brotherhood", standing = "friendly" } },
     [20876] = { "dark iron leggings", 164, 300, 1, 17013, 17052, 102, "11371:16,17010:4,17011:6", { spec = "armorsmith", faction = "thorium brotherhood", standing = "honored" } },
     [20890] = { "dark iron reaver", 164, 300, 1, 17015, 17059, 102, "11371:16,11382:2,12810:2,17010:12", { spec = "weaponsmith", faction = "thorium brotherhood", standing = "honored" } },
-    [20897] = { "dark iron destroyer", 164, 300, 1, 17016, 17060, 70, "11371:18,11382:2,12810:2,17011:12", { spec = "weaponsmith", faction = "thorium brotherhood", standing = "revered" } },
+    [20897] = { "dark iron destroyer", 164, 300, 1, 17016, 17060, 69, "11371:18,11382:2,12810:2,17011:12", { spec = "weaponsmith", faction = "thorium brotherhood", standing = "revered" } },
     [20916] = { "mithril headed trout", 185, 175, 34, 8364, 17062, 1, "8365:1" },
     [21143] = { "gingerbread cookie", 185, 1, 103, 17197, 17200, 1, "6889:1,17194:1", { isEvent = true, event = "winter_veil" } },
     [21144] = { "egg nog", 185, 35, 102, 17198, 17201, 1, "1179:1,6889:1,17194:1,17196:1", { isEvent = true, event = "winter_veil" } },
     [21161] = { "sulfuron hammer", 164, 300, 463, 17193, 18592, 295, "7078:25,11371:20,11382:10,12360:50,17010:10,17011:10,17203:8", { spec = "weaponsmith", faction = "thorium brotherhood", standing = "exalted" } },
-    [21175] = { "spider sausage", 185, 200, 168, 17222, 0, 169, "12205:2" },
+    [21175] = { "spider sausage", 185, 200, 168, 17222, 0, 170, "12205:2" },
     [21913] = { "edge of winter", 164, 165, 141, 17704, 17706, 3, "3829:1,3859:10,4234:2,7069:2,7070:2", { isEvent = true, event = "winter_veil" } },
     [21923] = { "elixir of frost power", 171, 190, 135, 17708, 17709, 3, "3358:1,3372:1,3819:2" },
     [21931] = { "enchant weapon - winter's might", 333, 190, 135, 0, 17725, 3, "3819:1,11135:1,11137:1,11139:1", { isEvent = true, event = "winter_veil" } },
     [21940] = { "snowmaster 9000", 202, 190, 296, 17716, 17720, 3, "3829:1,3860:8,4389:4,17202:4", { isEvent = true, event = "winter_veil" } },
     [21943] = { "gloves of the greatfather", 165, 165, 95, 17721, 17722, 3, "4234:8,4291:1,7067:4", { isEvent = true, event = "winter_veil" } },
     [21945] = { "green holiday shirt", 197, 155, 585, 17723, 17724, 3, "2605:4,4291:1,4305:5", { isEvent = true, event = "winter_veil" } },
-    [22331] = { "rugged leather", 165, 225, 545, 8170, 0, 9, "4304:6" },
+    [22331] = { "rugged leather", 165, 225, 545, 8170, 0, 10, "4304:6" },
     [22480] = { "tender wolf steak", 185, 225, 64, 18045, 18046, 1, "3713:1,12208:1" },
-    [22704] = { "field repair bot 74a", 202, 300, 1, 18232, 18235, 414, "7067:2,7068:1,7191:1,8170:4,12359:12" },
-    [22711] = { "shadowskin gloves", 165, 175, 546, 18238, 18239, 484, "1210:4,4236:2,4304:6,7428:8,7971:2,8343:1" },
+    [22704] = { "field repair bot 74a", 202, 300, 1, 18232, 18235, 413, "7067:2,7068:1,7191:1,8170:4,12359:12" },
+    [22711] = { "shadowskin gloves", 165, 175, 546, 18238, 18239, 483, "1210:4,4236:2,4304:6,7428:8,7971:2,8343:1" },
     [22727] = { "core armor kit", 165, 300, 1, 18251, 18252, 96, "14341:2,17012:3" },
     [22732] = { "major rejuvenation potion", 171, 300, 106, 18253, 18257, 96, "10286:1,13463:4,13464:4,18256:1" },
-    [22749] = { "enchant weapon - spell power", 333, 300, 3, 0, 18259, 47, "7078:4,7080:4,7082:4,13926:2,14344:4,16203:12" },
+    [22749] = { "enchant weapon - spell power", 333, 300, 3, 0, 18259, 46, "7078:4,7080:4,7082:4,13926:2,14344:4,16203:12" },
     [22750] = { "enchant weapon - healing power", 333, 300, 3, 0, 18260, 103, "7080:6,12803:6,12811:1,14344:4,16203:8" },
     [22757] = { "elemental sharpening stone", 164, 300, 464, 18262, 18264, 103, "7067:2,12365:3" },
-    [22759] = { "flarecore wraps", 197, 300, 586, 18263, 18265, 47, "7078:2,12810:6,14341:4,14342:6,17010:8" },
-    [22761] = { "runn tum tuber surprise", 185, 275, 127, 18254, 18267, 170, "3713:1,18255:1" },
-    [22793] = { "biznicks 247x128 accurascope", 202, 300, 1, 18283, 18290, 47, "7076:2,11371:6,16000:1,16006:4,17011:2" },
-    [22795] = { "core marksman rifle", 202, 300, 1, 18282, 18292, 47, "12360:6,16000:2,16006:2,17010:4,17011:2" },
-    [22797] = { "force reactive disk", 202, 300, 1, 18168, 18291, 47, "7076:8,7082:8,12360:6,12803:12,16006:2" },
-    [22808] = { "draught of greater water breathing", 171, 215, 174, 18294, 0, 14, "7972:1,8831:2,8925:1" },
+    [22759] = { "flarecore wraps", 197, 300, 586, 18263, 18265, 46, "7078:2,12810:6,14341:4,14342:6,17010:8" },
+    [22761] = { "runn tum tuber surprise", 185, 275, 127, 18254, 18267, 171, "3713:1,18255:1" },
+    [22793] = { "biznicks 247x128 accurascope", 202, 300, 1, 18283, 18290, 46, "7076:2,11371:6,16000:1,16006:4,17011:2" },
+    [22795] = { "core marksman rifle", 202, 300, 1, 18282, 18292, 46, "12360:6,16000:2,16006:2,17010:4,17011:2" },
+    [22797] = { "force reactive disk", 202, 300, 1, 18168, 18291, 46, "7076:8,7082:8,12360:6,12803:12,16006:2" },
+    [22808] = { "draught of greater water breathing", 171, 215, 174, 18294, 0, 12, "7972:1,8831:2,8925:1" },
     [22813] = { "gordok ogre suit", 197, 275, 314, 18258, 0, 4, "8170:4,14048:2,14341:1,18240:1" },
     [22815] = { "gordok ogre suit", 165, 275, 314, 18258, 0, 4, "8170:4,14048:2,14341:1,18240:1" },
     [22866] = { "belt of the archmage", 197, 295, 126, 18405, 18414, 24, "7078:10,7080:10,9210:8,14048:16,14341:6,14342:8,14344:4,249431:10" },
@@ -3449,34 +3446,34 @@ local RAW = {
     [22868] = { "inferno gloves", 197, 280, 125, 18408, 18416, 24, "7078:10,7910:2,14048:12,14341:2" },
     [22869] = { "mooncloth gloves", 197, 280, 125, 18409, 18417, 24, "13926:2,14048:12,14341:2,14342:6" },
     [22870] = { "cloak of warding", 197, 280, 125, 18413, 18418, 24, "12360:1,12809:4,14048:12,14341:2" },
-    [22902] = { "mooncloth robe", 197, 275, 329, 18486, 18487, 549, "13926:2,14048:6,14341:2,14342:4" },
+    [22902] = { "mooncloth robe", 197, 275, 329, 18486, 18487, 548, "13926:2,14048:6,14341:2,14342:4" },
     [22921] = { "girdle of insight", 165, 290, 26, 18504, 18514, 24, "8170:12,12804:12,14341:4,15407:2" },
     [22922] = { "mongoose boots", 165, 290, 26, 18506, 18515, 24, "7082:6,8170:12,11754:4,14341:4,15407:2" },
     [22923] = { "swift flight bracers", 165, 290, 26, 18508, 18516, 24, "8170:12,14341:4,15407:4,15420:60,18512:8" },
     [22926] = { "chromatic cloak", 165, 300, 1, 18509, 18517, 24, "8170:30,12607:12,14341:8,15407:5,15414:30,15416:30" },
     [22927] = { "hide of the wild", 165, 300, 1, 18510, 18518, 24, "7080:10,8170:30,12803:12,14341:8,15407:3,18512:8" },
     [22928] = { "shifting cloak", 165, 300, 1, 18511, 18519, 24, "7082:12,8170:30,12753:4,12809:8,14341:8,15407:4" },
-    [23066] = { "red firework", 202, 150, 212, 9318, 18647, 415, "4234:1,4377:1", { isEvent = true, event = "lunar_festival" } },
+    [23066] = { "red firework", 202, 150, 212, 9318, 18647, 414, "4234:1,4377:1", { isEvent = true, event = "lunar_festival" } },
     [23067] = { "blue firework", 202, 150, 212, 9312, 18649, 1, "4234:1,4377:1", { isEvent = true, event = "lunar_festival" } },
     [23068] = { "green firework", 202, 150, 212, 9313, 18648, 1, "4234:1,4377:1", { isEvent = true, event = "lunar_festival" } },
     [23069] = { "ez-thro dynamite ii", 202, 200, 508, 18588, 18650, 1, "4306:1,10505:1,260801:1" },
-    [23070] = { "dense dynamite", 202, 250, 301, 18641, 0, 9, "14047:3,15992:2", { spec = "gnomish engineering" } },
-    [23071] = { "truesilver transformer", 202, 260, 509, 18631, 18651, 416, "6037:2,7067:2,7069:1", { spec = "gnomish engineering" } },
-    [23077] = { "gyrofreeze ice reflector", 202, 260, 10, 18634, 18652, 78, "3829:2,7078:4,12361:2,13467:4,15994:6,18631:2", { spec = "goblin engineering" } },
-    [23078] = { "goblin jumper cables xl", 202, 265, 25, 18587, 18653, 417, "7191:2,7910:2,14227:2,15994:2,18631:2", { spec = "goblin engineering" } },
-    [23079] = { "major recombobulator", 202, 275, 510, 18637, 18655, 418, "14047:2,16000:2,18631:1", { spec = "goblin engineering" } },
-    [23080] = { "powerful seaforium charge", 202, 275, 302, 18594, 18656, 78, "159:1,8170:2,15992:3,15994:2", { spec = "goblin engineering" } },
-    [23081] = { "hyper-radiant flame reflector", 202, 290, 26, 18638, 18657, 419, "7080:6,7910:4,11371:4,12800:2,18631:3", { spec = "goblin engineering" } },
-    [23082] = { "ultra-flash shadow reflector", 202, 300, 1, 18639, 18658, 79, "11371:8,12799:2,12800:2,12803:6,12808:4,18631:4" },
-    [23096] = { "alarm-o-bot", 202, 265, 511, 18645, 18654, 77, "7191:1,7910:1,8170:4,12359:4,15994:2" },
-    [23129] = { "world enlarger", 202, 260, 512, 18660, 18661, 77, "3864:1,10558:1,10560:1,10561:1,15994:2" },
+    [23070] = { "dense dynamite", 202, 250, 301, 18641, 0, 10, "14047:3,15992:2", { spec = "gnomish engineering" } },
+    [23071] = { "truesilver transformer", 202, 260, 509, 18631, 18651, 415, "6037:2,7067:2,7069:1", { spec = "gnomish engineering" } },
+    [23077] = { "gyrofreeze ice reflector", 202, 260, 10, 18634, 18652, 77, "3829:2,7078:4,12361:2,13467:4,15994:6,18631:2", { spec = "goblin engineering" } },
+    [23078] = { "goblin jumper cables xl", 202, 265, 25, 18587, 18653, 416, "7191:2,7910:2,14227:2,15994:2,18631:2", { spec = "goblin engineering" } },
+    [23079] = { "major recombobulator", 202, 275, 510, 18637, 18655, 417, "14047:2,16000:2,18631:1", { spec = "goblin engineering" } },
+    [23080] = { "powerful seaforium charge", 202, 275, 302, 18594, 18656, 77, "159:1,8170:2,15992:3,15994:2", { spec = "goblin engineering" } },
+    [23081] = { "hyper-radiant flame reflector", 202, 290, 26, 18638, 18657, 418, "7080:6,7910:4,11371:4,12800:2,18631:3", { spec = "goblin engineering" } },
+    [23082] = { "ultra-flash shadow reflector", 202, 300, 1, 18639, 18658, 78, "11371:8,12799:2,12800:2,12803:6,12808:4,18631:4" },
+    [23096] = { "alarm-o-bot", 202, 265, 511, 18645, 18654, 76, "7191:1,7910:1,8170:4,12359:4,15994:2" },
+    [23129] = { "world enlarger", 202, 260, 512, 18660, 18661, 76, "3864:1,10558:1,10560:1,10561:1,15994:2" },
     [23190] = { "heavy leather ball", 165, 125, 76, 18662, 18731, 1, "2321:1,4234:2" },
-    [23399] = { "barbaric bracers", 165, 130, 547, 18948, 18949, 485, "4234:8,4236:2,4461:1,5498:4,5637:4" },
+    [23399] = { "barbaric bracers", 165, 130, 547, 18948, 18949, 484, "4234:8,4236:2,4461:1,5498:4,5637:4" },
     [23486] = { "dimensional ripper - everlook", 202, 260, 303, 18984, 0, 4, "3860:10,7077:4,7910:2,10586:1,18631:1" },
     [23489] = { "ultrasafe transporter - gadgetzan", 202, 260, 303, 18986, 0, 4, "3860:12,7075:4,7079:2,7909:4,9060:1,18631:2" },
-    [23507] = { "snake burst firework", 202, 250, 301, 19026, 19027, 420, "8150:1,14047:2,15992:2", { isEvent = true, event = "lunar_festival" } },
-    [23628] = { "heavy timbermaw belt", 165, 265, 110, 19043, 19202, 48, "7076:3,8170:12,12803:3,14341:1", { faction = "timbermaw hold", standing = "honored" } },
-    [23629] = { "heavy timbermaw boots", 165, 295, 146, 19048, 19204, 48, "7076:6,8170:20,12803:6,14341:1", { faction = "timbermaw hold", standing = "honored" } },
+    [23507] = { "snake burst firework", 202, 250, 301, 19026, 19027, 419, "8150:1,14047:2,15992:2", { isEvent = true, event = "lunar_festival" } },
+    [23628] = { "heavy timbermaw belt", 165, 265, 110, 19043, 19202, 47, "7076:3,8170:12,12803:3,14341:1", { faction = "timbermaw hold", standing = "honored" } },
+    [23629] = { "heavy timbermaw boots", 165, 295, 146, 19048, 19204, 47, "7076:6,8170:20,12803:6,14341:1", { faction = "timbermaw hold", standing = "honored" } },
     [23632] = { "girdle of the dawn", 164, 265, 110, 19051, 19203, 1, "6037:6,12359:8,12811:1" },
     [23633] = { "gloves of the dawn", 164, 300, 1, 19057, 19205, 1, "6037:10,12360:2,12811:1" },
     [23636] = { "dark iron helm", 164, 300, 1, 19148, 19206, 296, "11371:4,17010:2,17011:4", { spec = "armorsmith", faction = "thorium brotherhood", standing = "revered" } },
@@ -3486,23 +3483,23 @@ local RAW = {
     [23650] = { "ebon hand", 164, 300, 56, 19170, 19210, 23, "11371:8,12360:12,12800:4,17010:7,17011:4" },
     [23652] = { "blackguard", 164, 300, 56, 19168, 19211, 23, "11371:6,12360:10,12809:12,17010:6,17011:6" },
     [23653] = { "nightfall", 164, 300, 56, 19169, 19212, 298, "11371:12,12360:10,12364:4,17010:5,17011:8", { spec = "weaponsmith", faction = "thorium brotherhood", standing = "exalted" } },
-    [23662] = { "wisdom of the timbermaw", 197, 255, 80, 19047, 19215, 66, "7076:3,12803:3,14048:8,14227:2", { faction = "timbermaw hold", standing = "revered" } },
-    [23663] = { "mantle of the timbermaw", 197, 290, 587, 19050, 19218, 48, "7076:5,12803:5,14227:2,14342:5", { faction = "timbermaw hold", standing = "honored" } },
+    [23662] = { "wisdom of the timbermaw", 197, 255, 80, 19047, 19215, 65, "7076:3,12803:3,14048:8,14227:2", { faction = "timbermaw hold", standing = "revered" } },
+    [23663] = { "mantle of the timbermaw", 197, 290, 587, 19050, 19218, 47, "7076:5,12803:5,14227:2,14342:5", { faction = "timbermaw hold", standing = "honored" } },
     [23664] = { "argent boots", 197, 255, 588, 19056, 19216, 1, "12809:2,12810:4,13926:2,14048:6,14227:2" },
     [23665] = { "argent shoulders", 197, 290, 589, 19059, 19217, 1, "12809:2,14227:2,14342:5" },
-    [23666] = { "flarecore robe", 197, 300, 7, 19156, 19219, 61, "7078:6,14227:4,14342:10,17010:2,17011:3", { faction = "thorium brotherhood", standing = "honored" } },
-    [23667] = { "flarecore leggings", 197, 300, 7, 19165, 19220, 70, "7078:10,14227:4,14342:8,17010:5,17011:3", { faction = "thorium brotherhood", standing = "revered" } },
-    [23703] = { "might of the timbermaw", 165, 265, 25, 19044, 19326, 486, "8170:30,12803:4,12804:2,14341:2,15407:2", { spec = "tribal leatherworking", faction = "argent dawn", standing = "exalted" } },
-    [23704] = { "timbermaw brawlers", 165, 295, 313, 19049, 19327, 48, "12803:6,12804:6,12810:8,14227:2,15407:2", { spec = "tribal leatherworking", faction = "timbermaw hold", standing = "honored" } },
+    [23666] = { "flarecore robe", 197, 300, 7, 19156, 19219, 60, "7078:6,14227:4,14342:10,17010:2,17011:3", { faction = "thorium brotherhood", standing = "honored" } },
+    [23667] = { "flarecore leggings", 197, 300, 7, 19165, 19220, 69, "7078:10,14227:4,14342:8,17010:5,17011:3", { faction = "thorium brotherhood", standing = "revered" } },
+    [23703] = { "might of the timbermaw", 165, 265, 25, 19044, 19326, 485, "8170:30,12803:4,12804:2,14341:2,15407:2", { spec = "tribal leatherworking", faction = "argent dawn", standing = "exalted" } },
+    [23704] = { "timbermaw brawlers", 165, 295, 313, 19049, 19327, 47, "12803:6,12804:6,12810:8,14227:2,15407:2", { spec = "tribal leatherworking", faction = "timbermaw hold", standing = "honored" } },
     [23705] = { "dawn treaders", 165, 265, 25, 19052, 19328, 1, "7080:4,8170:30,12809:2,14341:2,15407:2" },
     [23706] = { "golden mantle of the dawn", 165, 295, 548, 19058, 19329, 1, "12803:4,12809:4,12810:8,14341:2,15407:2" },
-    [23707] = { "lava belt", 165, 300, 1, 19149, 19330, 61, "14227:4,15407:4,17011:5", { faction = "thorium brotherhood", standing = "honored" } },
-    [23708] = { "chromatic gauntlets", 165, 300, 1, 19157, 19331, 70, "12607:4,14227:4,15407:4,17010:5,17011:2,17012:4", { faction = "thorium brotherhood", standing = "revered" } },
+    [23707] = { "lava belt", 165, 300, 1, 19149, 19330, 60, "14227:4,15407:4,17011:5", { faction = "thorium brotherhood", standing = "honored" } },
+    [23708] = { "chromatic gauntlets", 165, 300, 1, 19157, 19331, 69, "12607:4,14227:4,15407:4,17010:5,17011:2,17012:4", { faction = "thorium brotherhood", standing = "revered" } },
     [23709] = { "corehound belt", 165, 300, 1, 19162, 19332, 23, "12810:10,14227:4,15407:4,17010:8,17012:12" },
     [23710] = { "molten belt", 165, 300, 1, 19163, 19333, 23, "7076:6,14227:4,15407:4,17010:2,17011:7" },
     [23787] = { "powerful anti-venom", 129, 300, 373, 19440, 19442, 1, "19441:1" },
     [23799] = { "enchant weapon - strength", 333, 290, 94, 0, 19444, 23, "7076:2,14344:6,16203:6,16204:4" },
-    [23800] = { "enchant weapon - agility", 333, 290, 94, 0, 19445, 66, "7082:2,14344:6,16203:6,16204:4", { faction = "timbermaw hold", standing = "revered" } },
+    [23800] = { "enchant weapon - agility", 333, 290, 94, 0, 19445, 65, "7082:2,14344:6,16203:6,16204:4", { faction = "timbermaw hold", standing = "revered" } },
     [23801] = { "enchant bracer - mana regeneration", 333, 290, 94, 0, 19446, 1, "7080:2,16203:4,16204:16" },
     [23802] = { "enchant bracer - healing power", 333, 300, 3, 0, 19447, 372, "12803:6,14344:2,16203:4,16204:20", { faction = "argent dawn", standing = "honored" } },
     [23803] = { "enchant weapon - mighty spirit", 333, 300, 3, 0, 19448, 23, "14344:10,16203:8,16204:15" },
@@ -3515,38 +3512,38 @@ local RAW = {
     [24123] = { "primal batskin bracers", 165, 300, 1, 19687, 19771, 17, "12803:4,14341:3,15407:3,19767:8" },
     [24124] = { "blood tiger breastplate", 165, 300, 1, 19688, 19772, 17, "14341:3,15407:3,19726:2,19768:35" },
     [24125] = { "blood tiger shoulders", 165, 300, 1, 19689, 19773, 17, "14341:3,15407:3,19726:2,19768:25" },
-    [24136] = { "bloodsoul breastplate", 164, 300, 1, 19690, 19776, 44, "7910:2,12359:20,19726:2,19774:10", { faction = "zandalar tribe", standing = "friendly" } },
-    [24137] = { "bloodsoul shoulders", 164, 300, 1, 19691, 19777, 44, "7910:1,12359:16,19726:2,19774:8", { faction = "zandalar tribe", standing = "friendly" } },
-    [24138] = { "bloodsoul gauntlets", 164, 300, 1, 19692, 19778, 44, "12359:12,12810:4,19726:2,19774:6", { faction = "zandalar tribe", standing = "friendly" } },
+    [24136] = { "bloodsoul breastplate", 164, 300, 1, 19690, 19776, 43, "7910:2,12359:20,19726:2,19774:10", { faction = "zandalar tribe", standing = "friendly" } },
+    [24137] = { "bloodsoul shoulders", 164, 300, 1, 19691, 19777, 43, "7910:1,12359:16,19726:2,19774:8", { faction = "zandalar tribe", standing = "friendly" } },
+    [24138] = { "bloodsoul gauntlets", 164, 300, 1, 19692, 19778, 43, "12359:12,12810:4,19726:2,19774:6", { faction = "zandalar tribe", standing = "friendly" } },
     [24139] = { "darksoul breastplate", 164, 300, 1, 19693, 19779, 17, "12359:20,12799:2,19774:14" },
     [24140] = { "darksoul leggings", 164, 300, 1, 19694, 19780, 17, "12359:18,12799:2,19774:12" },
     [24141] = { "darksoul shoulders", 164, 300, 1, 19695, 19781, 17, "12359:16,12799:1,19774:10" },
     [24266] = { "gurubashi mojo madness", 171, 300, 400, 19931, 0, 4, "12804:6,12938:1,13468:1,19943:1", { faction = "zandalar tribe", standing = "friendly" } },
-    [24356] = { "bloodvine goggles", 202, 300, 1, 19999, 20000, 44, "12804:8,12810:4,16006:2,19726:4,19774:5", { spec = "tribal leatherworking", faction = "zandalar tribe", standing = "friendly" } },
-    [24357] = { "bloodvine lens", 202, 300, 1, 19998, 20001, 44, "12804:8,12810:4,16006:1,19726:5,19774:5", { spec = "tribal leatherworking", faction = "zandalar tribe", standing = "friendly" } },
-    [24365] = { "mageblood elixir", 171, 275, 179, 20007, 20011, 67, "8925:1,13463:1,13466:2", { faction = "zandalar tribe", standing = "honored" } },
-    [24366] = { "greater dreamless sleep potion", 171, 275, 179, 20002, 20012, 67, "8925:1,13463:2,13464:1", { faction = "zandalar tribe", standing = "honored" } },
-    [24367] = { "living action potion", 171, 285, 180, 20008, 20013, 67, "8925:1,10286:2,13465:2,13467:2", { faction = "zandalar tribe", standing = "honored" } },
+    [24356] = { "bloodvine goggles", 202, 300, 1, 19999, 20000, 43, "12804:8,12810:4,16006:2,19726:4,19774:5", { spec = "tribal leatherworking", faction = "zandalar tribe", standing = "friendly" } },
+    [24357] = { "bloodvine lens", 202, 300, 1, 19998, 20001, 43, "12804:8,12810:4,16006:1,19726:5,19774:5", { spec = "tribal leatherworking", faction = "zandalar tribe", standing = "friendly" } },
+    [24365] = { "mageblood elixir", 171, 275, 179, 20007, 20011, 66, "8925:1,13463:1,13466:2", { faction = "zandalar tribe", standing = "honored" } },
+    [24366] = { "greater dreamless sleep potion", 171, 275, 179, 20002, 20012, 66, "8925:1,13463:2,13464:1", { faction = "zandalar tribe", standing = "honored" } },
+    [24367] = { "living action potion", 171, 285, 180, 20008, 20013, 66, "8925:1,10286:2,13465:2,13467:2", { faction = "zandalar tribe", standing = "honored" } },
     [24368] = { "major troll's blood elixir", 171, 290, 87, 20004, 20014, 17, "8846:1,8925:1,13466:2" },
     [24399] = { "dark iron boots", 164, 300, 1, 20039, 20040, 299, "11371:6,17010:3,17011:3,17012:4", { spec = "armorsmith", faction = "thorium brotherhood", standing = "honored" } },
-    [24418] = { "heavy crocolisk stew", 185, 150, 342, 20074, 20075, 171, "3667:2,3713:1" },
-    [24654] = { "blue dragonscale leggings", 165, 300, 106, 20295, 0, 487, "8170:28,14341:2,15407:2,15415:36", { spec = "elemental leatherworking" } },
-    [24655] = { "green dragonscale gauntlets", 165, 255, 144, 20296, 0, 488, "8170:20,14341:2,15407:1,15412:30", { spec = "dragonscale leatherworking" } },
+    [24418] = { "heavy crocolisk stew", 185, 150, 342, 20074, 20075, 172, "3667:2,3713:1" },
+    [24654] = { "blue dragonscale leggings", 165, 300, 106, 20295, 0, 486, "8170:28,14341:2,15407:2,15415:36", { spec = "elemental leatherworking" } },
+    [24655] = { "green dragonscale gauntlets", 165, 255, 144, 20296, 0, 487, "8170:20,14341:2,15407:1,15412:30", { spec = "dragonscale leatherworking" } },
     [24703] = { "dreamscale breastplate", 165, 300, 27, 20380, 0, 4, "12803:4,12810:12,14227:6,15407:4,20381:6", { spec = "dragonscale leatherworking" } },
-    [24801] = { "smoked desert dumplings", 185, 285, 343, 20452, 0, 172, "3713:1,20424:1" },
+    [24801] = { "smoked desert dumplings", 185, 285, 343, 20452, 0, 173, "3713:1,20424:1" },
     [24846] = { "spitfire bracers", 165, 300, 122, 20481, 0, 4, "7078:2,20498:20,20500:1" },
     [24847] = { "spitfire gauntlets", 165, 300, 549, 20480, 0, 4, "7078:2,15407:1,20498:30,20500:2" },
     [24848] = { "spitfire breastplate", 165, 300, 122, 20479, 0, 4, "7078:2,15407:2,20498:40,20500:3" },
     [24849] = { "sandstalker bracers", 165, 300, 122, 20476, 0, 4, "18512:2,20498:20,20501:1" },
     [24850] = { "sandstalker gauntlets", 165, 300, 122, 20477, 0, 4, "15407:1,18512:2,20498:30,20501:2" },
     [24851] = { "sandstalker breastplate", 165, 300, 122, 20478, 0, 4, "15407:2,18512:2,20498:40,20501:3" },
-    [24901] = { "runed stygian leggings", 197, 285, 229, 20538, 20546, 45, "14048:6,14227:2,14256:6,20520:8" },
-    [24902] = { "runed stygian belt", 197, 285, 229, 20539, 20548, 45, "12810:2,14048:2,14227:2,14256:2,20520:6" },
-    [24903] = { "runed stygian boots", 197, 285, 229, 20537, 20547, 45, "12810:2,14048:4,14227:2,14256:4,20520:6" },
-    [24912] = { "darkrune gauntlets", 164, 300, 1, 20549, 20553, 45, "6037:6,12359:12,12810:2,20520:6" },
+    [24901] = { "runed stygian leggings", 197, 285, 229, 20538, 20546, 44, "14048:6,14227:2,14256:6,20520:8" },
+    [24902] = { "runed stygian belt", 197, 285, 229, 20539, 20548, 44, "12810:2,14048:2,14227:2,14256:2,20520:6" },
+    [24903] = { "runed stygian boots", 197, 285, 229, 20537, 20547, 44, "12810:2,14048:4,14227:2,14256:4,20520:6" },
+    [24912] = { "darkrune gauntlets", 164, 300, 1, 20549, 20553, 44, "6037:6,12359:12,12810:2,20520:6" },
     [24913] = { "darkrune helm", 164, 300, 1, 20551, 20555, 300, "6037:8,11754:1,12359:16,20520:8" },
-    [24914] = { "darkrune breastplate", 164, 300, 1, 20550, 20554, 45, "6037:10,12359:20,20520:10" },
-    [24940] = { "black whelp tunic", 165, 75, 33, 20575, 20576, 489, "2319:8,2321:2,4231:1,7286:8" },
+    [24914] = { "darkrune breastplate", 164, 300, 1, 20550, 20554, 44, "6037:10,12359:20,20520:10" },
+    [24940] = { "black whelp tunic", 165, 75, 33, 20575, 20576, 488, "2319:8,2321:2,4231:1,7286:8" },
     [25072] = { "enchant gloves - threat", 333, 300, 3, 0, 20726, 373, "14344:6,18512:8,20725:4", { faction = "cenarion circle", standing = "friendly" } },
     [25073] = { "enchant gloves - shadow power", 333, 300, 3, 0, 20727, 374, "12808:6,14344:10,20725:3", { faction = "cenarion circle", standing = "honored" } },
     [25074] = { "enchant gloves - frost power", 333, 300, 3, 0, 20728, 375, "7080:4,14344:10,20725:3", { faction = "cenarion circle", standing = "revered" } },
@@ -3566,7 +3563,7 @@ local RAW = {
     [25129] = { "brilliant wizard oil", 333, 300, 106, 20749, 20756, 17, "4625:3,14344:2,18256:1" },
     [25130] = { "brilliant mana oil", 333, 300, 106, 20748, 20757, 17, "8831:3,14344:2,18256:1" },
     [25146] = { "transmute: elemental fire", 171, 300, 401, 7068, 20761, 23, "7077:1" },
-    [25659] = { "dirge's kickin' chimaerok chops", 185, 300, 344, 21023, 21025, 173, "2692:1,8150:1,9061:1,21024:1" },
+    [25659] = { "dirge's kickin' chimaerok chops", 185, 300, 344, 21023, 21025, 174, "2692:1,8150:1,9061:1,21024:1" },
     [25704] = { "smoked sagefish", 185, 80, 163, 21072, 21099, 1, "2678:1,21071:1" },
     [25954] = { "sagefish delight", 185, 175, 34, 21217, 21219, 1, "2692:1,21153:1" },
     [26011] = { "tranquil mechanical yeti", 202, 250, 27, 21277, 0, 4, "7079:2,10558:1,15407:1,15994:4,18631:2" },
@@ -3574,8 +3571,8 @@ local RAW = {
     [26087] = { "core felcloth bag", 197, 300, 7, 21342, 21371, 3, "7078:4,14227:4,14256:20,17012:16,19726:8" },
     [26277] = { "elixir of holy power", 171, 250, 136, 21546, 21547, 224, "4625:3,6371:3,8925:1" },
     [26279] = { "stormshroud gloves", 165, 290, 26, 21278, 21548, 3, "7080:4,7082:4,12810:6,14227:2,15407:2" },
-    [26403] = { "festival dress", 197, 205, 330, 21154, 21722, 138, "2604:2,4625:2,14048:4,14341:1", { isEvent = true, event = "lunar_festival" } },
-    [26407] = { "festival suit", 197, 205, 330, 21542, 21723, 138, "2604:2,4625:2,14048:4,14341:1", { isEvent = true, event = "lunar_festival" } },
+    [26403] = { "festival dress", 197, 205, 330, 21154, 21722, 139, "2604:2,4625:2,14048:4,14341:1", { isEvent = true, event = "lunar_festival" } },
+    [26407] = { "festival suit", 197, 205, 330, 21542, 21723, 139, "2604:2,4625:2,14048:4,14341:1", { isEvent = true, event = "lunar_festival" } },
     [26416] = { "small blue rocket", 202, 125, 96, 21558, 21724, 3, "2319:1,4364:1", { isEvent = true, event = "lunar_festival" } },
     [26417] = { "small green rocket", 202, 125, 96, 21559, 21725, 3, "2319:1,4364:1", { isEvent = true, event = "lunar_festival" } },
     [26418] = { "small red rocket", 202, 125, 96, 21557, 21726, 3, "2319:1,4364:1", { isEvent = true, event = "lunar_festival" } },
@@ -3588,8 +3585,8 @@ local RAW = {
     [26426] = { "large blue rocket cluster", 202, 275, 97, 21714, 21733, 3, "8170:1,15992:1", { isEvent = true, event = "lunar_festival" } },
     [26427] = { "large green rocket cluster", 202, 275, 97, 21716, 21734, 3, "8170:1,15992:1", { isEvent = true, event = "lunar_festival" } },
     [26428] = { "large red rocket cluster", 202, 275, 97, 21718, 21735, 3, "8170:1,15992:1", { isEvent = true, event = "lunar_festival" } },
-    [26442] = { "firework launcher", 202, 225, 15, 21569, 21738, 421, "9060:2,9061:2,10560:2,10561:1", { isEvent = true, event = "lunar_festival" } },
-    [26443] = { "firework cluster launcher", 202, 275, 39, 21570, 21737, 422, "9060:3,9061:3,10561:1,18631:1", { isEvent = true, event = "lunar_festival" } },
+    [26442] = { "firework launcher", 202, 225, 15, 21569, 21738, 420, "9060:2,9061:2,10560:2,10561:1", { isEvent = true, event = "lunar_festival" } },
+    [26443] = { "firework cluster launcher", 202, 275, 39, 21570, 21737, 421, "9060:3,9061:3,10561:1,18631:1", { isEvent = true, event = "lunar_festival" } },
     [27585] = { "heavy obsidian belt", 164, 300, 1, 22197, 0, 4, "7076:2,12655:4,22202:14" },
     [27586] = { "jagged obsidian shield", 164, 300, 1, 22198, 22219, 104, "7076:4,12655:8,22202:24,22203:8" },
     [27587] = { "thick obsidian breastplate", 164, 300, 1, 22196, 22222, 301, "7076:10,12364:4,12655:12,22202:40,22203:18" },
@@ -3598,13 +3595,13 @@ local RAW = {
     [27590] = { "obsidian mail tunic", 164, 300, 1, 22191, 22221, 104, "12800:4,12809:10,12810:12,22202:36,22203:15" },
     [27658] = { "enchanted mageweave pouch", 197, 190, 42, 22246, 22307, 1, "4339:4,8343:2,11137:4" },
     [27659] = { "enchanted runecloth bag", 197, 230, 79, 22248, 22308, 1, "14048:5,14341:2,16203:2" },
-    [27660] = { "big bag of enchantment", 197, 255, 80, 22249, 22309, 550, "12810:4,14048:6,14227:4,14344:4" },
+    [27660] = { "big bag of enchantment", 197, 255, 80, 22249, 22309, 549, "12810:4,14048:6,14227:4,14344:4" },
     [27724] = { "cenarion herb bag", 197, 230, 79, 22251, 22310, 22, "8831:10,11040:8,14048:5,14341:2" },
     [27725] = { "satchel of cenarius", 197, 255, 80, 22252, 22312, 22, "13468:1,14048:6,14227:4,14342:2" },
     [27829] = { "titanic leggings", 164, 300, 1, 22385, 22388, 3, "7076:10,12360:12,12655:20,13510:2" },
     [27830] = { "persuader", 164, 300, 1, 22384, 22390, 2, "11371:10,12360:15,12753:2,12808:20,15417:10,20520:20" },
     [27832] = { "sageblade", 164, 300, 1, 22383, 22389, 303, "12360:12,12810:4,13512:2,20725:2" },
-    [27837] = { "enchant 2h weapon - agility", 333, 290, 94, 0, 22392, 48, "7082:4,14344:10,16203:6,16204:14", { faction = "timbermaw hold", standing = "honored" } },
+    [27837] = { "enchant 2h weapon - agility", 333, 290, 94, 0, 22392, 47, "7082:4,14344:10,16203:6,16204:14", { faction = "timbermaw hold", standing = "honored" } },
     [28205] = { "glacial gloves", 197, 300, 7, 22654, 0, 4, "7080:4,14048:4,14227:4,22682:5" },
     [28207] = { "glacial vest", 197, 300, 7, 22652, 0, 4, "7080:6,14048:8,14227:8,22682:7" },
     [28208] = { "glacial cloak", 197, 300, 7, 22658, 0, 4, "7080:2,14048:4,14227:4,22682:5" },
@@ -3619,7 +3616,7 @@ local RAW = {
     [28242] = { "icebane breastplate", 164, 300, 1, 22669, 22703, 3, "7080:4,12359:16,12360:2,22682:7" },
     [28243] = { "icebane gauntlets", 164, 300, 1, 22670, 22704, 3, "7080:2,12359:12,12360:2,22682:5" },
     [28244] = { "icebane bracers", 164, 300, 1, 22671, 22705, 3, "7080:2,12359:12,12360:2,22682:4" },
-    [28327] = { "steam tonk controller", 202, 275, 39, 22728, 22729, 423, "10558:1,10561:1,15994:2" },
+    [28327] = { "steam tonk controller", 202, 275, 39, 22728, 22729, 422, "10558:1,10561:1,15994:2" },
     [28461] = { "ironvine breastplate", 164, 300, 1, 0, 0, 4, "12360:2,12655:12,12803:2,19726:2", { spec = "armorsmith" } },
     [28462] = { "ironvine gloves", 164, 300, 1, 0, 0, 4, "12655:8,12803:2,19726:1", { spec = "armorsmith" } },
     [28463] = { "ironvine belt", 164, 300, 1, 0, 0, 4, "12655:6,12803:2", { spec = "armorsmith" } },
@@ -3633,16 +3630,16 @@ local RAW = {
     [44953] = { "winter boots", 165, 285, 0, 34086, 34262, 3, "2840:1,2997:1,8170:4,14341:1", { isEvent = true, event = "winter_veil" } },
     [44958] = { "red winter clothes", 197, 250, 213, 34085, 34319, 3, "2604:2,2997:1,14048:4,14341:1", { isEvent = true, event = "winter_veil" } },
     [1244421] = { "distilled firewater", 171, 250, 402, 246948, 236754, 225, "3372:1,3819:4,8846:2" },
-    [1244431] = { "minor healing potion", 129, 1, 374, 118, 0, 50, "2447:1,2678:1,3371:1" },
-    [1244432] = { "lesser healing potion", 129, 55, 375, 858, 0, 51, "2450:1,2678:2,3371:1" },
-    [1244433] = { "healing potion", 129, 110, 130, 929, 0, 198, "2453:1,2692:1,3372:1" },
-    [1244434] = { "greater healing potion", 129, 155, 240, 1710, 255723, 199, "2692:3,3357:1,3372:1" },
-    [1244435] = { "superior healing potion", 129, 215, 241, 3928, 255725, 200, "3713:1,8838:1,8925:1" },
-    [1244436] = { "major healing potion", 129, 275, 376, 13446, 255729, 201, "3713:3,8925:1,13464:1" },
+    [1244431] = { "minor healing potion", 129, 1, 374, 118, 0, 49, "2447:1,2678:1,3371:1" },
+    [1244432] = { "lesser healing potion", 129, 55, 375, 858, 0, 50, "2450:1,2678:2,3371:1" },
+    [1244433] = { "healing potion", 129, 110, 130, 929, 0, 199, "2453:1,2692:1,3372:1" },
+    [1244434] = { "greater healing potion", 129, 155, 240, 1710, 255723, 200, "2692:3,3357:1,3372:1" },
+    [1244435] = { "superior healing potion", 129, 215, 241, 3928, 255725, 201, "3713:1,8838:1,8925:1" },
+    [1244436] = { "major healing potion", 129, 275, 376, 13446, 255729, 202, "3713:3,8925:1,13464:1" },
     [1244645] = { "lesser discolored healing potion", 171, 55, 403, 247239, 0, 11, "730:1,2450:1,3371:1" },
     [1244646] = { "discolored healing potion", 171, 110, 404, 247240, 0, 7, "730:1,2453:1,3372:1" },
     [1244647] = { "greater discolored healing potion", 171, 155, 240, 247241, 0, 16, "730:1,3356:1,3372:1" },
-    [1244648] = { "superior discolored healing potion", 171, 215, 241, 247242, 0, 9, "730:1,8838:1,8925:1" },
+    [1244648] = { "superior discolored healing potion", 171, 215, 241, 247242, 0, 10, "730:1,8838:1,8925:1" },
     [1245246] = { "minor arcane elixir", 171, 0, 107, 247754, 0, 4, "2447:1,3371:1" },
     [1245250] = { "elixir of minor force", 171, 0, 107, 247755, 0, 4, "765:1,3371:1" },
     [1245287] = { "copper rod", 164, 0, 107, 6217, 0, 4, "2840:1" },
@@ -3700,90 +3697,90 @@ local RAW = {
     [1249128] = { "idol of the dream", 333, 300, 3, 220606, 249529, 1, "11291:4,14344:2,16203:4,16204:6,249409:2,249430:4,249431:8" },
     [1249152] = { "libram of holy alacrity", 333, 300, 3, 228175, 249530, 1, "10308:4,14344:4,16203:3,16204:4,249409:2,249430:4,249431:8" },
     [1249154] = { "totem of thunder", 333, 300, 3, 228176, 249532, 1, "11291:4,14344:1,16203:8,16204:10,249409:2,249430:4,249431:8" },
-    [1249630] = { "cerulean dye", 171, 40, 252, 249409, 0, 51, "3371:1,249399:2" },
+    [1249630] = { "cerulean dye", 171, 40, 252, 249409, 0, 50, "3371:1,249399:2" },
     [1249631] = { "magenta dye", 171, 120, 253, 249430, 0, 226, "3372:1,249424:2" },
-    [1249632] = { "viridian dye", 171, 215, 174, 249431, 0, 14, "8925:1,249274:2" },
-    [1249633] = { "sulfuric acid", 171, 40, 252, 249410, 0, 51, "3371:1,249391:2" },
+    [1249632] = { "viridian dye", 171, 215, 174, 249431, 0, 12, "8925:1,249274:2" },
+    [1249633] = { "sulfuric acid", 171, 40, 252, 249410, 0, 50, "3371:1,249391:2" },
     [1249634] = { "sandpaper", 202, 120, 253, 249432, 0, 7, "2996:1,249425:2" },
-    [1249957] = { "peace tea", 185, 25, 169, 249865, 249879, 174, "159:1,2447:2" },
-    [1249958] = { "royal tea", 185, 100, 346, 249866, 249880, 175, "785:2,1179:1" },
-    [1249959] = { "root tea", 185, 125, 65, 249867, 249881, 176, "1205:1,3357:2" },
-    [1249960] = { "triage tea", 185, 180, 347, 249868, 249882, 177, "1708:1,3818:2" },
-    [1249961] = { "sunny tea", 185, 200, 348, 249869, 249883, 178, "1645:1,8838:2" },
-    [1249962] = { "sage's tea", 185, 250, 349, 249870, 249884, 86, "8766:1,13465:2" },
+    [1249957] = { "peace tea", 185, 25, 169, 249865, 249879, 175, "159:1,2447:2" },
+    [1249958] = { "royal tea", 185, 100, 346, 249866, 249880, 176, "785:2,1179:1" },
+    [1249959] = { "root tea", 185, 125, 65, 249867, 249881, 177, "1205:1,3357:2" },
+    [1249960] = { "triage tea", 185, 180, 347, 249868, 249882, 178, "1708:1,3818:2" },
+    [1249961] = { "sunny tea", 185, 200, 348, 249869, 249883, 179, "1645:1,8838:2" },
+    [1249962] = { "sage's tea", 185, 250, 349, 249870, 249884, 85, "8766:1,13465:2" },
     [1249963] = { "venomous smoothie", 185, 25, 169, 249871, 249885, 36, "159:1,1475:1,2678:1" },
     [1249964] = { "slimy smoothie", 185, 100, 350, 249872, 249886, 36, "1179:1,2678:2,3174:1" },
     [1249965] = { "mrrggl smrrthle", 185, 125, 128, 249873, 249887, 36, "1205:1,1468:1,2692:2" },
     [1249966] = { "calcified smoothie", 185, 180, 170, 249874, 249888, 36, "1708:1,2692:3,5637:1" },
     [1249967] = { "spicy smoothie", 185, 200, 351, 249875, 249889, 36, "1645:1,3713:3,4402:1" },
     [1249968] = { "wicked smoothie", 185, 250, 352, 249876, 249890, 36, "3713:4,8146:1,8766:1" },
-    [1250142] = { "savory stag sliders", 185, 225, 238, 250065, 250173, 54, "2692:3,5471:2" },
+    [1250142] = { "savory stag sliders", 185, 225, 238, 250065, 250173, 53, "2692:3,5471:2" },
     [1250143] = { "soaring pamplona", 185, 275, 52, 250066, 250174, 3, "3404:3,3713:3" },
-    [1250144] = { "bat hachee", 185, 275, 52, 250067, 250175, 179, "3713:2,12223:3" },
-    [1250145] = { "savory turtle stew", 185, 275, 52, 250068, 250176, 180, "3712:3,3713:3" },
-    [1250146] = { "flank au poivre", 185, 275, 353, 250069, 250177, 181, "3713:3,12203:3" },
-    [1250147] = { "bear bruscitti", 185, 275, 52, 250070, 250178, 182, "3713:3,3730:3" },
-    [1250148] = { "steaming stag steak", 185, 275, 52, 250071, 250179, 183, "3713:4,5471:3" },
-    [1250149] = { "swiftstrike steak", 185, 275, 52, 250072, 250180, 184, "3713:2,12202:3" },
-    [1250150] = { "raging raptor ribs", 185, 180, 354, 250073, 250181, 185, "2692:3,12184:2" },
-    [1250151] = { "bear brisket", 185, 175, 355, 250074, 250182, 186, "2692:3,3730:2" },
+    [1250144] = { "bat hachee", 185, 275, 52, 250067, 250175, 180, "3713:2,12223:3" },
+    [1250145] = { "savory turtle stew", 185, 275, 52, 250068, 250176, 181, "3712:3,3713:3" },
+    [1250146] = { "flank au poivre", 185, 275, 353, 250069, 250177, 182, "3713:3,12203:3" },
+    [1250147] = { "bear bruscitti", 185, 275, 52, 250070, 250178, 183, "3713:3,3730:3" },
+    [1250148] = { "steaming stag steak", 185, 275, 52, 250071, 250179, 184, "3713:4,5471:3" },
+    [1250149] = { "swiftstrike steak", 185, 275, 52, 250072, 250180, 185, "3713:2,12202:3" },
+    [1250150] = { "raging raptor ribs", 185, 180, 354, 250073, 250181, 186, "2692:3,12184:2" },
+    [1250151] = { "bear brisket", 185, 175, 355, 250074, 250182, 187, "2692:3,3730:2" },
     [1250152] = { "prehistoric pulled raptor", 185, 275, 52, 250075, 250183, 2, "3713:4,12184:3" },
-    [1250153] = { "raptor rouladen", 185, 225, 238, 250076, 250184, 187, "2692:4,12184:2" },
-    [1250154] = { "twice-spiced raptor slice", 185, 75, 356, 250077, 250185, 188, "2678:2,12184:1" },
-    [1250155] = { "giant scrambled eggs", 185, 175, 357, 250078, 250186, 189, "2692:4,12207:2" },
-    [1250156] = { "tasty raptor bites", 185, 25, 358, 250079, 250187, 190, "2678:4,3685:1" },
-    [1250157] = { "breakfast omelette", 185, 75, 359, 250080, 250188, 191, "2678:4,6889:1" },
-    [1250158] = { "clam linguine", 185, 275, 52, 250081, 250189, 192, "3713:4,7974:3" },
+    [1250153] = { "raptor rouladen", 185, 225, 238, 250076, 250184, 188, "2692:4,12184:2" },
+    [1250154] = { "twice-spiced raptor slice", 185, 75, 356, 250077, 250185, 189, "2678:2,12184:1" },
+    [1250155] = { "giant scrambled eggs", 185, 175, 357, 250078, 250186, 190, "2692:4,12207:2" },
+    [1250156] = { "tasty raptor bites", 185, 25, 358, 250079, 250187, 191, "2678:4,3685:1" },
+    [1250157] = { "breakfast omelette", 185, 75, 359, 250080, 250188, 192, "2678:4,6889:1" },
+    [1250158] = { "clam linguine", 185, 275, 52, 250081, 250189, 193, "3713:4,7974:3" },
     [1250775] = { "revealing draught", 171, 205, 405, 0, 0, 4, "3358:1,3372:1,3818:3" },
     [1250776] = { "potion of predatory senses", 171, 195, 181, 250327, 250363, 227, "3372:1,3818:2,3821:2" },
-    [1250777] = { "elixir of cunning", 171, 275, 81, 250328, 250364, 10, "8846:2,8925:1,13463:3" },
-    [1250778] = { "elixir of the phalanx", 171, 250, 406, 250329, 250365, 10, "8838:4,8925:1,13464:2" },
+    [1250777] = { "elixir of cunning", 171, 275, 81, 250328, 250364, 9, "8846:2,8925:1,13463:3" },
+    [1250778] = { "elixir of the phalanx", 171, 250, 406, 250329, 250365, 9, "8838:4,8925:1,13464:2" },
     [1250779] = { "minor cleric's elixir", 171, 45, 407, 250330, 250366, 228, "785:2,2453:1,3371:1" },
-    [1250780] = { "lesser cleric's elixir", 171, 95, 254, 250331, 250367, 10, "3356:2,3357:2,3372:1" },
+    [1250780] = { "lesser cleric's elixir", 171, 95, 254, 250331, 250367, 9, "3356:2,3357:2,3372:1" },
     [1250781] = { "cleric's elixir", 171, 145, 408, 250332, 250368, 229, "3372:1,3819:2,4625:2" },
-    [1250782] = { "greater cleric's elixir", 171, 195, 181, 250333, 250369, 10, "8831:1,8836:3,8925:1" },
+    [1250782] = { "greater cleric's elixir", 171, 195, 181, 250333, 250369, 9, "8831:1,8836:3,8925:1" },
     [1250783] = { "elixir of fortitude", 171, 150, 255, 250334, 250370, 230, "3372:1,3821:4" },
-    [1250784] = { "elixir of greater fortitude", 171, 200, 108, 250335, 250371, 10, "8838:4,8925:1" },
-    [1250785] = { "elixir of wicked regeneration", 171, 285, 23, 250336, 250372, 10, "8925:1,13463:2,13464:3" },
-    [1250786] = { "elixir of the owl", 171, 280, 137, 250337, 250373, 10, "13463:4,13465:2,18256:1" },
-    [1250787] = { "elixir of sages", 171, 275, 81, 250338, 250374, 10, "13463:4,13464:2,18256:1" },
+    [1250784] = { "elixir of greater fortitude", 171, 200, 108, 250335, 250371, 9, "8838:4,8925:1" },
+    [1250785] = { "elixir of wicked regeneration", 171, 285, 23, 250336, 250372, 9, "8925:1,13463:2,13464:3" },
+    [1250786] = { "elixir of the owl", 171, 280, 137, 250337, 250373, 9, "13463:4,13465:2,18256:1" },
+    [1250787] = { "elixir of sages", 171, 275, 81, 250338, 250374, 9, "13463:4,13464:2,18256:1" },
     [1250788] = { "minor mageblood elixir", 171, 25, 409, 250339, 250375, 231, "785:2,3371:1" },
-    [1250789] = { "lesser mageblood elixir", 171, 75, 256, 250340, 250376, 10, "3356:3,3371:1" },
-    [1250790] = { "greater mageblood elixir", 171, 175, 89, 250341, 250377, 10, "8836:2,8839:3,8925:1" },
-    [1250791] = { "lesser arcane elixir", 171, 120, 410, 250342, 250378, 10, "3356:4,3372:1" },
-    [1250792] = { "elixir of nature power", 171, 285, 23, 250343, 250379, 10, "8838:2,8925:1,13464:4" },
+    [1250789] = { "lesser mageblood elixir", 171, 75, 256, 250340, 250376, 9, "3356:3,3371:1" },
+    [1250790] = { "greater mageblood elixir", 171, 175, 89, 250341, 250377, 9, "8836:2,8839:3,8925:1" },
+    [1250791] = { "lesser arcane elixir", 171, 120, 410, 250342, 250378, 9, "3356:4,3372:1" },
+    [1250792] = { "elixir of nature power", 171, 285, 23, 250343, 250379, 9, "8838:2,8925:1,13464:4" },
     [1250793] = { "elixir of minor spirit", 171, 15, 411, 250344, 250380, 232, "2447:1,2449:2,3371:1" },
-    [1250794] = { "elixir of lesser spirit", 171, 65, 412, 250345, 250381, 10, "785:1,3355:2,3371:1" },
+    [1250794] = { "elixir of lesser spirit", 171, 65, 412, 250345, 250381, 9, "785:1,3355:2,3371:1" },
     [1250795] = { "elixir of spirit", 171, 115, 413, 250346, 250382, 233, "3356:1,3358:3,3372:1" },
-    [1250796] = { "elixir of greater spirit", 171, 165, 257, 250347, 250383, 10, "8831:2,8836:3,8925:1" },
-    [1250797] = { "elixir of the whale", 171, 275, 81, 250348, 250384, 10, "8846:1,8925:1,13463:3" },
+    [1250796] = { "elixir of greater spirit", 171, 165, 257, 250347, 250383, 9, "8831:2,8836:3,8925:1" },
+    [1250797] = { "elixir of the whale", 171, 275, 81, 250348, 250384, 9, "8846:1,8925:1,13463:3" },
     [1250798] = { "elixir of strength", 171, 150, 255, 250349, 250385, 234, "3355:3,3372:1,3821:1" },
-    [1250799] = { "elixir of ferocity", 171, 275, 81, 250350, 250386, 10, "8845:1,8846:3,8925:1" },
-    [1250800] = { "elixir of the grizzly", 171, 300, 414, 250351, 250387, 10, "8839:1,8846:3,8925:1" },
-    [1250801] = { "elixir of lesser intellect", 171, 95, 254, 250353, 250388, 10, "3356:3,3372:1" },
+    [1250799] = { "elixir of ferocity", 171, 275, 81, 250350, 250386, 9, "8845:1,8846:3,8925:1" },
+    [1250800] = { "elixir of the grizzly", 171, 300, 414, 250351, 250387, 9, "8839:1,8846:3,8925:1" },
+    [1250801] = { "elixir of lesser intellect", 171, 95, 254, 250353, 250388, 9, "3356:3,3372:1" },
     [1250802] = { "elixir of intellect", 171, 135, 258, 250354, 250389, 235, "3358:3,3372:1" },
     [1251729] = { "minor spellblasting potion", 171, 35, 415, 250932, 250976, 236, "765:1,2447:1,3371:1" },
     [1251730] = { "lesser spellblasting potion", 171, 85, 259, 250933, 250977, 237, "765:2,785:1,3371:1" },
-    [1251731] = { "spellblasting potion", 171, 135, 258, 250934, 250978, 10, "3355:1,3369:1,3371:1" },
+    [1251731] = { "spellblasting potion", 171, 135, 258, 250934, 250978, 9, "3355:1,3369:1,3371:1" },
     [1251732] = { "greater spellblasting potion", 171, 185, 416, 250935, 250979, 97, "3356:2,3372:1,3818:1" },
     [1251733] = { "superior spellblasting potion", 171, 235, 417, 250936, 250980, 238, "3358:2,3372:1,3819:2" },
-    [1251734] = { "major spellblasting potion", 171, 285, 23, 250937, 250981, 10, "13463:2,13465:1,18256:1" },
+    [1251734] = { "major spellblasting potion", 171, 285, 23, 250937, 250981, 9, "13463:2,13465:1,18256:1" },
     [1251735] = { "minor frenzy potion", 171, 40, 418, 250938, 250982, 239, "765:1,2449:1,3371:1" },
     [1251736] = { "lesser frenzy potion", 171, 90, 419, 250939, 250983, 240, "2449:2,2450:1,3371:1" },
-    [1251737] = { "frenzy potion", 171, 140, 260, 250940, 250984, 10, "2450:2,3372:1,3818:2" },
+    [1251737] = { "frenzy potion", 171, 140, 260, 250940, 250984, 9, "2450:2,3372:1,3818:2" },
     [1251738] = { "greater frenzy potion", 171, 190, 420, 250941, 250985, 97, "3372:1,3818:2,4625:3" },
     [1251739] = { "superior frenzy potion", 171, 240, 421, 250942, 250986, 241, "4625:2,8839:3,8925:1" },
-    [1251740] = { "major frenzy potion", 171, 290, 37, 250943, 250987, 10, "8839:2,13466:3,18256:1" },
+    [1251740] = { "major frenzy potion", 171, 290, 37, 250943, 250987, 9, "8839:2,13466:3,18256:1" },
     [1251741] = { "minor mender's potion", 171, 30, 422, 250944, 250988, 242, "785:2,2453:1,3371:1" },
     [1251742] = { "lesser mender's potion", 171, 80, 423, 250945, 250989, 243, "3356:2,3357:2,3372:1" },
-    [1251743] = { "mender's potion", 171, 130, 424, 250946, 250990, 1, "3372:1,3819:2,4625:2" },
+    [1251743] = { "mender's potion", 171, 130, 424, 250946, 250990, 9, "3372:1,3819:2,4625:2" },
     [1251744] = { "greater mender's potion", 171, 180, 425, 250947, 250991, 3, "8831:1,8836:2,8925:1" },
     [1251745] = { "superior mender's potion", 171, 230, 261, 250948, 250992, 244, "8836:1,8838:2,8925:1" },
-    [1251747] = { "major mender's potion", 171, 280, 137, 250949, 250993, 1, "8838:1,13463:3,18256:1" },
-    [1251748] = { "potion of venomous blood", 171, 275, 81, 250950, 250994, 1, "8846:3,8925:1,13466:2" },
-    [1251749] = { "caustic smog potion", 171, 265, 426, 250951, 250995, 1, "3369:2,8845:2,8925:1" },
-    [1251751] = { "dragonfire potion", 171, 245, 427, 250953, 250997, 1, "4625:2,8925:1,13465:2" },
-    [1251752] = { "potion of elemental purging", 171, 280, 137, 250954, 250998, 1, "3819:2,4625:2,8925:1" },
+    [1251747] = { "major mender's potion", 171, 280, 137, 250949, 250993, 9, "8838:1,13463:3,18256:1" },
+    [1251748] = { "potion of venomous blood", 171, 275, 81, 250950, 250994, 9, "8846:3,8925:1,13466:2" },
+    [1251749] = { "caustic smog potion", 171, 265, 426, 250951, 250995, 9, "3369:2,8845:2,8925:1" },
+    [1251751] = { "dragonfire potion", 171, 245, 427, 250953, 250997, 9, "4625:2,8925:1,13465:2" },
+    [1251752] = { "potion of elemental purging", 171, 280, 137, 250954, 250998, 9, "3819:2,4625:2,8925:1" },
     [1251753] = { "potion of beast slaying", 171, 280, 137, 250955, 250999, 245, "8846:2,13466:2,18256:1" },
     [1252229] = { "gemmed copper boots", 164, 35, 71, 250620, 251332, 3, "774:2,818:2,2318:4,2840:2" },
     [1252230] = { "strange copper boots", 164, 35, 71, 250621, 251333, 3, "2318:2,2840:2,10940:4" },
@@ -3899,7 +3896,7 @@ local RAW = {
     [1252340] = { "blessed plate leggings", 164, 270, 21, 250591, 251443, 325, "12359:40,12361:2" },
     [1252341] = { "blessed plate belt", 164, 270, 21, 250592, 251444, 326, "7071:1,8170:6,12359:18,12361:1" },
     [1252342] = { "blessed plate helm", 164, 275, 39, 250593, 251445, 3, "12359:30,12361:2" },
-    [1252343] = { "blessed plate chest", 164, 280, 58, 250594, 251446, 68, "12359:36,12361:2" },
+    [1252343] = { "blessed plate chest", 164, 280, 58, 250594, 251446, 67, "12359:36,12361:2" },
     [1252344] = { "enriched thorium breastplate", 164, 300, 1, 250595, 251447, 1, "7078:4,7082:4,249726:4,251290:8,251291:24" },
     [1252345] = { "enriched thorium leggings", 164, 300, 1, 250596, 251448, 1, "7082:6,249726:3,251290:10,251291:20" },
     [1252346] = { "enriched thorium helm", 164, 300, 1, 250597, 251449, 1, "7078:6,249726:3,251290:6,251291:16" },
@@ -3928,21 +3925,21 @@ local RAW = {
     [1252566] = { "savory whimsyfin delight", 185, 85, 162, 251525, 251526, 2, "2678:1,251524:1" },
     [1254965] = { "forceful rugged armor kit", 165, 235, 315, 252488, 252942, 1, "9206:2,11176:2,15564:1,248824:1,249429:1" },
     [1254966] = { "mystic rugged armor kit", 165, 235, 315, 252487, 252941, 1, "11176:2,13444:2,15564:1,248824:1,249429:1" },
-    [1254967] = { "pristine scorpid leggings", 165, 300, 1, 252606, 252940, 74, "8170:20,12810:12,14341:2,15407:4,15408:40,248825:20,249429:10" },
-    [1254968] = { "black dragonscale helm", 165, 300, 1, 252605, 252939, 490, "8170:20,12810:12,14341:2,15407:4,15416:40,248825:20,249429:10" },
+    [1254967] = { "pristine scorpid leggings", 165, 300, 1, 252606, 252940, 73, "8170:20,12810:12,14341:2,15407:4,15408:40,248825:20,249429:10" },
+    [1254968] = { "black dragonscale helm", 165, 300, 1, 252605, 252939, 489, "8170:20,12810:12,14341:2,15407:4,15416:40,248825:20,249429:10" },
     [1254969] = { "blue dragonscale helm", 165, 300, 1, 252604, 252938, 2, "8170:20,12810:12,14341:2,15407:6,15415:40,248825:20,249429:10" },
-    [1254970] = { "red dragonscale leggings", 165, 300, 1, 252603, 252937, 134, "8170:20,12810:12,14341:2,15407:4,15414:40,248825:20,249429:10" },
-    [1254971] = { "charged scorpid boots", 165, 280, 58, 252602, 252936, 86, "7069:2,8170:12,14341:1,15408:14" },
-    [1254972] = { "supple scorpid sabatons", 165, 280, 58, 252601, 252935, 491, "8170:20,14341:1,15408:10" },
-    [1254973] = { "charged scorpid leggings", 165, 270, 21, 252600, 252934, 492, "7069:2,8170:12,14341:1,15408:14" },
-    [1254974] = { "supple scorpid vest", 165, 270, 21, 252599, 252933, 135, "8170:20,14341:1,15408:10" },
+    [1254970] = { "red dragonscale leggings", 165, 300, 1, 252603, 252937, 135, "8170:20,12810:12,14341:2,15407:4,15414:40,248825:20,249429:10" },
+    [1254971] = { "charged scorpid boots", 165, 280, 58, 252602, 252936, 85, "7069:2,8170:12,14341:1,15408:14" },
+    [1254972] = { "supple scorpid sabatons", 165, 280, 58, 252601, 252935, 490, "8170:20,14341:1,15408:10" },
+    [1254973] = { "charged scorpid leggings", 165, 270, 21, 252600, 252934, 491, "7069:2,8170:12,14341:1,15408:14" },
+    [1254974] = { "supple scorpid vest", 165, 270, 21, 252599, 252933, 136, "8170:20,14341:1,15408:10" },
     [1254975] = { "charged scorpid vest", 165, 260, 10, 252598, 252932, 121, "7069:2,8170:6,14341:1,15408:12" },
-    [1254976] = { "supple scorpid helm", 165, 260, 10, 252597, 252931, 493, "8170:11,14341:1,15408:10" },
-    [1254977] = { "charged scorpid gauntlets", 165, 255, 20, 252596, 252930, 494, "7069:2,8170:4,14341:1,15408:8" },
-    [1254978] = { "supple scorpid belt", 165, 255, 20, 252595, 252929, 72, "8170:9,14341:1,15408:6" },
-    [1254979] = { "heavy scorpid boots", 165, 255, 20, 252594, 252928, 495, "8170:6,14341:1,15408:8" },
-    [1254980] = { "charged scorpid bracers", 165, 255, 20, 252593, 252927, 496, "7069:2,8170:2,14341:1,15408:4" },
-    [1254981] = { "supple scorpid shoulders", 165, 255, 20, 252592, 252926, 497, "8170:9,14341:1,15408:6" },
+    [1254976] = { "supple scorpid helm", 165, 260, 10, 252597, 252931, 492, "8170:11,14341:1,15408:10" },
+    [1254977] = { "charged scorpid gauntlets", 165, 255, 20, 252596, 252930, 493, "7069:2,8170:4,14341:1,15408:8" },
+    [1254978] = { "supple scorpid belt", 165, 255, 20, 252595, 252929, 71, "8170:9,14341:1,15408:6" },
+    [1254979] = { "heavy scorpid boots", 165, 255, 20, 252594, 252928, 494, "8170:6,14341:1,15408:8" },
+    [1254980] = { "charged scorpid bracers", 165, 255, 20, 252593, 252927, 495, "7069:2,8170:2,14341:1,15408:4" },
+    [1254981] = { "supple scorpid shoulders", 165, 255, 20, 252592, 252926, 496, "8170:9,14341:1,15408:6" },
     [1254982] = { "mender's mail belt", 165, 250, 5, 252591, 252925, 1, "5500:8,8170:12,8172:4,8343:2,249427:5,249428:10" },
     [1254983] = { "skirmisher's mail belt", 165, 250, 5, 252590, 252924, 1, "3864:8,8170:12,8172:4,8343:2,249427:5,249428:10" },
     [1254984] = { "skycaller's mail belt", 165, 250, 5, 252589, 252923, 1, "7070:8,8170:12,8172:4,8343:2,249427:5,249428:10" },
@@ -3952,15 +3949,15 @@ local RAW = {
     [1254988] = { "skycaller's mail gauntlets", 165, 250, 18, 252585, 252919, 2, "4304:16,7070:4,8172:2" },
     [1254989] = { "stalker's mail gauntlets", 165, 250, 18, 252584, 252918, 112, "4304:16,7069:4,8172:2" },
     [1254990] = { "charged scorpid shoulders", 165, 250, 5, 252583, 252917, 3, "7069:2,8170:4,14341:1,15408:8" },
-    [1254991] = { "supple scorpid bracers", 165, 250, 5, 252582, 252916, 498, "8170:7,14341:1,15408:2" },
-    [1254992] = { "charged scorpid helm", 165, 240, 9, 252581, 252915, 499, "7069:2,8170:4,14341:1,15408:6" },
-    [1254993] = { "supple scorpid leggings", 165, 240, 9, 252580, 252914, 500, "8170:9,14341:1,15408:4" },
+    [1254991] = { "supple scorpid bracers", 165, 250, 5, 252582, 252916, 497, "8170:7,14341:1,15408:2" },
+    [1254992] = { "charged scorpid helm", 165, 240, 9, 252581, 252915, 498, "7069:2,8170:4,14341:1,15408:6" },
+    [1254993] = { "supple scorpid leggings", 165, 240, 9, 252580, 252914, 499, "8170:9,14341:1,15408:4" },
     [1254994] = { "mender's mail sabatons", 165, 235, 19, 252579, 252913, 1, "4304:16,5500:6,8172:2,8343:2,249427:4,249428:8" },
     [1254995] = { "skirmisher's mail sabatons", 165, 235, 19, 252578, 252912, 1, "3864:6,4304:16,8172:2,8343:2,249427:4,249428:8" },
     [1254996] = { "skycaller's mail sabatons", 165, 235, 19, 252577, 252911, 1, "4304:16,7070:6,8172:2,8343:2,249427:4,249428:8" },
     [1254997] = { "stalker's mail sabatons", 165, 235, 19, 252576, 252910, 1, "4304:16,7069:6,8172:2,8343:2,249427:4,249428:8" },
-    [1254998] = { "charged scorpid belt", 165, 230, 119, 252575, 252909, 501, "8170:6,14341:1,15408:6" },
-    [1254999] = { "supple scorpid boots", 165, 230, 119, 252574, 252908, 502, "8170:12,14341:1,15408:4" },
+    [1254998] = { "charged scorpid belt", 165, 230, 119, 252575, 252909, 500, "8170:6,14341:1,15408:6" },
+    [1254999] = { "supple scorpid boots", 165, 230, 119, 252574, 252908, 501, "8170:12,14341:1,15408:4" },
     [1255000] = { "mender's mail bracers", 165, 225, 90, 252573, 252907, 1, "4236:4,4304:12,5500:4,8343:2,249427:3,249428:6" },
     [1255001] = { "skirmisher's mail bracers", 165, 225, 90, 252572, 252906, 1, "3864:4,4236:4,4304:12,8343:2,249427:3,249428:6" },
     [1255002] = { "skycaller's mail bracers", 165, 225, 90, 252571, 252905, 1, "4236:4,4304:12,7070:4,8343:2,249427:3,249428:6" },
@@ -3969,48 +3966,48 @@ local RAW = {
     [1255005] = { "skirmisher's mail shoulders", 165, 210, 156, 252568, 252902, 1, "3864:3,4236:3,4291:2,4304:10,249427:2,249428:4" },
     [1255006] = { "skycaller's mail shoulders", 165, 210, 156, 252567, 252901, 1, "4236:3,4291:2,4304:10,7070:3,249427:2,249428:4" },
     [1255007] = { "stalker's mail shoulders", 165, 210, 156, 252566, 252900, 1, "4236:3,4291:2,4304:10,7069:3,249427:2,249428:4" },
-    [1255008] = { "mender's mail boots", 165, 200, 17, 252565, 252899, 63, "4233:2,4234:8,5500:2" },
+    [1255008] = { "mender's mail boots", 165, 200, 17, 252565, 252899, 62, "4233:2,4234:8,5500:2" },
     [1255009] = { "skirmisher's mail boots", 165, 200, 17, 252564, 252898, 2, "3864:2,4233:2,4234:8" },
     [1255010] = { "skycaller's mail boots", 165, 200, 17, 252563, 252897, 2, "4233:2,4234:8,7070:2" },
     [1255011] = { "stalker's mail boots", 165, 200, 17, 252562, 252896, 2, "4233:2,4234:8,7069:2" },
-    [1255012] = { "ironfeather leggings", 165, 300, 1, 252486, 252895, 503, "1529:4,8170:20,14341:4,15407:2,15420:120,248825:20,249429:10" },
-    [1255013] = { "warbear helm", 165, 300, 1, 252485, 252894, 504, "8170:20,14341:4,15407:2,15419:20,248825:20,249429:10" },
-    [1255014] = { "timbermaw tunic", 165, 300, 1, 252484, 252893, 505, "12803:20,12804:20,12810:6,14341:10,15407:4,248825:20,249429:10" },
+    [1255012] = { "ironfeather leggings", 165, 300, 1, 252486, 252895, 502, "1529:4,8170:20,14341:4,15407:2,15420:120,248825:20,249429:10" },
+    [1255013] = { "warbear helm", 165, 300, 1, 252485, 252894, 503, "8170:20,14341:4,15407:2,15419:20,248825:20,249429:10" },
+    [1255014] = { "timbermaw tunic", 165, 300, 1, 252484, 252893, 504, "12803:20,12804:20,12810:6,14341:10,15407:4,248825:20,249429:10" },
     [1255015] = { "dawn armor", 165, 300, 1, 252483, 252892, 3, "7080:20,12809:10,12810:6,14341:10,15407:4,248825:20,249429:10" },
-    [1255016] = { "living crown", 165, 300, 1, 252561, 252891, 506, "7080:20,8170:20,12803:20,14341:10,15407:4,248825:20,249429:10" },
-    [1255017] = { "blue suede hat", 165, 280, 58, 252482, 252890, 131, "6260:4,8170:16,14341:1" },
-    [1255018] = { "tooled leather pants", 165, 280, 58, 252560, 252889, 507, "6261:1,8170:18,14341:1,15407:1" },
-    [1255019] = { "blue suede bracers", 165, 275, 39, 252559, 252888, 129, "6260:1,8170:10,14341:1" },
+    [1255016] = { "living crown", 165, 300, 1, 252561, 252891, 505, "7080:20,8170:20,12803:20,14341:10,15407:4,248825:20,249429:10" },
+    [1255017] = { "blue suede hat", 165, 280, 58, 252482, 252890, 132, "6260:4,8170:16,14341:1" },
+    [1255018] = { "tooled leather pants", 165, 280, 58, 252560, 252889, 506, "6261:1,8170:18,14341:1,15407:1" },
+    [1255019] = { "blue suede bracers", 165, 275, 39, 252559, 252888, 130, "6260:1,8170:10,14341:1" },
     [1255020] = { "tooled leather epaulets", 165, 275, 39, 252558, 252887, 3, "6261:1,8170:12,14341:1,15407:1" },
-    [1255021] = { "blue suede belt", 165, 270, 21, 252481, 252886, 508, "6260:2,8170:14,14341:1" },
-    [1255022] = { "tooled leather bracers", 165, 270, 21, 252557, 252885, 509, "6261:1,8170:10,14341:1" },
+    [1255021] = { "blue suede belt", 165, 270, 21, 252481, 252886, 507, "6260:2,8170:14,14341:1" },
+    [1255022] = { "tooled leather bracers", 165, 270, 21, 252557, 252885, 508, "6261:1,8170:10,14341:1" },
     [1255023] = { "wicked leather shoulders", 165, 270, 21, 252556, 252884, 3, "2325:1,8170:12,14341:1,15407:1" },
-    [1255024] = { "blue suede armor", 165, 265, 25, 252480, 252883, 510, "6260:4,8170:14,14341:2,15407:2,15415:6" },
-    [1255025] = { "tooled leather crown", 165, 265, 25, 252555, 252882, 133, "6261:1,8170:14,14341:1" },
-    [1255026] = { "blue suede shoulders", 165, 260, 10, 252554, 252881, 511, "6260:2,8170:10,14341:1" },
-    [1255027] = { "tooled leather gauntlets", 165, 260, 10, 252553, 252880, 512, "6261:1,8170:10,14341:1" },
-    [1255028] = { "wicked leather boots", 165, 260, 10, 252479, 252879, 513, "2325:1,8170:10,14341:1" },
-    [1255029] = { "blue suede pants", 165, 255, 20, 252478, 252878, 514, "6260:3,8170:14,14341:1,15407:1" },
-    [1255030] = { "tooled leather armor", 165, 255, 20, 252552, 252877, 135, "6261:3,8170:16,13423:6,14341:1,15407:2" },
+    [1255024] = { "blue suede armor", 165, 265, 25, 252480, 252883, 509, "6260:4,8170:14,14341:2,15407:2,15415:6" },
+    [1255025] = { "tooled leather crown", 165, 265, 25, 252555, 252882, 134, "6261:1,8170:14,14341:1" },
+    [1255026] = { "blue suede shoulders", 165, 260, 10, 252554, 252881, 510, "6260:2,8170:10,14341:1" },
+    [1255027] = { "tooled leather gauntlets", 165, 260, 10, 252553, 252880, 511, "6261:1,8170:10,14341:1" },
+    [1255028] = { "wicked leather boots", 165, 260, 10, 252479, 252879, 512, "2325:1,8170:10,14341:1" },
+    [1255029] = { "blue suede pants", 165, 255, 20, 252478, 252878, 513, "6260:3,8170:14,14341:1,15407:1" },
+    [1255030] = { "tooled leather armor", 165, 255, 20, 252552, 252877, 136, "6261:3,8170:16,13423:6,14341:1,15407:2" },
     [1255031] = { "mender's leather waistguard", 165, 250, 5, 252477, 252876, 1, "5500:8,8170:12,8172:4,8343:2,249427:5,249428:10" },
     [1255032] = { "skycaller's leather waistguard", 165, 250, 5, 252476, 252875, 1, "7070:8,8170:12,8172:4,8343:2,249427:5,249428:10" },
     [1255033] = { "warden's leather waistguard", 165, 250, 5, 252475, 252874, 1, "7067:8,8170:12,8172:4,8343:2,249427:5,249428:10" },
     [1255034] = { "skulker's leather waistguard", 165, 250, 5, 252474, 252873, 1, "3182:8,8170:12,8172:4,8343:2,249427:5,249428:10" },
     [1255035] = { "prowler's leather waistguard", 165, 250, 5, 252473, 252872, 1, "1529:8,8170:12,8172:4,8343:2,249427:5,249428:10" },
-    [1255036] = { "mender's leather gauntlets", 165, 250, 18, 252551, 252871, 515, "4304:16,5500:4,8172:2" },
+    [1255036] = { "mender's leather gauntlets", 165, 250, 18, 252551, 252871, 514, "4304:16,5500:4,8172:2" },
     [1255037] = { "skycaller's leather gauntlets", 165, 250, 18, 252550, 252870, 2, "4304:16,7070:4,8172:2" },
     [1255038] = { "warden's leather gauntlets", 165, 250, 18, 252549, 252869, 2, "4304:16,7067:4,8172:2" },
     [1255039] = { "skulker's leather gauntlets", 165, 250, 18, 252548, 252868, 2, "3182:4,4304:16,8172:2" },
     [1255040] = { "prowler's leather gauntlets", 165, 250, 18, 252547, 252867, 2, "1529:4,4304:16,8172:2" },
-    [1255041] = { "blue suede gloves", 165, 240, 9, 252546, 252866, 516, "6260:1,8170:8,14341:1" },
-    [1255042] = { "tooled leather boots", 165, 240, 9, 252545, 252865, 132, "6261:1,8170:8,14341:1" },
+    [1255041] = { "blue suede gloves", 165, 240, 9, 252546, 252866, 515, "6260:1,8170:8,14341:1" },
+    [1255042] = { "tooled leather boots", 165, 240, 9, 252545, 252865, 133, "6261:1,8170:8,14341:1" },
     [1255043] = { "mender's leather boots", 165, 235, 19, 252472, 252864, 1, "4304:16,5500:6,8172:2,8343:2,249427:4,249428:8" },
     [1255044] = { "skycaller's leather boots", 165, 235, 19, 252471, 252863, 1, "4304:16,7070:6,8172:2,8343:2,249427:4,249428:8" },
     [1255045] = { "warden's leather boots", 165, 235, 19, 252470, 252862, 1, "4304:16,7067:6,8172:2,8343:2,249427:4,249428:8" },
     [1255046] = { "skulker's leather boots", 165, 235, 19, 252469, 252861, 1, "3182:6,4304:16,8172:2,8343:2,249427:4,249428:8" },
     [1255047] = { "prowler's leather boots", 165, 235, 19, 252468, 252860, 1, "1529:6,4304:16,8172:2,8343:2,249427:4,249428:8" },
-    [1255048] = { "blue suede shoes", 165, 235, 19, 252467, 252859, 517, "6260:1,8170:8,14341:1" },
-    [1255049] = { "tooled leather belt", 165, 235, 19, 252544, 252858, 518, "6261:1,8170:8,14341:1" },
+    [1255048] = { "blue suede shoes", 165, 235, 19, 252467, 252859, 516, "6260:1,8170:8,14341:1" },
+    [1255049] = { "tooled leather belt", 165, 235, 19, 252544, 252858, 517, "6261:1,8170:8,14341:1" },
     [1255050] = { "mender's leather bracers", 165, 225, 15, 252543, 252857, 1, "4236:4,4304:12,5500:4,8343:2,249427:3,249428:6" },
     [1255051] = { "skycaller's leather bracers", 165, 225, 15, 252542, 252856, 1, "4236:4,4304:12,7070:4,8343:2,249427:3,249428:6" },
     [1255052] = { "warden's leather bracers", 165, 225, 15, 252541, 252855, 1, "4236:4,4304:12,7067:4,8343:2,249427:3,249428:6" },
@@ -4021,11 +4018,11 @@ local RAW = {
     [1255057] = { "warden's leather shoulders", 165, 210, 6, 252536, 252850, 1, "4236:3,4291:2,4304:10,7067:3,249427:2,249428:4" },
     [1255058] = { "skulker's leather shoulders", 165, 210, 6, 252535, 252849, 1, "3182:3,4236:3,4291:2,4304:10,249427:2,249428:4" },
     [1255059] = { "prowler's leather shoulders", 165, 210, 6, 252534, 252848, 1, "1529:3,4236:3,4291:2,4304:10,249427:2,249428:4" },
-    [1255060] = { "mender's leather shoes", 165, 200, 17, 252533, 252847, 63, "4233:2,4234:8,5500:2" },
-    [1255061] = { "skycaller's leather shoes", 165, 200, 17, 252532, 252846, 63, "4233:2,4234:8,7070:2" },
-    [1255062] = { "warden's leather shoes", 165, 200, 17, 252466, 252845, 63, "4233:2,4234:8,7067:2" },
+    [1255060] = { "mender's leather shoes", 165, 200, 17, 252533, 252847, 62, "4233:2,4234:8,5500:2" },
+    [1255061] = { "skycaller's leather shoes", 165, 200, 17, 252532, 252846, 62, "4233:2,4234:8,7070:2" },
+    [1255062] = { "warden's leather shoes", 165, 200, 17, 252466, 252845, 62, "4233:2,4234:8,7067:2" },
     [1255063] = { "skulker's leather shoes", 165, 200, 17, 252531, 252844, 2, "3182:2,4233:2,4234:8" },
-    [1255064] = { "prowler's leather shoes", 165, 200, 17, 252465, 252843, 519, "1529:2,4233:2,4234:8" },
+    [1255064] = { "prowler's leather shoes", 165, 200, 17, 252465, 252843, 518, "1529:2,4233:2,4234:8" },
     [1255065] = { "mender's leather gloves", 165, 175, 22, 252530, 252842, 1, "4234:16,4236:2,4291:2,5500:2,249427:1,249428:2" },
     [1255066] = { "skycaller's leather gloves", 165, 175, 22, 252529, 252841, 1, "4234:16,4236:2,4291:2,7070:2,249427:1,249428:2" },
     [1255067] = { "skirmisher's leather gloves", 165, 175, 22, 252528, 252840, 1, "3864:2,4234:16,4236:2,4291:2,249427:1,249428:2" },
@@ -4034,7 +4031,7 @@ local RAW = {
     [1255070] = { "skulker's leather gloves", 165, 175, 22, 252525, 252837, 1, "3182:2,4234:16,4236:2,4291:2,249427:1,249428:2" },
     [1255071] = { "prowler's leather gloves", 165, 175, 22, 252524, 252836, 1, "1529:2,4234:16,4236:2,4291:2,249427:1,249428:2" },
     [1255073] = { "forceful thick armor kit", 165, 185, 69, 252463, 252834, 1, "3391:2,8173:1,11137:2" },
-    [1255074] = { "mystic thick armor kit", 165, 185, 69, 252462, 252833, 520, "3827:2,8173:1,11137:2" },
+    [1255074] = { "mystic thick armor kit", 165, 185, 69, 252462, 252833, 519, "3827:2,8173:1,11137:2" },
     [1255075] = { "mender's leather belt", 165, 150, 24, 252523, 252832, 25, "4233:2,4234:8,5500:1" },
     [1255076] = { "skycaller's leather belt", 165, 150, 24, 252522, 252831, 25, "4233:2,4234:8,7070:1" },
     [1255077] = { "skirmisher's leather belt", 165, 150, 24, 252461, 252830, 25, "3864:1,4233:2,4234:8" },
@@ -4052,7 +4049,7 @@ local RAW = {
     [1255089] = { "stormrider's leather helm", 165, 125, 8, 252514, 252818, 2, "2319:12,4233:2,249409:3" },
     [1255090] = { "totemic leather helm", 165, 125, 8, 252456, 252817, 2, "2319:12,4233:2,249410:3" },
     [1255091] = { "defender's leather helm", 165, 125, 8, 252455, 252816, 2, "2319:12,2458:3,4233:2" },
-    [1255092] = { "trapper's leather helm", 165, 125, 8, 252513, 252815, 521, "2319:12,4233:2,6470:3" },
+    [1255092] = { "trapper's leather helm", 165, 125, 8, 252513, 252815, 520, "2319:12,4233:2,6470:3" },
     [1255093] = { "brawler's leather helm", 165, 125, 8, 252512, 252814, 2, "1210:3,2319:12,4233:2" },
     [1255095] = { "forceful heavy armor kit", 165, 135, 155, 252453, 252812, 1, "4265:1,6662:2,11083:2" },
     [1255096] = { "mystic heavy armor kit", 165, 135, 155, 252452, 252811, 1, "3385:2,4265:1,11083:2" },
@@ -4062,13 +4059,13 @@ local RAW = {
     [1255100] = { "defender's leather tunic", 165, 110, 32, 252450, 252807, 1, "2319:10,2321:3,2458:6,4233:3,249427:6" },
     [1255101] = { "trapper's leather tunic", 165, 110, 32, 252509, 252806, 1, "2319:10,2321:3,4233:3,6470:6,249427:6" },
     [1255102] = { "brawler's leather tunic", 165, 110, 32, 252508, 252805, 1, "1210:6,2319:10,2321:3,4233:3,249427:6" },
-    [1255103] = { "hillman's leather boots", 165, 110, 32, 252449, 252804, 522, "2319:6,2321:1,4233:1" },
+    [1255103] = { "hillman's leather boots", 165, 110, 32, 252449, 252804, 521, "2319:6,2321:1,4233:1" },
     [1255104] = { "wisdom's leather hood", 165, 100, 60, 252507, 252803, 1, "2319:8,2321:2,4233:2,5498:4,249427:4" },
     [1255105] = { "stormrider's leather hood", 165, 100, 60, 252506, 252802, 1, "2319:8,2321:2,4233:2,249409:4,249427:4" },
     [1255106] = { "totemic leather hood", 165, 100, 60, 252448, 252801, 1, "2319:8,2321:2,4233:2,249410:4,249427:4" },
     [1255107] = { "defender's leather hood", 165, 100, 60, 252447, 252800, 1, "2319:8,2321:2,2458:4,4233:2,249427:4" },
     [1255108] = { "trapper's leather hood", 165, 100, 60, 252505, 252799, 1, "2319:8,2321:2,4233:2,6470:4,249427:4" },
-    [1255109] = { "brawler's leather hood", 165, 100, 60, 252504, 252798, 523, "1210:4,2319:8,2321:2,4233:2,249427:4" },
+    [1255109] = { "brawler's leather hood", 165, 100, 60, 252504, 252798, 522, "1210:4,2319:8,2321:2,4233:2,249427:4" },
     [1255110] = { "wisdom's leather pants", 165, 100, 28, 252503, 252797, 2, "2319:8,4231:4,5498:2" },
     [1255111] = { "stormrider's leather pants", 165, 100, 28, 252502, 252796, 2, "2319:8,4231:4,249409:2" },
     [1255112] = { "totemic leather pants", 165, 100, 28, 252446, 252795, 2, "2319:8,4231:4,249410:2" },
@@ -4092,8 +4089,8 @@ local RAW = {
     [1255131] = { "wisdom's leather armor", 165, 75, 29, 252493, 252776, 2, "2318:16,4231:2,5498:1" },
     [1255132] = { "stormrider's leather armor", 165, 75, 29, 252492, 252775, 2, "2318:16,4231:2,249409:1" },
     [1255133] = { "totemic leather armor", 165, 75, 29, 252435, 252774, 2, "2318:16,4231:2,249410:1" },
-    [1255134] = { "defender's leather armor", 165, 75, 29, 252434, 252773, 136, "2318:16,2458:1,4231:2" },
-    [1255135] = { "trapper's leather armor", 165, 75, 29, 252491, 252772, 136, "2318:16,4231:2,6470:1" },
+    [1255134] = { "defender's leather armor", 165, 75, 29, 252434, 252773, 137, "2318:16,2458:1,4231:2" },
+    [1255135] = { "trapper's leather armor", 165, 75, 29, 252491, 252772, 137, "2318:16,4231:2,6470:1" },
     [1255136] = { "brawler's leather armor", 165, 75, 29, 252490, 252771, 2, "1210:1,2318:16,4231:2" },
     [1255137] = { "wisdom's leather belt", 165, 60, 59, 252433, 252770, 1, "2318:10,2320:1,4231:2,5498:1,249427:2" },
     [1255138] = { "stormrider's leather belt", 165, 60, 59, 252432, 252769, 1, "2318:10,2320:1,4231:2,249409:1,249427:2" },
@@ -4151,7 +4148,7 @@ local RAW = {
     [1257409] = { "shadow gown", 197, 110, 77, 253967, 253968, 1, "1210:6,2842:2,4291:2,4305:12,11082:2,249409:6" },
     [1257410] = { "pearly gown", 197, 110, 77, 253969, 253970, 1, "2842:2,4291:2,4305:12,5498:6,11082:2,249409:6" },
     [1257411] = { "shining gown", 197, 110, 77, 253971, 253972, 1, "2842:2,4291:2,4305:12,11082:2,249391:6,249409:6" },
-    [1257412] = { "silk reagent bag", 197, 125, 591, 253973, 253974, 139, "2321:3,4234:2,4305:3,249409:3" },
+    [1257412] = { "silk reagent bag", 197, 125, 591, 253973, 253974, 140, "2321:3,4234:2,4305:3,249409:3" },
     [1257413] = { "filigreed pristine circlet", 197, 125, 8, 253975, 253976, 2, "2321:4,4305:8,249409:2,249427:6" },
     [1257414] = { "filigreed silky circlet", 197, 125, 8, 253977, 253978, 2, "2321:4,3182:6,4305:8,249409:2" },
     [1257415] = { "filigreed flame circlet", 197, 125, 8, 253979, 253980, 2, "2321:4,4305:8,6371:6,249409:2" },
@@ -4164,24 +4161,24 @@ local RAW = {
     [1257422] = { "shadow leggings", 197, 125, 40, 253993, 253994, 1, "1210:8,2321:3,2842:2,4305:14,11082:3,249409:8" },
     [1257423] = { "pearly leggings", 197, 125, 40, 253995, 253996, 1, "2321:3,2842:2,4305:14,5498:8,11082:3,249409:8" },
     [1257424] = { "shining leggings", 197, 125, 40, 253997, 253998, 1, "2321:3,2842:2,4305:14,11082:3,249391:8,249409:8" },
-    [1257425] = { "earthen leggings", 197, 140, 98, 253999, 254000, 551, "2321:2,4305:4,7067:1" },
+    [1257425] = { "earthen leggings", 197, 140, 98, 253999, 254000, 550, "2321:2,4305:4,7067:1" },
     [1257426] = { "gilded slippers", 197, 140, 76, 254001, 254002, 3, "3577:2,4339:8,8343:4,249409:2,249430:2" },
     [1257427] = { "frothing slippers", 197, 140, 76, 254003, 254004, 3, "4339:8,7079:2,8343:4,249409:2,249430:2" },
     [1257428] = { "fiery slippers", 197, 140, 76, 254005, 254006, 3, "4339:8,7077:2,8343:4,249409:2,249430:2" },
     [1257429] = { "black slippers", 197, 140, 76, 254007, 254008, 3, "4339:8,7971:2,8343:4,249409:2,249430:2" },
     [1257430] = { "golden slippers", 197, 140, 76, 254009, 254010, 3, "4339:8,8343:4,13926:2,249409:2,249430:2" },
     [1257431] = { "radiant slippers", 197, 140, 76, 254011, 254012, 3, "4339:8,8343:4,11178:2,249409:2,249430:2" },
-    [1257432] = { "earthen silk slippers", 197, 145, 158, 254013, 254014, 552, "2321:2,4234:2,4305:4,7067:1" },
-    [1257433] = { "earthen silk hood", 197, 150, 223, 254015, 254016, 553, "2321:2,4305:4,7067:2" },
-    [1257434] = { "earthen silk gloves", 197, 160, 327, 254017, 254018, 554, "4291:2,4305:5,7067:2" },
-    [1257435] = { "earthen silk cuffs", 197, 165, 48, 254019, 254020, 555, "4291:1,4305:4,7067:1" },
-    [1257436] = { "gilded handwraps", 197, 165, 48, 254021, 254022, 556, "3577:4,4339:12,8343:4,249409:1,249430:2" },
+    [1257432] = { "earthen silk slippers", 197, 145, 158, 254013, 254014, 551, "2321:2,4234:2,4305:4,7067:1" },
+    [1257433] = { "earthen silk hood", 197, 150, 223, 254015, 254016, 552, "2321:2,4305:4,7067:2" },
+    [1257434] = { "earthen silk gloves", 197, 160, 327, 254017, 254018, 553, "4291:2,4305:5,7067:2" },
+    [1257435] = { "earthen silk cuffs", 197, 165, 48, 254019, 254020, 554, "4291:1,4305:4,7067:1" },
+    [1257436] = { "gilded handwraps", 197, 165, 48, 254021, 254022, 555, "3577:4,4339:12,8343:4,249409:1,249430:2" },
     [1257437] = { "frothing handwraps", 197, 165, 48, 254023, 254024, 1, "4339:12,7079:4,8343:4,249409:1,249430:2" },
     [1257438] = { "fiery handwraps", 197, 165, 48, 254025, 254026, 1, "4339:12,7077:4,8343:4,249409:1,249430:2" },
     [1257439] = { "black handwraps", 197, 165, 48, 254027, 254028, 1, "4339:12,7971:4,8343:4,249409:1,249430:2" },
     [1257440] = { "golden handwraps", 197, 165, 48, 254029, 254030, 1, "4339:12,8343:4,13926:4,249409:1,249430:2" },
     [1257441] = { "radiant handwraps", 197, 165, 48, 254031, 254032, 1, "4339:12,8343:4,11178:4,249409:1,249430:2" },
-    [1257442] = { "earthen silk shoulders", 197, 170, 159, 254033, 254034, 557, "4291:3,4305:6,7067:2" },
+    [1257442] = { "earthen silk shoulders", 197, 170, 159, 254033, 254034, 556, "4291:3,4305:6,7067:2" },
     [1257443] = { "mageweave reagent bag", 197, 190, 592, 254035, 254036, 1, "4339:4,8343:2,249409:1,249430:1" },
     [1257444] = { "gilded cord", 197, 190, 100, 254037, 254038, 2, "3577:12,4339:28,8343:4,249409:4,249430:6" },
     [1257445] = { "frothing cord", 197, 190, 100, 254039, 254040, 2, "4339:28,7079:12,8343:4,249409:4,249430:6" },
@@ -4201,9 +4198,9 @@ local RAW = {
     [1257459] = { "netherpearl cuffs", 197, 205, 78, 254067, 254068, 1, "4339:18,7971:10,8343:3,11175:4,249409:4,249430:6" },
     [1257460] = { "nethershine cuffs", 197, 205, 78, 254069, 254070, 1, "4339:18,8343:3,11175:4,13926:10,249409:4,249430:6" },
     [1257461] = { "netherlight cuffs", 197, 205, 78, 254071, 254072, 1, "4339:18,8343:3,11175:4,11178:10,249409:4,249430:6" },
-    [1257462] = { "ghostweave cord", 197, 215, 16, 254073, 254074, 558, "9210:1,14048:4,14227:1,14341:1" },
-    [1257463] = { "earthenweave gloves", 197, 215, 16, 254075, 254076, 559, "7076:1,14048:6,14341:1" },
-    [1257464] = { "earthenweave cord", 197, 215, 16, 254077, 254078, 560, "7076:2,14048:4,14341:1" },
+    [1257462] = { "ghostweave cord", 197, 215, 16, 254073, 254074, 557, "9210:1,14048:4,14227:1,14341:1" },
+    [1257463] = { "earthenweave gloves", 197, 215, 16, 254075, 254076, 558, "7076:1,14048:6,14341:1" },
+    [1257464] = { "earthenweave cord", 197, 215, 16, 254077, 254078, 559, "7076:2,14048:4,14341:1" },
     [1257465] = { "runecloth reagent bag", 197, 215, 16, 254079, 254080, 1, "8170:2,14048:5,14341:1,249431:1" },
     [1257466] = { "gilded waistcord", 197, 215, 16, 254081, 254082, 1, "3577:12,8343:4,14048:8,249409:5,249430:8" },
     [1257467] = { "frothing waistcord", 197, 215, 16, 254083, 254084, 1, "7079:12,8343:4,14048:8,249409:5,249430:8" },
@@ -4211,7 +4208,7 @@ local RAW = {
     [1257469] = { "black waistcord", 197, 215, 16, 254087, 254088, 1, "7971:12,8343:4,14048:8,249409:5,249430:8" },
     [1257470] = { "golden waistcord", 197, 215, 16, 254089, 254090, 1, "8343:4,13926:12,14048:8,249409:5,249430:8" },
     [1257471] = { "radiant waistcord", 197, 215, 16, 254091, 254092, 1, "8343:4,11178:12,14048:8,249409:5,249430:8" },
-    [1257472] = { "earthenweave boots", 197, 225, 99, 254093, 254094, 561, "7076:2,8170:2,14048:4,14341:1" },
+    [1257472] = { "earthenweave boots", 197, 225, 99, 254093, 254094, 560, "7076:2,8170:2,14048:4,14341:1" },
     [1257473] = { "gilded gloves", 197, 235, 101, 254095, 254096, 2, "3577:4,8343:4,14048:8,249409:4,249430:4" },
     [1257474] = { "frothing gloves", 197, 235, 101, 254097, 254098, 2, "7079:4,8343:4,14048:8,249409:4,249430:4" },
     [1257475] = { "fiery gloves", 197, 235, 101, 254099, 254100, 2, "7077:4,8343:4,14048:8,249409:4,249430:4" },
@@ -4224,58 +4221,58 @@ local RAW = {
     [1257482] = { "black sandals", 197, 235, 50, 254113, 254114, 1, "7971:14,8343:4,14048:10,249409:6,249427:4,249430:10" },
     [1257483] = { "golden sandals", 197, 235, 50, 254115, 254116, 1, "8343:4,13926:14,14048:10,249409:6,249427:4,249430:10" },
     [1257484] = { "radiant sandals", 197, 235, 50, 254117, 254118, 1, "8343:4,11178:14,14048:10,249409:6,249427:4,249430:10" },
-    [1257485] = { "earthenweave mantle", 197, 240, 228, 254119, 254120, 562, "7076:1,14048:6,14341:1" },
-    [1257486] = { "earthenweave vest", 197, 250, 161, 254121, 254122, 563, "7076:1,14048:8,14341:1" },
-    [1257487] = { "runecloth cuffs", 197, 250, 161, 254123, 254124, 564, "14048:5,14227:1,14341:1" },
-    [1257488] = { "earthenweave leggings", 197, 245, 123, 254125, 254126, 565, "7076:2,14048:6,14341:1" },
+    [1257485] = { "earthenweave mantle", 197, 240, 228, 254119, 254120, 561, "7076:1,14048:6,14341:1" },
+    [1257486] = { "earthenweave vest", 197, 250, 161, 254121, 254122, 562, "7076:1,14048:8,14341:1" },
+    [1257487] = { "runecloth cuffs", 197, 250, 161, 254123, 254124, 563, "14048:5,14227:1,14341:1" },
+    [1257488] = { "earthenweave leggings", 197, 245, 123, 254125, 254126, 564, "7076:2,14048:6,14341:1" },
     [1257489] = { "ghostweave mantle", 197, 250, 161, 254127, 254128, 3, "9210:3,14048:5,14227:1,14341:1" },
     [1257490] = { "ghostweave boots", 197, 255, 593, 254129, 254130, 3, "8170:2,9210:2,14048:4,14227:1,14341:1" },
-    [1257491] = { "earthenweave cuffs", 197, 255, 80, 254131, 254132, 566, "7076:1,14048:5,14341:1" },
-    [1257492] = { "mooncloth reagent bag", 197, 255, 80, 254133, 254134, 55, "14048:4,14341:1,14342:1,249409:1,249430:1,249431:10" },
+    [1257491] = { "earthenweave cuffs", 197, 255, 80, 254131, 254132, 565, "7076:1,14048:5,14341:1" },
+    [1257492] = { "mooncloth reagent bag", 197, 255, 80, 254133, 254134, 54, "14048:4,14341:1,14342:1,249409:1,249430:1,249431:10" },
     [1257493] = { "ghostweave hood", 197, 260, 124, 254135, 254136, 3, "9210:3,14048:6,14227:2,14341:1" },
-    [1257494] = { "earthenweave crown", 197, 260, 124, 254137, 254138, 567, "7076:3,14048:6,14341:1" },
-    [1257495] = { "bottomless reagent bag", 197, 300, 7, 254139, 254140, 568, "14048:8,14341:2,14342:12,14344:2,249427:5,249428:5,249429:5" },
-    [1259341] = { "potent anti-venom", 129, 215, 377, 255715, 255728, 202, "255645:1" },
-    [1259342] = { "simple poultice", 129, 90, 378, 255716, 0, 87, "2678:1,2723:1,3174:1" },
-    [1259343] = { "clever poultice", 129, 140, 379, 255717, 255724, 203, "1468:1,2686:1,3713:1" },
-    [1259344] = { "superior poultice", 129, 210, 380, 255718, 255727, 204, "2596:1,2692:1,7070:1" },
-    [1259345] = { "powerful poultice", 129, 280, 381, 255719, 255731, 205, "2594:1,2692:1,7080:1" },
-    [1259347] = { "woolen tourniquet", 129, 120, 382, 255720, 0, 206, "2321:2,2592:2" },
-    [1259348] = { "leather tourniquet", 129, 200, 383, 255721, 255726, 207, "4291:2,4304:2" },
-    [1259349] = { "surgical tourniquet", 129, 265, 384, 255722, 255730, 208, "8170:2,8343:2,14047:2" },
+    [1257494] = { "earthenweave crown", 197, 260, 124, 254137, 254138, 566, "7076:3,14048:6,14341:1" },
+    [1257495] = { "bottomless reagent bag", 197, 300, 7, 254139, 254140, 567, "14048:8,14341:2,14342:12,14344:2,249427:5,249428:5,249429:5" },
+    [1259341] = { "potent anti-venom", 129, 215, 377, 255715, 255728, 203, "255645:1" },
+    [1259342] = { "simple poultice", 129, 90, 378, 255716, 0, 86, "2678:1,2723:1,3174:1" },
+    [1259343] = { "clever poultice", 129, 140, 379, 255717, 255724, 204, "1468:1,2686:1,3713:1" },
+    [1259344] = { "superior poultice", 129, 210, 380, 255718, 255727, 205, "2596:1,2692:1,7070:1" },
+    [1259345] = { "powerful poultice", 129, 280, 381, 255719, 255731, 206, "2594:1,2692:1,7080:1" },
+    [1259347] = { "woolen tourniquet", 129, 120, 382, 255720, 0, 207, "2321:2,2592:2" },
+    [1259348] = { "leather tourniquet", 129, 200, 383, 255721, 255726, 208, "4291:2,4304:2" },
+    [1259349] = { "surgical tourniquet", 129, 265, 384, 255722, 255730, 209, "8170:2,8343:2,14047:2" },
     [1266893] = { "saf-t tabs", 202, 25, 513, 260784, 264201, 1, "2570:1,249409:1" },
     [1266905] = { "saf-t dynamite", 202, 25, 514, 260792, 264202, 1, "2589:1,4357:2" },
     [1266906] = { "saf-t copper bomb", 202, 55, 515, 260793, 264203, 1, "2570:1,2840:1,4357:2,4359:1,260784:2" },
     [1266907] = { "ez-thro wrap", 202, 100, 516, 260794, 264204, 1, "2592:1,249410:1" },
     [1266908] = { "ez-thro copper bomb xl", 202, 130, 517, 260795, 264205, 1, "2840:3,4364:4,4404:1,260794:1" },
     [1266909] = { "no slip saf-t padding", 202, 145, 518, 260796, 264206, 1, "4234:1,249430:1" },
-    [1266910] = { "saf-t bronze bomb", 202, 145, 294, 260797, 264207, 424, "2592:1,2841:2,4364:4,4404:1,260796:1" },
-    [1266911] = { "saf-t jumbo dynamite", 202, 150, 298, 260798, 264208, 425, "2592:1,4377:2,260796:1" },
+    [1266910] = { "saf-t bronze bomb", 202, 145, 294, 260797, 264207, 423, "2592:1,2841:2,4364:4,4404:1,260796:1" },
+    [1266911] = { "saf-t jumbo dynamite", 202, 150, 298, 260798, 264208, 424, "2592:1,4377:2,260796:1" },
     [1266912] = { "saf-t bell", 202, 175, 304, 260799, 264209, 1, "2841:2,249432:1" },
-    [1266913] = { "shafety sheep", 202, 175, 45, 260800, 264210, 426, "2592:2,4375:1,4377:2,4382:1,260799:1" },
+    [1266913] = { "shafety sheep", 202, 175, 45, 260800, 264210, 425, "2592:2,4375:1,4377:2,4382:1,260799:1" },
     [1266914] = { "ez-thro fireproof fuse", 202, 190, 519, 260801, 264211, 1, "4404:1,249428:1" },
-    [1266915] = { "ez-thro bronze mortar", 202, 190, 142, 260802, 264212, 427, "2319:4,4371:4,4377:4,4387:1,260801:1" },
-    [1266916] = { "ez-thro grenade", 202, 200, 152, 260803, 264213, 428, "3575:1,4306:1,4377:1,260801:1" },
-    [1266917] = { "saf-t casing", 202, 215, 520, 260804, 264214, 429, "4234:1,10561:1" },
+    [1266915] = { "ez-thro bronze mortar", 202, 190, 142, 260802, 264212, 426, "2319:4,4371:4,4377:4,4387:1,260801:1" },
+    [1266916] = { "ez-thro grenade", 202, 200, 152, 260803, 264213, 427, "3575:1,4306:1,4377:1,260801:1" },
+    [1266917] = { "saf-t casing", 202, 215, 520, 260804, 264214, 428, "4234:1,10561:1" },
     [1266918] = { "saf-t bomb", 202, 215, 521, 260805, 264215, 122, "3575:3,4377:3,4404:1,260804:1" },
     [1266919] = { "emergency field cloak", 202, 225, 15, 260806, 264216, 1, "4397:1,260804:1" },
     [1266920] = { "compact critter carrier", 202, 225, 145, 260807, 264217, 1, "4234:10,10558:1,10559:10,11175:2" },
-    [1266921] = { "ez-thro tru-trigger", 202, 240, 522, 260808, 264218, 430, "6037:1,249431:1" },
-    [1266922] = { "tru-trigger frag bomb", 202, 240, 523, 260809, 264219, 431, "10505:1,10560:1,10561:1,260808:1" },
+    [1266921] = { "ez-thro tru-trigger", 202, 240, 522, 260808, 264218, 429, "6037:1,249431:1" },
+    [1266922] = { "tru-trigger frag bomb", 202, 240, 523, 260809, 264219, 430, "10505:1,10560:1,10561:1,260808:1" },
     [1266923] = { "saf-t disposable parachute", 202, 250, 5, 260810, 264220, 1, "10518:1,260804:1" },
     [1266924] = { "gnomish army knife", 202, 250, 213, 260811, 264221, 1, "10558:1,10561:1,15994:2" },
     [1266925] = { "loot-a-rang", 202, 275, 305, 260812, 264222, 1, "12359:5,16203:5" },
     [1266926] = { "saf-t tube", 202, 275, 305, 260813, 264223, 123, "12359:1,249726:1" },
-    [1266927] = { "saf-t clever dynamite", 202, 275, 302, 260814, 264224, 432, "14047:3,15992:2,260813:1" },
+    [1266927] = { "saf-t clever dynamite", 202, 275, 302, 260814, 264224, 431, "14047:3,15992:2,260813:1" },
     [1266928] = { "ez-thro shell", 202, 285, 524, 260815, 264225, 113, "12359:2,249429:1" },
-    [1266929] = { "ez-thro thorium grenade", 202, 285, 525, 260816, 264226, 433, "12359:3,14047:3,15992:3,15994:1,260815:1" },
+    [1266929] = { "ez-thro thorium grenade", 202, 285, 525, 260816, 264226, 432, "12359:3,14047:3,15992:3,15994:1,260815:1" },
     [1266930] = { "ez-thro dark bomb", 202, 300, 1, 260817, 264227, 3, "11371:1,14047:3,15992:3,15994:2,260815:1" },
-    [1266931] = { "ez-thro mana bomb", 202, 300, 1, 260818, 264228, 434, "12359:3,14047:1,16006:1,260815:1" },
+    [1266931] = { "ez-thro mana bomb", 202, 300, 1, 260818, 264228, 433, "12359:3,14047:1,16006:1,260815:1" },
     [1266932] = { "ez-thro field transporter: gadgetzan", 202, 300, 1, 260819, 264229, 116, "18986:1,260815:1" },
-    [1266933] = { "saf-t emergency ripper: everlook", 202, 300, 1, 260820, 264230, 79, "18984:1,260813:2" },
-    [1266934] = { "ez and saf field transporter: mt. hyjal", 202, 300, 1, 260821, 264231, 435, "260813:1,260815:1,260823:1" },
+    [1266933] = { "saf-t emergency ripper: everlook", 202, 300, 1, 260820, 264230, 78, "18984:1,260813:2" },
+    [1266934] = { "ez and saf field transporter: mt. hyjal", 202, 300, 1, 260821, 264231, 434, "260813:1,260815:1,260823:1" },
     [1266935] = { "ultrasafe rechargeable battery", 202, 300, 1, 260822, 264232, 1, "3860:1,12359:3,248822:1,249410:2,249426:1,249431:1" },
-    [1266936] = { "dimensional transporter - mt. hyjal", 202, 300, 1, 260823, 264233, 436, "3860:10,7075:4,7082:4,18631:1,251290:2" },
+    [1266936] = { "dimensional transporter - mt. hyjal", 202, 300, 1, 260823, 264233, 435, "3860:10,7075:4,7082:4,18631:1,251290:2" },
     [1266937] = { "gnomish poultryizer", 202, 300, 1, 260824, 264234, 1, "14344:2,16204:10,249726:2,251290:2" },
     [1266938] = { "ultralight goblin glider", 202, 300, 1, 260825, 264235, 1, "12359:8,249429:8,249431:2,249726:2" },
     [1266939] = { "gnomish weather machine", 202, 300, 1, 260826, 264236, 3, "7076:2,7078:2,7080:2,7082:2,248822:2", { spec = "gnomish engineering" } },
@@ -4284,8 +4281,8 @@ local RAW = {
     [1266942] = { "ez-thro magnetic displacer", 202, 300, 1, 260829, 264239, 3, "238788:1,260815:1" },
     [1266943] = { "saf-t teleport", 202, 300, 1, 260830, 264240, 3, "238786:1,260813:2" },
     [1270632] = { "critter cookie", 185, 80, 360, 0, 0, 4, "10284:5" },
-    [1270633] = { "skywall souffle", 185, 25, 169, 263509, 263511, 193, "6889:2,10284:1" },
-    [1270635] = { "pincer bites", 185, 35, 361, 263512, 263513, 194, "2675:1,10284:1" },
+    [1270633] = { "skywall souffle", 185, 25, 169, 263509, 263511, 194, "6889:2,10284:1" },
+    [1270635] = { "pincer bites", 185, 35, 361, 263512, 263513, 195, "2675:1,10284:1" },
     [1286792] = { "centaur banner deployment device", 202, 190, 526, 269900, 269901, 124, "4234:30,4387:6,4389:2,10558:4" },
     [1286796] = { "hoof-shaped foot pedal", 202, 140, 306, 269902, 269903, 124, "4234:4,4382:2,4387:3,4389:1,10558:1" },
     [1292920] = { "grovekeeper trousers", 165, 300, 2, 273884, 273952, 5, "14341:8,15407:4,248825:24,274030:5" },
@@ -4356,18 +4353,18 @@ local RAW = {
     [1292986] = { "handguards of glory", 164, 300, 2, 273949, 274017, 5, "12360:2,18567:1,251291:12,274030:3" },
     [1292987] = { "pauldrons of glory", 164, 300, 2, 273950, 274018, 5, "12360:2,18567:1,251291:12,274030:3" },
     [1292988] = { "sabatons of glory", 164, 300, 2, 273951, 274019, 5, "12360:2,18567:1,251291:12,274030:3" },
-    [1293088] = { "9-60 battery pack", 202, 125, 111, 274048, 274049, 437, "3575:1,249391:1,249409:1" },
+    [1293088] = { "9-60 battery pack", 202, 125, 111, 274048, 274049, 436, "3575:1,249391:1,249409:1" },
     [1293559] = { "flask of natural accuracy", 171, 300, 2, 274273, 274277, 3, "13464:9,18256:1,248821:12,248822:1" },
     [1293560] = { "flask of natural aggression", 171, 300, 2, 274274, 274278, 3, "13465:6,18256:1,248821:18,248822:1" },
     [1293561] = { "flask of natural precision", 171, 300, 2, 274275, 274279, 3, "13463:9,18256:1,248822:1,248823:12" },
     [1293562] = { "flask of natural swiftness", 171, 300, 2, 274276, 274280, 3, "13467:6,18256:1,248822:1,248823:18" },
     [1293849] = { "swiftfeather arrow", 202, 300, 307, 274387, 274389, 3, "7069:1,17056:5,251291:8" },
     [1293850] = { "swiftstrike shot", 202, 300, 307, 274388, 274390, 3, "7067:1,12365:8,251291:8" },
-    [1294014] = { "sweetpaw jam", 185, 275, 81, 267341, 274415, 55, "3713:1,249796:3" },
-    [1294054] = { "enchant gloves - lotus claw", 333, 295, 46, 0, 274424, 55, "14343:2,16202:4,16204:12,248822:1" },
-    [1294289] = { "centaur hoofwarmers", 165, 165, 0, 274490, 274491, 85, "4304:12,8343:2" },
-    [1295805] = { "briny seafood stew", 185, 200, 30, 274971, 274972, 195, "730:2,2692:1,12206:1" },
-    [1295834] = { "plain ol' paletusk", 185, 185, 362, 274976, 274977, 196, "769:2,2678:1" },
+    [1294014] = { "sweetpaw jam", 185, 275, 81, 267341, 274415, 54, "3713:1,249796:3" },
+    [1294054] = { "enchant gloves - lotus claw", 333, 295, 46, 0, 274424, 54, "14343:2,16202:4,16204:12,248822:1" },
+    [1294289] = { "centaur hoofwarmers", 165, 165, 0, 274490, 274491, 84, "4304:12,8343:2" },
+    [1295805] = { "briny seafood stew", 185, 200, 30, 274971, 274972, 196, "730:2,2692:1,12206:1" },
+    [1295834] = { "plain ol' paletusk", 185, 185, 362, 274976, 274977, 197, "769:2,2678:1" },
     [1297120] = { "venomspew gloves", 197, 285, 23, 275604, 275580, 22, "7082:3,14048:4,14341:6,14343:1" },
     [1297121] = { "venomspew cord", 197, 290, 37, 275605, 275581, 22, "7082:3,14048:6,14341:6,14343:1" },
     [1297122] = { "venomspew footpads", 197, 295, 46, 275606, 275582, 22, "7082:3,14048:5,14341:6,14343:1" },
@@ -4444,25 +4441,25 @@ local RAW = {
     [1301466] = { "azure stormsewn cord", 197, 50, 12, 277037, 276973, 6, "2320:3,2996:3" },
     [1301468] = { "azure stormsewn leggings", 197, 60, 11, 277038, 276974, 6, "2320:2,2996:5" },
     [1301469] = { "azure stormsewn shoes", 197, 55, 13, 277039, 276975, 6, "2320:3,2996:4" },
-    [1301526] = { "cloudy skyforged helm", 164, 175, 14, 277040, 276976, 29, "3486:5,3575:18,5498:1" },
-    [1301527] = { "cloudy skyforged pauldrons", 164, 175, 14, 277041, 276977, 29, "3486:3,3575:14,5498:1" },
-    [1301528] = { "cloudy gustwoven hood", 165, 175, 14, 277042, 276978, 29, "2324:8,4234:15,4236:3,8343:1" },
-    [1301529] = { "cloudy gustwoven spaulders", 165, 175, 14, 277043, 276979, 29, "2324:6,4234:12,4236:2,8343:1" },
-    [1301530] = { "cloudy windraveled cover", 165, 175, 14, 277044, 276980, 29, "2324:8,4234:15,4236:3,8343:1" },
-    [1301531] = { "cloudy windraveled drapes", 165, 175, 14, 277045, 276981, 29, "2324:6,4234:12,4236:2,8343:1" },
-    [1301532] = { "cloudy stormsewn cowl", 197, 175, 14, 277046, 276982, 29, "2324:8,4305:7,8343:1,11134:2" },
-    [1301533] = { "cloudy stormsewn epaulets", 197, 175, 14, 277047, 276983, 29, "2324:6,4305:5,8343:1,11134:1" },
-    [1301534] = { "azure skyforged helm", 164, 175, 14, 277048, 276984, 30, "3486:5,3575:18,7909:1" },
-    [1301535] = { "azure skyforged pauldrons", 164, 175, 14, 277049, 276985, 30, "3486:3,3575:14,7909:1" },
-    [1301536] = { "azure gustwoven hood", 165, 175, 14, 277050, 276986, 30, "4234:15,4236:3,6260:4,8343:1" },
-    [1301537] = { "azure gustwoven spaulders", 165, 175, 14, 277051, 276987, 30, "4234:12,4236:2,6260:3,8343:1" },
-    [1301538] = { "azure windraveled cover", 165, 175, 14, 277052, 276988, 30, "4234:15,4236:3,6260:4,8343:1" },
-    [1301539] = { "azure windraveled drapes", 165, 175, 14, 277053, 276989, 30, "4234:12,4236:2,6260:3,8343:1" },
-    [1301540] = { "azure stormsewn cowl", 197, 175, 14, 277054, 276990, 30, "4305:7,6260:4,8343:1,11134:2" },
-    [1301541] = { "azure stormsewn epaulets", 197, 175, 14, 277055, 276991, 30, "4305:5,6260:3,8343:1,11134:1" },
-    [1302161] = { "harvester override signalcaster", 202, 65, 527, 277132, 277470, 438, "4363:2,4405:1,255007:4" },
+    [1301526] = { "cloudy skyforged helm", 164, 175, 14, 277040, 276976, 30, "3486:5,3575:18,5498:1" },
+    [1301527] = { "cloudy skyforged pauldrons", 164, 175, 14, 277041, 276977, 30, "3486:3,3575:14,5498:1" },
+    [1301528] = { "cloudy gustwoven hood", 165, 175, 14, 277042, 276978, 30, "2324:8,4234:15,4236:3,8343:1" },
+    [1301529] = { "cloudy gustwoven spaulders", 165, 175, 14, 277043, 276979, 30, "2324:6,4234:12,4236:2,8343:1" },
+    [1301530] = { "cloudy windraveled cover", 165, 175, 14, 277044, 276980, 30, "2324:8,4234:15,4236:3,8343:1" },
+    [1301531] = { "cloudy windraveled drapes", 165, 175, 14, 277045, 276981, 30, "2324:6,4234:12,4236:2,8343:1" },
+    [1301532] = { "cloudy stormsewn cowl", 197, 175, 14, 277046, 276982, 30, "2324:8,4305:7,8343:1,11134:2" },
+    [1301533] = { "cloudy stormsewn epaulets", 197, 175, 14, 277047, 276983, 30, "2324:6,4305:5,8343:1,11134:1" },
+    [1301534] = { "azure skyforged helm", 164, 175, 14, 277048, 276984, 31, "3486:5,3575:18,7909:1" },
+    [1301535] = { "azure skyforged pauldrons", 164, 175, 14, 277049, 276985, 31, "3486:3,3575:14,7909:1" },
+    [1301536] = { "azure gustwoven hood", 165, 175, 14, 277050, 276986, 31, "4234:15,4236:3,6260:4,8343:1" },
+    [1301537] = { "azure gustwoven spaulders", 165, 175, 14, 277051, 276987, 31, "4234:12,4236:2,6260:3,8343:1" },
+    [1301538] = { "azure windraveled cover", 165, 175, 14, 277052, 276988, 31, "4234:15,4236:3,6260:4,8343:1" },
+    [1301539] = { "azure windraveled drapes", 165, 175, 14, 277053, 276989, 31, "4234:12,4236:2,6260:3,8343:1" },
+    [1301540] = { "azure stormsewn cowl", 197, 175, 14, 277054, 276990, 31, "4305:7,6260:4,8343:1,11134:2" },
+    [1301541] = { "azure stormsewn epaulets", 197, 175, 14, 277055, 276991, 31, "4305:5,6260:3,8343:1,11134:1" },
+    [1302161] = { "harvester override signalcaster", 202, 65, 527, 277132, 277470, 437, "4363:2,4405:1,255007:4" },
     [1302598] = { "rough copper chain boots", 164, 50, 467, 277672, 277673, 26, "2840:9" },
-    [1302604] = { "light leather reagent bag", 165, 30, 550, 277715, 277716, 524, "2318:8,2320:3,4231:1" },
+    [1302604] = { "light leather reagent bag", 165, 30, 550, 277715, 277716, 523, "2318:8,2320:3,4231:1" },
     [1306520] = { "torch of light", 333, 300, 4, 279246, 279295, 3, "14344:6,16202:5,20725:1,274030:2" },
     [1306521] = { "steadfast libram", 333, 300, 4, 279247, 279296, 3, "16203:2,16204:12,20725:1,274030:1" },
     [1306522] = { "libram of infusion", 333, 300, 4, 279248, 279297, 3, "16203:2,16204:12,20725:1,274030:1" },
@@ -4499,8 +4496,8 @@ local RAW = {
     [1308184] = { "bent goggles", 202, 200, 108, 280311, 280326, 1, "4234:8,4389:1,5507:1" },
     [1308185] = { "stuckbutton goggles", 202, 200, 108, 280312, 280327, 1, "4234:8,4389:1,5507:1" },
     [1308186] = { "dented goggles", 202, 200, 108, 280313, 280328, 1, "3860:2,4389:1,5507:1" },
-    [1317270] = { "unsanctified grenade", 202, 260, 10, 284869, 284870, 439, "12655:2,14047:2,15992:3,18631:1" },
-    [1317279] = { "transmute: legionite", 171, 275, 36, 251290, 284871, 68, "248819:1,251291:1" },
+    [1317270] = { "unsanctified grenade", 202, 260, 10, 284869, 284870, 438, "12655:2,14047:2,15992:3,18631:1" },
+    [1317279] = { "transmute: legionite", 171, 275, 36, 251290, 284871, 67, "248819:1,251291:1" },
     [1317958] = { "satchel of copper bombs", 202, 85, 259, 285275, 285285, 1, "2318:6,4359:4,4360:20" },
     [1317959] = { "satchel of bronze bombs", 202, 165, 257, 285276, 285286, 1, "2319:6,4375:1,4380:20" },
     [1317960] = { "satchel of iron bombs", 202, 230, 261, 285277, 285287, 1, "4304:6,4389:1,4394:20" },
@@ -4520,47 +4517,31 @@ local RAW = {
     [1319163] = { "large purple rocket cluster", 202, 275, 97, 21717, 286085, 3, "8170:1,15992:1" },
     [1319164] = { "large white rocket cluster", 202, 275, 97, 21719, 286086, 3, "8170:1,15992:1" },
     [1319165] = { "large yellow rocket cluster", 202, 275, 97, 21720, 286087, 3, "8170:1,15992:1" },
-    [1319313] = { "plated armorfish", 185, 225, 363, 286152, 286153, 197, "3713:1,13890:1" },
+    [1319313] = { "plated armorfish", 185, 225, 363, 286152, 286153, 198, "3713:1,13890:1" },
     [1328948] = { "enchant boots - speed", 333, 280, 489, 0, 289560, 1, "11175:2,11176:8,11178:2,12361:1" },
 }
 
 local tonumber = tonumber
 local pairs = pairs
 local next = next
-local rawget = rawget
-local rawset = rawset
 local setmetatable = setmetatable
 
 local decodedCache = {}
 
-local function parse_reagents(rStr)
-    if not rStr or rStr == "" then return nil end
-    local reagents = {}
-    for pair in rStr:gmatch("([^,]+)") do
-        local itemID, count = pair:match("^(%d+):(%d+)$")
-        if itemID then
-            reagents[tonumber(itemID)] = tonumber(count)
-        end
-    end
-    return reagents
-end
-
-local RECIPE_MT = {
-    __index = function(t, k)
-        if k == "reagents" then
-            local rStr = rawget(t, "_rStr")
-            if not rStr then return nil end
-            local val = parse_reagents(rStr)
-            rawset(t, "_rStr", nil)
-            rawset(t, "reagents", val)
-            return val
-        end
-    end,
-}
-
 local function decode_recipe(sid, raw)
     if not raw then return nil end
+    local reagents
     local rStr = raw[8]
+    if rStr and rStr ~= "" then
+        reagents = {}
+        for pair in rStr:gmatch("([^,]+)") do
+            local itemID, count = pair:match("^(%d+):(%d+)$")
+            if itemID then
+                reagents[tonumber(itemID)] = tonumber(count)
+            end
+        end
+    end
+
     local rec = {
         id           = sid,
         name         = raw[1],
@@ -4570,7 +4551,7 @@ local function decode_recipe(sid, raw)
         output       = (raw[5] and raw[5] > 0) and raw[5] or nil,
         recipeItemID = (raw[6] and raw[6] > 0) and raw[6] or nil,
         sources      = (raw[7] and raw[7] > 0) and SRC_POOL[raw[7]] or nil,
-        _rStr        = (rStr and rStr ~= "") and rStr or nil,
+        reagents     = reagents,
     }
 
     local extra = raw[9]
@@ -4580,7 +4561,6 @@ local function decode_recipe(sid, raw)
         end
     end
 
-    setmetatable(rec, RECIPE_MT)
     decodedCache[sid] = rec
     return rec
 end

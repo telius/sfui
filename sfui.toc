@@ -75,6 +75,7 @@ frames/options/tabs/tab_portals.lua
 frames/options/tabs/tab_ring.lua
 frames/options/tabs/tab_buffs.lua [AllowLoadGameType camelot, classic]
 frames/options/tabs/tab_castbars.lua
+frames/options/tabs/tab_chat.lua
 frames/options/tabs/tab_combattext.lua
 frames/options/tabs/tab_currency.lua
 frames/options/tabs/tab_fishing.lua
@@ -293,6 +294,12 @@ frames/ring/providers/ring_tracking.lua
 frames/ring/providers/ring_utility.lua
 frames/ring/providers/ring_specs.lua
 frames/ring/providers/ring_pet.lua [AllowLoadGameType camelot]
+
+# Chat Engine
+frames/chat/chat_core.lua
+frames/chat/chat_frame.lua
+frames/chat/chat_tabs.lua
+frames/chat/chat_copy.lua
 
 frames/find.lua
 frames/mem.lua

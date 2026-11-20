@@ -1715,8 +1715,19 @@ local function applyProfileImmediate(pName, prof, silent)
     local positions = prof and prof.positions
     if type(positions) ~= "table" then return false end
 
+    local keys = {}
+    for key in pairs(positions) do
+        local ks = tostring(key)
+        if not ks:match("^trackedicons_%d+$") then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+
     local applied = 0
-    for key, pos in pairs(positions) do
+    for i = 1, #keys do
+        local key = keys[i]
+        local pos = positions[key]
         local reg = movers.registry[key]
         if reg and reg.setPoint and type(pos) == "table" and pos.point then
             local pt = tostring(pos.point)
@@ -1742,6 +1753,9 @@ local function applyProfileImmediate(pName, prof, silent)
 
     if sfui.bars and sfui.bars.update_bar_positions then
         sfui.bars.update_bar_positions()
+    end
+    if movers.isUnlocked and sfui.trackedicons and sfui.trackedicons.SyncMovers then
+        sfui.trackedicons.SyncMovers()
     end
     if editModeDialog and editModeDialog.UpdateButtons then
         editModeDialog:UpdateButtons()

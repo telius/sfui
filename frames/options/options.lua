@@ -28,6 +28,7 @@ local default_tab_icons = {
     ["bars"]         = "Interface\\Icons\\Spell_Shadow_ManaBurn",
     ["buffs"]        = "Interface\\Icons\\Spell_Shadow_AbyssalProtection",
     ["castbars"]     = "Interface\\Icons\\Spell_Shadow_Haunting",
+    ["chat"]         = "Interface\\Icons\\Spell_Shadow_MindSteal",
     ["classutility"] = "Interface\\Icons\\Spell_Shadow_GhostKey",
     ["combattext"]   = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
     ["currency"]     = "Interface\\Icons\\Spell_Shadow_SoulGem",

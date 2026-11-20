@@ -17,8 +17,78 @@ local table, math, string = table, math, string
 local C_Timer = _G.C_Timer
 local C_CooldownViewer = _G.C_CooldownViewer
 local C_ClassTalents = _G.C_ClassTalents
+local C_SpecializationInfo = _G.C_SpecializationInfo
 local Enum = _G.Enum
 local wipe = _G.wipe or table.wipe
+
+-- Authoritative specID -> English class filename lookup (covers Classic/Camelot and Retail)
+local FALLBACK_SPEC_CLASS_MAP = {
+    -- Classic / Camelot base class IDs
+    [1482] = "MAGE", [1484] = "DRUID", [1485] = "HUNTER",
+    [1486] = "PALADIN", [1487] = "PRIEST", [1488] = "ROGUE",
+    [1489] = "SHAMAN", [1490] = "WARLOCK", [1491] = "WARRIOR",
+    -- Camelot guardian pseudo-spec
+    [14844] = "DRUID",
+    -- Retail active spec IDs
+    [62] = "MAGE", [63] = "MAGE", [64] = "MAGE",
+    [65] = "PALADIN", [66] = "PALADIN", [70] = "PALADIN",
+    [71] = "WARRIOR", [72] = "WARRIOR", [73] = "WARRIOR",
+    [102] = "DRUID", [103] = "DRUID", [104] = "DRUID", [105] = "DRUID",
+    [250] = "DEATHKNIGHT", [251] = "DEATHKNIGHT", [252] = "DEATHKNIGHT",
+    [253] = "HUNTER", [254] = "HUNTER", [255] = "HUNTER",
+    [256] = "PRIEST", [257] = "PRIEST", [258] = "PRIEST",
+    [259] = "ROGUE", [260] = "ROGUE", [261] = "ROGUE",
+    [262] = "SHAMAN", [263] = "SHAMAN", [264] = "SHAMAN",
+    [265] = "WARLOCK", [266] = "WARLOCK", [267] = "WARLOCK",
+    [268] = "MONK", [269] = "MONK", [270] = "MONK",
+    [577] = "DEMONHUNTER", [581] = "DEMONHUNTER", [1480] = "DEMONHUNTER",
+    [1467] = "EVOKER", [1468] = "EVOKER", [1473] = "EVOKER",
+    -- Retail initial/starter spec IDs
+    [1444] = "SHAMAN", [1446] = "WARRIOR", [1447] = "DRUID",
+    [1448] = "HUNTER", [1449] = "MAGE", [1450] = "MONK",
+    [1451] = "PALADIN", [1452] = "PRIEST", [1453] = "ROGUE",
+    [1454] = "WARLOCK", [1455] = "DEATHKNIGHT", [1456] = "DEMONHUNTER",
+    [1465] = "EVOKER",
+}
+
+local function GetClassForSpecID(specID)
+    local num = tonumber(specID)
+    if not num or num == 0 then return nil end
+
+    local bridge = sfui.talents and sfui.talents.SPEC_BRIDGE
+    if bridge then
+        local b = bridge[num] or bridge[specID]
+        if b and (b.classFile or b.class) then
+            return b.classFile or b.class
+        end
+    end
+
+    if FALLBACK_SPEC_CLASS_MAP[num] then
+        return FALLBACK_SPEC_CLASS_MAP[num]
+    end
+
+    if num >= 10000 then
+        local baseID = math.floor(num / 10)
+        if FALLBACK_SPEC_CLASS_MAP[baseID] then
+            return FALLBACK_SPEC_CLASS_MAP[baseID]
+        end
+    end
+
+    local getSpecByID = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfoByID) or _G.GetSpecializationInfoByID
+    if getSpecByID then
+        local _, _, _, _, _, classFile = getSpecByID(num)
+        if type(classFile) == "string" and classFile ~= "" then
+            return classFile
+        end
+    end
+
+    if sfui.common.get_current_spec_id and num == sfui.common.get_current_spec_id() then
+        return sfui.common.get_player_class and sfui.common.get_player_class()
+    end
+
+    return nil
+end
+sfui.tracking.get_class_for_spec_id = GetClassForSpecID
 
 sfui.tracking.SPELL_CATEGORY_METADATA = {
     [4] = {
@@ -222,7 +292,8 @@ function sfui.tracking.get_cooldown_panels()
 
     local playerClass = sfui.common.get_player_class()
     local isClassic = sfui.isCamelot or sfui.isClassic or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic))
-    local needsMigration = ((playerClass == "DRUID" or playerClass == "ROGUE") and not SfuiDB.druidMigrationV7)
+    local needsMigration = not SfuiDB._panelsCrossClassRepairV1
+        or ((playerClass == "DRUID" or playerClass == "ROGUE") and not SfuiDB.druidMigrationV7)
         or (playerClass == "ROGUE" and not SfuiDB.rogueStealthMigrationV1)
         or (playerClass == "WARRIOR" and isClassic and not SfuiDB.warriorStanceMigrationV1)
 
@@ -336,6 +407,240 @@ end
 sfui.common.get_active_panel_entries = sfui.tracking.get_active_panel_entries
 sfui.panels.get_active_panel_entries = sfui.tracking.get_active_panel_entries
 
+local LAYOUT_INHERIT_KEYS = {
+    "customMover", "moverPoint", "moverRelPoint",
+    "anchorTo", "anchorPoint", "relativePoint",
+    "x", "y", "size", "spacing", "columns",
+    "growthH", "growthV", "spanWidth",
+    "showBackground", "backgroundAlpha",
+    "hideOOC", "hideMounted", "hideInVehicle",
+}
+
+local function MergePanelEntries(dstPanel, srcPanel)
+    if not dstPanel or not srcPanel or type(srcPanel.entries) ~= "table" or #srcPanel.entries == 0 then
+        return false
+    end
+    dstPanel.entries = dstPanel.entries or {}
+    local seen = {}
+    for _, existing in ipairs(dstPanel.entries) do
+        local eid = (type(existing) == "table" and (existing.cooldownID or existing.id)) or existing
+        if eid ~= nil then seen[eid] = true end
+    end
+    local added = false
+    for _, incoming in ipairs(srcPanel.entries) do
+        local iid = (type(incoming) == "table" and (incoming.cooldownID or incoming.id)) or incoming
+        if iid == nil or not seen[iid] then
+            if iid ~= nil then seen[iid] = true end
+            table.insert(dstPanel.entries, incoming)
+            added = true
+        end
+    end
+    return added
+end
+
+local function RestorePanelDefaultPosition(panel, def)
+    if not panel or not def then return end
+    panel.customMover = nil
+    panel.moverPoint = nil
+    panel.moverRelPoint = nil
+    panel.relativePoint = nil
+    panel.anchorTo = def.anchorTo
+    panel.anchorPoint = def.anchorPoint
+    panel.x = def.x
+    panel.y = def.y
+end
+
+local function RepairCrossClassPanels()
+    local upper = string.upper
+    local defs = sfui.config and sfui.config.cooldown_panel_defaults
+    local anyChanged = false
+
+    -- Detect legacy numeric layout keys (trackedicons_1..N) before pruning them
+    local hadLegacyNumericLayout = false
+    if type(SfuiDB.layoutProfiles) == "table" then
+        for _, prof in pairs(SfuiDB.layoutProfiles) do
+            if type(prof) == "table" and type(prof.positions) == "table" then
+                local toDelete
+                for k in pairs(prof.positions) do
+                    if type(k) == "string" and k:match("^trackedicons_%d+$") then
+                        hadLegacyNumericLayout = true
+                        toDelete = toDelete or {}
+                        toDelete[#toDelete + 1] = k
+                    end
+                end
+                if toDelete then
+                    for _, k in ipairs(toDelete) do
+                        prof.positions[k] = nil
+                    end
+                    anyChanged = true
+                end
+            end
+        end
+    end
+
+    -- Repair each spec's cooldown panels using its own spec class
+    if type(SfuiDB.cooldownPanelsBySpec) == "table" then
+        for sID, specPanels in pairs(SfuiDB.cooldownPanelsBySpec) do
+            local specClass = GetClassForSpecID(sID)
+            if type(specPanels) == "table" and specClass then
+                local primaryPanel
+                for _, p in ipairs(specPanels) do
+                    local uName = p and p.name and upper(p.name)
+                    if uName == "CENTER" then
+                        primaryPanel = p
+                        break
+                    elseif uName == "BATTLE" and not primaryPanel then
+                        primaryPanel = p
+                    end
+                end
+
+                local removedCount = 0
+                for i = #specPanels, 1, -1 do
+                    local p = specPanels[i]
+                    local uName = p and p.name and upper(p.name)
+                    local shouldRemove = false
+
+                    if specClass ~= "WARRIOR" then
+                        if uName == "BATTLE" then
+                            p.name = "CENTER"
+                            uName = "CENTER"
+                            anyChanged = true
+                        end
+                        if uName == "CENTER" then
+                            if specClass == "DRUID" or specClass == "ROGUE" then
+                                if p.requiredForm == nil or p.requiredForm == 1 then
+                                    p.requiredForm = 0
+                                    anyChanged = true
+                                end
+                            elseif p.requiredForm ~= nil then
+                                p.requiredForm = nil
+                                anyChanged = true
+                            end
+                        elseif uName == "DEFENSIVE" or uName == "BERSERKER" then
+                            shouldRemove = true
+                        end
+                    end
+
+                    if not shouldRemove and specClass ~= "ROGUE" and specClass ~= "DRUID" and uName == "STEALTH" then
+                        shouldRemove = true
+                    end
+
+                    if shouldRemove then
+                        if primaryPanel and primaryPanel ~= p then
+                            MergePanelEntries(primaryPanel, p)
+                        end
+                        table.remove(specPanels, i)
+                        removedCount = removedCount + 1
+                        anyChanged = true
+                    end
+                end
+
+                -- Heal UTILITY/Left/Right coordinates scrambled by index-shifted layout sync
+                if removedCount > 0 and hadLegacyNumericLayout and defs then
+                    local defaultMap = {
+                        UTILITY = defs.utility,
+                        LEFT    = defs.left,
+                        RIGHT   = defs.right,
+                    }
+                    for _, p in ipairs(specPanels) do
+                        local uName = p and p.name and upper(p.name)
+                        local def = uName and defaultMap[uName]
+                        if def and p.customMover == true then
+                            RestorePanelDefaultPosition(p, def)
+                            anyChanged = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Clean stray anchor keys accidentally written into SfuiDB.trackedBarsBySpec by old mover bug
+    if type(SfuiDB.trackedBarsBySpec) == "table" then
+        for _, specBars in pairs(SfuiDB.trackedBarsBySpec) do
+            if type(specBars) == "table" and specBars.anchor ~= nil then
+                local stray = specBars.anchor
+                SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+                if type(stray) == "table" then
+                    SfuiDB.trackedBars.anchor = SfuiDB.trackedBars.anchor or {}
+                    local dst = SfuiDB.trackedBars.anchor
+                    if not dst.point and stray.point then dst.point = stray.point end
+                    if not dst.relPoint and stray.relPoint then dst.relPoint = stray.relPoint end
+                    if dst.x == nil and stray.x ~= nil then dst.x = stray.x end
+                    if dst.y == nil and stray.y ~= nil then dst.y = stray.y end
+                end
+                specBars.anchor = nil
+                anyChanged = true
+            end
+        end
+    end
+
+    SfuiDB._panelsCrossClassRepairV1 = true
+    return anyChanged
+end
+
+local function BuildDonorLookup(panelsList)
+    local byName = {}
+    local primary
+    local upper = string.upper
+    for _, p in ipairs(panelsList) do
+        local uName = p and p.name and upper(p.name)
+        if uName then
+            if not byName[uName] then
+                byName[uName] = p
+            end
+            if not primary and (uName == "CENTER" or uName == "BATTLE") then
+                primary = p
+            end
+        end
+    end
+    return byName, primary
+end
+
+local function FindSameClassLayoutDonor(targetSpecID, playerClass)
+    if not playerClass or type(SfuiDB.cooldownPanelsBySpec) ~= "table" then return nil, nil end
+    local bestPanels, bestScore, bestSID = nil, -1, -1
+    for sID, otherPanels in pairs(SfuiDB.cooldownPanelsBySpec) do
+        local numSID = tonumber(sID) or 0
+        if numSID ~= targetSpecID and type(otherPanels) == "table" and #otherPanels > 0 and GetClassForSpecID(sID) == playerClass then
+            local score = (numSID >= 10000) and 10 or 0
+            for _, p in ipairs(otherPanels) do
+                if p.customMover then
+                    score = score + 100
+                    break
+                end
+            end
+            if score > bestScore or (score == bestScore and numSID > bestSID) then
+                bestScore = score
+                bestSID = numSID
+                bestPanels = otherPanels
+            end
+        end
+    end
+    if not bestPanels then return nil, nil end
+    return BuildDonorLookup(bestPanels)
+end
+
+local function CopyInheritedPanelLayout(newPanel, spec, donorByName, donorPrimary)
+    if not donorByName and not donorPrimary then return end
+    local upper = string.upper
+    local uSpecName = upper(spec.name)
+    local donor = donorByName and donorByName[uSpecName]
+    local isExactDonor = (donor ~= nil)
+    if not donor and spec.key == "center_panel" then
+        donor = donorPrimary
+    end
+    if not donor then return end
+
+    for _, k in ipairs(LAYOUT_INHERIT_KEYS) do
+        if k == "hideOOC" and uSpecName == "STEALTH" and not isExactDonor then
+            -- Keep stealth panel's default out-of-combat visibility unless copying another STEALTH panel
+        elseif donor[k] ~= nil then
+            newPanel[k] = donor[k]
+        end
+    end
+end
+
 --- Ensure panels exist and are populated (Called once on load/spec/talent change).
 function sfui.tracking.ensure_panels_initialized()
     local specID = sfui.common.get_current_spec_id() or 0
@@ -363,8 +668,19 @@ function sfui.tracking.ensure_panels_initialized()
 
     SfuiDB.cooldownPanelsBySpec[specID] = SfuiDB.cooldownPanelsBySpec[specID] or {}
 
-    local panels = SfuiDB.cooldownPanelsBySpec[specID]
     local changed = false
+    if not SfuiDB._panelsCrossClassRepairV1 then
+        if RepairCrossClassPanels() then
+            changed = true
+        end
+    end
+
+    local panels = SfuiDB.cooldownPanelsBySpec[specID]
+    local isNewSpecBucket = (#panels == 0)
+    local donorByName, donorPrimary
+    if isNewSpecBucket then
+        donorByName, donorPrimary = FindSameClassLayoutDonor(specID, playerClass)
+    end
 
     SfuiDB.iconsInitializedBySpec = SfuiDB.iconsInitializedBySpec or {}
 
@@ -446,6 +762,10 @@ function sfui.tracking.ensure_panels_initialized()
             end
             newPanel.name = spec.name
             newPanel.specID = specID
+
+            if isNewSpecBucket then
+                CopyInheritedPanelLayout(newPanel, spec, donorByName, donorPrimary)
+            end
 
             -- Position center form variants right after the base CENTER panel or preceding form variants
             local insertPos = nil
@@ -544,7 +864,7 @@ function sfui.tracking.ensure_panels_initialized()
         if SfuiDB.cooldownPanelsBySpec then
             local upper = string.upper
             for sID, specPanels in pairs(SfuiDB.cooldownPanelsBySpec) do
-                if type(specPanels) == "table" then
+                if type(specPanels) == "table" and GetClassForSpecID(sID) == "ROGUE" then
                     local hasStealth = false
                     local centerIdx = nil
                     for idx, p in ipairs(specPanels) do
@@ -584,12 +904,12 @@ function sfui.tracking.ensure_panels_initialized()
         SfuiDB.rogueStealthMigrationV1 = true
     end
 
-    -- Warrior stance panel migration across all specs
+    -- Warrior stance panel migration across warrior specs
     if playerClass == "WARRIOR" and not SfuiDB.warriorStanceMigrationV1 then
         if isClassic and SfuiDB.cooldownPanelsBySpec then
             local upper = string.upper
             for sID, specPanels in pairs(SfuiDB.cooldownPanelsBySpec) do
-                if type(specPanels) == "table" then
+                if type(specPanels) == "table" and GetClassForSpecID(sID) == "WARRIOR" then
                     local hasDefensive = false
                     local hasBerserker = false
                     local centerIdx = nil

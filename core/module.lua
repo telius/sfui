@@ -427,6 +427,7 @@ local DEFAULT_TAXONOMY = {
     -- general & utilities
     alts           = { category = "general & utilities", client = "all", order = 10 },
     buffs          = { category = "general & utilities", client = "classic", order = 20 },
+    chat           = { category = "general & utilities", client = "all", order = 25 },
     currency       = { category = "general & utilities", client = "all", order = 30 },
     cursor         = { category = "general & utilities", client = "all", order = 40 },
     dispatcher     = { category = "general & utilities", client = "all", order = 50 },

@@ -285,18 +285,18 @@ sfui.options.RegisterTab({
 
         local soulshard_preserve_cb = create_checkbox(
             p,
-            "preserve soul bag slots",
+            "preserve soul/reagent bag",
             function()
                 local cfg = sfui.config.triage or {}
                 return sfui.db.Get("triage", "preserveSoulBag", cfg.preserveSoulBag ~= false)
             end,
             function(checked)
                 sfui.db.Set("triage", "preserveSoulBag", checked)
-                if checked and sfui.triage and sfui.triage.CheckSoulShards then
+                if sfui.triage and sfui.triage.CheckSoulShards then
                     sfui.triage.CheckSoulShards()
                 end
             end,
-            "protect shards inside dedicated soul bags; only prune regular bags."
+            "protect shards inside dedicated soul or reagent bags; only prune regular bags."
         )
         soulshard_preserve_cb:SetPoint("TOPLEFT", soulshard_cb, "BOTTOMLEFT", 0, -8)
 

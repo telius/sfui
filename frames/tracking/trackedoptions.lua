@@ -345,13 +345,25 @@ function sfui.trackedoptions.initialize()
     frame:SetMovable(true)
     frame:SetClampedToScreen(true)
     frame:RegisterForDrag("LeftButton")
+    local function save_window_geometry(target)
+        if not SfuiDB then SfuiDB = {} end
+        if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
+        local win = SfuiDB.trackedOptionsWindow
+        local pt, _, relPt, x, y = target:GetPoint(1)
+        if pt then
+            win.point = pt
+            win.relPoint = relPt or pt
+            win.x = x or 0
+            win.y = y or 0
+        end
+        win.width = target:GetWidth()
+        win.height = target:GetHeight()
+    end
+
     frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        if not SfuiDB then SfuiDB = {} end
-        if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
-        SfuiDB.trackedOptionsWindow.width = self:GetWidth()
-        SfuiDB.trackedOptionsWindow.height = self:GetHeight()
+        save_window_geometry(self)
     end)
 
     frame:SetResizable(true)
@@ -365,10 +377,7 @@ function sfui.trackedoptions.initialize()
     resizeBtn:SetScript("OnMouseDown", function() frame:StartSizing("BOTTOMRIGHT") end)
     resizeBtn:SetScript("OnMouseUp", function()
         frame:StopMovingOrSizing()
-        if not SfuiDB then SfuiDB = {} end
-        if not SfuiDB.trackedOptionsWindow then SfuiDB.trackedOptionsWindow = {} end
-        SfuiDB.trackedOptionsWindow.width = frame:GetWidth()
-        SfuiDB.trackedOptionsWindow.height = frame:GetHeight()
+        save_window_geometry(frame)
     end)
 
     frame:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
@@ -407,9 +416,16 @@ function sfui.trackedoptions.initialize()
         blizzBtn:Hide()
     end
 
-    -- Load Saved Size
-    if SfuiDB.trackedOptionsWindow and SfuiDB.trackedOptionsWindow.width and SfuiDB.trackedOptionsWindow.height then
-        frame:SetSize(SfuiDB.trackedOptionsWindow.width, SfuiDB.trackedOptionsWindow.height)
+    -- Load Saved Size & Position
+    local winDB = SfuiDB.trackedOptionsWindow
+    if winDB then
+        if winDB.width and winDB.height then
+            frame:SetSize(winDB.width, winDB.height)
+        end
+        if winDB.point and winDB.x ~= nil and winDB.y ~= nil then
+            frame:ClearAllPoints()
+            frame:SetPoint(winDB.point, UIParent, winDB.relPoint or winDB.point, winDB.x, winDB.y)
+        end
     end
 
     -- Tab Container
@@ -849,23 +865,42 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     local defX = (bar_cfg.anchor and bar_cfg.anchor.x) or (SfuiDB and SfuiDB.trackedBarsX) or -300
     local defY = (bar_cfg.anchor and bar_cfg.anchor.y) or (SfuiDB and SfuiDB.trackedBarsY) or 300
 
-    if not db.anchor or (db.anchor.x == 0 and db.anchor.y == 0) then
-        db.anchor = { x = defX, y = defY }
+    local hasExplicitPt = db.anchor and db.anchor.point ~= nil
+    if not db.anchor or (db.anchor.x == nil and db.anchor.y == nil) or (not hasExplicitPt and db.anchor.x == 0 and db.anchor.y == 0) then
+        db.anchor = { point = "BOTTOM", relPoint = "BOTTOM", x = defX, y = defY }
     end
 
-    BSlider(sec1c, "X", function() return (db.anchor and db.anchor.x) or defX end, -1000,
+    local function syncTrackedBarsMover()
+        local m = sfui.movers
+        if m and m.isUnlocked and m.list and m.list.trackedbars and m.registry and m.registry.trackedbars and m.registry.trackedbars.getPoint then
+            local mv = m.list.trackedbars
+            local pt, relTo, relPt, mx, my = m.registry.trackedbars.getPoint()
+            if pt then
+                mv._anchorPoint = pt
+                mv._lastSavedPt = pt
+                mv._lastSavedX = mx or 0
+                mv._lastSavedY = my or 0
+                mv:ClearAllPoints()
+                mv:SetPoint(pt, relTo or UIParent, relPt or pt, mx or 0, my or 0)
+            end
+        end
+    end
+
+    parent._barXSlider = BSlider(sec1c, "X", function() return (db.anchor and db.anchor.x) or defX end, -1000,
         1000, 1,
         function(v)
-            if not db.anchor then db.anchor = { x = defX, y = defY } end
+            if not db.anchor then db.anchor = { point = "BOTTOM", relPoint = "BOTTOM", x = defX, y = defY } end
             db.anchor.x = v
             sfui.trackedbars.UpdatePosition()
+            syncTrackedBarsMover()
         end, col2x, s1y - 20, 120)
-    BSlider(sec1c, "Y", function() return (db.anchor and db.anchor.y) or defY end, -1000,
+    parent._barYSlider = BSlider(sec1c, "Y", function() return (db.anchor and db.anchor.y) or defY end, -1000,
         1000, 1,
         function(v)
-            if not db.anchor then db.anchor = { x = defX, y = defY } end
+            if not db.anchor then db.anchor = { point = "BOTTOM", relPoint = "BOTTOM", x = defX, y = defY } end
             db.anchor.y = v
             sfui.trackedbars.UpdatePosition()
+            syncTrackedBarsMover()
         end, col2x + 130, s1y - 20, 120)
 
     BSlider(sec1c, "Width", function() return db.width or bar_cfg.width or 200 end, 50, 600, 1,
@@ -1326,6 +1361,17 @@ function sfui.trackedoptions.RenderBarsTab(parent)
     yPos = yPos - sec3:GetHeight() - 20
 
     return yPos
+end
+
+function sfui.trackedoptions.SyncBarsPositionControls(x, y)
+    local parent = sfui.trackedoptions.barsContent
+    if not parent then return end
+    if parent._barXSlider and parent._barXSlider.SetSliderValue then
+        parent._barXSlider:SetSliderValue(x or 0)
+    end
+    if parent._barYSlider and parent._barYSlider.SetSliderValue then
+        parent._barYSlider:SetSliderValue(y or 0)
+    end
 end
 
 function sfui.trackedoptions.SyncBuffsPositionControls(x, y)
@@ -1944,6 +1990,18 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         return cb
     end
 
+    local function syncPanelPosition(targetPanel, syncSiblings)
+        if syncSiblings and sfui.trackedicons and sfui.trackedicons.SyncSiblingFormPanels then
+            sfui.trackedicons.SyncSiblingFormPanels(targetPanel)
+        end
+        if sfui.trackedicons and sfui.trackedicons.Update then
+            sfui.trackedicons.Update()
+        end
+        if sfui.movers and sfui.movers.isUnlocked and sfui.trackedicons and sfui.trackedicons.SyncMovers then
+            sfui.trackedicons.SyncMovers()
+        end
+    end
+
     local function PSlider(secContent, label, key, minVal, maxVal, step, x, y, w)
         local s = common.create_slider_input(secContent, label, function()
             if panel[key] ~= nil then return panel[key] end
@@ -1962,7 +2020,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         end, minVal, maxVal, step or 1, function(val)
             panel[key] = val
             if sfui.trackedoptions.UpdatePreview then sfui.trackedoptions.UpdatePreview() end
-            sfui.trackedicons.Update()
+            syncPanelPosition(panel, key == "x" or key == "y")
         end)
         if w then s:SetWidth(w) end
         s:SetPoint("TOPLEFT", x or 0, y)
@@ -2032,7 +2090,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             panel.moverRelPoint = panel.anchorPoint
             panel.relativePoint = panel.anchorPoint
         end
-        sfui.trackedicons.Update()
+        syncPanelPosition(panel, true)
     end)
     anchorGrid:SetPoint("TOPLEFT", 130, s2y)
     s2y = s2y - 85
@@ -2075,7 +2133,7 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
             if xSlider and xSlider.SetSliderValue then xSlider:SetSliderValue(0) end
             if ySlider and ySlider.SetSliderValue then ySlider:SetSliderValue(0) end
         end
-        sfui.trackedicons.Update()
+        syncPanelPosition(panel, true)
     end, defaultAnchorTo)
     anchorTo:SetPoint("LEFT", lA, "RIGHT", 5, 0)
 
@@ -2093,13 +2151,13 @@ function sfui.trackedoptions.RenderPanelSettings(parent, panel, xOffset, yOffset
         if panel.customMover then
             panel.moverRelPoint = val
         end
-        sfui.trackedicons.Update()
+        syncPanelPosition(panel, true)
     end, panel.relativePoint or "BOTTOM")
     rPoint:SetPoint("LEFT", lRP, "RIGHT", 5, 0)
     s3y = s3y - 65
 
-    xSlider = PSlider(s3c, "Offset X", "x", -1000, 1000, 1, 0, s3y, 140)
-    ySlider = PSlider(s3c, "Offset Y", "y", -1000, 1000, 1, 155, s3y, 140)
+    xSlider = PSlider(s3c, "Offset X", "x", -2000, 2000, 1, 0, s3y, 140)
+    ySlider = PSlider(s3c, "Offset Y", "y", -2000, 2000, 1, 155, s3y, 140)
     s3y = s3y - 52
 
     local unlockMoversBtn = CreateFlatButton(s3c, "unlock movers", 140, 24, function()

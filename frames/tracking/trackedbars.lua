@@ -720,13 +720,14 @@ function sfui.trackedbars.UpdatePosition()
     local defX = (cfg.trackedBars and cfg.trackedBars.anchor and cfg.trackedBars.anchor.x) or (SfuiDB and SfuiDB.trackedBarsX) or -300
     local defY = (cfg.trackedBars and cfg.trackedBars.anchor and cfg.trackedBars.anchor.y) or (SfuiDB and SfuiDB.trackedBarsY) or 300
 
-    local point = (db and db.anchor and db.anchor.point) or "BOTTOM"
+    local hasExplicitPoint = db and db.anchor and db.anchor.point ~= nil
+    local point = (hasExplicitPoint and db.anchor.point) or "BOTTOM"
     local relPoint = (db and db.anchor and db.anchor.relPoint) or point
     local x = db and db.anchor and db.anchor.x
     local y = db and db.anchor and db.anchor.y
 
-    -- Heal corrupted 0, 0 position from legacy options bug
-    if (x == 0 and y == 0) or (x == nil and y == nil) then
+    -- Heal corrupted 0, 0 position from legacy options bug only when no explicit anchor point was saved
+    if (x == nil and y == nil) or (not hasExplicitPoint and x == 0 and y == 0) then
         x = defX
         y = defY
         if db and db.anchor then
@@ -1926,26 +1927,36 @@ function sfui.trackedbars.initialize()
                 local y = (db and db.anchor and db.anchor.y) or 300
                 return pt, UIParent, relPt, x, y
             end,
-            setPoint = function(point, relTo, relPoint, x, y)
-                local db = common.ensure_tracked_bar_db()
-                db.anchor = db.anchor or {}
-                db.anchor.point = point
-                db.anchor.relPoint = relPoint
-                db.anchor.x = x
-                db.anchor.y = y
+            setPoint = function(point, _relTo, relPoint, x, y)
+                SfuiDB = SfuiDB or {}
+                SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+                SfuiDB.trackedBars.anchor = SfuiDB.trackedBars.anchor or {}
+                local anchorDB = SfuiDB.trackedBars.anchor
+                anchorDB.point = point or "BOTTOM"
+                anchorDB.relPoint = relPoint or anchorDB.point
+                anchorDB.x = x or 0
+                anchorDB.y = y or 0
                 sfui.trackedbars.UpdatePosition()
+                if sfui.trackedoptions and sfui.trackedoptions.SyncBarsPositionControls then
+                    sfui.trackedoptions.SyncBarsPositionControls(anchorDB.x, anchorDB.y)
+                end
                 if sfui.movers and sfui.movers.isUnlocked and sfui.trackedicons and sfui.trackedicons.SyncMovers then
                     sfui.trackedicons.SyncMovers()
                 end
             end,
             resetPosition = function()
-                local db = common.ensure_tracked_bar_db()
-                db.anchor = db.anchor or {}
-                db.anchor.point = "BOTTOM"
-                db.anchor.relPoint = "BOTTOM"
-                db.anchor.x = -300
-                db.anchor.y = 300
+                SfuiDB = SfuiDB or {}
+                SfuiDB.trackedBars = SfuiDB.trackedBars or {}
+                SfuiDB.trackedBars.anchor = SfuiDB.trackedBars.anchor or {}
+                local anchorDB = SfuiDB.trackedBars.anchor
+                anchorDB.point = "BOTTOM"
+                anchorDB.relPoint = "BOTTOM"
+                anchorDB.x = -300
+                anchorDB.y = 300
                 sfui.trackedbars.UpdatePosition()
+                if sfui.trackedoptions and sfui.trackedoptions.SyncBarsPositionControls then
+                    sfui.trackedoptions.SyncBarsPositionControls(anchorDB.x, anchorDB.y)
+                end
                 if sfui.movers and sfui.movers.isUnlocked and sfui.trackedicons and sfui.trackedicons.SyncMovers then
                     sfui.trackedicons.SyncMovers()
                 end

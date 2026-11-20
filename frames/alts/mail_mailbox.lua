@@ -291,12 +291,21 @@ local function RefreshSidecar(force)
 
         local boeCount = 0
         local assignedCount = 0
+        local lockboxCount = 0
+        local crateCount = 0
+        local writCount = 0
         local catCount = 0
         for _, it in ipairs(data.items) do
             if it.reason == "disenchant_boe" then
                 boeCount = boeCount + 1
             elseif it.reason == "assigned_item" then
                 assignedCount = assignedCount + 1
+            elseif it.reason == "category_sendLockboxes" then
+                lockboxCount = lockboxCount + 1
+            elseif it.reason == "category_sendWaylaidCrates" then
+                crateCount = crateCount + 1
+            elseif it.reason == "category_sendSealedWrits" then
+                writCount = writCount + 1
             else
                 catCount = catCount + 1
             end
@@ -305,6 +314,9 @@ local function RefreshSidecar(force)
         local parts = {}
         if boeCount > 0 then table.insert(parts, string.format("%d boe", boeCount)) end
         if assignedCount > 0 then table.insert(parts, string.format("%d assigned", assignedCount)) end
+        if lockboxCount > 0 then table.insert(parts, string.format("%d %s", lockboxCount, lockboxCount == 1 and "lockbox" or "lockboxes")) end
+        if crateCount > 0 then table.insert(parts, string.format("%d %s", crateCount, crateCount == 1 and "crate" or "crates")) end
+        if writCount > 0 then table.insert(parts, string.format("%d %s", writCount, writCount == 1 and "writ" or "writs")) end
         if catCount > 0 then table.insert(parts, string.format("%d reagents", catCount)) end
         local detail = #parts > 0 and table.concat(parts, ", ") or "queued"
 

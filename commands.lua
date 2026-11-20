@@ -306,6 +306,12 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.map and sfui.map.overlay and sfui.map.overlay.HandleSlash then
             sfui.map.overlay:HandleSlash(arg)
         end
+    elseif cmd == "copy" or cmd == "chatcopy" then
+        if sfui.chat and sfui.chat.OpenCopyWindow then
+            sfui.chat.OpenCopyWindow()
+        elseif sfui.common and sfui.common.print then
+            sfui.common.print("chat module is disabled.")
+        end
     elseif cmd == "rl" or cmd == "reload" then
         C_UI.Reload()
     elseif cmd == "help" or cmd == "?" then
@@ -486,6 +492,16 @@ SLASH_SFRING1 = "/sfring"
 SlashCmdList["SFRING"] = function(msg)
     if _G.SlashCmdList and _G.SlashCmdList["SFUI"] then
         _G.SlashCmdList["SFUI"]("ring " .. (msg or ""))
+    end
+end
+
+-- Dedicated Chat Copy Slash Command (/copy)
+SLASH_SFUICOPY1 = "/copy"
+SlashCmdList["SFUICOPY"] = function()
+    if sfui.chat and sfui.chat.OpenCopyWindow then
+        sfui.chat.OpenCopyWindow()
+    elseif sfui.common and sfui.common.print then
+        sfui.common.print("chat module is disabled.")
     end
 end
 

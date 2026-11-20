@@ -155,6 +155,24 @@ local isEnabled             = true
 --  Inventory Scanning & Candidate Analysis
 -- ─────────────────────────────────────────────────────────────────────────────
 
+--- Determines the highest equipped bag index (includes reagent bag when present, excludes bank bags)
+--- @return number maxBag
+local function get_max_equipped_bag_index()
+    local total = _G.NUM_TOTAL_EQUIPPED_BAG_SLOTS
+    if type(total) == "number" and total >= 1 then
+        return total
+    end
+    local consts = _G.Constants and _G.Constants.InventoryConstants
+    if consts and type(consts.NumBagSlots) == "number" then
+        return consts.NumBagSlots + (consts.NumReagentBagSlots or 0)
+    end
+    if type(_G.NUM_BAG_SLOTS) == "number" and type(_G.NUM_REAGENTBAG_SLOTS) == "number" then
+        return _G.NUM_BAG_SLOTS + _G.NUM_REAGENTBAG_SLOTS
+    end
+    return _G.NUM_BAG_SLOTS or 4
+end
+triage.GetMaxEquippedBagIndex = get_max_equipped_bag_index
+
 --- Determines whether an equipped container is a standard, general-purpose inventory bag
 --- (strictly excluding profession bags, herb/mining/gem/enchanting pouches, soul bags, quivers, ammo pouches, reagent bags)
 --- @param bag number
@@ -169,7 +187,11 @@ local function is_regular_inventory_bag(bag)
         return true, freeSlots or 0
     end
 
-    -- Strictly restrict to equipped character bags 1 to NUM_BAG_SLOTS (excludes keyring -2, bank bags, and retail reagent bag)
+    if Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag and bag == Enum.BagIndex.ReagentBag then
+        return false, 0
+    end
+
+    -- Strictly restrict to equipped character bags 1 to NUM_BAG_SLOTS (excludes keyring -2, bank bags, and reagent bag)
     if bag < 1 or bag > (_G.NUM_BAG_SLOTS or 4) then
         return false, 0
     end
@@ -1193,7 +1215,7 @@ local function get_slot_item_id(bag, slot)
     return nil
 end
 
---- Scans all bags and categorizes soul shards into regular spillover and specialty soul bag slots.
+--- Scans all equipped bags (including the reagent bag slot) and categorizes soul shards into regular spillover and specialty (soul/reagent) bag slots.
 --- @return table data
 get_soul_shard_data = function()
     if not isWarlock then
@@ -1221,7 +1243,7 @@ get_soul_shard_data = function()
     local getItemInfo = (C_Container and C_Container.GetContainerItemInfo) or GetContainerItemInfo
     local getItemLink = (C_Container and C_Container.GetContainerItemLink) or GetContainerItemLink
 
-    local maxBag = _G.NUM_BAG_SLOTS or 4
+    local maxBag = get_max_equipped_bag_index()
     for bag = 0, maxBag do
         local numSlots = (getNumSlots and getNumSlots(bag)) or 0
         if numSlots > 0 then
@@ -1298,6 +1320,7 @@ get_soul_shard_data = function()
     _shardDataResult.excessCount = #_shardEligible
     return _shardDataResult
 end
+triage.GetSoulShardData = get_soul_shard_data
 
 --- Purges the active triage candidate (soul shard or item) or next excess soul shard.
 --- This is the core function of the purge button, shared across the UI prompt, keybind, and macros.
@@ -1361,7 +1384,7 @@ execute_purge_candidate = function(cand, isDown)
             if get_soul_shard_data then
                 local data = get_soul_shard_data()
                 if data and data.totalCount and data.maxShards and data.totalCount > data.maxShards and data.preserveSoulBag then
-                    common.print(string_format("|cffaaaaaasfui triage:|r %d shards found (%d excess), but preserved in dedicated soul bag (uncheck 'preserve soul bag slots' to delete from soul bag).", data.totalCount, data.totalCount - data.maxShards))
+                    common.print(string_format("|cffaaaaaasfui triage:|r %d shards found (%d excess), but preserved in dedicated soul/reagent bag (uncheck 'preserve soul/reagent bag' to delete from it).", data.totalCount, data.totalCount - data.maxShards))
                 elseif data and data.totalCount and data.maxShards then
                     common.print(string_format("|cffaaaaaasfui triage:|r %d soul shard(s) (max %d), none to purge.", data.totalCount, data.maxShards))
                 else

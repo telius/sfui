@@ -35,12 +35,23 @@ local function GetCategoryDefinitions()
         { key = "sendElemental",   label = "elemental reagents",    desc = "automatically route all elemental reagents to this alt" },
         { key = "sendCooking",     label = "cooking ingredients",   desc = "automatically route all cooking ingredients to this alt" },
         { key = "sendEngineering", label = "engineering parts",     desc = "automatically route all engineering parts & explosives to this alt" },
+        { key = "sendLockboxes",   label = "lockboxes",             desc = "automatically route locked lockboxes, junkboxes & locked chests to this alt" },
     }
     if isCamelot then
         table.insert(defs, {
             key   = "sendComprehension",
             label = "mage scrolls",
             desc  = "automatically route untranslated mage comprehension scrolls to this alt",
+        })
+        table.insert(defs, {
+            key   = "sendWaylaidCrates",
+            label = "waylaid crates",
+            desc  = "automatically route unfilled waylaid crates to this alt",
+        })
+        table.insert(defs, {
+            key   = "sendSealedWrits",
+            label = "sealed writs",
+            desc  = "automatically route sealed craftsman writs to this alt",
         })
     else
         table.insert(defs, {

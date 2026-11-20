@@ -371,7 +371,8 @@ local function SetupAuctionHouseTextures(btn, isSelected)
         btn._sfuiAHBg:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 2, 0)
     end
     btn._sfuiAHBg:Show()
-    if not btn:IsEnabled() then
+    local isEnabled = (not btn.IsEnabled) or btn:IsEnabled()
+    if not isEnabled then
         btn._sfuiAHBg:SetVertexColor(0.45, 0.45, 0.45, 0.70)
         btn._sfuiAHBg:SetDesaturated(true)
     else
@@ -382,6 +383,7 @@ local function SetupAuctionHouseTextures(btn, isSelected)
     if not btn._sfuiAHSizeHook then
         btn._sfuiAHSizeHook = true
         btn:HookScript("OnSizeChanged", function(self, _, newH)
+            if self._sfuiBypassTheme then return end
             if self._sfuiAHBg and newH and newH > 0 and sfui.theme.HasAtlas("auctionhouse-nav-button") then
                 self._sfuiAHBg:SetHeight(newH * (32 / 21))
             end
@@ -401,7 +403,7 @@ local function SetupAuctionHouseTextures(btn, isSelected)
     btn._sfuiAHHighlight:ClearAllPoints()
     btn._sfuiAHHighlight:SetPoint("TOPLEFT", btn, "TOPLEFT", -2, 1)
     btn._sfuiAHHighlight:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 2, -1)
-    if btn:IsMouseOver() and btn:IsEnabled() then
+    if not btn._sfuiPassThroughMouse and btn.IsMouseOver and btn:IsMouseOver() and isEnabled then
         btn._sfuiAHHighlight:Show()
     else
         btn._sfuiAHHighlight:Hide()
@@ -426,7 +428,7 @@ local function SetupAuctionHouseTextures(btn, isSelected)
     local sel = (isSelected == true) or (btn.isSelected == true) or (btn.isSelectedTab == true)
     btn._sfuiAHSelected:SetShown(sel)
 
-    local fs = btn:GetFontString() or btn.text or btn.fs
+    local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
     if fs then
         fs:SetDrawLayer("OVERLAY", 1)
     end
@@ -452,7 +454,7 @@ function sfui.theme.SetButtonSelected(btn, isSelected)
         if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 0) end
         if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 0) end
     end
-    local fs = btn:GetFontString() or btn.text or btn.fs
+    local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
     if fs then
         if isSelected then
             fs:SetTextColor(1.0, 1.0, 1.0, 1.0)
@@ -1340,6 +1342,7 @@ end
 
 function sfui.theme.ApplyWindowStyle(frame, options)
     if not frame then return end
+    frame._sfuiBypassTheme = nil
     sfui.common.set_pixel_snapping(frame)
     options = options or {}
 
@@ -1688,6 +1691,7 @@ end
 -- 2. Container / Card Styling (Panels, Sections, Insets)
 function sfui.theme.ApplyContainerStyle(containerPanel)
     if not containerPanel or not containerPanel.SetBackdrop then return end
+    containerPanel._sfuiBypassTheme = nil
     sfui.common.set_pixel_snapping(containerPanel)
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
@@ -1757,6 +1761,177 @@ function sfui.theme.ApplyCardStyle(card, depth)
     if not card then return end
     sfui.theme.ApplyContainerStyle(card)
     registered_cards[card] = depth or 1
+end
+
+local SLICE_BORDER_REGIONS = {
+    "TL", "TR", "BL", "BR", "T", "B", "L", "R",
+    "topOverlay", "leftOverlay", "rightOverlay",
+}
+
+local function set_region_alpha(r, alpha)
+    if r and r.SetAlpha then
+        r:SetAlpha(alpha)
+    end
+end
+
+--- Clear all sculpted / NineSlice / textured theme layers from a frame and
+--- unregister it from automatic theme refreshes (used when opting out to flat).
+function sfui.theme.ClearFrameThemeLayers(frame)
+    if not frame then return end
+    frame._sfuiBypassTheme = true
+    frame.isCamelotThemed = false
+
+    hide_sculpted_layers(frame)
+    hide_nineslice_layers(frame, nil)
+    if frame.sfuiActiveNineSlice and frame.sfuiActiveNineSlice.Hide then
+        frame.sfuiActiveNineSlice:Hide()
+    end
+    frame.sfuiActiveNineSlice = nil
+
+    for i = 1, #ALL_SLICE_LAYER_KEYS do
+        local layers = frame[ALL_SLICE_LAYER_KEYS[i]]
+        if layers and layers.borderFrame then
+            layers.borderFrame:Hide()
+        end
+    end
+    for i = 1, #ALL_SLICE_CONTAINER_KEYS do
+        local cont = frame[ALL_SLICE_CONTAINER_KEYS[i]]
+        if cont and cont.frame then
+            cont.frame:Hide()
+        end
+    end
+    if frame.nineSliceInset then
+        if _G.NineSliceUtil and _G.NineSliceUtil.HideLayout then
+            _G.NineSliceUtil.HideLayout(frame.nineSliceInset)
+        end
+        frame.nineSliceInset:Hide()
+    end
+
+    if frame._sfuiAHBg then frame._sfuiAHBg:Hide() end
+    if frame._sfuiAHHighlight then frame._sfuiAHHighlight:Hide() end
+    if frame._sfuiAHSelected then frame._sfuiAHSelected:Hide() end
+    if frame._sfuiCamelotBg then frame._sfuiCamelotBg:Hide() end
+
+    registered_tabs[frame] = nil
+    registered_buttons[frame] = nil
+    registered_cards[frame] = nil
+    registered_inputs[frame] = nil
+    registered_scrollbars[frame] = nil
+    sfui.theme.UnregisterWindow(frame)
+end
+
+local function apply_sculpted_chat_opacity(panel, pal, bgAlpha, borderAlpha)
+    local layers = panel.sfuiThemeLayers
+    if layers and layers.borderFrame and layers.borderFrame:IsShown() then
+        set_region_alpha(layers.nativeBorder, borderAlpha)
+        for i = 1, #CORNER_SPECS do
+            set_region_alpha(layers[CORNER_SPECS[i].key], borderAlpha)
+        end
+        if layers.metalPieces then
+            for _, p in pairs(layers.metalPieces) do
+                set_region_alpha(p, borderAlpha)
+            end
+        end
+        if bgAlpha <= 0.001 then
+            if layers.nativeBackdrop then layers.nativeBackdrop:Hide() end
+            if layers.innerBg then layers.innerBg:Hide() end
+        elseif layers.nativeBackdrop and layers.nativeBackdrop:IsShown() then
+            layers.nativeBackdrop:SetAlpha(bgAlpha)
+        elseif layers.innerBg then
+            layers.innerBg:SetColorTexture(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], bgAlpha)
+            layers.innerBg:Show()
+        end
+        return true
+    end
+
+    for i = 1, #ALL_SLICE_LAYER_KEYS do
+        local sl = panel[ALL_SLICE_LAYER_KEYS[i]]
+        if sl and sl.borderFrame and sl.borderFrame:IsShown() then
+            for j = 1, #SLICE_BORDER_REGIONS do
+                set_region_alpha(sl[SLICE_BORDER_REGIONS[j]], borderAlpha)
+            end
+            if bgAlpha <= 0.001 then
+                if sl.solidBg then sl.solidBg:Hide() end
+                if sl.bg then sl.bg:Hide() end
+            else
+                if sl.solidBg then
+                    sl.solidBg:SetColorTexture(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], bgAlpha)
+                    sl.solidBg:Show()
+                end
+                if sl.bg and sl.bg:IsShown() then
+                    sl.bg:SetAlpha(bgAlpha * 0.55)
+                end
+            end
+            return true
+        end
+    end
+
+    return false
+end
+
+--- Apply either full sfui theme chrome or neutral flat dark styling to a chat
+--- panel, honoring independent backdrop and border opacity sliders.
+function sfui.theme.ApplyChatPanelStyle(panel, bgAlpha, borderAlpha, useTheme)
+    if not panel then return end
+    bgAlpha = math_max(0, math_min(1, bgAlpha or 0))
+    borderAlpha = math_max(0, math_min(1, borderAlpha or 0))
+
+    -- Transparent 0%/0% leaves text floating with zero backdrop/border draw cost.
+    if bgAlpha <= 0.001 and borderAlpha <= 0.001 then
+        sfui.theme.ClearFrameThemeLayers(panel)
+        if panel.SetBackdrop then
+            panel:SetBackdrop(nil)
+        end
+        return
+    end
+
+    if not useTheme then
+        sfui.theme.ClearFrameThemeLayers(panel)
+        if sfui.widgets and sfui.widgets.apply_flat_backdrop then
+            sfui.widgets.apply_flat_backdrop(panel, { 0.04, 0.04, 0.05, bgAlpha }, { 0, 0, 0, borderAlpha })
+        end
+        return
+    end
+
+    local pal = sfui.theme.GetPalette()
+    if borderAlpha <= 0.001 then
+        sfui.theme.ClearFrameThemeLayers(panel)
+        if sfui.widgets and sfui.widgets.apply_flat_backdrop then
+            sfui.widgets.apply_flat_backdrop(panel, { pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], bgAlpha }, { 0, 0, 0, 0 })
+        end
+        return
+    end
+
+    sfui.theme.ApplyWindowStyle(panel, {
+        texturedBackdrop = (bgAlpha > 0.001),
+        cornerBrackets = true,
+    })
+
+    if apply_sculpted_chat_opacity(panel, pal, bgAlpha, borderAlpha) then
+        return
+    end
+
+    if panel.sfuiActiveNineSlice and panel.sfuiActiveNineSlice.IsShown and panel.sfuiActiveNineSlice:IsShown() then
+        panel.sfuiActiveNineSlice:SetAlpha(borderAlpha)
+        if panel.SetBackdropColor then
+            if bgAlpha <= 0.001 then
+                panel:SetBackdropColor(0, 0, 0, 0)
+            else
+                panel:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], bgAlpha)
+            end
+        end
+        return
+    end
+
+    if panel.SetBackdropColor then
+        panel:SetBackdropColor(pal.backdropColor[1], pal.backdropColor[2], pal.backdropColor[3], bgAlpha)
+    end
+    if panel.SetBackdropBorderColor then
+        local activeID = sfui.theme.GetActiveThemeID()
+        local theme = registeredThemes[activeID] or {}
+        local ec = (theme.window and theme.window.borderColor) or pal.borderColor or { 0, 0, 0, 1 }
+        panel:SetBackdropBorderColor(ec[1], ec[2], ec[3], borderAlpha)
+    end
 end
 
 -- 3. Header Styling (Window Banners / Section Dividers)
@@ -1911,6 +2086,7 @@ end
 
 function sfui.theme.ApplyButtonStyle(btn, isStyled)
     if not btn or btn.isCloseButton or btn.isSubmenuButton or btn.isDropdownButton or btn.isDropdownOption then return end
+    btn._sfuiBypassTheme = nil
     local activeID = sfui.theme.GetActiveThemeID()
     local theme = registeredThemes[activeID] or registeredThemes.modern or {}
     local pal = sfui.theme.GetPalette()
@@ -1928,7 +2104,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
 
     if useAH then
         SetupAuctionHouseTextures(btn, btn.isSelected)
-        local fs = btn:GetFontString() or btn.text or btn.fs
+        local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
         if fs then
             if btn.isSelected or btn.isSelectedTab then
                 fs:SetTextColor(1.0, 1.0, 1.0, 1.0)
@@ -1965,7 +2141,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
             if btn.SetBackdropBorderColor then
                 btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
             end
-            local fs = btn:GetFontString() or btn.text or btn.fs
+            local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
             if fs then
                 fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1.0)
                 fs:SetShadowOffset(0, 0)
@@ -1985,7 +2161,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
                     btn:SetBackdropBorderColor(pal.borderColor[1], pal.borderColor[2], pal.borderColor[3], 0.90)
                 end
             end
-            local fs = btn:GetFontString() or btn.text or btn.fs
+            local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
             if fs then
                 if btn.isSelected or btn.isSelectedTab then
                     fs:SetTextColor(1.0, 0.95, 1.0, 1.0)
@@ -2003,7 +2179,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
             if btn.SetBackdropBorderColor then
                 btn:SetBackdropBorderColor(0, 0, 0, 1.0)
             end
-            local fs = btn:GetFontString() or btn.text or btn.fs
+            local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
             if fs then
                 fs:SetTextColor(1.0, 1.0, 1.0, 1.0)
                 fs:SetShadowOffset(0, 0)
@@ -2015,6 +2191,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
     if not btn.sfuiThemeHooksInstalled then
         btn.sfuiThemeHooksInstalled = true
         btn:HookScript("OnEnter", function(self)
+            if self._sfuiBypassTheme then return end
             if self.isCloseButton or self.isSubmenuButton or self.isDropdownButton or self.isDropdownOption then return end
             if sfui.theme.IsAuctionHouseButtonActive() then
                 if self:IsEnabled() then
@@ -2040,6 +2217,7 @@ function sfui.theme.ApplyButtonStyle(btn, isStyled)
             end
         end)
         btn:HookScript("OnLeave", function(self)
+            if self._sfuiBypassTheme then return end
             if self.isCloseButton or self.isSubmenuButton or self.isDropdownButton or self.isDropdownOption or self.customOnLeave then return end
             if self.menu and self.menu:IsShown() then return end
             if sfui.theme.IsAuctionHouseButtonActive() then
@@ -2158,7 +2336,7 @@ function sfui.theme.ApplyDropdownStyle(btn)
         SetupAuctionHouseTextures(btn, isMenuOpen)
         if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 0) end
         if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 0) end
-        local fs = btn:GetFontString() or btn.text or btn.fs
+        local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
         if fs then
             local textColor = pal.accentColor or pal.tabNormal or { 0.95, 0.85, 0.55, 1.0 }
             fs:SetTextColor(textColor[1], textColor[2], textColor[3], 1.0)
@@ -2188,7 +2366,7 @@ function sfui.theme.ApplyDropdownStyle(btn)
         if isCamelot then
             if btn.SetBackdropColor then btn:SetBackdropColor(0.12, 0.10, 0.08, 0.95) end
             if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85) end
-            local fs = btn:GetFontString() or btn.text or btn.fs
+            local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
             if fs then
                 fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1.0)
                 fs:SetShadowOffset(0, 0)
@@ -2200,7 +2378,7 @@ function sfui.theme.ApplyDropdownStyle(btn)
         elseif activeID == "oldgod" then
             if btn.SetBackdropColor then btn:SetBackdropColor(0.10, 0.07, 0.15, 0.95) end
             if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(pal.borderColor[1], pal.borderColor[2], pal.borderColor[3], 0.90) end
-            local fs = btn:GetFontString() or btn.text or btn.fs
+            local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
             if fs then
                 fs:SetTextColor(pal.tabNormal[1], pal.tabNormal[2], pal.tabNormal[3], 1.0)
                 fs:SetShadowOffset(0, 0)
@@ -2212,7 +2390,7 @@ function sfui.theme.ApplyDropdownStyle(btn)
         else
             if btn.SetBackdropColor then btn:SetBackdropColor(0, 0, 0, 1.0) end
             if btn.SetBackdropBorderColor then btn:SetBackdropBorderColor(0, 0, 0, 1.0) end
-            local fs = btn:GetFontString() or btn.text or btn.fs
+            local fs = (btn.GetFontString and btn:GetFontString()) or btn.text or btn.fs
             if fs then
                 fs:SetTextColor(1.0, 1.0, 1.0, 1.0)
                 fs:SetShadowOffset(0, 0)
@@ -2386,6 +2564,7 @@ end
 -- 6. Navigation / Spec / Mode Tab Styling
 function sfui.theme.ApplyTabStyle(btn, isSelected)
     if not btn then return end
+    btn._sfuiBypassTheme = nil
     btn.isSelectedTab = (isSelected == true)
     registered_tabs[btn] = btn.isSelectedTab
     local activeID = sfui.theme.GetActiveThemeID()
@@ -2395,7 +2574,7 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
 
     btn.SetSelected = sfui.theme.SetButtonSelected
 
-    local fs = btn:GetFontString() or btn.fs or btn.text
+    local fs = (btn.GetFontString and btn:GetFontString()) or btn.fs or btn.text
 
     if useAH then
         SetupAuctionHouseTextures(btn, btn.isSelectedTab)
@@ -2406,7 +2585,7 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
                 fs:SetShadowColor(0, 0, 0, 0.9)
             end
         else
-            if btn:IsMouseOver() then
+            if not btn._sfuiPassThroughMouse and btn.IsMouseOver and btn:IsMouseOver() then
                 if btn._sfuiAHHighlight then btn._sfuiAHHighlight:Show() end
                 if fs then
                     fs:SetTextColor(1.0, 1.0, 1.0, 1.0)
@@ -2513,10 +2692,10 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
         end
     end
 
-    if not btn.sfuiTabHooksInstalled then
+    if not btn.sfuiTabHooksInstalled and not btn._sfuiPassThroughMouse then
         btn.sfuiTabHooksInstalled = true
         btn:HookScript("OnEnter", function(self)
-            if self.isSelectedTab then return end
+            if self._sfuiBypassTheme or self.isSelectedTab then return end
             if sfui.theme.IsAuctionHouseButtonActive() then
                 if self._sfuiAHHighlight then self._sfuiAHHighlight:Show() end
                 local sfs = self:GetFontString() or self.fs or self.text
@@ -2534,7 +2713,7 @@ function sfui.theme.ApplyTabStyle(btn, isSelected)
             end
         end)
         btn:HookScript("OnLeave", function(self)
-            if self.isSelectedTab then return end
+            if self._sfuiBypassTheme or self.isSelectedTab then return end
             if sfui.theme.IsAuctionHouseButtonActive() then
                 if self._sfuiAHHighlight then self._sfuiAHHighlight:Hide() end
                 local sfs = self:GetFontString() or self.fs or self.text
@@ -2582,6 +2761,7 @@ end
 -- 7. Input / EditBox Styling
 function sfui.theme.ApplyInputStyle(editBox)
     if not editBox or not editBox.SetBackdrop then return end
+    editBox._sfuiBypassTheme = nil
     registered_inputs[editBox] = true
     local isCamelot = sfui.theme.IsCamelotActive()
 
@@ -2598,10 +2778,12 @@ function sfui.theme.ApplyInputStyle(editBox)
     if not editBox.sfuiInputHooksInstalled then
         editBox.sfuiInputHooksInstalled = true
         editBox:HookScript("OnEditFocusGained", function(self)
+            if self._sfuiBypassTheme then return end
             local p = sfui.theme.GetPalette()
             self:SetBackdropBorderColor(p.accentColor[1], p.accentColor[2], p.accentColor[3], 1)
         end)
         editBox:HookScript("OnEditFocusLost", function(self)
+            if self._sfuiBypassTheme then return end
             if sfui.theme.IsCamelotActive() then
                 self:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.8)
             else
@@ -2635,6 +2817,7 @@ end
 
 function sfui.theme.ApplyScrollBarStyle(scrollBar)
     if not scrollBar then return end
+    scrollBar._sfuiBypassTheme = nil
     registered_scrollbars[scrollBar] = true
 
     local parent = scrollBar:GetParent()
@@ -4065,6 +4248,11 @@ function sfui.theme.ApplyCurrentTheme()
         if scrollBar then
             sfui.theme.ApplyScrollBarStyle(scrollBar)
         end
+    end
+
+    -- 15. Refresh chat theme (honors flat vs themed & opacity settings)
+    if sfui.chat and sfui.chat.ApplyTheme then
+        sfui.chat.ApplyTheme()
     end
 end
 
