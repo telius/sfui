@@ -1,7 +1,7 @@
 ## Interface: 120105, 16001, 11509
 ## Title: |cff6600ffsf|rui overlay maps
 ## Author: teli
-## Version: v1.151
+## Version: v1.152
 ## Notes: on-demand architectural minimap overlay tiles for sfui.
 ## Dependencies: sfui
 ## Group: sfui
