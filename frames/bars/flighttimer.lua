@@ -39,12 +39,12 @@ local math_max                = _G.math.max
 local math_min                = _G.math.min
 local string_format           = _G.string.format
 local string_lower            = _G.string.lower
+local wipe                    = (sfui.common and sfui.common.wipe) or _G.wipe
 
 local DEFAULT_SPEED    = 30.4
 local PREVIEW_SECONDS  = 20
 local PREVIEW_HOLD     = 2
 local LOOKAHEAD        = 60
-local SLIDE_STEP       = 1.25
 local PIN_SIZE         = 13
 local EXIT_SIZE        = 22
 local WHITE            = "Interface\\Buttons\\WHITE8x8"
@@ -56,12 +56,19 @@ local PREVIEW_ROUTES = {
     Alliance = { 6, "ironforge", 74, "thorium point", 71, "morgan's vigil", 5, "lakeshire" },
 }
 
-local bar, events, ticker
+local bar, ticker
 local hooked = false
+local eventsRegistered = false
+local durationObj = nil
 local pending = nil
 local flight = nil
 local previewActive = false
 local previewHoldUntil = 0
+local lastBarTexture = nil
+local idBySlot = {}
+local previewPoints = {}
+local activeFlight = {}
+local _ftDebug = {}
 
 local function Cfg()
     return (sfui.config and sfui.config.flighttimer) or {}
@@ -95,12 +102,9 @@ local function FormatTime(sec)
     return string_format("%d:%02d", math_floor(sec / 60), sec % 60)
 end
 
-local function TimeLeftText(fl, elapsed)
-    local left = FormatTime(fl.eta - elapsed)
-    if Cfg().showTotal then
-        return left .. " / " .. FormatTime(fl.eta)
-    end
-    return left
+local function SupportsDurationBar(track)
+    return (C_DurationUtil and C_DurationUtil.CreateDuration and track and track.SetTimerDuration
+        and Enum and Enum.StatusBarInterpolation and Enum.StatusBarTimerDirection) and true or false
 end
 
 local function LowerName(raw)
@@ -116,7 +120,11 @@ local function RouteInfo(slot)
 
     local mapID = GetTaxiMapID and GetTaxiMapID()
     local nodes = mapID and C_TaxiMap and C_TaxiMap.GetAllTaxiNodes and C_TaxiMap.GetAllTaxiNodes(mapID)
-    local idBySlot = {}
+    if wipe then
+        wipe(idBySlot)
+    else
+        idBySlot = {}
+    end
     if nodes then
         for _, node in ipairs(nodes) do
             idBySlot[node.slotIndex] = node.nodeID
@@ -160,47 +168,63 @@ local function ApplyBarPosition()
     bar:SetPoint(p.point or "TOP", UIParent, p.relPoint or p.point or "TOP", p.x or 0, p.y or -140)
 end
 
-local function ApplyThemeStyling()
+local function ApplyBarFill()
     if not bar then return end
     local track = bar.track
-    if sfui.widgets and sfui.widgets.get_bar_texture then
-        local tex = sfui.widgets.get_bar_texture()
-        if tex then track:SetStatusBarTexture(tex) end
-    else
-        track:SetStatusBarTexture(WHITE)
+    local tex = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture()) or WHITE
+    if tex ~= lastBarTexture then
+        lastBarTexture = tex
+        track:SetStatusBarTexture(tex)
     end
 
     local col = (sfui.common and sfui.common.get_class_or_spec_color and sfui.common.get_class_or_spec_color())
         or { 0.4, 0.0, 1.0 }
     local alpha = (flight and not flight.eta) and 0 or 0.95
     track:SetStatusBarColor(col[1] or 0.4, col[2] or 0.0, col[3] or 1.0, alpha)
-
-    if sfui.theme and sfui.theme.ApplyStatusBarStyle then
-        sfui.theme.ApplyStatusBarStyle(track, "castbar")
-    end
 end
 
-local function ScrollStrip(fl, elapsed)
+local function StartStripScroll(fl, elapsed)
     if not (bar and bar.clip and bar.clip:IsShown()) then return end
     local g = bar.clip.glide
     g:Stop()
     bar.clip.strip:ClearAllPoints()
     bar.clip.strip:SetPoint("CENTER", bar.backdrop, "CENTER", -elapsed * bar.clip.pps, 0)
     if fl.eta and elapsed < fl.eta then
-        g.move:SetOffset(-SLIDE_STEP * bar.clip.pps, 0)
+        local rem = fl.eta - elapsed
+        g.move:SetDuration(rem)
+        g.move:SetOffset(-rem * bar.clip.pps, 0)
         g:Play()
     end
-    if fl.eta and fl.yards and fl.points then
-        local flown = elapsed / fl.eta * fl.yards
-        for k = 1, #fl.points - 2 do
-            local stop = bar.stops[k]
-            local y = fl.points[k + 1] and fl.points[k + 1].yards
-            if stop and y then
-                local passed = (y <= flown)
-                stop.icon:SetAlpha(passed and 0.4 or 1)
-                stop.label:SetAlpha(passed and 0.4 or 1)
+end
+
+local function UpdateStopAlphas(fl, elapsed)
+    if not (bar and bar.clip and bar.clip:IsShown()) then return end
+    if fl.allStopsPassed or not (fl.eta and fl.eta > 0 and fl.yards and fl.points) then return end
+    local flown = elapsed / fl.eta * fl.yards
+    local count = #fl.points - 2
+    if count <= 0 then
+        fl.allStopsPassed = true
+        return
+    end
+    local allPassed = true
+    for k = 1, count do
+        local stop = bar.stops[k]
+        local y = fl.points[k + 1] and fl.points[k + 1].yards
+        if stop and y then
+            local passed = (y <= flown)
+            if stop._passed ~= passed then
+                stop._passed = passed
+                local a = passed and 0.4 or 1
+                stop.icon:SetAlpha(a)
+                stop.label:SetAlpha(a)
+            end
+            if not passed then
+                allPassed = false
             end
         end
+    end
+    if allPassed then
+        fl.allStopsPassed = true
     end
 end
 
@@ -231,6 +255,7 @@ local function LayoutRoute(fl)
             end
             if m then
                 if stopYards then
+                    m._passed = false
                     m.icon:SetAlpha(1)
                     m.icon:Show()
                     m.label:SetAlpha(1)
@@ -241,12 +266,15 @@ local function LayoutRoute(fl)
                     m.label:ClearAllPoints()
                     m.label:SetPoint("TOP", m.icon, "BOTTOM", 0, -2)
                 else
+                    m._passed = false
                     m.icon:Hide()
                     m.label:Hide()
                 end
             end
         end
-        ScrollStrip(fl, math_max(0, math_min(GetTime() - fl.start, fl.eta)))
+        local elapsed = math_max(0, math_min(GetTime() - fl.start, fl.eta))
+        StartStripScroll(fl, elapsed)
+        UpdateStopAlphas(fl, elapsed)
     end
 
     if bar.exitBtn then
@@ -261,11 +289,12 @@ end
 local function ArmTimer(fl)
     if not (bar and fl and fl.eta) then return end
     local track = bar.track
-    if C_DurationUtil and C_DurationUtil.CreateDuration and track.SetTimerDuration
-        and Enum and Enum.StatusBarInterpolation and Enum.StatusBarTimerDirection then
-        local dur = C_DurationUtil.CreateDuration()
-        dur:SetTimeFromStart(fl.start, fl.eta)
-        track:SetTimerDuration(dur, Enum.StatusBarInterpolation.Immediate, Enum.StatusBarTimerDirection.ElapsedTime)
+    if SupportsDurationBar(track) then
+        if not durationObj then
+            durationObj = C_DurationUtil.CreateDuration()
+        end
+        durationObj:SetTimeFromStart(fl.start, fl.eta)
+        track:SetTimerDuration(durationObj, Enum.StatusBarInterpolation.Immediate, Enum.StatusBarTimerDirection.ElapsedTime)
     else
         track:SetMinMaxValues(0, fl.eta)
         track:SetValue(math_max(0, math_min(GetTime() - fl.start, fl.eta)))
@@ -362,7 +391,12 @@ local function EnsureBar()
     clip.glide = clip.strip:CreateAnimationGroup()
     clip.glide.move = clip.glide:CreateAnimation("Translation")
     clip.glide.move:SetSmoothing("NONE")
-    clip.glide.move:SetDuration(SLIDE_STEP)
+    clip.glide:SetScript("OnFinished", function()
+        if flight and flight.eta and bar and bar.clip and bar.clip:IsShown() then
+            clip.strip:ClearAllPoints()
+            clip.strip:SetPoint("CENTER", bar.backdrop, "CENTER", -flight.eta * bar.clip.pps, 0)
+        end
+    end)
     clip:Hide()
     bar.clip = clip
     bar.stops = {}
@@ -388,7 +422,7 @@ local function EnsureBar()
         if RequestEarlyLanding then RequestEarlyLanding() end
     end)
     exitBtn:SetScript("OnEnter", function(self)
-        local tip = _G.GameTooltip
+        local tip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or _G.GameTooltip
         if tip then
             tip:SetOwner(self, "ANCHOR_RIGHT")
             tip:SetText("land at next flight point", 1, 1, 1)
@@ -396,15 +430,18 @@ local function EnsureBar()
         end
     end)
     exitBtn:SetScript("OnLeave", function()
-        local tip = _G.GameTooltip
-        if tip then tip:Hide() end
+        if sfui.common and sfui.common.hide_tooltip then
+            sfui.common.hide_tooltip()
+        elseif _G.GameTooltip then
+            _G.GameTooltip:Hide()
+        end
     end)
     bar.exitBtn = exitBtn
 
     if sfui.theme and sfui.theme.RegisterBar then
-        sfui.theme.RegisterBar(track, "flighttimer")
+        sfui.theme.RegisterBar(track, "castbar")
     end
-    ApplyThemeStyling()
+    ApplyBarFill()
     ApplyBarPosition()
 
     if sfui.movers and sfui.movers.Register then
@@ -448,12 +485,18 @@ end
 local function EndFlight()
     flight = nil
     previewActive = false
+    previewHoldUntil = 0
     if ticker then
         ticker:Cancel()
         ticker = nil
     end
+    if durationObj and durationObj.Reset then
+        durationObj:Reset()
+    end
     if bar then
         if bar.clip and bar.clip.glide then bar.clip.glide:Stop() end
+        bar.track:SetMinMaxValues(0, 1)
+        bar.track:SetValue(0)
         bar:Hide()
     end
 end
@@ -476,6 +519,9 @@ end
 local function Retarget(fl)
     if not (fl and not fl.early) then return end
     fl.early = true
+    fl.allStopsPassed = false
+    fl.lastDispSec = nil
+    fl.lastShowTotal = nil
     local points = fl.points
     if points and fl.yards and fl.eta then
         local elapsed = GetTime() - fl.start
@@ -484,6 +530,7 @@ local function Retarget(fl)
             if p.yards and p.yards > flown then
                 for j = #points, i + 1, -1 do points[j] = nil end
                 fl.eta = fl.eta * p.yards / fl.yards
+                fl.totalStr = FormatTime(fl.eta)
                 fl.yards = p.yards
                 fl.dest = p.name or fl.dest
                 ArmTimer(fl)
@@ -518,33 +565,56 @@ local function UpdateText()
         return
     end
 
-    if flight.eta then
-        bar.timeLabel:SetText(TimeLeftText(flight, elapsed))
-        if not (C_DurationUtil and bar.track.SetTimerDuration) then
-            bar.track:SetMinMaxValues(0, flight.eta)
+    local hasEta = flight.eta ~= nil
+    local dispSec = hasEta
+        and math_max(0, math_floor((flight.eta - elapsed) + 0.5))
+        or math_max(0, math_floor(elapsed + 0.5))
+    local showTotal = Cfg().showTotal == true
+
+    if dispSec ~= flight.lastDispSec or showTotal ~= flight.lastShowTotal then
+        flight.lastDispSec = dispSec
+        flight.lastShowTotal = showTotal
+        local tStr = string_format("%d:%02d", math_floor(dispSec / 60), dispSec % 60)
+        if hasEta and showTotal and flight.totalStr then
+            bar.timeLabel:SetText(tStr .. " / " .. flight.totalStr)
+        else
+            bar.timeLabel:SetText(tStr)
+        end
+    end
+
+    if hasEta then
+        if not SupportsDurationBar(bar.track) then
             bar.track:SetValue(math_max(0, math_min(elapsed, flight.eta)))
         end
-        ScrollStrip(flight, elapsed)
-    else
-        bar.timeLabel:SetText(FormatTime(elapsed))
+        UpdateStopAlphas(flight, elapsed)
     end
 end
 
 local function StartFlight(data)
     previewActive = false
-    flight = {
-        yards  = data.yards,
-        start  = GetTime(),
-        points = data.points,
-        dest   = data.destName,
-    }
+    previewHoldUntil = 0
+    activeFlight.yards = data.yards
+    activeFlight.start = GetTime()
+    activeFlight.points = data.points
+    activeFlight.dest = data.destName
+    activeFlight.early = false
+    activeFlight.allStopsPassed = false
+    activeFlight.lastDispSec = nil
+    activeFlight.lastShowTotal = nil
+    activeFlight.lookahead = nil
     if data.yards then
-        flight.mult = GetSpeedMultiplier()
-        flight.eta = data.yards / (GetSpeed() * flight.mult)
+        activeFlight.mult = GetSpeedMultiplier()
+        activeFlight.eta = data.yards / (GetSpeed() * activeFlight.mult)
+        activeFlight.totalStr = FormatTime(activeFlight.eta)
+    else
+        activeFlight.mult = nil
+        activeFlight.eta = nil
+        activeFlight.totalStr = nil
     end
+    flight = activeFlight
 
     EnsureBar()
-    ApplyThemeStyling()
+    ApplyBarFill()
     ArmTimer(flight)
     LayoutRoute(flight)
     bar:Show()
@@ -558,29 +628,44 @@ StartPreviewFlight = function()
     local faction = (UnitFactionGroup and UnitFactionGroup("player")) or "Alliance"
     local raw = PREVIEW_ROUTES[faction] or PREVIEW_ROUTES.Alliance
     local routes = sfui.flight_routes or {}
-    local points, totalYards = {}, 0
+    local totalYards = 0
+    local ptIdx = 0
     for i = 1, #raw, 2 do
         if i > 1 then
             local hop = routes[raw[i - 2] * 10000 + raw[i]] or 4500
             totalYards = totalYards + hop
         end
-        points[#points + 1] = { name = raw[i + 1], yards = totalYards }
+        ptIdx = ptIdx + 1
+        local pt = previewPoints[ptIdx]
+        if not pt then
+            pt = {}
+            previewPoints[ptIdx] = pt
+        end
+        pt.name = raw[i + 1]
+        pt.yards = totalYards
+    end
+    for j = #previewPoints, ptIdx + 1, -1 do
+        previewPoints[j] = nil
     end
 
     previewActive = true
     previewHoldUntil = 0
-    flight = {
-        yards     = totalYards,
-        start     = GetTime(),
-        points    = points,
-        dest      = points[#points] and points[#points].name or "",
-        eta       = PREVIEW_SECONDS,
-        mult      = 1,
-        lookahead = LOOKAHEAD * PREVIEW_SECONDS / (totalYards / GetSpeed()),
-    }
+    activeFlight.yards = totalYards
+    activeFlight.start = GetTime()
+    activeFlight.points = previewPoints
+    activeFlight.dest = previewPoints[ptIdx] and previewPoints[ptIdx].name or ""
+    activeFlight.eta = PREVIEW_SECONDS
+    activeFlight.totalStr = FormatTime(PREVIEW_SECONDS)
+    activeFlight.mult = 1
+    activeFlight.early = false
+    activeFlight.allStopsPassed = false
+    activeFlight.lastDispSec = nil
+    activeFlight.lastShowTotal = nil
+    activeFlight.lookahead = LOOKAHEAD * PREVIEW_SECONDS / (totalYards / GetSpeed())
+    flight = activeFlight
 
     EnsureBar()
-    ApplyThemeStyling()
+    ApplyBarFill()
     ArmTimer(flight)
     LayoutRoute(flight)
     bar:Show()
@@ -611,6 +696,12 @@ function sfui.flighttimer.TogglePreview()
     return true
 end
 
+function sfui.flighttimer.StopPreview()
+    if previewActive then
+        EndFlight()
+    end
+end
+
 function sfui.flighttimer.IsPreviewActive()
     return previewActive
 end
@@ -629,9 +720,16 @@ local function OnTakeTaxiNode(slot)
         destName = destName,
         clicked  = GetTime(),
     }
+    if sfui.common and sfui.common.debounce then
+        sfui.common.debounce("flighttimer_pending_clear", 6, function()
+            if pending and (GetTime() - pending.clicked) >= 5 then
+                pending = nil
+            end
+        end)
+    end
 end
 
-local function OnEvent(_, event)
+local function OnEvent(event)
     if event == "PLAYER_CONTROL_LOST" then
         if pending and (GetTime() - pending.clicked) < 5 then
             StartFlight(pending)
@@ -645,8 +743,8 @@ local function OnEvent(_, event)
 end
 
 function sfui.flighttimer.Apply()
-    EnsureBar()
     if IsEnabled() then
+        EnsureBar()
         if not hooked then
             hooked = true
             if _G.TakeTaxiNode then
@@ -661,23 +759,54 @@ function sfui.flighttimer.Apply()
                 end)
             end
         end
-        if not events then
-            events = CreateFrame("Frame")
-            events:SetScript("OnEvent", OnEvent)
+        if not eventsRegistered and sfui.events and sfui.events.RegisterEvent then
+            sfui.events.RegisterEvent("PLAYER_CONTROL_LOST", OnEvent)
+            sfui.events.RegisterEvent("PLAYER_CONTROL_GAINED", OnEvent)
+            eventsRegistered = true
         end
-        events:RegisterEvent("PLAYER_CONTROL_LOST")
-        events:RegisterEvent("PLAYER_CONTROL_GAINED")
     else
-        if events then events:UnregisterAllEvents() end
+        if eventsRegistered and sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("PLAYER_CONTROL_LOST", OnEvent)
+            sfui.events.UnregisterEvent("PLAYER_CONTROL_GAINED", OnEvent)
+            eventsRegistered = false
+        end
         pending = nil
-        if flight then EndFlight() end
+        if flight or previewActive then EndFlight() end
     end
 end
 
-local initFrame = CreateFrame("Frame")
-initFrame:RegisterEvent("PLAYER_LOGIN")
-initFrame:SetScript("OnEvent", function(self)
-    self:UnregisterEvent("PLAYER_LOGIN")
+local function OnPlayerLogin()
+    if sfui.events and sfui.events.UnregisterEvent then
+        sfui.events.UnregisterEvent("PLAYER_LOGIN", OnPlayerLogin)
+    end
     sfui.flighttimer.Apply()
-end)
+end
+
+local function OnThemeChanged()
+    if bar then
+        ApplyBarFill()
+    end
+end
+
+if sfui.events then
+    if sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("PLAYER_LOGIN", OnPlayerLogin)
+    end
+    if sfui.events.RegisterMessage then
+        sfui.events.RegisterMessage("SFUI_THEME_CHANGED", OnThemeChanged)
+        sfui.events.RegisterMessage("SFUI_SPEC_COLORS_UPDATED", OnThemeChanged)
+    end
+end
+
+sfui.flighttimer.hidden = true
+sfui.flighttimer.GetDebugInfo = function()
+    _ftDebug.enabled = IsEnabled()
+    _ftDebug.active = flight ~= nil
+    _ftDebug.preview = previewActive
+    _ftDebug.hasBar = bar ~= nil
+    return _ftDebug
+end
+if sfui.RegisterModule then
+    sfui.RegisterModule("flighttimer", sfui.flighttimer)
+end
 

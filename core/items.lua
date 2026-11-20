@@ -280,10 +280,52 @@ function sfui.items.get_inventory_item_link(unit, slotID)
 end
 sfui.common.get_inventory_item_link = sfui.items.get_inventory_item_link
 
+local RESIST_SCHOOLS
+local RESIST_SCHOOL_BY_KEY
+do
+    local dmg = (_G.Enum and _G.Enum.Damageclass) or {}
+    RESIST_SCHOOLS = {
+        { key = "fire",   label = "fire",   damageClass = dmg.Fire or 2,   statKey = "RESISTANCE2_NAME", color = { 1.0, 0.55, 0.25 }, atlas = "UI-Character-Info-Resistance-Fire",   fallbackIcon = "Interface\\Icons\\Spell_Fire_FireArmor" },
+        { key = "nature", label = "nature", damageClass = dmg.Nature or 3, statKey = "RESISTANCE3_NAME", color = { 0.45, 0.9, 0.35 }, atlas = "UI-Character-Info-Resistance-Nature", fallbackIcon = "Interface\\Icons\\Spell_Nature_ResistNature" },
+        { key = "frost",  label = "frost",  damageClass = dmg.Frost or 4,  statKey = "RESISTANCE4_NAME", color = { 0.55, 0.8, 1.0 },  atlas = "UI-Character-Info-Resistance-Frost",  fallbackIcon = "Interface\\Icons\\Spell_Frost_FrostWard" },
+        { key = "shadow", label = "shadow", damageClass = dmg.Shadow or 5, statKey = "RESISTANCE5_NAME", color = { 0.7, 0.5, 1.0 },   atlas = "UI-Character-Info-Resistance-Shadow", fallbackIcon = "Interface\\Icons\\Spell_Shadow_AntiShadow" },
+        { key = "arcane", label = "arcane", damageClass = dmg.Arcane or 6, statKey = "RESISTANCE6_NAME", color = { 0.95, 0.7, 1.0 },  atlas = "UI-Character-Info-Resistance-Arcane", fallbackIcon = "Interface\\Icons\\Spell_Nature_WispSplode" },
+    }
+    RESIST_SCHOOL_BY_KEY = {}
+    for i = 1, #RESIST_SCHOOLS do
+        local def = RESIST_SCHOOLS[i]
+        RESIST_SCHOOL_BY_KEY[def.key] = def
+    end
+end
+sfui.items.RESIST_SCHOOLS = RESIST_SCHOOLS
+sfui.items.RESIST_SCHOOL_BY_KEY = RESIST_SCHOOL_BY_KEY
+sfui.common.RESIST_SCHOOLS = RESIST_SCHOOLS
+sfui.common.RESIST_SCHOOL_BY_KEY = RESIST_SCHOOL_BY_KEY
+
+local function safe_wipe(t)
+    if not t then return nil end
+    local w = (sfui.safety and sfui.safety.wipe) or _G.wipe
+    if w then
+        return w(t)
+    end
+    for k in pairs(t) do
+        t[k] = nil
+    end
+    return t
+end
+
 local itemStatsCache = {}
 local itemStatsCacheCount = 0
 local ITEM_STATS_CACHE_MAX = 2500
 local randomEnchantCache = {}
+
+local resistCache = {}
+local resistCacheCount = 0
+local RESIST_CACHE_MAX = 4000
+local resistBaseScratch = {}
+local resistEquipScratch = {}
+local resistLineBaseScratch = {}
+local resistLineEquipScratch = {}
 
 local shieldStatsCache = {}
 local shieldStatsCacheCount = 0
@@ -294,15 +336,97 @@ local weaponStatsCacheCount = 0
 local WEAPON_STATS_CACHE_MAX = 1000
 
 function sfui.items.clear_item_stats_cache()
-    _G.wipe(itemStatsCache)
-    _G.wipe(randomEnchantCache)
+    safe_wipe(itemStatsCache)
+    safe_wipe(randomEnchantCache)
     itemStatsCacheCount = 0
-    _G.wipe(shieldStatsCache)
+    safe_wipe(resistCache)
+    resistCacheCount = 0
+    safe_wipe(shieldStatsCache)
     shieldStatsCacheCount = 0
-    _G.wipe(weaponStatsCache)
+    safe_wipe(weaponStatsCache)
     weaponStatsCacheCount = 0
 end
 sfui.common.clear_item_stats_cache = sfui.items.clear_item_stats_cache
+
+local function parse_resist_tooltip_line(clean, baseOut, equipOut, isGreenLine)
+    if not clean or clean == "" then return end
+    local lower = clean:lower()
+    if not lower:find("resist", 1, true) then return end
+    if lower:match("^use:") or lower:match("^chance on hit:") or lower:match("^%(%d+%)%s*set:") then
+        return
+    end
+
+    local hadEnchantPrefix = lower:match("^enchanted:%s*") ~= nil
+    if hadEnchantPrefix then
+        lower = lower:gsub("^enchanted:%s*", "")
+    end
+    local isEnchant = (isGreenLine == true) or hadEnchantPrefix
+
+    if lower:match("^equip:") then
+        local allEquip = lower:match("all%s+magical%s+resistances?%s+by%s+(%d+)")
+            or lower:match("all%s+resistances?%s+by%s+(%d+)")
+            or lower:match("resistance%s+to%s+all%s+schools.-by%s+(%d+)")
+            or lower:match("%+(%d+)%s+to%s+all%s+resistances?")
+            or lower:match("%+(%d+)%s+all%s+resistances?")
+        if allEquip then
+            local v = tonumber(allEquip)
+            if v and v > 0 then
+                for i = 1, #RESIST_SCHOOLS do
+                    local key = RESIST_SCHOOLS[i].key
+                    equipOut[key] = (equipOut[key] or 0) + v
+                end
+            end
+            return
+        end
+
+        for i = 1, #RESIST_SCHOOLS do
+            local key = RESIST_SCHOOLS[i].key
+            local matched = lower:match(key .. "%s+resistance%s+by%s+(%d+)")
+                or lower:match("%+(%d+)%s+" .. key .. "%s+resistance")
+                or lower:match(key .. "%s+resistance%s*%+(%d+)")
+            if matched then
+                local v = tonumber(matched)
+                if v and v > 0 then
+                    equipOut[key] = (equipOut[key] or 0) + v
+                end
+                return
+            end
+        end
+        return
+    end
+
+    local target = isEnchant and equipOut or baseOut
+    local allBase = lower:match("^%+(%d+)%s+to%s+all%s+resistances?")
+        or lower:match("^%+(%d+)%s+all%s+magical%s+resistances?")
+        or lower:match("^%+(%d+)%s+all%s+resistances?")
+        or lower:match("^%+(%d+)%s+resistance%s+to%s+all%s+schools")
+        or lower:match("^all%s+magical%s+resistances?%s*%+(%d+)")
+        or lower:match("^all%s+resistances?%s*%+(%d+)")
+        or lower:match("^resist%s+all%s*%+(%d+)")
+    if allBase then
+        local v = tonumber(allBase)
+        if v and v > 0 then
+            for i = 1, #RESIST_SCHOOLS do
+                local key = RESIST_SCHOOLS[i].key
+                target[key] = (target[key] or 0) + v
+            end
+        end
+        return
+    end
+
+    for i = 1, #RESIST_SCHOOLS do
+        local key = RESIST_SCHOOLS[i].key
+        local matched = lower:match("^%+(%d+)%s+" .. key .. "%s+resistance")
+            or lower:match("^" .. key .. "%s+resistance%s*%+(%d+)")
+        if matched then
+            local v = tonumber(matched)
+            if v and v > 0 then
+                target[key] = (target[key] or 0) + v
+            end
+            return
+        end
+    end
+end
 
 function sfui.items.parse_tooltip_stat_line(lineText, stats)
     if not lineText or type(lineText) ~= "string" or not stats then return false end
@@ -563,6 +687,24 @@ function sfui.items.parse_tooltip_stat_line(lineText, stats)
         stats["ITEM_MOD_PARRY_RATING_SHORT"] = math.max(stats["ITEM_MOD_PARRY_RATING_SHORT"] or 0, parryVal)
     end
 
+    -- 19. Elemental & All Resistances (passive lines only)
+    if clean:lower():find("resist", 1, true) then
+        safe_wipe(resistLineBaseScratch)
+        safe_wipe(resistLineEquipScratch)
+        parse_resist_tooltip_line(clean, resistLineBaseScratch, resistLineEquipScratch)
+        for i = 1, #RESIST_SCHOOLS do
+            local def = RESIST_SCHOOLS[i]
+            local baseVal = resistLineBaseScratch[def.key]
+            if baseVal and baseVal > 0 then
+                stats[def.statKey] = math.max(stats[def.statKey] or 0, baseVal)
+            end
+            local equipVal = resistLineEquipScratch[def.key]
+            if equipVal and equipVal > 0 then
+                stats[def.statKey] = (stats[def.statKey] or 0) + equipVal
+            end
+        end
+    end
+
     return false
 end
 sfui.common.parse_tooltip_stat_line = sfui.items.parse_tooltip_stat_line
@@ -655,6 +797,145 @@ function sfui.items.is_random_enchant_item(itemLink)
     return randomEnchantCache[link] == true
 end
 sfui.common.is_random_enchant_item = sfui.items.is_random_enchant_item
+
+local function parse_tooltip_resist_texts(link, baseOut, equipOut)
+    local foundTooltip = false
+    local C_TooltipInfo = _G.C_TooltipInfo
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+        local tData = C_TooltipInfo.GetHyperlink(link)
+        if tData and tData.lines then
+            foundTooltip = true
+            for _, line in ipairs(tData.lines) do
+                local left = line.leftText
+                if left and not issecretvalue(left) and type(left) == "string" then
+                    local clean = left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                    if clean and clean ~= "" and clean:lower():find("resist", 1, true) then
+                        local clr = line.leftColor
+                        local isGreen = clr and clr.r and clr.g and clr.b
+                            and (clr.r < 0.25 and clr.g > 0.85 and clr.b < 0.25) or false
+                        parse_resist_tooltip_line(clean, baseOut, equipOut, isGreen)
+                    end
+                end
+            end
+        end
+    end
+
+    if not foundTooltip then
+        local tip, tipName = nil, "SfuiGameTooltip"
+        if sfui.common and sfui.common.get_scan_tooltip then
+            tip, tipName = sfui.common.get_scan_tooltip()
+        end
+        tip = tip or sfuiTooltip
+        if tip then
+            tip:ClearLines()
+            tip:SetHyperlink(link)
+            local numLines = tip:NumLines() or 0
+            for i = 1, numLines do
+                local fsL = _G[tipName .. "TextLeft" .. i]
+                if fsL then
+                    local txt = fsL:GetText()
+                    if txt and not issecretvalue(txt) and type(txt) == "string" then
+                        local clean = txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                        if clean and clean ~= "" and clean:lower():find("resist", 1, true) then
+                            local r, g, b
+                            if fsL.GetTextColor then
+                                r, g, b = fsL:GetTextColor()
+                            end
+                            local isGreen = r and g and b and (r < 0.25 and g > 0.85 and b < 0.25) or false
+                            parse_resist_tooltip_line(clean, baseOut, equipOut, isGreen)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local get_item_id = sfui.items.get_item_id
+
+local function get_resist_cache_key(id, safeLink, link)
+    if safeLink then
+        local ench, g1, g2, g3, g4, suf = safeLink:match(
+            "item:%d+:([^:|]*):?([^:|]*):?([^:|]*):?([^:|]*):?([^:|]*):?([^:|]*)"
+        )
+        local hasMod = (ench and ench ~= "" and ench ~= "0")
+            or (g1 and g1 ~= "" and g1 ~= "0")
+            or (g2 and g2 ~= "" and g2 ~= "0")
+            or (g3 and g3 ~= "" and g3 ~= "0")
+            or (g4 and g4 ~= "" and g4 ~= "0")
+            or (suf and suf ~= "" and suf ~= "0")
+        if hasMod then
+            return tostring(id or "") .. ":" .. (ench or "") .. ":" .. (g1 or "") .. ":"
+                .. (g2 or "") .. ":" .. (g3 or "") .. ":" .. (g4 or "") .. ":" .. (suf or "")
+        end
+    end
+    return id or link
+end
+
+function sfui.items.get_item_resistances(itemID, itemLink)
+    local id = nil
+    if itemID and not issecretvalue(itemID) then
+        if type(itemID) == "number" and itemID > 0 then
+            id = itemID
+        elseif type(itemID) == "string" and itemID ~= "" then
+            if not itemLink then itemLink = itemID end
+            id = get_item_id(itemID)
+        end
+    end
+    local safeLink = (type(itemLink) == "string" and not issecretvalue(itemLink) and itemLink ~= "") and itemLink or nil
+    local link = safeLink or (id and ("item:" .. tostring(id))) or nil
+    if not id and link then
+        id = get_item_id(link)
+    end
+    if not link then return nil end
+
+    local cacheKey = get_resist_cache_key(id, safeLink, link)
+    local cached = resistCache[cacheKey]
+    if cached ~= nil then
+        return cached or nil
+    end
+
+    local raw = C_Item_GetItemStats and C_Item_GetItemStats(link)
+    if issecretvalue(raw) or type(raw) ~= "table" then
+        raw = nil
+    end
+    safe_wipe(resistBaseScratch)
+    safe_wipe(resistEquipScratch)
+
+    local isClassic = sfui.isClassic or sfui.isCamelot
+        or (sfui.compat and (sfui.compat.has.camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
+        or (sfui.version and not sfui.version.retail)
+        or (sfui.isRetail ~= true)
+
+    if isClassic then
+        parse_tooltip_resist_texts(link, resistBaseScratch, resistEquipScratch)
+    end
+
+    local result = nil
+    for i = 1, #RESIST_SCHOOLS do
+        local def = RESIST_SCHOOLS[i]
+        local rawVal = raw and raw[def.statKey]
+        if type(rawVal) ~= "number" or issecretvalue(rawVal) or rawVal < 0 then
+            rawVal = 0
+        end
+        local baseVal = math.max(rawVal, resistBaseScratch[def.key] or 0)
+        local totalVal = baseVal + (resistEquipScratch[def.key] or 0)
+        if totalVal > 0 then
+            if not result then result = {} end
+            result[def.key] = totalVal
+        end
+    end
+
+    if resistCacheCount >= RESIST_CACHE_MAX then
+        safe_wipe(resistCache)
+        resistCacheCount = 0
+    end
+    resistCacheCount = resistCacheCount + 1
+    resistCache[cacheKey] = result or false
+
+    return result
+end
+sfui.common.get_item_resistances = sfui.items.get_item_resistances
 
 function sfui.items.get_weapon_stats(itemLink)
     if not itemLink then return 0, 0, 0, 0 end

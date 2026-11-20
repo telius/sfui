@@ -432,4 +432,10 @@ sfui.options.RegisterTab({
 
         bars_panel.customContentHeight = 825
     end,
+    onHide = function()
+        local moversOpen = sfui.options and sfui.options.is_movers_unlocked and sfui.options.is_movers_unlocked()
+        if not moversOpen and sfui.flighttimer and sfui.flighttimer.StopPreview then
+            sfui.flighttimer.StopPreview()
+        end
+    end,
 })

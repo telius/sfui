@@ -610,6 +610,9 @@ function sfui.theme.ElevateWindowContents(frame)
     if frame.overlayFrame and frame.overlayFrame.SetFrameLevel then
         frame.overlayFrame:SetFrameLevel(base + 4)
     end
+    if frame.quickDock and frame.quickDock.SetFrameLevel then
+        frame.quickDock:SetFrameLevel(base + 4)
+    end
     if frame.collapsedRoleBar and frame.collapsedRoleBar.SetFrameLevel then
         frame.collapsedRoleBar:SetFrameLevel(base + 15)
     end

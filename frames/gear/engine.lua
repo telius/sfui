@@ -64,6 +64,7 @@ local updateScheduled = false
 local regenRetries = 0
 local manualEditUntil = 0
 local nakedPaused = false
+local activeResistSchool = nil
 local roleEquipTimer = nil
 local lastEquippedItems = {}
 local equipSetOptionsCache = nil
@@ -78,8 +79,19 @@ function sfui.gear.isNakedPaused()
     return nakedPaused
 end
 
+function sfui.gear.GetActiveResistSchool()
+    return activeResistSchool
+end
+
+function sfui.gear.isResistLocked()
+    return activeResistSchool ~= nil
+end
+
 function sfui.gear.SetNakedPaused(paused, silent)
     nakedPaused = paused and true or false
+    if nakedPaused then
+        activeResistSchool = nil
+    end
     if roleEquipTimer then
         roleEquipTimer:Cancel()
         roleEquipTimer = nil
@@ -101,8 +113,59 @@ function sfui.gear.SetNakedPaused(paused, silent)
     sfui.gear.UpdateStatUI()
 end
 
+function sfui.gear.SetActiveResistSchool(schoolKey, silent)
+    local validKey = nil
+    if type(schoolKey) == "string" then
+        local lower = schoolKey:lower()
+        local byKey = sfui.common and sfui.common.RESIST_SCHOOL_BY_KEY
+        if byKey and byKey[lower] then
+            validKey = lower
+        end
+    end
+    activeResistSchool = validKey
+    if activeResistSchool ~= nil then
+        nakedPaused = false
+        if roleEquipTimer then
+            roleEquipTimer:Cancel()
+            roleEquipTimer = nil
+        end
+        gearEquipQueue = nil
+        zoneUpdateQueue = false
+        if sfui.gear.StopUnequipDurabilityItems then
+            sfui.gear.StopUnequipDurabilityItems()
+        end
+    end
+    if sfui.talents and sfui.talents.invalidate_protection_paladin_cache then
+        sfui.talents.invalidate_protection_paladin_cache()
+    end
+    if sfui.buffs and sfui.buffs.scan and sfui.buffs.scan.RefreshSpellKnowledge then
+        sfui.buffs.scan.RefreshSpellKnowledge()
+        sfui.buffs.scan.RequestScan()
+    end
+    sfui.gear.UpdateStatUI()
+end
+
+function sfui.gear.IsResistOffArmorEnabled()
+    return not (SfuiDB and SfuiDB.gear and SfuiDB.gear.resist_off_armor == false)
+end
+
+function sfui.gear.SetResistOffArmorEnabled(enabled)
+    SfuiDB = SfuiDB or {}
+    SfuiDB.gear = SfuiDB.gear or {}
+    SfuiDB.gear.resist_off_armor = enabled and true or false
+    if sfui.highest and sfui.highest.InvalidateResistSummaryCache then
+        sfui.highest.InvalidateResistSummaryCache()
+    end
+    sfui.gear.UpdateStatUI()
+    if activeResistSchool ~= nil and not InCombatLockdown()
+        and sfui.highest and sfui.highest.EquipMaxResist
+    then
+        sfui.highest.EquipMaxResist(activeResistSchool)
+    end
+end
+
 local function autoEquipPaused()
-    return nakedPaused or GetTime() < manualEditUntil or (CharacterFrame and CharacterFrame:IsShown() == true)
+    return nakedPaused or (activeResistSchool ~= nil) or GetTime() < manualEditUntil or (CharacterFrame and CharacterFrame:IsShown() == true)
 end
 
 local function isCurrentlyPvP()
@@ -169,7 +232,7 @@ local function _OnUpdateCastTimer()
 end
 
 local function TryEquipSet(setName)
-    if nakedPaused then return false end
+    if nakedPaused or activeResistSchool then return false end
     if not setName or setName == "" then return false end
     if not C_EquipmentSet or not C_EquipmentSet.GetEquipmentSetID then return false end
     local isPole = (sfui.highest.IsFishingPoleEquipped and sfui.highest.IsFishingPoleEquipped())
@@ -226,7 +289,7 @@ end
 -- GEAR UPDATE (AUTO EQUIP)
 -- -------------------------------------------------------------------------
 function sfui.gear.Update(force)
-    if nakedPaused then return end
+    if nakedPaused or activeResistSchool then return end
     if not isAutoEquipEnabled() and not force then return end
     if not SfuiDB.gear then return end
     local spec = common.get_current_spec_id()
@@ -308,8 +371,9 @@ local function _OnRegenRetryTimer()
 end
 
 function sfui.gear.handle_player_regen()
-    if nakedPaused then
+    if nakedPaused or activeResistSchool then
         gearEquipQueue = nil
+        zoneUpdateQueue = false
         return
     end
     if gearEquipQueue then
@@ -348,6 +412,9 @@ end)
 
 sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function(event, slotID)
     equipSetOptionsCache = nil
+    if sfui.highest and sfui.highest.InvalidateResistSummaryCache then
+        sfui.highest.InvalidateResistSummaryCache()
+    end
     scanEquippedForChanges()
     if slotID == 0 and not InCombatLockdown() then
         local count = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
@@ -377,7 +444,13 @@ end)
 
 local function _OnBagUpdateDebounce()
     bagUpdatePending = false
+    if sfui.highest and sfui.highest.InvalidateResistSummaryCache then
+        sfui.highest.InvalidateResistSummaryCache()
+    end
     sfui.gear.Update()
+    if SfuiGearManagerFrame and SfuiGearManagerFrame:IsShown() then
+        sfui.gear.UpdateStatUI()
+    end
 end
 
 sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()

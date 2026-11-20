@@ -63,6 +63,9 @@ function sfui.highest.ClearCache()
     if sfui.highest.InvalidateUpgradeEvalCache then
         sfui.highest.InvalidateUpgradeEvalCache()
     end
+    if sfui.highest.InvalidateResistSummaryCache then
+        sfui.highest.InvalidateResistSummaryCache()
+    end
 end
 sfui.highest.ClearValidationCache = sfui.highest.ClearCache
 

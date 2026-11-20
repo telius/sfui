@@ -26,6 +26,7 @@ local IsShiftKeyDown  = _G.IsShiftKeyDown
 local GetTime         = _G.GetTime
 local GetInventoryItemLink    = _G.GetInventoryItemLink
 local GetInventoryItemTexture = _G.GetInventoryItemTexture
+local UnitResistance          = _G.UnitResistance
 local C_Timer         = _G.C_Timer
 local C_Map           = _G.C_Map
 local C_QuestLog      = _G.C_QuestLog
@@ -81,13 +82,13 @@ end
 if sfui.db and sfui.db.RegisterDefaults then
     sfui.db.RegisterDefaults("upgrades", {
         levelFilter  = "range_20_4",
-        sources      = { dungeon = true, quest = true, vendor = true, ah = false },
+        sources      = { dungeon = true, quest = true, vendor = true, crafted = false, ah = false },
         ahMaxGold    = 0,
         selectedSlot = "all",
         showHidden   = false,
         hiddenByChar = {},
         pos          = nil,
-    }, 5, function(cur, oldVer)
+    }, 6, function(cur, oldVer)
         if type(cur) == "table" then
             if not LEVEL_FILTER_BY_ID[cur.levelFilter] then
                 if cur.equippableOnly == true then
@@ -97,9 +98,17 @@ if sfui.db and sfui.db.RegisterDefaults then
                 end
             end
             if type(cur.sources) ~= "table" then
-                cur.sources = { dungeon = true, quest = true, vendor = true, ah = false }
-            elseif (oldVer or 0) < 5 or cur.sources.ah == nil then
-                cur.sources.ah = false
+                cur.sources = { dungeon = true, quest = true, vendor = true, crafted = false, ah = false }
+            else
+                if cur.sources.dungeon == nil then cur.sources.dungeon = true end
+                if cur.sources.quest == nil then cur.sources.quest = true end
+                if cur.sources.vendor == nil then cur.sources.vendor = true end
+                if (oldVer or 0) < 5 or cur.sources.ah == nil then
+                    cur.sources.ah = false
+                end
+                if (oldVer or 0) < 6 or cur.sources.crafted == nil then
+                    cur.sources.crafted = false
+                end
             end
             if type(cur.ahMaxGold) ~= "number" or not AH_GOLD_CAP_BY_VAL[cur.ahMaxGold] then
                 cur.ahMaxGold = 0
@@ -119,11 +128,12 @@ local function DB()
         db.levelFilter = (db.equippableOnly == true) and "equippable_20" or "range_20_4"
     end
     if type(db.sources) ~= "table" then
-        db.sources = { dungeon = true, quest = true, vendor = true, ah = false }
+        db.sources = { dungeon = true, quest = true, vendor = true, crafted = false, ah = false }
     else
         if db.sources.dungeon == nil then db.sources.dungeon = true end
         if db.sources.quest == nil then db.sources.quest = true end
         if db.sources.vendor == nil then db.sources.vendor = true end
+        if db.sources.crafted == nil then db.sources.crafted = false end
         if db.sources.ah == nil then db.sources.ah = false end
     end
     if type(db.ahMaxGold) ~= "number" or not AH_GOLD_CAP_BY_VAL[db.ahMaxGold] then
@@ -348,6 +358,38 @@ local RELIC_SUBCLASS_BY_CLASS = {
     DEATHKNIGHT = 10,
 }
 
+local R = {}
+do
+    if common and common.RESIST_SCHOOLS and common.RESIST_SCHOOL_BY_KEY then
+        R.SCHOOLS = common.RESIST_SCHOOLS
+        R.SCHOOL_BY_KEY = common.RESIST_SCHOOL_BY_KEY
+    else
+        local dmg = (_G.Enum and _G.Enum.Damageclass) or {}
+        R.SCHOOLS = {
+            { key = "fire",   label = "fire",   damageClass = dmg.Fire or 2,   statKey = "RESISTANCE2_NAME", color = { 1.0, 0.55, 0.25 }, atlas = "UI-Character-Info-Resistance-Fire",   fallbackIcon = "Interface\\Icons\\Spell_Fire_FireArmor" },
+            { key = "nature", label = "nature", damageClass = dmg.Nature or 3, statKey = "RESISTANCE3_NAME", color = { 0.45, 0.9, 0.35 }, atlas = "UI-Character-Info-Resistance-Nature", fallbackIcon = "Interface\\Icons\\Spell_Nature_ResistNature" },
+            { key = "frost",  label = "frost",  damageClass = dmg.Frost or 4,  statKey = "RESISTANCE4_NAME", color = { 0.55, 0.8, 1.0 },  atlas = "UI-Character-Info-Resistance-Frost",  fallbackIcon = "Interface\\Icons\\Spell_Frost_FrostWard" },
+            { key = "shadow", label = "shadow", damageClass = dmg.Shadow or 5, statKey = "RESISTANCE5_NAME", color = { 0.7, 0.5, 1.0 },   atlas = "UI-Character-Info-Resistance-Shadow", fallbackIcon = "Interface\\Icons\\Spell_Shadow_AntiShadow" },
+            { key = "arcane", label = "arcane", damageClass = dmg.Arcane or 6, statKey = "RESISTANCE6_NAME", color = { 0.95, 0.7, 1.0 },  atlas = "UI-Character-Info-Resistance-Arcane", fallbackIcon = "Interface\\Icons\\Spell_Nature_WispSplode" },
+        }
+        R.SCHOOL_BY_KEY = {}
+        for _, def in ipairs(R.SCHOOLS) do
+            R.SCHOOL_BY_KEY[def.key] = def
+        end
+    end
+end
+R.ARMOR_LABELS = { [1] = "cloth", [2] = "leather", [3] = "mail", [4] = "plate" }
+R.SKILL_NAMES = {
+    [164] = "blacksmithing",
+    [165] = "leatherworking",
+    [197] = "tailoring",
+    [202] = "engineering",
+    [171] = "alchemy",
+    [333] = "enchanting",
+    [185] = "cooking",
+    [129] = "first aid",
+}
+
 -- ─── Runtime State ────────────────────────────────────────────────────────────
 local state = {
     scanSerial         = 0,
@@ -381,7 +423,10 @@ local state = {
     lastContext        = nil,
     lastMinLvl         = 1,
     lastMaxLvl         = 60,
-    lastEquipOnly      = false,
+    lastEquipOnly         = false,
+    resistFilter          = nil,
+    resistAnyArmor        = false,
+    resistCraftedOverride = nil,
 }
 
 local sessionIndex = {
@@ -413,23 +458,27 @@ local function IsSessionIndexValid(ItemDB, allIds, ctx)
         and sessionIndex.specID == ctx.activeSpecID
         and type(sessionIndex.wearable) == "table"
         and type(sessionIndex.sourced) == "table"
+        and (sessionIndex.wearable[1] == nil or sessionIndex.wearable[1].classID ~= nil)
 end
 
 local ui = {
-    frame            = nil,
-    hostFrame        = nil,
-    mounted          = false,
-    slotBtns         = {},
-    rowPool          = {},
-    filterBtns       = {},
-    driver           = nil,
-    selectedSlotKey  = nil,
-    _lastRenderSlot  = nil,
-    _lastRenderFirst = nil,
-    _lastRenderLast  = nil,
-    _lastRenderCount = nil,
-    _lastRenderRev   = nil,
-    _lastRenderBusy  = nil,
+    frame               = nil,
+    hostFrame           = nil,
+    mounted             = false,
+    slotBtns            = {},
+    rowPool             = {},
+    filterBtns          = {},
+    resistBtns          = {},
+    anyArmorBtn         = nil,
+    resistEquippedLabel = nil,
+    driver              = nil,
+    selectedSlotKey     = nil,
+    _lastRenderSlot     = nil,
+    _lastRenderFirst    = nil,
+    _lastRenderLast     = nil,
+    _lastRenderCount    = nil,
+    _lastRenderRev      = nil,
+    _lastRenderBusy     = nil,
 }
 
 local function IsPanelVisible()
@@ -688,17 +737,20 @@ local function GetPlayerContext()
 
     local equippedSlots = {}
     local equippedMinIlvlBySlot = {}
+    local equippedLinksBySlot = {}
     for _, def in ipairs(SLOT_DEFS) do
         if def.slotIDs then
             local eqTex, eqIlvl = nil, 0
             local bestEqIlvl = nil
             local hasEmpty = false
+            local slotLinks = {}
             for _, sID in ipairs(def.slotIDs) do
                 local link = GetInventoryItemLink and GetInventoryItemLink("player", sID)
                 local tex = GetInventoryItemTexture and GetInventoryItemTexture("player", sID)
                 if not link or issecretvalue(link) or link == "" then
                     hasEmpty = true
                 else
+                    slotLinks[#slotLinks + 1] = link
                     local ilvl = SafeGetItemLevel(link, 0)
                     if not bestEqIlvl or ilvl < bestEqIlvl then
                         bestEqIlvl = ilvl
@@ -709,6 +761,7 @@ local function GetPlayerContext()
             end
             equippedSlots[def.key] = { tex = eqTex, ilvl = eqIlvl or 0 }
             equippedMinIlvlBySlot[def.key] = hasEmpty and 0 or (bestEqIlvl or 0)
+            equippedLinksBySlot[def.key] = slotLinks
         end
     end
 
@@ -743,6 +796,7 @@ local function GetPlayerContext()
         roleLabel             = roleLabel,
         equippedSlots         = equippedSlots,
         equippedMinIlvlBySlot = equippedMinIlvlBySlot,
+        equippedLinksBySlot   = equippedLinksBySlot,
         mainHandIs2H          = mainHandIs2H,
         contextSig            = contextSig,
     }
@@ -805,15 +859,175 @@ local function GetLevelWindow(db, playerLevel)
     return minLvl, maxLvl, equipOnly, mode
 end
 
+function R.IsCraftedEnabled(db)
+    if state.resistFilter ~= nil then
+        if state.resistCraftedOverride ~= nil then
+            return state.resistCraftedOverride == true
+        end
+        return true
+    end
+    return (db and db.sources and db.sources.crafted == true) or false
+end
+
 local function MakeFilterSig(db)
-    return string.format("%s:%s:%s:%s:%s:%s",
+    return string.format("%s:%s:%s:%s:%s:%s:%s:%s:%s",
         tostring((db and db.levelFilter) or "range_20_4"),
         (db.sources and db.sources.dungeon) and "1" or "0",
         (db.sources and db.sources.quest) and "1" or "0",
         (db.sources and db.sources.vendor) and "1" or "0",
+        R.IsCraftedEnabled(db) and "1" or "0",
         (db.sources and db.sources.ah and HasTSM()) and "1" or "0",
-        tostring((db and db.ahMaxGold) or 0)
+        tostring((db and db.ahMaxGold) or 0),
+        tostring(state.resistFilter or "none"),
+        state.resistAnyArmor and "1" or "0"
     )
+end
+
+-- ─── Resistance & Armor-Type Helpers ──────────────────────────────────────────
+function R.GetItemResistances(itemID, itemLink)
+    if common and common.get_item_resistances then
+        return common.get_item_resistances(itemID, itemLink)
+    end
+    local safeLink = (type(itemLink) == "string" and not issecretvalue(itemLink) and itemLink ~= "") and itemLink
+        or (itemID and not issecretvalue(itemID) and ("item:" .. tostring(itemID)))
+        or nil
+    if not safeLink then return nil end
+    local getStats = (_G.C_Item and _G.C_Item.GetItemStats) or _G.GetItemStats
+    if not getStats then return nil end
+    local raw = getStats(safeLink)
+    if issecretvalue(raw) or type(raw) ~= "table" then return nil end
+    local res = nil
+    for i = 1, #R.SCHOOLS do
+        local def = R.SCHOOLS[i]
+        local v = raw[def.statKey]
+        if type(v) == "number" and not issecretvalue(v) and v > 0 then
+            if not res then res = {} end
+            res[def.key] = v
+        end
+    end
+    return res
+end
+
+function R.GetPlayerEquippedResist(schoolKey)
+    local def = schoolKey and R.SCHOOL_BY_KEY[schoolKey]
+    if not def then return 0 end
+    if UnitResistance then
+        local _, total = UnitResistance("player", def.damageClass)
+        if type(total) == "number" and not issecretvalue(total) then
+            return math.floor(total + 0.5)
+        end
+    end
+    local sum = 0
+    for sID = 1, 18 do
+        if sID ~= 4 and GetInventoryItemLink then
+            local link = GetInventoryItemLink("player", sID)
+            if link and not issecretvalue(link) and link ~= "" then
+                local rTbl = R.GetItemResistances(nil, link)
+                if rTbl and rTbl[schoolKey] then
+                    sum = sum + rTbl[schoolKey]
+                end
+            end
+        end
+    end
+    return sum
+end
+
+function R.BuildEquippedResistBySlot(ctx, schoolKey)
+    local out = {}
+    if not ctx or not schoolKey then return out end
+    for sKey, links in pairs(ctx.equippedLinksBySlot or {}) do
+        local slotDef = SLOT_KEY_TO_DEF[sKey]
+        local expectedCount = (slotDef and slotDef.slotIDs and #slotDef.slotIDs) or 1
+        if #links < expectedCount then
+            out[sKey] = 0
+        else
+            local minR = nil
+            for _, eqLink in ipairs(links) do
+                local rTbl = R.GetItemResistances(nil, eqLink)
+                local rv = (rTbl and rTbl[schoolKey]) or 0
+                if minR == nil or rv < minR then
+                    minR = rv
+                end
+            end
+            out[sKey] = minR or 0
+        end
+    end
+    return out
+end
+
+function R.GetProperArmorRange(classFile, playerLevel, maxLvl, equipOnly)
+    local lvl = playerLevel or 1
+    local topLvl = maxLvl or lvl
+    if classFile == "MAGE" or classFile == "PRIEST" or classFile == "WARLOCK" then
+        return 1, 1, 1
+    elseif classFile == "ROGUE" or classFile == "DRUID" then
+        return 2, 2, 2
+    elseif classFile == "HUNTER" or classFile == "SHAMAN" then
+        if lvl >= 40 then return 3, 3, 3 end
+        if equipOnly or topLvl < 40 then return 2, 2, 2 end
+        return 2, 3, 3
+    elseif classFile == "WARRIOR" or classFile == "PALADIN" then
+        if lvl >= 40 then return 4, 4, 4 end
+        if equipOnly or topLvl < 40 then return 3, 3, 3 end
+        return 3, 4, 4
+    elseif classFile == "DEATHKNIGHT" then
+        return 4, 4, 4
+    end
+    local maxArmor = CLASS_MAX_ARMOR[classFile] or 4
+    return maxArmor, maxArmor, maxArmor
+end
+
+function R.MatchesArmorRule(equipLoc, classID, subClassID, itemReq, ctx, maxLvl, equipOnly, anyArmor)
+    if classID ~= 4 or not equipLoc or ACCESSORY_EQUIP_LOCS[equipLoc] then
+        return true, nil
+    end
+    if not subClassID or subClassID < 1 or subClassID > 4 then
+        return false, nil
+    end
+    local minA, maxA, primaryA = R.GetProperArmorRange(ctx.classFile, ctx.playerLevel, maxLvl, equipOnly)
+    local expectedA = (minA ~= maxA and itemReq and itemReq > 0 and itemReq < 40) and minA or primaryA
+    if anyArmor then
+        if subClassID <= maxA then
+            return true, expectedA
+        end
+        return false, expectedA
+    end
+    if minA == maxA then
+        return subClassID == primaryA, primaryA
+    end
+    if itemReq and itemReq > 0 then
+        return subClassID == expectedA, expectedA
+    end
+    return (subClassID == minA or subClassID == maxA), expectedA
+end
+
+function R.GetCraftMeta(spellID)
+    local recMod = sfui.recipes_camelot
+    if not recMod or not spellID then return nil, nil end
+    local raw = recMod._raw and recMod._raw[spellID]
+    if raw then
+        return raw[2], (raw[3] and raw[3] >= 0) and raw[3] or nil
+    end
+    local decoded = recMod.recipes and recMod.recipes[spellID]
+    if decoded then
+        return decoded.skillID, (decoded.minSkill and decoded.minSkill >= 0) and decoded.minSkill or nil
+    end
+    return nil, nil
+end
+
+function R.UpdateEquippedLabel(db)
+    local lbl = ui.resistEquippedLabel
+    if not lbl then return end
+    local schoolKey = state.resistFilter
+    local def = schoolKey and R.SCHOOL_BY_KEY[schoolKey]
+    if not def then
+        lbl:Hide()
+        return
+    end
+    local eqVal = R.GetPlayerEquippedResist(schoolKey) or 0
+    lbl:SetText("equipped: " .. tostring(eqVal) .. " " .. def.label)
+    lbl:SetTextColor(def.color[1], def.color[2], def.color[3], 1)
+    lbl:Show()
 end
 
 -- ─── Instant Pre-filter (C++ GetItemInfoInstant) ─────────────────────────────
@@ -856,6 +1070,8 @@ local function BuildSourceDedupKey(itemID, src)
         return tostring(itemID) .. "|q|" .. tostring(src.questID or src.questName or "")
     elseif src.kind == "vendor" then
         return tostring(itemID) .. "|v|" .. tostring(src.npcID or src.npcName or "")
+    elseif src.kind == "crafted" then
+        return tostring(itemID) .. "|c|" .. tostring(src.spellID or "")
     elseif src.kind == "ah" then
         return tostring(itemID) .. "|ah"
     end
@@ -897,7 +1113,7 @@ local function AddCandidateSource(candidates, dedupMap, itemID, src, equipLoc, i
 
     cand.sources[#cand.sources + 1] = src
     cand.sourceKinds[src.kind] = true
-    if src.kind == "dungeon" or src.kind == "quest" then
+    if src.kind == "dungeon" or src.kind == "quest" or src.kind == "crafted" then
         cand.hasDungeonOrQuest = true
     end
     return true
@@ -908,13 +1124,15 @@ local function BuildDungeonCandidates(ctx, db, minLvl, maxLvl, equipOnly, candid
     local dj = sfui.dj_camelot
     if not dj or type(dj.dungeons) ~= "table" then return end
 
-    local ItemDB      = _G.ItemDB
-    local hasItemIlvl = (type(ItemDB) == "table" and type(ItemDB.itemLevel) == "function")
-    local wantDungeon = db.sources.dungeon == true
-    local wantQuest   = db.sources.quest == true
-    local maxCap      = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 60
-    local questMaxLvl = equipOnly and math.min(maxCap, ctx.playerLevel + 5) or maxLvl
-    local bossMaxLvl  = equipOnly and math.min(maxCap, ctx.playerLevel + 5) or maxLvl
+    local ItemDB       = _G.ItemDB
+    local hasItemIlvl  = (type(ItemDB) == "table" and type(ItemDB.itemLevel) == "function")
+    local wantDungeon  = db.sources.dungeon == true
+    local wantQuest    = db.sources.quest == true
+    local maxCap       = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 60
+    local questMaxLvl  = equipOnly and math.min(maxCap, ctx.playerLevel + 5) or maxLvl
+    local bossMaxLvl   = equipOnly and math.min(maxCap, ctx.playerLevel + 5) or maxLvl
+    local isResistMode = (state.resistFilter ~= nil)
+    local anyArmor     = (state.resistAnyArmor == true)
 
     for _, dungeon in ipairs(dj.dungeons) do
         local dMin = tonumber(dungeon.minLevel) or 1
@@ -925,20 +1143,23 @@ local function BuildDungeonCandidates(ctx, db, minLvl, maxLvl, equipOnly, candid
                 for _, boss in ipairs(dungeon.bosses) do
                     if type(boss.items) == "table" then
                         for _, itemID in ipairs(boss.items) do
-                            local canWear, equipLoc = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
+                            local canWear, equipLoc, cID, scID = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
                             if canWear and not IsPreLoadQualityRejected(itemID, ctx, false) then
-                                local itemIlvl = hasItemIlvl and (ItemDB.itemLevel(itemID) or 0) or 0
-                                if not IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
-                                    AddCandidateSource(candidates, dedupMap, itemID, {
-                                        kind        = "dungeon",
-                                        dungeonID   = dungeon.id,
-                                        dungeonName = LowerText(dungeon.name or dungeon.id),
-                                        bossName    = LowerText(boss.name or "boss"),
-                                        bossLevel   = tonumber(boss.level) or dMax,
-                                        dropRate    = boss.dropRates and boss.dropRates[itemID] or nil,
-                                        entrance    = dungeon.entrance,
-                                        isRaid      = (dungeon.category == "raid"),
-                                    }, equipLoc, itemIlvl)
+                                local armorOK = (not isResistMode) or R.MatchesArmorRule(equipLoc, cID, scID, nil, ctx, maxLvl, equipOnly, anyArmor)
+                                if armorOK then
+                                    local itemIlvl = hasItemIlvl and (ItemDB.itemLevel(itemID) or 0) or 0
+                                    if isResistMode or not IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
+                                        AddCandidateSource(candidates, dedupMap, itemID, {
+                                            kind        = "dungeon",
+                                            dungeonID   = dungeon.id,
+                                            dungeonName = LowerText(dungeon.name or dungeon.id),
+                                            bossName    = LowerText(boss.name or "boss"),
+                                            bossLevel   = tonumber(boss.level) or dMax,
+                                            dropRate    = boss.dropRates and boss.dropRates[itemID] or nil,
+                                            entrance    = dungeon.entrance,
+                                            isRaid      = (dungeon.category == "raid"),
+                                        }, equipLoc, itemIlvl)
+                                    end
                                 end
                             end
                         end
@@ -965,23 +1186,26 @@ local function BuildDungeonCandidates(ctx, db, minLvl, maxLvl, equipOnly, candid
                                 or (quest.chain and quest.chain[1] and quest.chain[1].coords)
                                 or dungeon.entrance
                             for _, itemID in ipairs(quest.rewardItems) do
-                                local canWear, equipLoc = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
+                                local canWear, equipLoc, cID, scID = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
                                 if canWear and not IsPreLoadQualityRejected(itemID, ctx, false) then
-                                    local itemIlvl = hasItemIlvl and (ItemDB.itemLevel(itemID) or 0) or 0
-                                    if not IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
-                                        AddCandidateSource(candidates, dedupMap, itemID, {
-                                            kind        = "quest",
-                                            fromDJ      = true,
-                                            questID     = qID,
-                                            questName   = LowerText(quest.name or ("quest #" .. tostring(qID))),
-                                            questLevel  = qLvl,
-                                            reqLevel    = qMin,
-                                            dungeonID   = dungeon.id,
-                                            dungeonName = LowerText(dungeon.name or ""),
-                                            pickup      = quest.pickup and LowerText(quest.pickup) or nil,
-                                            hasPrereq   = quest.hasPrereq == true,
-                                            coords      = coords,
-                                        }, equipLoc, itemIlvl)
+                                    local armorOK = (not isResistMode) or R.MatchesArmorRule(equipLoc, cID, scID, qMin > 0 and qMin or nil, ctx, maxLvl, equipOnly, anyArmor)
+                                    if armorOK then
+                                        local itemIlvl = hasItemIlvl and (ItemDB.itemLevel(itemID) or 0) or 0
+                                        if isResistMode or not IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
+                                            AddCandidateSource(candidates, dedupMap, itemID, {
+                                                kind        = "quest",
+                                                fromDJ      = true,
+                                                questID     = qID,
+                                                questName   = LowerText(quest.name or ("quest #" .. tostring(qID))),
+                                                questLevel  = qLvl,
+                                                reqLevel    = qMin,
+                                                dungeonID   = dungeon.id,
+                                                dungeonName = LowerText(dungeon.name or ""),
+                                                pickup      = quest.pickup and LowerText(quest.pickup) or nil,
+                                                hasPrereq   = quest.hasPrereq == true,
+                                                coords      = coords,
+                                            }, equipLoc, itemIlvl)
+                                        end
                                     end
                                 end
                             end
@@ -993,32 +1217,99 @@ local function BuildDungeonCandidates(ctx, db, minLvl, maxLvl, equipOnly, candid
     end
 end
 
--- ─── Stage A2: Crafted BoE AH Candidates via TSM ─────────────────────────────
-local function TryAddCraftedAHCandidate(
-    itemID, spellID, ctx, minLvl, maxLvl, equipOnly, ItemDB, maxCopper, candidates, dedupMap
+-- ─── Stage A2: Crafted Recipe & BoE AH Candidates ─────────────────────────────
+function R.TryAddCrafted(
+    itemID, spellID, ctx, minLvl, maxLvl, equipOnly, ItemDB, isResistMode, anyArmor, candidates, dedupMap
 )
     if type(itemID) ~= "number" then return false end
-    local canWear, equipLoc = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
-    if not canWear or IsPreLoadQualityRejected(itemID, ctx, true) then
+    local canWear, equipLoc, classID, subClassID = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
+    if not canWear or IsPreLoadQualityRejected(itemID, ctx, false) then
         return false
     end
 
+    local itemReq = 0
     local itemIlvl = 0
     local lvlOK = true
     if type(ItemDB) == "table" then
-        local itemReq = (ItemDB.requiredLevel and ItemDB.requiredLevel(itemID)) or 0
+        itemReq = (ItemDB.requiredLevel and ItemDB.requiredLevel(itemID)) or 0
         itemIlvl = (ItemDB.itemLevel and ItemDB.itemLevel(itemID)) or 0
         if itemReq > 0 then
-            if itemReq > maxLvl or itemReq < (minLvl - 3) or (equipOnly and itemReq > ctx.playerLevel) then
+            if itemReq > maxLvl or (equipOnly and itemReq > ctx.playerLevel) then
+                lvlOK = false
+            elseif not isResistMode and itemReq < (minLvl - 3) then
                 lvlOK = false
             end
         elseif itemIlvl > 0 then
-            if itemIlvl < (minLvl - 8) or itemIlvl > (maxLvl + 14) then
+            local maxCap = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 60
+            local maxIlvlBound = (isResistMode and maxLvl >= maxCap) and (maxLvl + 35) or (maxLvl + 14)
+            if (not isResistMode and itemIlvl < (minLvl - 8)) or itemIlvl > maxIlvlBound then
                 lvlOK = false
             end
         end
     end
-    if not lvlOK or IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
+    if not lvlOK then
+        return false
+    end
+    if isResistMode then
+        if not R.MatchesArmorRule(equipLoc, classID, subClassID, itemReq, ctx, maxLvl, equipOnly, anyArmor) then
+            return false
+        end
+    elseif IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
+        return false
+    end
+
+    local skillID, minSkill = R.GetCraftMeta(spellID)
+    local profName = (skillID and R.SKILL_NAMES[skillID]) or "recipe"
+    local buyout = HasTSM() and GetTSMBuyoutCopper(itemID) or nil
+
+    return AddCandidateSource(candidates, dedupMap, itemID, {
+        kind       = "crafted",
+        spellID    = spellID,
+        skillID    = skillID,
+        profession = profName,
+        minSkill   = minSkill,
+        buyout     = buyout,
+        isCrafted  = true,
+    }, equipLoc, itemIlvl)
+end
+
+local function TryAddCraftedAHCandidate(
+    itemID, spellID, ctx, minLvl, maxLvl, equipOnly, ItemDB, maxCopper, candidates, dedupMap
+)
+    if type(itemID) ~= "number" then return false end
+    local isResistMode = (state.resistFilter ~= nil)
+    local anyArmor = (state.resistAnyArmor == true)
+    local canWear, equipLoc, classID, subClassID = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
+    if not canWear or IsPreLoadQualityRejected(itemID, ctx, not isResistMode) then
+        return false
+    end
+
+    local itemReq = 0
+    local itemIlvl = 0
+    local lvlOK = true
+    if type(ItemDB) == "table" then
+        itemReq = (ItemDB.requiredLevel and ItemDB.requiredLevel(itemID)) or 0
+        itemIlvl = (ItemDB.itemLevel and ItemDB.itemLevel(itemID)) or 0
+        if itemReq > 0 then
+            if itemReq > maxLvl or (equipOnly and itemReq > ctx.playerLevel) or (not isResistMode and itemReq < (minLvl - 3)) then
+                lvlOK = false
+            end
+        elseif itemIlvl > 0 then
+            local maxCap = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 60
+            local maxIlvlBound = (isResistMode and maxLvl >= maxCap) and (maxLvl + 35) or (maxLvl + 14)
+            if (not isResistMode and itemIlvl < (minLvl - 8)) or itemIlvl > maxIlvlBound then
+                lvlOK = false
+            end
+        end
+    end
+    if not lvlOK then
+        return false
+    end
+    if isResistMode then
+        if not R.MatchesArmorRule(equipLoc, classID, subClassID, itemReq, ctx, maxLvl, equipOnly, anyArmor) then
+            return false
+        end
+    elseif IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
         return false
     end
 
@@ -1267,15 +1558,90 @@ local function CompareTrinkets(a, b)
     return (a.itemID or 0) < (b.itemID or 0)
 end
 
+function R.BuildEntry(itemID, name, link, quality, baseIlvl, exactReq, equipLoc, icon, ctx, maxLvl, equipOnly, cand)
+    local schoolKey = state.resistFilter
+    if not schoolKey then return nil end
+
+    local _, _, _, instEquipLoc, _, classID, subClassID = SafeGetItemInfoInstant(itemID)
+    if not equipLoc or equipLoc == "" then
+        equipLoc = instEquipLoc
+    end
+    if not EQUIP_LOC_VALID[equipLoc] then
+        return nil
+    end
+
+    local anyArmor = (state.resistAnyArmor == true)
+    local armorOK, expectedArmor = R.MatchesArmorRule(equipLoc, classID, subClassID, exactReq, ctx, maxLvl, equipOnly, anyArmor)
+    if not armorOK then
+        return nil
+    end
+
+    if sfui.highest and sfui.highest.CanPlayerUseItem then
+        if not sfui.highest.CanPlayerUseItem(link, itemID, not equipOnly) then
+            return nil
+        end
+    end
+
+    local resists = R.GetItemResistances(itemID, link)
+    local rVal = resists and resists[schoolKey] or 0
+    if rVal <= 0 then
+        return nil
+    end
+
+    local slotKey = EQUIP_LOC_TO_SLOT_KEY[equipLoc]
+    local slotDef = slotKey and SLOT_KEY_TO_DEF[slotKey]
+    if not slotKey or not slotDef then
+        return nil
+    end
+
+    local eqResistMap = ctx.equippedResistBySlot
+    if not eqResistMap then
+        eqResistMap = R.BuildEquippedResistBySlot(ctx, schoolKey)
+        ctx.equippedResistBySlot = eqResistMap
+    end
+    local eqSlotResist = eqResistMap[slotKey] or 0
+    local isEquipped = IsItemCurrentlyEquipped(itemID, slotDef.slotIDs)
+    local armorLabel = nil
+    if expectedArmor and subClassID and subClassID ~= expectedArmor then
+        armorLabel = R.ARMOR_LABELS[subClassID]
+    end
+
+    return {
+        itemID              = itemID,
+        link                = link or ("item:" .. tostring(itemID)),
+        name                = LowerText(name),
+        quality             = quality or 1,
+        ilvl                = SafeGetItemLevel(link or itemID, baseIlvl),
+        reqLevel            = exactReq,
+        icon                = icon or 134400,
+        slotID              = slotDef.slotIDs and slotDef.slotIDs[1] or 0,
+        slotKey             = slotKey,
+        isUnrated           = false,
+        isResistEntry       = true,
+        resistSchool        = schoolKey,
+        resistValue         = rVal,
+        resistAll           = resists,
+        equippedSlotResist  = eqSlotResist,
+        resistDelta         = rVal - eqSlotResist,
+        isEquipped          = isEquipped,
+        armorLabel          = armorLabel,
+        requiresHigherLevel = exactReq > ctx.playerLevel,
+        roleLabel           = ctx.roleLabel,
+        sources             = cand and cand.sources or {},
+    }
+end
+
 local function BuildUpgradeEntry(itemID, ctx, minLvl, maxLvl, equipOnly)
     local name, link, quality, baseIlvl, reqLvl, _, _, _, equipLoc, icon, _, _, _, bindType = SafeGetItemInfo(itemID)
     if not name then
         return nil, true -- uncached
     end
 
+    local isResistMode = (state.resistFilter ~= nil)
     local cand = state.candidates[itemID]
     if cand and cand.sourceKinds and cand.sourceKinds.ah then
-        local isValidAH = (quality and quality >= 3) and (bindType == 2)
+        local minAHQual = isResistMode and 2 or 3
+        local isValidAH = (quality and quality >= minAHQual) and (bindType == 2)
         if isValidAH and common and common.is_random_enchant_item then
             local itemRef = link or ("item:" .. tostring(itemID))
             if common.is_random_enchant_item(itemRef) then
@@ -1299,17 +1665,24 @@ local function BuildUpgradeEntry(itemID, ctx, minLvl, maxLvl, equipOnly)
     if exactReq > 0 then
         if exactReq > maxLvl then return nil, false end
         if equipOnly and exactReq > ctx.playerLevel then return nil, false end
-        if exactReq < (minLvl - 3) then return nil, false end
+        if not isResistMode and exactReq < (minLvl - 3) then return nil, false end
     elseif cand and cand.sourceKinds and cand.sourceKinds.ah
-        and not cand.sourceKinds.dungeon and not cand.sourceKinds.quest and not cand.sourceKinds.vendor
+        and not cand.sourceKinds.dungeon and not cand.sourceKinds.quest and not cand.sourceKinds.vendor and not cand.sourceKinds.crafted
     then
-        if baseIlvl and baseIlvl > 0 and (baseIlvl < (minLvl - 5) or baseIlvl > (maxLvl + 8)) then
-            return nil, false
+        local maxCap = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 60
+        if baseIlvl and baseIlvl > 0 then
+            if (not isResistMode and baseIlvl < (minLvl - 5)) or ((not isResistMode or maxLvl < maxCap) and baseIlvl > (maxLvl + 8)) then
+                return nil, false
+            end
         end
     end
 
     if ctx.playerLevel >= 12 and quality and quality < 2 then
         return nil, false
+    end
+
+    if isResistMode then
+        return R.BuildEntry(itemID, name, link, quality, baseIlvl, exactReq, equipLoc, icon, ctx, maxLvl, equipOnly, cand), false
     end
 
     if not equipLoc or equipLoc == "" then
@@ -1381,6 +1754,22 @@ local function BuildUpgradeEntry(itemID, ctx, minLvl, maxLvl, equipOnly)
     }, false
 end
 
+function R.CompareItems(a, b)
+    if (a.resistValue or 0) ~= (b.resistValue or 0) then
+        return (a.resistValue or 0) > (b.resistValue or 0)
+    end
+    if a.requiresHigherLevel ~= b.requiresHigherLevel then
+        return not a.requiresHigherLevel
+    end
+    if (a.ilvl or 0) ~= (b.ilvl or 0) then
+        return (a.ilvl or 0) > (b.ilvl or 0)
+    end
+    if (a.quality or 0) ~= (b.quality or 0) then
+        return (a.quality or 0) > (b.quality or 0)
+    end
+    return (a.itemID or 0) < (b.itemID or 0)
+end
+
 local function CompareUpgrades(a, b)
     if (a.isUnrated == true) ~= (b.isUnrated == true) then
         return not a.isUnrated
@@ -1404,7 +1793,8 @@ local function RebuildGroupedResults()
     local db = DB()
     local hidden = GetCharHidden()
     local showHidden = (db.showHidden == true)
-    local emptyTrinket = HasEmptyTrinketSlot()
+    local isResistMode = (state.resistFilter ~= nil)
+    local emptyTrinket = (not isResistMode) and HasEmptyTrinketSlot()
 
     local bySlot = {}
     local all = {}
@@ -1424,23 +1814,33 @@ local function RebuildGroupedResults()
             if list then
                 list[#list + 1] = entry
             end
-            if not entry.isUnrated or emptyTrinket then
+            if isResistMode or not entry.isUnrated or emptyTrinket then
                 all[#all + 1] = entry
             end
         end
     end
 
-    for k, list in pairs(bySlot) do
-        if k == "trinket" then
-            table.sort(list, CompareTrinkets)
-        else
-            table.sort(list, CompareUpgrades)
+    if isResistMode then
+        for k, list in pairs(bySlot) do
+            table.sort(list, R.CompareItems)
             if list[1] then
                 bestBySlot[k] = list[1]
             end
         end
+        table.sort(all, R.CompareItems)
+    else
+        for k, list in pairs(bySlot) do
+            if k == "trinket" then
+                table.sort(list, CompareTrinkets)
+            else
+                table.sort(list, CompareUpgrades)
+                if list[1] then
+                    bestBySlot[k] = list[1]
+                end
+            end
+        end
+        table.sort(all, CompareUpgrades)
     end
-    table.sort(all, CompareUpgrades)
 
     state.results.bySlot = bySlot
     state.results.all = all
@@ -1471,7 +1871,7 @@ end
 local function ComputeLoadPriority(itemID, equipLoc, itemIlvl, ctx, selectedSlot)
     local cand = state.candidates[itemID]
     local hasHighSrc = (cand and cand.hasDungeonOrQuest == true) or false
-    local floorIlvl = GetEquippedFloorForEquipLoc(equipLoc, ctx)
+    local floorIlvl = (not state.resistFilter) and GetEquippedFloorForEquipLoc(equipLoc, ctx) or 0
     if (selectedSlot and selectedSlot ~= "all" and DoesEquipLocMatchSlot(equipLoc, selectedSlot))
         or floorIlvl == 0
         or (hasHighSrc and ((itemIlvl or 0) == 0 or itemIlvl >= floorIlvl))
@@ -1618,7 +2018,7 @@ local function PruneSourceFilterInPlace(kind)
             for _, src in ipairs(cand.sources) do
                 if src.kind ~= kind then
                     kept[#kept + 1] = src
-                    if src.kind == "dungeon" or src.kind == "quest" then
+                    if src.kind == "dungeon" or src.kind == "quest" or src.kind == "crafted" then
                         hasDQ = true
                     end
                 end
@@ -1850,17 +2250,21 @@ end
 local function ProcessQuestieCandidate(
     itemID, equipLoc, itemReq, itemIlvl, qIdsPre, vIdsPre,
     ctx, minLvl, maxLvl, equipOnly, wantQuest, wantVendor, wantAH, maxCopper,
-    djQuestSeen, questEvalCache, vendorEvalCache, ItemDB
+    djQuestSeen, questEvalCache, vendorEvalCache, ItemDB, itemClassID, itemSubClassID
 )
+    local isResistMode = (state.resistFilter ~= nil)
+    local anyArmor = (state.resistAnyArmor == true)
+    local maxCap = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel()) or 60
     local reqOK = true
     if itemReq > 0 then
-        if itemReq > maxLvl or itemReq < (minLvl - 3) then
+        if itemReq > maxLvl or (not isResistMode and itemReq < (minLvl - 3)) then
             reqOK = false
         elseif equipOnly and itemReq > ctx.playerLevel then
             reqOK = false
         end
     elseif itemIlvl > 0 then
-        if itemIlvl < (minLvl - 8) or itemIlvl > (maxLvl + 14) then
+        local maxIlvlBound = (isResistMode and maxLvl >= maxCap) and (maxLvl + 35) or (maxLvl + 14)
+        if (not isResistMode and itemIlvl < (minLvl - 8)) or itemIlvl > maxIlvlBound then
             reqOK = false
         end
     end
@@ -1868,7 +2272,16 @@ local function ProcessQuestieCandidate(
         return false
     end
 
-    if IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
+    if isResistMode then
+        if not itemClassID then
+            local _, _, _, eqLoc, _, cID, scID = SafeGetItemInfoInstant(itemID)
+            equipLoc = equipLoc or eqLoc
+            itemClassID, itemSubClassID = cID, scID
+        end
+        if not R.MatchesArmorRule(equipLoc, itemClassID, itemSubClassID, itemReq, ctx, maxLvl, equipOnly, anyArmor) then
+            return false
+        end
+    elseif IsBelowEquippedIlvlFloor(equipLoc, itemIlvl, ctx) then
         return false
     end
     if IsPreLoadQualityRejected(itemID, ctx, false) then
@@ -1892,7 +2305,8 @@ local function ProcessQuestieCandidate(
 
     if wantVendor then
         local vendorLvlOK = (itemReq > 0 and itemReq >= minLvl and itemReq <= maxLvl)
-            or (itemReq == 0 and itemIlvl >= minLvl and itemIlvl <= (maxLvl + 5))
+            or (itemReq == 0 and ((isResistMode and (itemIlvl == 0 or maxLvl >= maxCap or itemIlvl <= (maxLvl + 14)))
+                or (not isResistMode and itemIlvl >= minLvl and itemIlvl <= (maxLvl + 5))))
         if vendorLvlOK then
             local vIds = vIdsPre or (ItemDB.vendors and ItemDB.vendors(itemID))
             if type(vIds) == "table" then
@@ -1906,7 +2320,7 @@ local function ProcessQuestieCandidate(
         end
     end
 
-    if wantAH and not IsPreLoadQualityRejected(itemID, ctx, true) then
+    if wantAH and not IsPreLoadQualityRejected(itemID, ctx, not isResistMode) then
         local buyout = GetTSMBuyoutCopper(itemID)
         if buyout and (maxCopper == 0 or buyout <= maxCopper) then
             if AddCandidateSource(state.candidates, state.sourceDedup, itemID, {
@@ -1922,6 +2336,37 @@ local function ProcessQuestieCandidate(
         return EvaluateCandidateItem(itemID, ctx, minLvl, maxLvl, equipOnly)
     end
     return false
+end
+
+local function RunCraftedPass(serial, ctx, db, minLvl, maxLvl, equipOnly, yieldState)
+    if not R.IsCraftedEnabled(db) then return end
+    local rec = sfui.recipes_camelot
+    local outputs = rec and rec.outputs
+    if type(outputs) ~= "table" then return end
+
+    local ItemDB = _G.ItemDB
+    local isResistMode = (state.resistFilter ~= nil)
+    local anyArmor = (state.resistAnyArmor == true)
+    state.scanPhase = "scanning"
+
+    for itemID, spellID in pairs(outputs) do
+        if state.scanSerial ~= serial then return end
+        yieldState.processedInSlice = yieldState.processedInSlice + 1
+
+        if R.TryAddCrafted(
+            itemID, spellID, ctx, minLvl, maxLvl, equipOnly, ItemDB, isResistMode, anyArmor, state.candidates, state.sourceDedup
+        ) then
+            if not state.evaluatedInScan[itemID] and not state.pendingLoadSet[itemID] and not state.deferredSet[itemID] then
+                if EvaluateCandidateItem(itemID, ctx, minLvl, maxLvl, equipOnly) then
+                    yieldState.batchHits = yieldState.batchHits + 1
+                end
+            end
+        end
+
+        if yieldState.maybeYield() then
+            return
+        end
+    end
 end
 
 local function RunCraftedAHPass(serial, ctx, db, minLvl, maxLvl, equipOnly, yieldState)
@@ -1982,7 +2427,7 @@ local function RunQuestiePass(serial, ctx, db, minLvl, maxLvl, equipOnly, djQues
             if ProcessQuestieCandidate(
                 rec.id, rec.equipLoc, rec.req, rec.ilvl, nil, nil,
                 ctx, minLvl, maxLvl, equipOnly, wantQuest and rec.hasQ, wantVendor and rec.hasV, wantAH, maxCopper,
-                djQuestSeen, questEvalCache, vendorEvalCache, ItemDB
+                djQuestSeen, questEvalCache, vendorEvalCache, ItemDB, rec.classID, rec.subClassID
             ) then
                 yieldState.batchHits = yieldState.batchHits + 1
             end
@@ -2006,7 +2451,7 @@ local function RunQuestiePass(serial, ctx, db, minLvl, maxLvl, equipOnly, djQues
         state.scanProgress = i
         yieldState.processedInSlice = yieldState.processedInSlice + 1
 
-        local canWear, equipLoc = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
+        local canWear, equipLoc, itemClassID, itemSubClassID = CanClassWearInstant(itemID, ctx.classFile, ctx.activeSpecID)
         if canWear then
             local itemReq = (ItemDB.requiredLevel and ItemDB.requiredLevel(itemID)) or 0
             local itemIlvl = (ItemDB.itemLevel and ItemDB.itemLevel(itemID)) or 0
@@ -2015,12 +2460,14 @@ local function RunQuestiePass(serial, ctx, db, minLvl, maxLvl, equipOnly, djQues
             local hasQ = type(qIds) == "table" and #qIds > 0
             local hasV = type(vIds) == "table" and #vIds > 0
             local rec = {
-                id       = itemID,
-                equipLoc = equipLoc,
-                req      = itemReq,
-                ilvl     = itemIlvl,
-                hasQ     = hasQ,
-                hasV     = hasV,
+                id         = itemID,
+                equipLoc   = equipLoc,
+                classID    = itemClassID,
+                subClassID = itemSubClassID,
+                req        = itemReq,
+                ilvl       = itemIlvl,
+                hasQ       = hasQ,
+                hasV       = hasV,
             }
             buildingWearable[#buildingWearable + 1] = rec
             if hasQ or hasV then
@@ -2030,7 +2477,7 @@ local function RunQuestiePass(serial, ctx, db, minLvl, maxLvl, equipOnly, djQues
             if ProcessQuestieCandidate(
                 itemID, equipLoc, itemReq, itemIlvl, qIds, vIds,
                 ctx, minLvl, maxLvl, equipOnly, wantQuest and hasQ, wantVendor and hasV, wantAH, maxCopper,
-                djQuestSeen, questEvalCache, vendorEvalCache, ItemDB
+                djQuestSeen, questEvalCache, vendorEvalCache, ItemDB, itemClassID, itemSubClassID
             ) then
                 yieldState.batchHits = yieldState.batchHits + 1
             end
@@ -2081,6 +2528,10 @@ local function StartScan(force)
     state.lastContext = ctx
 
     local minLvl, maxLvl, equipOnly = GetLevelWindow(db, ctx.playerLevel)
+    if state.resistFilter ~= nil then
+        minLvl = 1
+        ctx.equippedResistBySlot = R.BuildEquippedResistBySlot(ctx, state.resistFilter)
+    end
     state.lastMinLvl = minLvl
     state.lastMaxLvl = maxLvl
     state.lastEquipOnly = equipOnly
@@ -2155,12 +2606,14 @@ local function StartScan(force)
     end
 
     local needStageACo = stageACursor <= #stageAIds
+    local needCraftedCo = R.IsCraftedEnabled(db)
+        and (sfui.recipes_camelot ~= nil) and (type(sfui.recipes_camelot.outputs) == "table")
     local needCraftedAHCo = (db.sources.ah == true) and HasTSM()
         and (sfui.recipes_camelot ~= nil) and (type(sfui.recipes_camelot.outputs) == "table")
     local needQuestieCo = HasQuestieDB() and (db.sources.quest or db.sources.vendor or (db.sources.ah and HasTSM()))
 
     local visible = IsPanelVisible()
-    if needStageACo or needCraftedAHCo or needQuestieCo then
+    if needStageACo or needCraftedCo or needCraftedAHCo or needQuestieCo then
         state.isScanning = true
         state.scanPhase = "scanning"
         state.scanTotal = #stageAIds
@@ -2224,9 +2677,14 @@ local function StartScan(force)
                         yieldState.batchHits = yieldState.batchHits + 1
                     end
                 end
-                if (idx < #stageAIds or needCraftedAHCo or needQuestieCo) and yieldState.maybeYield() then
+                if (idx < #stageAIds or needCraftedCo or needCraftedAHCo or needQuestieCo) and yieldState.maybeYield() then
                     return
                 end
+            end
+
+            if needCraftedCo then
+                RunCraftedPass(serial, ctx, db, minLvl, maxLvl, equipOnly, yieldState)
+                if state.scanSerial ~= serial then return end
             end
 
             if needCraftedAHCo then
@@ -2291,6 +2749,15 @@ local function FormatSourceSummary(src)
             text = text .. " · " .. src.zoneName
         end
         return text
+    elseif src.kind == "crafted" then
+        local text = "crafted · " .. tostring(src.profession or "recipe")
+        if src.minSkill and src.minSkill > 0 then
+            text = text .. " (" .. tostring(src.minSkill) .. ")"
+        end
+        if src.buyout and src.buyout > 0 then
+            text = text .. " · ah " .. FormatCopperShort(src.buyout)
+        end
+        return text
     elseif src.kind == "ah" then
         local text = "ah · " .. FormatCopperShort(src.buyout)
         if src.isCrafted then
@@ -2309,7 +2776,9 @@ local function CanRunAction(src)
     if src.kind == "quest" and src.fromDJ and sfui.dungeonjournal and (sfui.dungeonjournal.SelectQuest or sfui.dungeonjournal.OpenToQuest or sfui.dungeonjournal.SelectDungeon) then
         return true, "quest"
     end
-    if src.kind == "ah" and src.isCrafted and src.spellID and sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
+    if (src.kind == "crafted" or (src.kind == "ah" and src.isCrafted))
+        and src.spellID and sfui.recipes and sfui.recipes.OpenBrowserToRecipe
+    then
         return true, "recipe"
     end
     local wp = src.coords or src.entrance
@@ -2352,7 +2821,9 @@ local function ExecuteSourceAction(src, mouseButton)
             sfui.dungeonjournal.SelectDungeon(src.dungeonID, "quests", true)
             return true
         end
-    elseif src.kind == "ah" and src.isCrafted and src.spellID and sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
+    elseif (src.kind == "crafted" or (src.kind == "ah" and src.isCrafted))
+        and src.spellID and sfui.recipes and sfui.recipes.OpenBrowserToRecipe
+    then
         sfui.recipes.OpenBrowserToRecipe(src.spellID)
         return true
     end
@@ -2404,15 +2875,69 @@ local function UpdateFilterVisuals()
     end
 
     if ui.sourceBtns then
+        local hasRecipes = (sfui.recipes_camelot ~= nil) and (type(sfui.recipes_camelot.outputs) == "table")
         for kind, btn in pairs(ui.sourceBtns) do
-            local on = (db.sources[kind] == true)
-            local available = (kind == "dungeon") or (kind == "quest") or (kind == "ah" and hasTSM) or (kind == "vendor" and hasQDB)
+            local on
+            if kind == "crafted" then
+                on = R.IsCraftedEnabled(db)
+            else
+                on = (db.sources[kind] == true)
+            end
+            local available = (kind == "dungeon") or (kind == "quest")
+                or (kind == "crafted" and hasRecipes)
+                or (kind == "ah" and hasTSM)
+                or (kind == "vendor" and hasQDB)
             if theme and theme.SetButtonSelected then
                 theme.SetButtonSelected(btn, on and available)
             end
             btn:SetAlpha(available and 1.0 or 0.45)
         end
     end
+
+    if ui.resistBtns then
+        local activeKey = state.resistFilter
+        local useAH = theme and theme.IsAuctionHouseButtonActive and theme.IsAuctionHouseButtonActive()
+        for _, def in ipairs(R.SCHOOLS) do
+            local btn = ui.resistBtns[def.key]
+            if btn then
+                local isActive = (activeKey == def.key)
+                if theme and theme.SetButtonSelected then
+                    theme.SetButtonSelected(btn, isActive)
+                end
+                local fs = btn.GetFontString and btn:GetFontString()
+                if isActive then
+                    if not useAH and btn.SetBackdropBorderColor then
+                        btn:SetBackdropBorderColor(def.color[1], def.color[2], def.color[3], 1)
+                    end
+                    if fs and fs.SetTextColor then
+                        fs:SetTextColor(def.color[1], def.color[2], def.color[3], 1)
+                    end
+                    btn:SetAlpha(1.0)
+                else
+                    if fs and fs.SetTextColor then
+                        fs:SetTextColor(0.82, 0.82, 0.86, 1)
+                    end
+                    btn:SetAlpha(activeKey and 0.72 or 0.90)
+                end
+            end
+        end
+    end
+
+    if ui.anyArmorBtn then
+        local showResist = (state.resistFilter ~= nil)
+        if ui.anyArmorBtn.SetShown then
+            ui.anyArmorBtn:SetShown(showResist)
+        elseif showResist then
+            ui.anyArmorBtn:Show()
+        else
+            ui.anyArmorBtn:Hide()
+        end
+        if showResist and theme and theme.SetButtonSelected then
+            theme.SetButtonSelected(ui.anyArmorBtn, state.resistAnyArmor == true)
+        end
+    end
+
+    R.UpdateEquippedLabel(db)
 end
 
 local function ApplyRowTheme(frame, pal)
@@ -2537,7 +3062,35 @@ local function AcquireRow(idx)
             tip:SetHyperlink("item:" .. tostring(entry.itemID))
         end
         tip:AddLine(" ")
-        if entry.isUnrated then
+        if entry.isResistEntry then
+            local def = R.SCHOOL_BY_KEY[entry.resistSchool]
+            local sc = (def and def.color) or { 0.85, 0.85, 0.90 }
+            local resLine = (def and def.label or entry.resistSchool or "resist")
+                .. " resistance: +" .. tostring(entry.resistValue or 0)
+            if entry.equippedSlotResist ~= nil then
+                local delta = entry.resistDelta or 0
+                local dStr = (delta > 0 and ("+" .. tostring(delta))) or tostring(delta)
+                resLine = resLine .. " (slot equipped: +" .. tostring(entry.equippedSlotResist) .. ", " .. dStr .. ")"
+            end
+            tip:AddLine(resLine, sc[1], sc[2], sc[3])
+            if entry.resistAll then
+                local others = {}
+                for _, d in ipairs(R.SCHOOLS) do
+                    if d.key ~= entry.resistSchool then
+                        local v = entry.resistAll[d.key]
+                        if v and v > 0 then
+                            others[#others + 1] = "+" .. tostring(v) .. " " .. d.label
+                        end
+                    end
+                end
+                if #others > 0 then
+                    tip:AddLine("other resists: " .. table.concat(others, ", "), 0.72, 0.82, 0.92, true)
+                end
+            end
+            if entry.armorLabel then
+                tip:AddLine("armor type: " .. entry.armorLabel .. " (below primary)", 0.85, 0.72, 0.45)
+            end
+        elseif entry.isUnrated then
             tip:AddLine("trinket · ilvl " .. tostring(entry.ilvl or 0) .. " (unrated)", 0.75, 0.82, 0.95)
         else
             tip:AddLine("upgrade: " .. FormatPct(entry.pctGain) .. " (" .. LowerText(entry.roleLabel or "dps") .. ")", 0.35, 0.95, 0.45)
@@ -2659,13 +3212,35 @@ UpdateStatusLabel = function()
     if not ui.statusLabel or not IsPanelVisible() then return end
     local db = DB()
     local ctx = state.lastContext or GetPlayerContext()
+    local schoolDef = state.resistFilter and R.SCHOOL_BY_KEY[state.resistFilter]
     if InCombatLockdown and InCombatLockdown() and state.isDirty then
         ui.statusLabel:SetText("|cffff9944in combat — scan paused until combat ends|r")
     elseif state.isScanning and state.scanTotal > 0 then
         local pct = math.floor((state.scanProgress / state.scanTotal) * 100)
-        ui.statusLabel:SetText(string.format("|cff88ccffscanning questiedb... %d%% (%d upgrades)|r", pct, #state.results.all))
+        if schoolDef then
+            ui.statusLabel:SetText(string.format("|cff88ccffscanning for %s resist... %d%% (%d items)|r",
+                schoolDef.label, pct, #state.results.all))
+        else
+            ui.statusLabel:SetText(string.format("|cff88ccffscanning questiedb... %d%% (%d upgrades)|r", pct, #state.results.all))
+        end
     elseif state.pendingLoadCount > 0 then
-        ui.statusLabel:SetText(string.format("|cff88ccffloading %d items... (%d upgrades)|r", state.pendingLoadCount, #state.results.all))
+        if schoolDef then
+            ui.statusLabel:SetText(string.format("|cff88ccffloading %d items... (%d %s resist)|r",
+                state.pendingLoadCount, #state.results.all, schoolDef.label))
+        else
+            ui.statusLabel:SetText(string.format("|cff88ccffloading %d items... (%d upgrades)|r", state.pendingLoadCount, #state.results.all))
+        end
+    elseif schoolDef then
+        local suffix = HasQuestieDB() and "" or " · questiedb not loaded (adventure guide only)"
+        local armorDesc
+        if state.resistAnyArmor then
+            armorDesc = "any armor"
+        else
+            local _, _, primA = R.GetProperArmorRange(ctx.classFile, ctx.playerLevel, state.lastMaxLvl, state.lastEquipOnly)
+            armorDesc = R.ARMOR_LABELS[primA] or "all armor"
+        end
+        ui.statusLabel:SetText(string.format("%d %s resist items · lvl 1-%d · %s%s",
+            #state.results.all, schoolDef.label, state.lastMaxLvl, armorDesc, suffix))
     else
         local suffix = HasQuestieDB() and "" or " · questiedb not loaded (adventure guide only)"
         local rangeDesc = (db.levelFilter == "all_equippable")
@@ -2777,6 +3352,12 @@ RenderVisibleRows = function()
                 title = title .. "  |cff888888lvl " .. tostring(entry.reqLevel) .. "|r"
             end
         end
+        if entry.isResistEntry and entry.armorLabel then
+            title = title .. "  |cff9999aa[" .. entry.armorLabel .. "]|r"
+        end
+        if entry.isResistEntry and entry.isEquipped then
+            title = title .. "  |cff66ddaa[equipped]|r"
+        end
         if entry.isHidden then
             title = title .. "  |cffaa6666[hidden]|r"
         end
@@ -2789,7 +3370,16 @@ RenderVisibleRows = function()
         end
         row.srcText:SetText(srcLine)
 
-        if entry.isUnrated then
+        if entry.isResistEntry then
+            local schoolDef = R.SCHOOL_BY_KEY[entry.resistSchool]
+            local sc = (schoolDef and schoolDef.color) or { 0.85, 0.85, 0.90 }
+            row.pctText:SetText("+" .. tostring(entry.resistValue or 0))
+            if entry.requiresHigherLevel then
+                row.pctText:SetTextColor(sc[1] * 0.75, sc[2] * 0.75, sc[3] * 0.75, 1)
+            else
+                row.pctText:SetTextColor(sc[1], sc[2], sc[3], 1)
+            end
+        elseif entry.isUnrated then
             row.pctText:SetText("ilvl " .. tostring(entry.ilvl or 0))
             if entry.requiresHigherLevel then
                 row.pctText:SetTextColor(0.78, 0.70, 0.48, 1)
@@ -2860,9 +3450,17 @@ RenderVisibleRows = function()
     if ui.emptyText then
         if #list == 0 then
             if state.isScanning or state.pendingLoadCount > 0 then
-                ui.emptyText:SetText("scanning for upgrades in your level range...")
-            elseif not db.sources.dungeon and not db.sources.quest and not db.sources.vendor and not (db.sources.ah and HasTSM()) then
+                if state.resistFilter then
+                    ui.emptyText:SetText("scanning for " .. state.resistFilter .. " resist gear...")
+                else
+                    ui.emptyText:SetText("scanning for upgrades in your level range...")
+                end
+            elseif not db.sources.dungeon and not db.sources.quest and not db.sources.vendor
+                and not R.IsCraftedEnabled(db) and not (db.sources.ah and HasTSM())
+            then
                 ui.emptyText:SetText("all upgrade sources are disabled")
+            elseif state.resistFilter then
+                ui.emptyText:SetText("no " .. state.resistFilter .. " resist gear found in this slot / level range")
             elseif selectedSlot == "trinket" then
                 ui.emptyText:SetText("no available trinkets in this level range")
             else
@@ -2881,6 +3479,7 @@ RefreshUI = function()
     local pal = (theme and theme.GetPalette and theme.GetPalette()) or {}
     local acc = pal.accentColor or { 0.85, 0.72, 0.42 }
     local ctx = state.lastContext or GetPlayerContext()
+    local schoolDef = state.resistFilter and R.SCHOOL_BY_KEY[state.resistFilter]
 
     UpdateFilterVisuals()
 
@@ -2906,7 +3505,12 @@ RefreshUI = function()
             if def.key == "all" then
                 btn.badgeText:SetText("(" .. tostring(#state.results.all) .. ")")
                 if #state.results.all > 0 then
-                    btn.badgeText:SetTextColor(acc[1], acc[2], acc[3], 1)
+                    if schoolDef then
+                        local sc = schoolDef.color
+                        btn.badgeText:SetTextColor(sc[1], sc[2], sc[3], 1)
+                    else
+                        btn.badgeText:SetTextColor(acc[1], acc[2], acc[3], 1)
+                    end
                 else
                     btn.badgeText:SetTextColor(0.5, 0.5, 0.55, 1)
                 end
@@ -2942,7 +3546,21 @@ RefreshUI = function()
                     btn.ilvlText:SetText("")
                 end
 
-                if def.key == "trinket" then
+                if schoolDef then
+                    local best = state.results.bestBySlot[def.key]
+                    if best then
+                        btn.badgeText:SetText("+" .. tostring(best.resistValue or 0))
+                        local sc = schoolDef.color
+                        if best.requiresHigherLevel then
+                            btn.badgeText:SetTextColor(sc[1] * 0.75, sc[2] * 0.75, sc[3] * 0.75, 1)
+                        else
+                            btn.badgeText:SetTextColor(sc[1], sc[2], sc[3], 1)
+                        end
+                    else
+                        btn.badgeText:SetText("-")
+                        btn.badgeText:SetTextColor(0.45, 0.45, 0.50, 1)
+                    end
+                elseif def.key == "trinket" then
                     local tCount = #(state.results.bySlot.trinket or {})
                     if tCount > 0 then
                         btn.badgeText:SetText("(" .. tostring(tCount) .. ")")
@@ -2998,7 +3616,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
     contextLabel:SetPoint("LEFT", filterBar, "LEFT", 2, 0)
     ui.contextLabel = contextLabel
 
-    local levelDrop = common.create_dropdown(filterBar, 148, LEVEL_FILTER_OPTIONS, function(val)
+    local levelDrop = common.create_dropdown(filterBar, 142, LEVEL_FILTER_OPTIONS, function(val)
         if LEVEL_FILTER_BY_ID[val] then
             DB().levelFilter = val
             StartScan(true)
@@ -3008,7 +3626,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
     levelDrop.tooltip = "choose which character level range to search for upgrades"
     ui.levelDrop = levelDrop
 
-    local ahGoldDrop = common.create_dropdown(filterBar, 108, AH_GOLD_CAP_OPTIONS, function(val)
+    local ahGoldDrop = common.create_dropdown(filterBar, 100, AH_GOLD_CAP_OPTIONS, function(val)
         if AH_GOLD_CAP_BY_VAL[val] then
             DB().ahMaxGold = val
             StartScan(true)
@@ -3018,7 +3636,7 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
     ahGoldDrop.tooltip = "maximum buyout price for auction house upgrades (tsm)"
     ui.ahGoldDrop = ahGoldDrop
 
-    local scanBtn = common.create_flat_button(filterBar, "scan", 46, 20)
+    local scanBtn = common.create_flat_button(filterBar, "scan", 42, 20)
     scanBtn:SetPoint("RIGHT", filterBar, "RIGHT", -2, 0)
     scanBtn:SetScript("OnClick", function()
         StartScan(true)
@@ -3027,19 +3645,26 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
 
     ui.sourceBtns = {}
     local sourceDefs = {
-        { kind = "ah",      w = 34, desc = "blue & epic boe items on the ah (tsm)" },
-        { kind = "vendor",  w = 56, desc = "vendors from questiedb" },
-        { kind = "quest",   w = 50, desc = "dungeon & world quest rewards" },
-        { kind = "dungeon", w = 64, desc = "boss drops from adventure guide" },
+        { kind = "ah",      label = "ah",      w = 28, desc = "boe items on the ah (tsm)" },
+        { kind = "crafted", label = "craft",   w = 44, desc = "craftable items from recipe browser" },
+        { kind = "vendor",  label = "vendor",  w = 50, desc = "vendors from questiedb" },
+        { kind = "quest",   label = "quest",   w = 46, desc = "dungeon & world quest rewards" },
+        { kind = "dungeon", label = "dungeon", w = 58, desc = "boss drops from adventure guide" },
     }
     local anchorRight = scanBtn
     for _, sDef in ipairs(sourceDefs) do
-        local sBtn = common.create_flat_button(filterBar, sDef.kind, sDef.w, 20)
+        local sBtn = common.create_flat_button(filterBar, sDef.label or sDef.kind, sDef.w, 20)
         sBtn:SetPoint("RIGHT", anchorRight, "LEFT", -4, 0)
         sBtn:SetScript("OnClick", function()
             local udb = DB()
-            local nowEnabled = not udb.sources[sDef.kind]
-            udb.sources[sDef.kind] = nowEnabled
+            local nowEnabled
+            if sDef.kind == "crafted" and state.resistFilter ~= nil then
+                nowEnabled = not R.IsCraftedEnabled(udb)
+                state.resistCraftedOverride = nowEnabled
+            else
+                nowEnabled = not udb.sources[sDef.kind]
+                udb.sources[sDef.kind] = nowEnabled
+            end
             if not nowEnabled and not state.isScanning and not state.isDirty and not state.coroutine then
                 PruneSourceFilterInPlace(sDef.kind)
             else
@@ -3056,6 +3681,8 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
                 tip:AddLine("requires questiedb addon", 1, 0.35, 0.35)
             elseif sDef.kind == "ah" and not HasTSM() then
                 tip:AddLine("requires tradeskillmaster addon", 1, 0.35, 0.35)
+            elseif sDef.kind == "crafted" and not (sfui.recipes_camelot and type(sfui.recipes_camelot.outputs) == "table") then
+                tip:AddLine("requires camelot recipe database", 1, 0.35, 0.35)
             end
             tip:Show()
         end)
@@ -3066,8 +3693,8 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
         anchorRight = sBtn
     end
 
-    local hiddenBtn = common.create_flat_button(filterBar, "hidden", 78, 20)
-    hiddenBtn:SetPoint("RIGHT", ui.sourceBtns.dungeon, "LEFT", -8, 0)
+    local hiddenBtn = common.create_flat_button(filterBar, "hidden", 72, 20)
+    hiddenBtn:SetPoint("RIGHT", ui.sourceBtns.dungeon, "LEFT", -6, 0)
     hiddenBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     hiddenBtn:SetScript("OnClick", function(_, btn)
         if btn == "RightButton" then
@@ -3219,9 +3846,101 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
         ySlot = ySlot + CONST.SLOT_BTN_H + CONST.SLOT_BTN_GAP
     end
 
+    -- ── Resistance Filter Bar (above Right Pane only so Left Rail never clips) ──
+    local resistBar = CreateFrame("Frame", nil, container)
+    resistBar:SetPoint("TOPLEFT", leftRail, "TOPRIGHT", 8, 0)
+    resistBar:SetPoint("TOPRIGHT", container, "TOPRIGHT", -insetX, topY - 48)
+    resistBar:SetHeight(24)
+    resistBar:SetFrameLevel(baseLevel + 4)
+
+    ui.resistBtns = {}
+    local schoolWidths = { fire = 50, nature = 62, frost = 54, shadow = 66, arcane = 62 }
+    local prevRBtn = nil
+    for _, def in ipairs(R.SCHOOLS) do
+        local w = schoolWidths[def.key] or 58
+        local rBtn = common.create_flat_button(resistBar, def.label, w, 20)
+        if prevRBtn then
+            rBtn:SetPoint("LEFT", prevRBtn, "RIGHT", 4, 0)
+        else
+            rBtn:SetPoint("LEFT", resistBar, "LEFT", 0, 0)
+        end
+
+        local ico = rBtn:CreateTexture(nil, "ARTWORK")
+        ico:SetSize(12, 12)
+        ico:SetPoint("LEFT", rBtn, "LEFT", 6, 0)
+        if ico.SetAtlas and _G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(def.atlas) then
+            ico:SetAtlas(def.atlas)
+        else
+            ico:SetTexture(def.fallbackIcon)
+            SetSquareIconCoords(ico)
+        end
+        rBtn.ico = ico
+
+        local fs = rBtn.GetFontString and rBtn:GetFontString()
+        if fs and fs.ClearAllPoints and fs.SetPoint then
+            fs:ClearAllPoints()
+            fs:SetPoint("LEFT", ico, "RIGHT", 4, 0)
+        end
+
+        rBtn:SetScript("OnClick", function()
+            if state.resistFilter == def.key then
+                U.SetResistFilter(nil)
+            else
+                U.SetResistFilter(def.key)
+            end
+        end)
+        rBtn:SetScript("OnEnter", function(self)
+            local tip = GetTooltip()
+            if not tip then return end
+            tip:SetOwner(self, "ANCHOR_TOP")
+            tip:AddLine(def.label .. " resistance gear", def.color[1], def.color[2], def.color[3])
+            tip:AddLine("click to list " .. def.label .. " resist gear for your armor type", 0.8, 0.8, 0.8)
+            tip:AddLine("click again to return to normal upgrades", 0.65, 0.65, 0.70)
+            tip:Show()
+        end)
+        rBtn:SetScript("OnLeave", function()
+            HideTooltip()
+        end)
+
+        ui.resistBtns[def.key] = rBtn
+        prevRBtn = rBtn
+    end
+
+    local anyArmorBtn = common.create_flat_button(resistBar, "any armor", 68, 20)
+    anyArmorBtn:SetPoint("RIGHT", resistBar, "RIGHT", -2, 0)
+    anyArmorBtn:SetScript("OnClick", function()
+        state.resistAnyArmor = not state.resistAnyArmor
+        if state.resistFilter then
+            StartScan(true)
+        end
+    end)
+    anyArmorBtn:SetScript("OnEnter", function(self)
+        local tip = GetTooltip()
+        if not tip then return end
+        tip:SetOwner(self, "ANCHOR_TOP")
+        tip:AddLine("armor type filter", 1, 0.82, 0.2)
+        tip:AddLine("off: strict proper armor type (e.g. plate at 40+)", 0.8, 0.8, 0.8)
+        tip:AddLine("on: include lower wearable armor types (mail / leather / cloth)", 0.8, 0.8, 0.8)
+        tip:Show()
+    end)
+    anyArmorBtn:SetScript("OnLeave", function()
+        HideTooltip()
+    end)
+    anyArmorBtn:Hide()
+    ui.anyArmorBtn = anyArmorBtn
+
+    local resistEquippedLabel = resistBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    resistEquippedLabel:SetFont(fontPath, 10, "")
+    resistEquippedLabel:SetShadowOffset(0, 0)
+    resistEquippedLabel:SetPoint("RIGHT", anyArmorBtn, "LEFT", -8, 0)
+    resistEquippedLabel:SetJustifyH("RIGHT")
+    resistEquippedLabel:SetWordWrap(false)
+    resistEquippedLabel:Hide()
+    ui.resistEquippedLabel = resistEquippedLabel
+
     -- ── Right Upgrade Pane ──
     local rightPane = CreateFrame("Frame", nil, container, "BackdropTemplate")
-    rightPane:SetPoint("TOPLEFT", leftRail, "TOPRIGHT", 8, 0)
+    rightPane:SetPoint("TOPLEFT", resistBar, "BOTTOMLEFT", 0, -4)
     rightPane:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -insetX, bottomInset)
     rightPane:SetFrameLevel(baseLevel + 2)
     if theme and theme.ApplyContainerStyle then
@@ -3390,10 +4109,45 @@ function U.Refresh()
     StartScan(true)
 end
 
+function U.SetResistFilter(schoolKey)
+    local clean = (type(schoolKey) == "string") and LowerText(schoolKey):gsub("^%s*(.-)%s*$", "%1") or nil
+    if clean ~= nil and not R.SCHOOL_BY_KEY[clean] then
+        clean = nil
+    end
+    if state.resistFilter == clean then
+        return
+    end
+    state.resistFilter = clean
+    state.isDirty = true
+    if ui.scroll and ui.scroll.SetVerticalScroll then
+        ui.scroll:SetVerticalScroll(0)
+    end
+    if IsPanelVisible() then
+        StartScan(true)
+    end
+end
+
+function U.GetResistFilter()
+    return state.resistFilter
+end
+
 function U.Open(slotArg)
     if slotArg and type(slotArg) == "string" and slotArg ~= "" then
         local clean = LowerText(slotArg):gsub("^%s*(.-)%s*$", "%1")
-        if SLOT_KEY_TO_DEF[clean] then
+        if R.SCHOOL_BY_KEY[clean] then
+            if state.resistFilter ~= clean then
+                state.resistFilter = clean
+                state.isDirty = true
+            end
+            if ui.scroll and ui.scroll.SetVerticalScroll then
+                ui.scroll:SetVerticalScroll(0)
+            end
+        elseif clean == "normal" or clean == "clear" then
+            if state.resistFilter ~= nil then
+                state.resistFilter = nil
+                state.isDirty = true
+            end
+        elseif SLOT_KEY_TO_DEF[clean] then
             DB().selectedSlot = clean
             if ui.scroll and ui.scroll.SetVerticalScroll then
                 ui.scroll:SetVerticalScroll(0)
@@ -3403,14 +4157,18 @@ function U.Open(slotArg)
     end
     if sfui.dungeonjournal and sfui.dungeonjournal.OpenTab then
         sfui.dungeonjournal.OpenTab("upgrades")
-        if RefreshUI and IsPanelVisible() then
-            RefreshUI()
+        if IsPanelVisible() then
+            StartScan(false)
+            if RefreshUI then
+                RefreshUI()
+            end
         end
         return
     end
     local f = CreateUpgradesWindow()
     if f then
         f:Show()
+        StartScan(false)
     end
 end
 
@@ -3480,6 +4238,13 @@ local function OnGameEvent(event, arg1, arg2)
         return
     end
 
+    if event == "UNIT_RESISTANCES" then
+        if not issecretvalue(arg1) and (arg1 == nil or arg1 == "player") and state.resistFilter and IsPanelVisible() then
+            R.UpdateEquippedLabel(DB())
+        end
+        return
+    end
+
     if event == "PLAYER_REGEN_ENABLED" then
         if state.isDirty and IsPanelVisible() then
             StartScan(false)
@@ -3501,6 +4266,11 @@ if sfui.events then
         sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", OnGameEvent)
         sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", OnGameEvent)
         sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnGameEvent)
+    end
+    if sfui.events.RegisterUnitEvent then
+        sfui.events.RegisterUnitEvent("UNIT_RESISTANCES", "player", OnGameEvent)
+    elseif sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("UNIT_RESISTANCES", OnGameEvent)
     end
     if sfui.events.RegisterMessage then
         sfui.events.RegisterMessage("SFUI_GEAR_ROLE_CHANGED", function() U.MarkDirty() end)
@@ -3547,6 +4317,13 @@ U._internals = {
     RenderVisibleRows        = RenderVisibleRows,
     PruneSourceFilterInPlace = PruneSourceFilterInPlace,
     ApplySlotButtonSelection = ApplySlotButtonSelection,
+    RESIST_SCHOOLS           = R.SCHOOLS,
+    GetProperArmorRange      = R.GetProperArmorRange,
+    MatchesResistArmorRule   = R.MatchesArmorRule,
+    SafeGetItemResistances   = R.GetItemResistances,
+    CompareResistItems       = R.CompareItems,
+    TryAddCraftedCandidate   = R.TryAddCrafted,
+    SetResistFilter          = U.SetResistFilter,
     rowPoolCount             = function() return #ui.rowPool end,
     sessionIndex             = sessionIndex,
     SLOT_DEFS                = SLOT_DEFS,

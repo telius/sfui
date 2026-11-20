@@ -111,30 +111,35 @@ sfui.gear.IsFishingPoleEquipped = sfui.highest.IsFishingPoleEquipped
 local isEquippingInProgress = false
 local pendingEquipRequest   = nil
 
-function sfui.highest.EquipHighestILvl(isPvP, silent)
-    if silent and sfui.gear and sfui.gear.isNakedPaused and sfui.gear.isNakedPaused() then
-        return
+local function dispatchPendingRequest(req)
+    if not req or isEquippingInProgress then return end
+    if req.mode == "resist" then
+        if sfui.highest.EquipMaxResist then
+            sfui.highest.EquipMaxResist(req.school, req.silent)
+        end
+    else
+        sfui.highest.EquipHighestILvl(req.isPvP, req.silent)
     end
+end
 
-    local inCombat = _G.InCombatLockdown and _G.InCombatLockdown()
-    if inCombat then
+local function RunEquipPlan(best, opts)
+    opts = opts or {}
+    local silent = opts.silent
+    if not best then return false end
+
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
         if not silent then sfprint("cannot equip gear while in combat.") end
-        return
+        return false
     end
 
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
         if not silent then sfprint("cannot equip gear while dead or ghost.") end
-        return
+        return false
     end
 
-    -- Mutex lock: if an equip sequence is already actively swapping items, queue a follow-up request instead of spawning parallel loops
     if isEquippingInProgress then
-        pendingEquipRequest = { isPvP = isPvP, silent = silent }
-        return
+        return false
     end
-
-    local best = sfui.highest.GetBestItems(isPvP)
-    if not best then return end
 
     local isFishingPole = sfui.highest.IsFishingPoleEquipped()
     local isFishingSession = (sfui.fishing and sfui.fishing.IsSessionActive and sfui.fishing.IsSessionActive())
@@ -159,13 +164,15 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
                     end
                 end
 
-                -- Guard against swapping identical items / stacks:
+                -- Guard against swapping identical items / stacks (including Classic random suffix):
                 if oldLink and item.link then
                     local oldID = common.get_item_id(oldLink)
                     local newID = common.get_item_id(item.link)
                     local oldEnchant = oldLink:match("item:%d+:(%d*):") or ""
                     local newEnchant = item.link:match("item:%d+:(%d*):") or ""
-                    if oldID and newID and oldID == newID and oldEnchant == newEnchant then
+                    local oldSuffix = oldLink:match("item:%d+:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:([^:|]*)") or ""
+                    local newSuffix = item.link:match("item:%d+:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:([^:|]*)") or ""
+                    if oldID and newID and oldID == newID and oldEnchant == newEnchant and oldSuffix == newSuffix then
                         if slotID == 0 then
                             local eqCount = _G.GetInventoryItemCount and _G.GetInventoryItemCount("player", 0) or 0
                             if issecretvalue and issecretvalue(eqCount) then eqCount = 0 end
@@ -197,9 +204,12 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
     local totalToEquip = #equipQueue
     if totalToEquip == 0 then
         if not silent then
-            sfprint("already wearing your best gear.")
+            sfprint(opts.emptyMessage or "already wearing your best gear.")
         end
-        return
+        if sfui.gear and sfui.gear.UpdateStatUI then
+            sfui.gear.UpdateStatUI()
+        end
+        return true
     end
 
     isEquippingInProgress = true
@@ -220,14 +230,15 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
             equipWatchdog:Cancel()
             equipWatchdog = nil
         end
+        if sfui.gear and sfui.gear.UpdateStatUI then
+            sfui.gear.UpdateStatUI()
+        end
         if pendingEquipRequest then
             local req = pendingEquipRequest
             pendingEquipRequest = nil
             _G.C_Timer.After(0.1, function()
                 if _G.InCombatLockdown and _G.InCombatLockdown() then return end
-                if not isEquippingInProgress then
-                    sfui.highest.EquipHighestILvl(req.isPvP, req.silent)
-                end
+                dispatchPendingRequest(req)
             end)
         end
     end
@@ -237,7 +248,7 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
         if index > #equipQueue then
             if totalToEquip > 0 then
                 if not silent then
-                    sfprint("equipped " .. totalToEquip .. " upgrade(s)!")
+                    sfprint(opts.summaryMessage or ("equipped " .. totalToEquip .. " upgrade(s)!"))
                 end
             end
             onEquipFinished()
@@ -548,7 +559,76 @@ function sfui.highest.EquipHighestILvl(isPvP, silent)
     end
 
     equipNext(1)
+    return true
 end
+
+function sfui.highest.EquipHighestILvl(isPvP, silent)
+    if silent and sfui.gear and (
+        (sfui.gear.isNakedPaused and sfui.gear.isNakedPaused())
+        or (sfui.gear.isResistLocked and sfui.gear.isResistLocked())
+    ) then
+        return
+    end
+
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        if not silent then sfprint("cannot equip gear while in combat.") end
+        return
+    end
+
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+        if not silent then sfprint("cannot equip gear while dead or ghost.") end
+        return
+    end
+
+    if isEquippingInProgress then
+        pendingEquipRequest = { mode = "highest", isPvP = isPvP, silent = silent }
+        return
+    end
+
+    local best = sfui.highest.GetBestItems(isPvP)
+    if not best then return end
+
+    RunEquipPlan(best, {
+        silent         = silent,
+        emptyMessage   = "already wearing your best gear.",
+    })
+end
+
+function sfui.highest.EquipMaxResist(schoolKey, silent)
+    if _G.InCombatLockdown and _G.InCombatLockdown() then
+        if not silent then sfprint("cannot equip resistance gear while in combat.") end
+        return false, nil
+    end
+
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+        if not silent then sfprint("cannot equip resistance gear while dead or ghost.") end
+        return false, nil
+    end
+
+    if isEquippingInProgress then
+        pendingEquipRequest = { mode = "resist", school = schoolKey, silent = silent }
+        return true, nil
+    end
+
+    if not sfui.highest.GetBestResistItems then return false, nil end
+    local best, summary = sfui.highest.GetBestResistItems(schoolKey)
+    if not best or not summary or (summary.targetResist or 0) <= 0 then
+        if not silent then
+            sfprint("no " .. tostring(schoolKey or ""):lower() .. " resistance gear found.")
+        end
+        return false, summary
+    end
+
+    local schoolLower = tostring(summary.school or schoolKey or ""):lower()
+    local ok = RunEquipPlan(best, {
+        silent         = silent,
+        emptyMessage   = string.format("%s resist locked (%d already equipped).", schoolLower, summary.targetResist or 0),
+        summaryMessage = string.format("equipped %s resist (%d -> %d, %d swap(s)).",
+            schoolLower, summary.currentResist or 0, summary.targetResist or 0, summary.swapCount or 0),
+    })
+    return ok, summary
+end
+
 sfui.highest.toggle = sfui.highest.EquipHighestILvl
 
 if sfui.events and sfui.events.RegisterEvent then

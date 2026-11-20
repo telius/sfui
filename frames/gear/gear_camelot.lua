@@ -33,19 +33,71 @@ local set_square_icon_coords = (sfui.common and sfui.common.set_square_icon_coor
     or function(tex) if tex and tex.SetTexCoord then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) end end
 
 -- -------------------------------------------------------------------------
--- CENTRALIZED ROLE & NAKED ICON PARAMETERS
+-- CENTRALIZED DOCK & LAYOUT PARAMETERS (Option C)
 -- -------------------------------------------------------------------------
-local ROLE_ICON_SIZE    = 28
-local ROLE_ICON_SPACING = 4
+local DOCK_ICON_SIZE    = 26
+local DOCK_ICON_SPACING = 3
+local ROLE_ICON_SIZE    = DOCK_ICON_SIZE
+local ROLE_ICON_SPACING = DOCK_ICON_SPACING
 local ROLE_ICON_Y       = -56
 
+sfui.gear.HasQuickDock      = true
 sfui.gear.ROLE_ICON_SIZE    = ROLE_ICON_SIZE
 sfui.gear.ROLE_ICON_SPACING = ROLE_ICON_SPACING
 sfui.gear.ROLE_ICON_Y       = ROLE_ICON_Y
 
--- Header height for Classic/Camelot (compact title bar)
 function sfui.gear.GetHeaderHeight()
     return 34
+end
+
+function sfui.gear.GetHeaderWidth()
+    return 148
+end
+
+function sfui.gear.GetCollapsedHeight()
+    return 78
+end
+
+function sfui.gear.GetContentTopOffset()
+    return 76
+end
+
+function sfui.gear.GetCardHeight()
+    return 146
+end
+
+function sfui.gear.GetStatRowY()
+    return -120
+end
+
+function sfui.gear.GetLockBaseY()
+    return -40
+end
+
+function sfui.gear.GetDropdownWidth()
+    return 140
+end
+
+local FALLBACK_RESIST_SCHOOLS = {
+    { key = "fire",   label = "fire",   damageClass = 2, color = { 1.0, 0.55, 0.25 }, atlas = "UI-Character-Info-Resistance-Fire",   fallbackIcon = "Interface\\Icons\\Spell_Fire_FireArmor" },
+    { key = "nature", label = "nature", damageClass = 3, color = { 0.45, 0.9, 0.35 }, atlas = "UI-Character-Info-Resistance-Nature", fallbackIcon = "Interface\\Icons\\Spell_Nature_ResistNature" },
+    { key = "frost",  label = "frost",  damageClass = 4, color = { 0.55, 0.8, 1.0 },  atlas = "UI-Character-Info-Resistance-Frost",  fallbackIcon = "Interface\\Icons\\Spell_Frost_FrostWard" },
+    { key = "shadow", label = "shadow", damageClass = 5, color = { 0.7, 0.5, 1.0 },   atlas = "UI-Character-Info-Resistance-Shadow", fallbackIcon = "Interface\\Icons\\Spell_Shadow_AntiShadow" },
+    { key = "arcane", label = "arcane", damageClass = 6, color = { 0.95, 0.7, 1.0 },  atlas = "UI-Character-Info-Resistance-Arcane", fallbackIcon = "Interface\\Icons\\Spell_Nature_WispSplode" },
+}
+
+local function getResistSchools()
+    return (common and common.RESIST_SCHOOLS) or FALLBACK_RESIST_SCHOOLS
+end
+
+local function getResistSchoolByKey(key)
+    if common and common.RESIST_SCHOOL_BY_KEY and key then
+        return common.RESIST_SCHOOL_BY_KEY[key]
+    end
+    for _, def in ipairs(FALLBACK_RESIST_SCHOOLS) do
+        if def.key == key then return def end
+    end
+    return nil
 end
 
 -- -------------------------------------------------------------------------
@@ -538,8 +590,6 @@ end
 -- -------------------------------------------------------------------------
 -- CENTRALIZED ROLE DEFINITIONS & STYLING HELPERS
 -- -------------------------------------------------------------------------
-local COLLAPSED_ROLE_SIZE    = 24
-local COLLAPSED_ROLE_SPACING = 4
 
 local ROLE_COLORS = {
     ["tank"]   = { 0.4, 0.7, 1.0 },
@@ -636,24 +686,41 @@ local function getRoleDescription(rLow)
         or "configure stat priority and gear optimization for damage dealing."
 end
 
-local function styleRoleButton(btn, isSelected)
+local function applyInactiveDockButtonBorder(btn, bgAlpha)
+    local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+    if isCamelotTheme then
+        btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+    else
+        btn:SetBackdropBorderColor(0, 0, 0, 0.8)
+    end
+    btn:SetBackdropColor(0, 0, 0, bgAlpha or 0.7)
+end
+
+local function createDockDivider(parent, w, h)
+    local div = parent:CreateTexture(nil, "ARTWORK")
+    div:SetSize(w or 1, h or 20)
+    if div.SetColorTexture then
+        div:SetColorTexture(1, 1, 1, 0.14)
+    else
+        div:SetTexture("Interface\\Buttons\\WHITE8x8")
+        if div.SetVertexColor then div:SetVertexColor(1, 1, 1, 0.14) end
+    end
+    return div
+end
+
+local function styleRoleButton(btn, isSelected, modeDimmed)
     if not btn then return end
     btn.isSelected = isSelected
+    btn.modeDimmed = modeDimmed == true
     if btn.tex then
         btn.tex:SetDesaturated(not isSelected)
-        btn:SetAlpha(isSelected and 1.0 or 0.40)
+        btn:SetAlpha(isSelected and (btn.modeDimmed and 0.65 or 1.0) or 0.40)
         if isSelected then
             local c = btn.roleColor or { 0.95, 0.85, 0.55 }
             btn:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
             btn:SetBackdropColor(c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, 0.9)
         else
-            local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
-            if isCamelotTheme then
-                btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
-            else
-                btn:SetBackdropBorderColor(0, 0, 0, 0.8)
-            end
-            btn:SetBackdropColor(0, 0, 0, 0.7)
+            applyInactiveDockButtonBorder(btn, 0.7)
         end
     end
 end
@@ -668,13 +735,125 @@ local function styleNakedButton(btn, isNaked)
             btn:SetBackdropBorderColor(1.0, 0.65, 0.2, 1.0)
             btn:SetBackdropColor(0.35, 0.2, 0.05, 0.9)
         else
-            local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
-            if isCamelotTheme then
-                btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
-            else
-                btn:SetBackdropBorderColor(0, 0, 0, 0.8)
+            applyInactiveDockButtonBorder(btn, 0.7)
+        end
+    end
+end
+
+local function styleResistButton(btn, isActive, maxResist)
+    if not btn then return end
+    btn.isSelected = isActive == true
+    btn.maxResist = maxResist or 0
+    if btn.tex then
+        btn.tex:SetDesaturated(not isActive and btn.maxResist <= 0)
+    end
+    if isActive then
+        local c = btn.schoolColor or { 0.95, 0.85, 0.55 }
+        btn:SetAlpha(1.0)
+        btn:SetBackdropBorderColor(c[1], c[2], c[3], 1.0)
+        btn:SetBackdropColor(c[1] * 0.28, c[2] * 0.28, c[3] * 0.28, 0.95)
+    elseif btn.maxResist > 0 then
+        btn:SetAlpha(0.78)
+        applyInactiveDockButtonBorder(btn, 0.7)
+    else
+        btn:SetAlpha(0.30)
+        applyInactiveDockButtonBorder(btn, 0.7)
+    end
+    if btn.countFS then
+        if btn.maxResist > 0 then
+            btn.countFS:SetText(tostring(btn.maxResist))
+            if btn.countFS.SetTextColor then
+                if isActive then
+                    btn.countFS:SetTextColor(1.0, 1.0, 1.0)
+                else
+                    btn.countFS:SetTextColor(0.90, 0.88, 0.80)
+                end
             end
-            btn:SetBackdropColor(0, 0, 0, 0.7)
+            btn.countFS:Show()
+        else
+            btn.countFS:SetText("")
+            btn.countFS:Hide()
+        end
+    end
+end
+
+local function updateResistSummaryText(ui, gFrame)
+    if not ui or not ui.resistLine1 or not ui.resistLine2 then return end
+    local frame = gFrame or sfui.gear.frame or _G.SfuiGearManagerFrame
+    local hoveredKey = frame and frame._hoveredResistSchool
+    local activeKey = sfui.gear.GetActiveResistSchool and sfui.gear.GetActiveResistSchool()
+    local previewKey = hoveredKey or activeKey
+
+    if previewKey then
+        local def = getResistSchoolByKey(previewKey)
+        local label = (def and def.label) or previewKey
+        local c = (def and def.color) or { 0.95, 0.85, 0.55 }
+        local summary = sfui.highest and sfui.highest.GetResistSummary and sfui.highest.GetResistSummary(previewKey)
+        local curR = summary and summary.currentResist or 0
+        local maxR = summary and summary.targetResist or 0
+        local delta = summary and summary.delta or 0
+        local suffix = (activeKey == previewKey) and " (locked)"
+            or (delta > 0 and (" (+" .. delta .. ")")) or ""
+        ui.resistLine1:SetText(string.format("%s: %d / %d%s", label, curR, maxR, suffix))
+        ui.resistLine1:SetTextColor(c[1], c[2], c[3])
+
+        if summary and (summary.swapCount or 0) > 0 then
+            ui.resistLine2:SetText(string.format("%d swap(s) · r-click: upgrades", summary.swapCount))
+        elseif activeKey == previewKey then
+            ui.resistLine2:SetText("locked · click element to unlock")
+        else
+            ui.resistLine2:SetText("right-click element: upgrades")
+        end
+        ui.resistLine2:SetTextColor(0.72, 0.72, 0.75)
+    else
+        ui.resistLine1:SetText("click element above to lock")
+        ui.resistLine1:SetTextColor(0.68, 0.65, 0.58)
+        ui.resistLine2:SetText("right-click element: upgrades")
+        ui.resistLine2:SetTextColor(0.52, 0.50, 0.45)
+    end
+end
+
+function sfui.gear.UpdateResistSummaryUI(gFrame)
+    local frame = gFrame or sfui.gear.frame or _G.SfuiGearManagerFrame
+    if not frame or not frame.specUIs then return end
+    local specID = frame.activeSpecID or (common and common.get_current_spec_id and common.get_current_spec_id())
+    local ui = specID and frame.specUIs[specID]
+    if ui then
+        updateResistSummaryText(ui, frame)
+    end
+end
+
+function sfui.gear.ToggleResistSchool(schoolKey)
+    if InCombatLockdown() then
+        sfui.common.print("cannot change resistance gear while in combat.")
+        return
+    end
+    if type(schoolKey) ~= "string" then return end
+    local keyLower = schoolKey:lower()
+    if not getResistSchoolByKey(keyLower) then return end
+
+    local activeSchool = sfui.gear.GetActiveResistSchool and sfui.gear.GetActiveResistSchool()
+    if activeSchool == keyLower then
+        if sfui.gear.SetActiveResistSchool then
+            sfui.gear.SetActiveResistSchool(nil)
+        end
+        if sfui.highest then
+            if sfui.highest.ClearValidationCache then sfui.highest.ClearValidationCache() end
+            if sfui.highest.ClearCache then sfui.highest.ClearCache() end
+        end
+        sfui.gear.UpdateStatUI()
+        sfui.gear.Update(true)
+        if sfui.highest and sfui.highest.EquipHighestILvl then
+            sfui.highest.EquipHighestILvl(sfui.gear.isCurrentlyPvP and sfui.gear.isCurrentlyPvP() or false)
+        end
+        sfui.common.print(keyLower .. " resist: disabled; restoring normal gear.")
+    else
+        if sfui.highest and sfui.highest.ClearCache then
+            sfui.highest.ClearCache()
+        end
+        local ok = sfui.highest and sfui.highest.EquipMaxResist and sfui.highest.EquipMaxResist(keyLower)
+        if ok and sfui.gear.SetActiveResistSchool then
+            sfui.gear.SetActiveResistSchool(keyLower)
         end
     end
 end
@@ -685,6 +864,7 @@ end
 function sfui.gear.SelectClassicRole(specID, rKey)
     local numID = tonumber(specID) or 0
     if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
+    if sfui.gear.SetActiveResistSchool then sfui.gear.SetActiveResistSchool(nil, true) end
     if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
     SfuiDB = SfuiDB or {}
     SfuiDB.gear = SfuiDB.gear or {}
@@ -787,7 +967,8 @@ function sfui.gear.SelectClassicRole(specID, rKey)
         or (sfui.gear.is_spec_match and sfui.gear.is_spec_match(curSpec, specID))
     if isMatch then
         C_Timer.After(0.18, function()
-            if not sfui.gear.isNakedPaused() and sfui.highest and sfui.highest.EquipHighestILvl then
+            local isResistLocked = sfui.gear.isResistLocked and sfui.gear.isResistLocked()
+            if not sfui.gear.isNakedPaused() and not isResistLocked and sfui.highest and sfui.highest.EquipHighestILvl then
                 sfui.highest.EquipHighestILvl(sfui.gear.isCurrentlyPvP())
             end
         end)
@@ -795,98 +976,163 @@ function sfui.gear.SelectClassicRole(specID, rKey)
 end
 
 -- -------------------------------------------------------------------------
--- CARD MODIFIERS BUILDER (Role Buttons & Naked Button on Row 2B)
+-- PERSISTENT QUICK-ACTION DOCK (Roles + 5 Element Resists + Naked + Modes)
 -- -------------------------------------------------------------------------
-function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
-    local numID = tonumber(specID) or 0
-    local classID = (sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(numID)) or numID
-    local classicRoles = sfui.gear.CLASSIC_ROLES_BY_SPEC and
-        (sfui.gear.CLASSIC_ROLES_BY_SPEC[numID] or (classID and sfui.gear.CLASSIC_ROLES_BY_SPEC[classID]))
+local function createDockRoleButton(dock, gearFrame, classID, rKey)
+    local rLabel = ROLE_LABELS[rKey] or rKey:lower()
+    local rBtn = CreateFrame("Button", nil, dock, "BackdropTemplate")
+    rBtn:SetSize(DOCK_ICON_SIZE, DOCK_ICON_SIZE)
+    rBtn:SetFrameLevel(dock:GetFrameLevel() + 2)
+    local t = rBtn:CreateTexture(nil, "ARTWORK")
+    t:SetAllPoints()
+    t:SetTexture(sfui.gear.GetClassicRoleIcon(classID, rKey))
+    set_square_icon_coords(t)
+    rBtn.tex = t
+    rBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
+    applyInactiveDockButtonBorder(rBtn, 0.7)
+    rBtn:SetAlpha(0.40)
+    rBtn.roleKey = rKey
+    rBtn.roleColor = ROLE_COLORS[rKey] or { 0.6, 0.6, 0.6 }
+    local capturedRole = rKey
+    rBtn:SetScript("OnClick", function()
+        local activeSpec = gearFrame.activeSpecID or common.get_current_spec_id()
+        sfui.gear.SelectClassicRole(activeSpec, capturedRole)
+    end)
+    rBtn:SetScript("OnEnter", function(b)
+        b:SetAlpha(1.0)
+        local desc = getRoleDescription(capturedRole:lower())
+        show_tooltip(b, "ANCHOR_TOP", rLabel, {
+            { desc, 0.8, 0.8, 0.8, true },
+        })
+    end)
+    rBtn:SetScript("OnLeave", function(b)
+        styleRoleButton(b, b.isSelected, b.modeDimmed)
+        hide_tooltip()
+    end)
+    return rBtn
+end
 
-    -- Center the role and naked icons in the free space between the lock row and the right frame margin
-    local lockRight = (curLockX and curLockX > 27) and (curLockX - 3) or 259
-    local cardW = (card and card:GetWidth() and card:GetWidth() > 0 and card:GetWidth())
-        or (card and card:GetParent() and card:GetParent():GetWidth() and card:GetParent():GetWidth() > 0 and card:GetParent():GetWidth())
-        or 480
-    local rightMargin = 10
-    local rightEdge = cardW - rightMargin
+local function createDockResistButton(dock, gearFrame, def)
+    local rBtn = CreateFrame("Button", nil, dock, "BackdropTemplate")
+    rBtn:SetSize(DOCK_ICON_SIZE, DOCK_ICON_SIZE)
+    rBtn:SetFrameLevel(dock:GetFrameLevel() + 2)
+    rBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-    local numRoleBtns = classicRoles and #classicRoles or 0
-    local totalButtons = numRoleBtns + 1
-    local totalWidth = (totalButtons * ROLE_ICON_SIZE) + ((totalButtons - 1) * ROLE_ICON_SPACING)
-
-    local freeSpace = rightEdge - lockRight
-    local startX = lockRight + math.floor((freeSpace - totalWidth) / 2)
-    startX = math.max(lockRight + 6, startX)
-
-    local curX = startX
-    local lastRoleBtn = nil
-    ui.roleStartX = startX
-
-    if classicRoles then
-        ui.roleBtns = {}
-
-        for _, rKey in ipairs(classicRoles) do
-            local rLabel = ROLE_LABELS[rKey] or rKey:lower()
-            local rIcon = sfui.gear.GetClassicRoleIcon(classID, rKey)
-            local rBtn = CreateFrame("Button", nil, card, "BackdropTemplate")
-            rBtn:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
-            rBtn:SetPoint("TOPLEFT", card, "TOPLEFT", curX, ROLE_ICON_Y)
-            local t = rBtn:CreateTexture(nil, "ARTWORK")
-            t:SetAllPoints()
-            t:SetTexture(rIcon)
-            set_square_icon_coords(t)
-            rBtn.tex = t
-            rBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
-            local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
-            rBtn:SetBackdropColor(0, 0, 0, 0.7)
-            rBtn:SetBackdropBorderColor(isCamelotTheme and 0.28 or 0, isCamelotTheme and 0.22 or 0,
-                isCamelotTheme and 0.14 or 0, 0.85)
-            rBtn:SetAlpha(0.40)
-            rBtn.roleKey = rKey
-            rBtn.roleColor = ROLE_COLORS[rKey] or { 0.6, 0.6, 0.6 }
-            local capturedRole = rKey
-            rBtn:SetScript("OnClick", function()
-                sfui.gear.SelectClassicRole(specID, capturedRole)
-            end)
-
-            rBtn:SetScript("OnEnter", function(b)
-                b:SetAlpha(1.0)
-                local desc = getRoleDescription(capturedRole:lower())
-                show_tooltip(b, "ANCHOR_TOP", rLabel, {
-                    { desc, 0.8, 0.8, 0.8, true },
-                })
-            end)
-            rBtn:SetScript("OnLeave", function(b)
-                if not b.isSelected then
-                    b:SetAlpha(0.40)
-                end
-                hide_tooltip()
-            end)
-            ui.roleBtns[rKey] = rBtn
-            lastRoleBtn = rBtn
-            curX = curX + ROLE_ICON_SIZE + ROLE_ICON_SPACING
-        end
-    end
-
-    -- Naked Mode Button (Chest wardrobe icon)
-    local btnNaked = CreateFrame("Button", nil, card, "BackdropTemplate")
-    btnNaked:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
-    if lastRoleBtn then
-        btnNaked:SetPoint("TOPLEFT", lastRoleBtn, "TOPRIGHT", ROLE_ICON_SPACING, 0)
+    local t = rBtn:CreateTexture(nil, "ARTWORK")
+    t:SetPoint("TOPLEFT", rBtn, "TOPLEFT", 2, -2)
+    t:SetPoint("BOTTOMRIGHT", rBtn, "BOTTOMRIGHT", -2, 2)
+    if t.SetAtlas and _G.C_Texture and _G.C_Texture.GetAtlasInfo and _G.C_Texture.GetAtlasInfo(def.atlas) then
+        t:SetAtlas(def.atlas)
+        rBtn._usesAtlas = true
     else
-        btnNaked:SetPoint("TOPLEFT", card, "TOPLEFT", curX, ROLE_ICON_Y)
+        t:SetTexture(def.fallbackIcon)
+        set_square_icon_coords(t)
+        rBtn._usesAtlas = false
     end
+    rBtn.tex = t
+
+    local countFS = rBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    if countFS.SetFont then
+        local fontPath = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        countFS:SetFont(fontPath, 9, "OUTLINE")
+    end
+    countFS:SetPoint("BOTTOMRIGHT", rBtn, "BOTTOMRIGHT", -1, 1)
+    countFS:SetJustifyH("RIGHT")
+    if countFS.SetShadowOffset then countFS:SetShadowOffset(1, -1) end
+    countFS:SetText("")
+    countFS:Hide()
+    rBtn.countFS = countFS
+
+    rBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
+    rBtn.schoolKey = def.key
+    rBtn.schoolColor = def.color or { 0.95, 0.85, 0.55 }
+    styleResistButton(rBtn, false, 0)
+
+    local capturedDef = def
+    rBtn:SetScript("OnClick", function(_, button)
+        if button == "RightButton" then
+            if sfui.upgrades and sfui.upgrades.Open then
+                sfui.upgrades.Open(capturedDef.key)
+            end
+        else
+            sfui.gear.ToggleResistSchool(capturedDef.key)
+        end
+    end)
+
+    rBtn:SetScript("OnEnter", function(b)
+        b:SetAlpha(1.0)
+        gearFrame._hoveredResistSchool = capturedDef.key
+        sfui.gear.UpdateResistSummaryUI(gearFrame)
+
+        local activeSchool = sfui.gear.GetActiveResistSchool and sfui.gear.GetActiveResistSchool()
+        local isActive = (activeSchool == capturedDef.key)
+        local summary = sfui.highest and sfui.highest.GetResistSummary and sfui.highest.GetResistSummary(capturedDef.key)
+        local curR = summary and summary.currentResist or 0
+        local maxR = summary and summary.targetResist or 0
+        local delta = summary and summary.delta or 0
+
+        local title = capturedDef.label .. " resistance" .. (isActive and " [locked]" or "")
+        local lines = {}
+        if maxR > 0 then
+            local sumLine = (delta > 0)
+                and string.format("equipped: %d | max in bags: %d (+%d)", curR, maxR, delta)
+                or string.format("equipped: %d | max in bags: %d", curR, maxR)
+            lines[#lines + 1] = { sumLine, capturedDef.color[1], capturedDef.color[2], capturedDef.color[3], true }
+        else
+            lines[#lines + 1] = { "no " .. capturedDef.label .. " resist gear in bags or equipped", 0.65, 0.65, 0.65, true }
+        end
+
+        if summary and summary.swaps and #summary.swaps > 0 then
+            local shown = 0
+            for _, sw in ipairs(summary.swaps) do
+                if shown >= 6 then break end
+                local slotName = (common and common.get_slot_name and common.get_slot_name(sw.slotID) or ("slot " .. tostring(sw.slotID))):lower()
+                local newName = sw.newLink and ((common.get_item_info and select(1, common.get_item_info(sw.newLink))) or sw.newLink) or "empty"
+                if type(newName) == "string" then
+                    newName = newName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):lower()
+                else
+                    newName = "item"
+                end
+                local gain = (sw.newResist or 0) - (sw.oldResist or 0)
+                local gainStr = (gain > 0 and (" (+" .. gain .. ")")) or (gain < 0 and (" (" .. gain .. ")")) or ""
+                lines[#lines + 1] = { slotName .. ": " .. newName .. gainStr, 0.8, 0.8, 0.8, true }
+                shown = shown + 1
+            end
+            if #summary.swaps > 6 then
+                lines[#lines + 1] = { "+" .. tostring(#summary.swaps - 6) .. " more swaps", 0.65, 0.65, 0.65, true }
+            end
+        elseif isActive and maxR > 0 then
+            lines[#lines + 1] = { "wearing max available " .. capturedDef.label .. " resist", 0.6, 0.9, 0.6, true }
+        end
+
+        lines[#lines + 1] = {
+            isActive and "left-click: unlock & restore normal gear" or ("left-click: equip max " .. capturedDef.label .. " resist & lock"),
+            0.4, 0.8, 1.0, true,
+        }
+        lines[#lines + 1] = { "right-click: browse " .. capturedDef.label .. " resist upgrades", 0.7, 0.7, 0.75, true }
+        show_tooltip(b, "ANCHOR_TOP", title, lines)
+    end)
+
+    rBtn:SetScript("OnLeave", function(b)
+        gearFrame._hoveredResistSchool = nil
+        styleResistButton(b, b.isSelected, b.maxResist)
+        sfui.gear.UpdateResistSummaryUI(gearFrame)
+        hide_tooltip()
+    end)
+    return rBtn
+end
+
+local function createDockNakedButton(dock)
+    local btnNaked = CreateFrame("Button", nil, dock, "BackdropTemplate")
+    btnNaked:SetSize(DOCK_ICON_SIZE, DOCK_ICON_SIZE)
+    btnNaked:SetFrameLevel(dock:GetFrameLevel() + 2)
     local t = btnNaked:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints()
     t:SetTexture("Interface\\Icons\\inv_chest_cloth_17")
     set_square_icon_coords(t)
     btnNaked.tex = t
     btnNaked:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
-    local isCamelotTheme = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
-    btnNaked:SetBackdropColor(0, 0, 0, 0.7)
-    btnNaked:SetBackdropBorderColor(isCamelotTheme and 0.28 or 0, isCamelotTheme and 0.22 or 0,
-        isCamelotTheme and 0.14 or 0, 0.85)
+    applyInactiveDockButtonBorder(btnNaked, 0.7)
     btnNaked:SetAlpha(0.40)
     btnNaked:SetScript("OnClick", function()
         sfui.gear.ToggleNaked()
@@ -898,165 +1144,245 @@ function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
         show_tooltip(b, "ANCHOR_TOP", title, {
             { isNaked and "click to resume auto-equip and re-equip your gear." or "unequips all weapons and armor into your bags.", 0.8, 0.8, 0.8, true },
             { "leaves non-durability items (jewelry, relics/totems, shirt, tabard) equipped.", 0.6, 0.9, 0.6, true },
-            { "pauses gear manager auto-equip until clicked again or role/pve/pvp is clicked.", 0.4, 0.8, 1.0, true },
+            { "pauses gear manager auto-equip until clicked again or role/pve/pvp/resist is clicked.", 0.4, 0.8, 1.0, true },
         })
     end)
     btnNaked:SetScript("OnLeave", function(b)
-        if not b.isSelected then
-            b:SetAlpha(0.40)
-        end
+        styleNakedButton(b, b.isSelected)
         hide_tooltip()
     end)
-    ui.btnNaked = btnNaked
+    return btnNaked
 end
 
--- -------------------------------------------------------------------------
--- COLLAPSED ROLE BAR (Role Icons + Naked Button in Header)
--- -------------------------------------------------------------------------
-function sfui.gear.UpdateCollapsedRoleBar(gearFrame)
-    if not gearFrame then return end
-    local bar = gearFrame.collapsedRoleBar
-    if not bar then return end
+function sfui.gear.BuildQuickDock(gearFrame)
+    if not gearFrame then return nil end
+    if gearFrame.quickDock then return gearFrame.quickDock end
 
-    local specID = gearFrame.activeSpecID or common.get_current_spec_id()
+    local dock = CreateFrame("Frame", nil, gearFrame, "BackdropTemplate")
+    dock:SetPoint("TOPLEFT", gearFrame, "TOPLEFT", 8, -34)
+    dock:SetPoint("TOPRIGHT", gearFrame, "TOPRIGHT", -8, -34)
+    dock:SetHeight(36)
+    dock:SetFrameLevel((gearFrame:GetFrameLevel() or 1) + 4)
+    if sfui.theme and sfui.theme.ApplyContainerStyle then
+        sfui.theme.ApplyContainerStyle(dock)
+    end
+    dock:Show()
+
+    dock.roleBtns = {}
+    dock.resistBtns = {}
+    dock.div1 = createDockDivider(dock, 1, 20)
+    dock.div2 = createDockDivider(dock, 1, 20)
+
+    local schools = getResistSchools()
+    for _, def in ipairs(schools) do
+        dock.resistBtns[def.key] = createDockResistButton(dock, gearFrame, def)
+    end
+
+    dock.btnNaked = createDockNakedButton(dock)
+    gearFrame.quickDock = dock
+    return dock
+end
+
+function sfui.gear.UpdateQuickDock(gearFrame)
+    if not gearFrame then return end
+    if gearFrame.collapsedRoleBar then gearFrame.collapsedRoleBar:Hide() end
+    local dock = gearFrame.quickDock or sfui.gear.BuildQuickDock(gearFrame)
+    if not dock then return end
+    dock:Show()
+
+    local specID = gearFrame.activeSpecID or (common and common.get_current_spec_id and common.get_current_spec_id())
     local numID = tonumber(specID) or 0
     local classID = (sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(numID)) or numID
     local classicRoles = sfui.gear.CLASSIC_ROLES_BY_SPEC and
         (sfui.gear.CLASSIC_ROLES_BY_SPEC[numID] or (classID and sfui.gear.CLASSIC_ROLES_BY_SPEC[classID]))
 
-    if not classicRoles or #classicRoles == 0 then
-        bar:Hide()
-        return
-    end
-
-    local totalButtons = #classicRoles + 1
-    local totalWidth = (totalButtons * COLLAPSED_ROLE_SIZE) + ((totalButtons - 1) * COLLAPSED_ROLE_SPACING)
-
-    bar:SetSize(totalWidth, COLLAPSED_ROLE_SIZE)
-    bar:ClearAllPoints()
-    bar:SetPoint("CENTER", gearFrame, "TOP", 0, -17)
-
-    bar.roleBtns = bar.roleBtns or {}
-
-    local curX = 0
-    for _, rKey in ipairs(classicRoles) do
-        local rBtn = bar.roleBtns[rKey]
-        if not rBtn then
-            rBtn = CreateFrame("Button", nil, bar, "BackdropTemplate")
-            rBtn:SetSize(COLLAPSED_ROLE_SIZE, COLLAPSED_ROLE_SIZE)
-            rBtn:SetFrameLevel(bar:GetFrameLevel() + 2)
-            local t = rBtn:CreateTexture(nil, "ARTWORK")
-            t:SetAllPoints()
-            t:SetTexture(sfui.gear.GetClassicRoleIcon(classID, rKey))
-            set_square_icon_coords(t)
-            rBtn.tex = t
-            rBtn:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
-            rBtn.roleKey = rKey
-            rBtn.roleColor = ROLE_COLORS[rKey] or { 0.6, 0.6, 0.6 }
-            local capturedRole = rKey
-
-            rBtn:SetScript("OnClick", function()
-                local activeSpec = gearFrame.activeSpecID or common.get_current_spec_id()
-                sfui.gear.SelectClassicRole(activeSpec, capturedRole)
-            end)
-            rBtn:SetScript("OnEnter", function(b)
-                b:SetAlpha(1.0)
-                local rLabel = ROLE_LABELS[capturedRole] or capturedRole:lower()
-                local desc = getRoleDescription(capturedRole:lower())
-                show_tooltip(b, "ANCHOR_TOP", rLabel, {
-                    { desc, 0.8, 0.8, 0.8, true },
-                })
-            end)
-            rBtn:SetScript("OnLeave", function(b)
-                if not b.isSelected then b:SetAlpha(0.40) end
-                hide_tooltip()
-            end)
-            bar.roleBtns[rKey] = rBtn
-        else
-            rBtn.tex:SetTexture(sfui.gear.GetClassicRoleIcon(classID, rKey))
-        end
-
-        rBtn:ClearAllPoints()
-        rBtn:SetPoint("LEFT", bar, "LEFT", curX, 0)
-        rBtn:Show()
-        curX = curX + COLLAPSED_ROLE_SIZE + COLLAPSED_ROLE_SPACING
-    end
-
-    for k, b in pairs(bar.roleBtns) do
-        local found = false
-        for _, rKey in ipairs(classicRoles) do
-            if rKey == k then found = true; break end
-        end
-        if not found then b:Hide() end
-    end
-
-    local btnNaked = bar.btnNaked
-    if not btnNaked then
-        btnNaked = CreateFrame("Button", nil, bar, "BackdropTemplate")
-        btnNaked:SetSize(COLLAPSED_ROLE_SIZE, COLLAPSED_ROLE_SIZE)
-        btnNaked:SetFrameLevel(bar:GetFrameLevel() + 2)
-        local t = btnNaked:CreateTexture(nil, "ARTWORK")
-        t:SetAllPoints()
-        t:SetTexture("Interface\\Icons\\inv_chest_cloth_17")
-        set_square_icon_coords(t)
-        btnNaked.tex = t
-        btnNaked:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
-        btnNaked:SetScript("OnClick", function()
-            sfui.gear.ToggleNaked()
-        end)
-        btnNaked:SetScript("OnEnter", function(b)
-            b:SetAlpha(1.0)
-            local isNaked = sfui.gear.isNakedPaused()
-            local title = isNaked and "naked (active - auto-equip paused)" or "naked (unequip gear)"
-            show_tooltip(b, "ANCHOR_TOP", title, {
-                { isNaked and "click to resume auto-equip and re-equip your gear." or "unequips all weapons and armor into your bags.", 0.8, 0.8, 0.8, true },
-                { "leaves jewelry (rings, trinkets, neck), shirt, and tabard equipped.", 0.6, 0.9, 0.6, true },
-                { "pauses gear manager auto-equip until clicked again or role/pve/pvp is clicked.", 0.4, 0.8, 1.0, true },
-            })
-        end)
-        btnNaked:SetScript("OnLeave", function(b)
-            if not b.isSelected then b:SetAlpha(0.40) end
-            hide_tooltip()
-        end)
-        bar.btnNaked = btnNaked
-    end
-    btnNaked:ClearAllPoints()
-    btnNaked:SetPoint("LEFT", bar, "LEFT", curX, 0)
-    btnNaked:Show()
+    local activeSchool = sfui.gear.GetActiveResistSchool and sfui.gear.GetActiveResistSchool()
+    local isNaked = sfui.gear.isNakedPaused and sfui.gear.isNakedPaused() or false
+    local modeDimmed = (activeSchool ~= nil) or isNaked
 
     local db = SfuiDB and SfuiDB.gear and SfuiDB.gear[specID]
     local curRole = sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, db)
     local curRoleLower = curRole and curRole:lower()
-    for rKey, rBtn in pairs(bar.roleBtns) do
-        if rBtn:IsShown() then
+
+    local curX = 8
+    dock.roleBtns = dock.roleBtns or {}
+    local activeRoleMap = {}
+    if classicRoles and #classicRoles > 0 then
+        for _, rKey in ipairs(classicRoles) do
+            activeRoleMap[rKey] = true
+            local rBtn = dock.roleBtns[rKey]
+            if not rBtn then
+                rBtn = createDockRoleButton(dock, gearFrame, classID, rKey)
+                dock.roleBtns[rKey] = rBtn
+            else
+                rBtn.tex:SetTexture(sfui.gear.GetClassicRoleIcon(classID, rKey))
+            end
+            rBtn:ClearAllPoints()
+            rBtn:SetPoint("LEFT", dock, "LEFT", curX, 0)
+            rBtn:Show()
             local isSelected = (curRoleLower == (rKey and rKey:lower()))
-            styleRoleButton(rBtn, isSelected)
+            styleRoleButton(rBtn, isSelected, modeDimmed)
+            curX = curX + DOCK_ICON_SIZE + DOCK_ICON_SPACING
+        end
+        dock.div1:ClearAllPoints()
+        dock.div1:SetPoint("LEFT", dock, "LEFT", curX + 6 - DOCK_ICON_SPACING, 0)
+        dock.div1:Show()
+        curX = curX + 13 - DOCK_ICON_SPACING
+    else
+        dock.div1:Hide()
+    end
+
+    for k, b in pairs(dock.roleBtns) do
+        if not activeRoleMap[k] then b:Hide() end
+    end
+
+    local schools = getResistSchools()
+    for _, def in ipairs(schools) do
+        local rBtn = dock.resistBtns and dock.resistBtns[def.key]
+        if rBtn then
+            local summary = sfui.highest and sfui.highest.GetResistSummary and sfui.highest.GetResistSummary(def.key)
+            local maxR = summary and summary.targetResist or 0
+            rBtn:ClearAllPoints()
+            rBtn:SetPoint("LEFT", dock, "LEFT", curX, 0)
+            rBtn:Show()
+            styleResistButton(rBtn, activeSchool == def.key, maxR)
+            curX = curX + DOCK_ICON_SIZE + DOCK_ICON_SPACING
         end
     end
-    styleNakedButton(btnNaked, sfui.gear.isNakedPaused())
+
+    dock.div2:ClearAllPoints()
+    dock.div2:SetPoint("LEFT", dock, "LEFT", curX + 6 - DOCK_ICON_SPACING, 0)
+    dock.div2:Show()
+    curX = curX + 13 - DOCK_ICON_SPACING
+
+    if dock.btnNaked then
+        dock.btnNaked:ClearAllPoints()
+        dock.btnNaked:SetPoint("LEFT", dock, "LEFT", curX, 0)
+        dock.btnNaked:Show()
+        styleNakedButton(dock.btnNaked, isNaked)
+    end
+end
+
+function sfui.gear.UpdateCollapsedRoleBar(gearFrame)
+    if gearFrame and gearFrame.collapsedRoleBar then
+        gearFrame.collapsedRoleBar:Hide()
+    end
+    sfui.gear.UpdateQuickDock(gearFrame)
 end
 
 -- -------------------------------------------------------------------------
--- UI FLAVOR REFRESH (Role buttons & naked button state)
+-- CONFIG DRAWER RIGHT PANEL (Off-Armor Toggle & Live Resist Readout)
 -- -------------------------------------------------------------------------
-function sfui.gear.UpdateFlavorUI(ui, specID, db)
-    if ui and ui.roleBtns then
-        local curRole = sfui.gear.GetClassicRole and sfui.gear.GetClassicRole(specID, db)
-        local curRoleLower = curRole and curRole:lower()
-        for rKey, rBtn in pairs(ui.roleBtns) do
-            local isSelected = (curRoleLower == (rKey and rKey:lower()))
-            styleRoleButton(rBtn, isSelected)
+local function styleOffArmorButton(btn, enabled)
+    if not btn then return end
+    local useAH = sfui.theme and sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive()
+    if enabled then
+        btn:SetText("|cff66ff66off-armor: on|r")
+        if useAH then
+            sfui.theme.SetButtonSelected(btn, true)
+            btn:SetBackdropBorderColor(0, 0, 0, 0)
+            btn:SetBackdropColor(0, 0, 0, 0)
+        else
+            local p = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
+            local acc = p and p.accentColor or { 0.95, 0.85, 0.55 }
+            btn:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.9)
+            btn:SetBackdropColor(acc[1] * 0.25, acc[2] * 0.25, acc[3] * 0.25, 0.95)
+        end
+    else
+        btn:SetText("|cff888888off-armor: off|r")
+        if useAH then
+            sfui.theme.SetButtonSelected(btn, false)
+            btn:SetBackdropBorderColor(0, 0, 0, 0)
+            btn:SetBackdropColor(0, 0, 0, 0)
+        else
+            local isCamelot = sfui.theme and sfui.theme.IsCamelotActive and sfui.theme.IsCamelotActive()
+            if isCamelot then
+                btn:SetBackdropBorderColor(0.28, 0.22, 0.14, 0.85)
+                btn:SetBackdropColor(0.12, 0.10, 0.08, 0.95)
+            else
+                btn:SetBackdropBorderColor(0, 0, 0, 1)
+                btn:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
+            end
         end
     end
+end
 
-    if ui and ui.btnNaked then
-        local isNaked = sfui.gear.isNakedPaused()
-        styleNakedButton(ui.btnNaked, isNaked)
+function sfui.gear.BuildCardModifiers(card, ui, specID, curLockX)
+    if not card or not ui then return end
+
+    local vDiv = createDockDivider(card, 1, 68)
+    vDiv:SetPoint("TOPLEFT", card, "TOPLEFT", 297, -40)
+    ui.lockRightDivider = vDiv
+
+    local offArmorBtn = common.create_flat_button(card, "off-armor: on", 158, 22)
+    offArmorBtn:SetPoint("TOPLEFT", card, "TOPLEFT", 308, -44)
+    function offArmorBtn:UpdateState(enabled)
+        styleOffArmorButton(self, enabled)
+    end
+    offArmorBtn:SetScript("OnClick", function()
+        if sfui.gear.SetResistOffArmorEnabled and sfui.gear.IsResistOffArmorEnabled then
+            sfui.gear.SetResistOffArmorEnabled(not sfui.gear.IsResistOffArmorEnabled())
+        end
+    end)
+    offArmorBtn:SetScript("OnEnter", function(b)
+        if sfui.theme and sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+            if b._sfuiAHHighlight then b._sfuiAHHighlight:Show() end
+            if b.SetBackdropBorderColor then b:SetBackdropBorderColor(0, 0, 0, 0) end
+            if b.SetBackdropColor then b:SetBackdropColor(0, 0, 0, 0) end
+        else
+            local p = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
+            local hl = (p and p.highlightColor) or (sfui.config and sfui.config.colors and sfui.config.colors.cyan) or { 0, 1, 1 }
+            b:SetBackdropBorderColor(hl[1], hl[2], hl[3], 1)
+        end
+        show_tooltip(b, "ANCHOR_TOP", "off-armor resist gear", {
+            { "on: include lower wearable armor types in bags (e.g. leather or mail for plate classes).", 0.8, 0.8, 0.8, true },
+            { "off: restrict resist gear to your primary armor class (neck, rings, trinkets, cloak unchanged).", 0.8, 0.8, 0.8, true },
+        })
+    end)
+    offArmorBtn:SetScript("OnLeave", function(b)
+        hide_tooltip()
+        if sfui.theme and sfui.theme.IsAuctionHouseButtonActive and sfui.theme.IsAuctionHouseButtonActive() then
+            if b._sfuiAHHighlight then b._sfuiAHHighlight:Hide() end
+        end
+        b:UpdateState(sfui.gear.IsResistOffArmorEnabled and sfui.gear.IsResistOffArmorEnabled() or false)
+    end)
+    ui.offArmorBtn = offArmorBtn
+
+    local line1 = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    line1:SetPoint("TOPLEFT", card, "TOPLEFT", 308, -72)
+    line1:SetWidth(158)
+    line1:SetJustifyH("LEFT")
+    line1:SetWordWrap(false)
+    line1:SetShadowOffset(0, 0)
+    ui.resistLine1 = line1
+
+    local line2 = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    line2:SetPoint("TOPLEFT", card, "TOPLEFT", 308, -88)
+    line2:SetWidth(158)
+    line2:SetJustifyH("LEFT")
+    line2:SetWordWrap(false)
+    line2:SetShadowOffset(0, 0)
+    ui.resistLine2 = line2
+
+    offArmorBtn:UpdateState(sfui.gear.IsResistOffArmorEnabled and sfui.gear.IsResistOffArmorEnabled() or true)
+    updateResistSummaryText(ui)
+end
+
+-- -------------------------------------------------------------------------
+-- UI FLAVOR REFRESH (Off-armor toggle, resist readout, quick dock)
+-- -------------------------------------------------------------------------
+function sfui.gear.UpdateFlavorUI(ui, specID, db)
+    if ui and ui.offArmorBtn and ui.offArmorBtn.UpdateState then
+        local enabled = (sfui.gear.IsResistOffArmorEnabled == nil) or sfui.gear.IsResistOffArmorEnabled()
+        ui.offArmorBtn:UpdateState(enabled)
     end
 
     local gFrame = sfui.gear.frame or _G.SfuiGearManagerFrame
-    if gFrame and gFrame.collapsedRoleBar and sfui.gear.UpdateCollapsedRoleBar then
-        sfui.gear.UpdateCollapsedRoleBar(gFrame)
+    if ui then
+        updateResistSummaryText(ui, gFrame)
+    end
+    if gFrame and sfui.gear.UpdateQuickDock then
+        sfui.gear.UpdateQuickDock(gFrame)
     end
 end
 
@@ -1244,3 +1570,7 @@ function sfui.gear.get_equipped_weapon_info(slotID)
 end
 
 sfui.gear.GetEquippedWeaponInfo = sfui.gear.get_equipped_weapon_info
+
+if sfui.gear.frame and sfui.gear.frame.EnsureFlavorLayout then
+    sfui.gear.frame:EnsureFlavorLayout()
+end

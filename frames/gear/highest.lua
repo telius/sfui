@@ -11,6 +11,7 @@ local pairs = _G.pairs
 local ipairs = _G.ipairs
 local string = _G.string
 local table = _G.table
+local math = _G.math
 local wipe = _G.wipe
 local issecretvalue = sfui.common.issecretvalue
 
@@ -472,6 +473,9 @@ end
 if sfui.events then
     local function onGearContextChanged()
         InvalidateUpgradeEvalCache()
+        if sfui.highest.InvalidateResistSummaryCache then
+            sfui.highest.InvalidateResistSummaryCache()
+        end
     end
     if sfui.events.RegisterMessage then
         sfui.events.RegisterMessage("SFUI_EQUIPMENT_DELTA", onGearContextChanged)
@@ -936,4 +940,532 @@ function sfui.highest.GetBestItems(isPvP)
     sfui.highest.SolveRemainingSlots(best, finalPick, isClassicSpec, usesAmmo)
 
     return finalPick
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- Max-Resistance Solver & Summary Engine (Classic / Camelot)
+-- ══════════════════════════════════════════════════════════════════════════════
+local resistSummaryCache = {}
+
+function sfui.highest.InvalidateResistSummaryCache()
+    wipe(resistSummaryCache)
+end
+
+local function clonePickEntry(itm)
+    if type(itm) ~= "table" then return nil end
+    local copy = {}
+    for k, v in pairs(itm) do
+        copy[k] = v
+    end
+    return copy
+end
+
+local function getItemUniqueMeta(itemID, link)
+    local isUnique, _, limitCount, limitCat
+    local ci = _G.C_Item
+    if ci and ci.GetItemUniquenessByID and (itemID or link) then
+        isUnique, _, limitCount, limitCat = ci.GetItemUniquenessByID(itemID or link)
+    end
+    if isUnique == nil and GetItemInfo and link then
+        isUnique = select(17, GetItemInfo(link)) and true or false
+    end
+    return isUnique == true, limitCount, limitCat
+end
+
+local function getPhysicalItemKey(itm)
+    if not itm then return nil end
+    if itm.isEquipped and itm.equippedSlot then
+        return "eq:" .. tostring(itm.equippedSlot)
+    elseif itm.bag ~= nil and itm.slot ~= nil then
+        return "bag:" .. tostring(itm.bag) .. ":" .. tostring(itm.slot)
+    elseif itm.physId ~= nil then
+        return "phys:" .. tostring(itm.physId)
+    end
+    return itm.link
+end
+
+local function isItemUniqueConflict(cand, picked)
+    if not cand or not picked then return false end
+    local keyA = getPhysicalItemKey(cand)
+    local keyB = getPhysicalItemKey(picked)
+    if keyA and keyB and keyA == keyB then
+        return true
+    end
+    if picked.physId and cand.physId and picked.physId == cand.physId then
+        return true
+    end
+    if cand.itemID and picked.itemID and cand.itemID == picked.itemID then
+        if cand.isUnique or picked.isUnique then
+            return true
+        end
+    end
+    if cand.limitCategoryID and cand.limitCategoryCount == 1 and picked.limitCategoryID
+        and picked.limitCategoryID == cand.limitCategoryID
+    then
+        return true
+    end
+    return false
+end
+
+local function compareResistCandidates(a, b)
+    local ra, rb = a.resistVal or 0, b.resistVal or 0
+    if ra ~= rb then return ra > rb end
+    if (a.isProperArmor == true) ~= (b.isProperArmor == true) then
+        return a.isProperArmor == true
+    end
+    local sa, sb = a.baselineScore or 0, b.baselineScore or 0
+    if sa ~= sb then return sa > sb end
+    local ia, ib = a.ilvl or 0, b.ilvl or 0
+    if ia ~= ib then return ia > ib end
+    local ba = (a.isBound == true or a.isEquipped == true)
+    local bb = (b.isBound == true or b.isEquipped == true)
+    if ba ~= bb then return ba end
+    if (a.isEquipped == true) ~= (b.isEquipped == true) then
+        return a.isEquipped == true
+    end
+    return (a.physId or 0) < (b.physId or 0)
+end
+
+local function getSchoolResistForItem(itemID, link, schoolKey)
+    local fn = common.get_item_resistances
+    if not fn then return 0 end
+    local tbl = fn(itemID, link)
+    local v = tbl and tbl[schoolKey]
+    return (type(v) == "number" and v > 0) and v or 0
+end
+
+local function buildResistCandidate(link, itemID, isEquipped, slotOverride, bag, slot, schoolKey, evalIdx, baselineScoreByLink, isProperArmor, itemLevel, itemEquipLoc, is2H, isBound)
+    local resistVal = getSchoolResistForItem(itemID, link, schoolKey)
+    local isUnique, limitCount, limitCat = getItemUniqueMeta(itemID, link)
+    return {
+        link               = link,
+        itemID             = itemID,
+        ilvl               = itemLevel or (link and common.get_item_level(link)) or 0,
+        is2H               = is2H == true,
+        isEquipped         = isEquipped == true,
+        equippedSlot       = isEquipped and slotOverride or nil,
+        physId             = isEquipped and (-(slotOverride + 1000)) or evalIdx,
+        itemEquipLoc       = itemEquipLoc or (link and common.get_item_equip_loc(link)) or "",
+        bag                = bag,
+        slot               = slot,
+        resistVal          = resistVal,
+        isProperArmor      = isProperArmor ~= false,
+        baselineScore      = (link and baselineScoreByLink[link]) or 0,
+        isBound            = (isEquipped == true) or (isBound == true),
+        isUnique           = isUnique,
+        limitCategoryCount = limitCount,
+        limitCategoryID    = limitCat,
+        equipReason        = (resistVal > 0) and ("+" .. resistVal .. " " .. schoolKey .. " resist") or nil,
+    }
+end
+
+local function enrichBaselineEntry(entry, schoolKey, baselineScoreByLink)
+    if not entry or not entry.link then return nil end
+    local copy = clonePickEntry(entry)
+    copy.resistVal = getSchoolResistForItem(copy.itemID, copy.link, schoolKey)
+    copy.baselineScore = copy.score or baselineScoreByLink[copy.link] or 0
+    if copy.isProperArmor == nil then copy.isProperArmor = true end
+    if copy.isBound == nil then copy.isBound = true end
+    local isUnique, limitCount, limitCat = getItemUniqueMeta(copy.itemID, copy.link)
+    copy.isUnique = isUnique
+    copy.limitCategoryCount = limitCount
+    copy.limitCategoryID = limitCat
+    if copy.resistVal > 0 then
+        copy.equipReason = "+" .. copy.resistVal .. " " .. schoolKey .. " resist"
+    else
+        copy.equipReason = nil
+    end
+    return copy
+end
+
+local function appendUniquePoolItem(pool, seenKeys, item)
+    if not item then return end
+    local key = getPhysicalItemKey(item)
+    if not key then return end
+    if not seenKeys[key] then
+        seenKeys[key] = true
+        pool[#pool + 1] = item
+    end
+end
+
+local function solveResistPairedSlots(slotA, slotB, candA, candB, baseA, baseB, finalPick)
+    local pool = {}
+    local seen = {}
+    appendUniquePoolItem(pool, seen, baseA)
+    appendUniquePoolItem(pool, seen, baseB)
+    if candA then
+        for _, itm in ipairs(candA) do appendUniquePoolItem(pool, seen, itm) end
+    end
+    if candB then
+        for _, itm in ipairs(candB) do appendUniquePoolItem(pool, seen, itm) end
+    end
+    if #pool == 0 then return end
+
+    table.sort(pool, compareResistCandidates)
+
+    local first = pool[1]
+    local second = nil
+    for i = 2, #pool do
+        if not isItemUniqueConflict(pool[i], first) then
+            second = pool[i]
+            break
+        end
+    end
+
+    if first and second then
+        if first.equippedSlot == slotB and second.equippedSlot ~= slotB then
+            finalPick[slotB] = first
+            finalPick[slotA] = second
+        elseif second.equippedSlot == slotA and first.equippedSlot ~= slotA then
+            finalPick[slotA] = second
+            finalPick[slotB] = first
+        elseif second.equippedSlot == slotB and first.equippedSlot ~= slotB then
+            finalPick[slotA] = first
+            finalPick[slotB] = second
+        else
+            finalPick[slotA] = first
+            finalPick[slotB] = second
+        end
+    elseif first then
+        if first.equippedSlot == slotB then
+            finalPick[slotB] = first
+        else
+            finalPick[slotA] = first
+        end
+    end
+end
+
+local function solveResistWeapons(cand16, cand17, base16, base17, base1H, baseOH1, baseOH2, canDualWield, finalPick)
+    local pool16 = {}
+    local seen16 = {}
+    appendUniquePoolItem(pool16, seen16, base16)
+    appendUniquePoolItem(pool16, seen16, base1H)
+    if cand16 then
+        for _, itm in ipairs(cand16) do appendUniquePoolItem(pool16, seen16, itm) end
+    end
+
+    local pool17 = {}
+    local seen17 = {}
+    appendUniquePoolItem(pool17, seen17, base17)
+    appendUniquePoolItem(pool17, seen17, baseOH1)
+    appendUniquePoolItem(pool17, seen17, baseOH2)
+    if cand17 then
+        for _, itm in ipairs(cand17) do appendUniquePoolItem(pool17, seen17, itm) end
+    end
+
+    table.sort(pool16, compareResistCandidates)
+    table.sort(pool17, compareResistCandidates)
+
+    local best2H = nil
+    for _, itm in ipairs(pool16) do
+        if itm.is2H then
+            best2H = itm
+            break
+        end
+    end
+
+    local bestPairMH, bestPairOH, bestPairRes, bestPairHands, bestPairScore, bestPairIlvl = nil, nil, -1, 0, -1, -1
+    local mhCandidates = {}
+    for _, itm in ipairs(pool16) do
+        if not itm.is2H then
+            mhCandidates[#mhCandidates + 1] = itm
+        end
+    end
+    local ohCandidates = {}
+    for _, itm in ipairs(pool17) do
+        if not itm.is2H and itm.itemEquipLoc ~= "INVTYPE_WEAPONMAINHAND" then
+            if itm.itemEquipLoc == "INVTYPE_SHIELD" or itm.itemEquipLoc == "INVTYPE_HOLDABLE" or canDualWield then
+                ohCandidates[#ohCandidates + 1] = itm
+            end
+        end
+    end
+
+    for _, mh in ipairs(mhCandidates) do
+        local foundOH = nil
+        for _, oh in ipairs(ohCandidates) do
+            if not isItemUniqueConflict(mh, oh) then
+                foundOH = oh
+                break
+            end
+        end
+        local pairRes = (mh.resistVal or 0) + (foundOH and foundOH.resistVal or 0)
+        local pairHands = foundOH and 2 or 1
+        local pairScore = (mh.baselineScore or 0) + (foundOH and foundOH.baselineScore or 0)
+        local pairIlvl = (mh.ilvl or 0) + (foundOH and foundOH.ilvl or 0)
+        local isBetter = (pairRes > bestPairRes)
+            or (pairRes == bestPairRes and pairHands > bestPairHands)
+            or (pairRes == bestPairRes and pairHands == bestPairHands and pairScore > bestPairScore)
+            or (pairRes == bestPairRes and pairHands == bestPairHands and pairScore == bestPairScore and pairIlvl > bestPairIlvl)
+        if isBetter then
+            bestPairRes = pairRes
+            bestPairHands = pairHands
+            bestPairScore = pairScore
+            bestPairIlvl = pairIlvl
+            bestPairMH = mh
+            bestPairOH = foundOH
+        end
+    end
+
+    if not bestPairMH and #ohCandidates > 0 then
+        bestPairOH = ohCandidates[1]
+        bestPairRes = bestPairOH.resistVal or 0
+    end
+
+    local res2H = best2H and (best2H.resistVal or 0) or 0
+    local resDual = (bestPairRes >= 0) and bestPairRes or 0
+
+    if res2H <= 0 and resDual <= 0 then
+        finalPick[16] = base16
+        finalPick[17] = base17
+        return
+    end
+
+    if best2H and (res2H > resDual or (res2H == resDual and (not bestPairMH or (base16 and base16.is2H and (best2H.baselineScore or 0) >= ((bestPairMH.baselineScore or 0) + (bestPairOH and bestPairOH.baselineScore or 0)))))) then
+        finalPick[16] = best2H
+        finalPick[17] = nil
+    else
+        if bestPairMH and bestPairOH and bestPairMH.itemEquipLoc == "INVTYPE_WEAPON" and bestPairOH.itemEquipLoc == "INVTYPE_WEAPON" then
+            if (bestPairMH.equippedSlot == 17 or bestPairOH.equippedSlot == 16)
+                and bestPairMH.equippedSlot ~= 16 and bestPairOH.equippedSlot ~= 17
+            then
+                local tmp = bestPairMH
+                bestPairMH = bestPairOH
+                bestPairOH = tmp
+            end
+        end
+        finalPick[16] = bestPairMH
+        finalPick[17] = bestPairOH
+    end
+end
+
+function sfui.highest.GetBestResistItems(schoolKey, opts)
+    if type(schoolKey) ~= "string" then return nil, nil end
+    local lowerKey = schoolKey:lower()
+    local schoolByKey = common.RESIST_SCHOOL_BY_KEY
+    local schoolDef = schoolByKey and schoolByKey[lowerKey]
+    if not schoolDef then return nil, nil end
+
+    local allowOffArmor
+    if opts and opts.allowOffArmor ~= nil then
+        allowOffArmor = (opts.allowOffArmor == true)
+    elseif sfui.gear and sfui.gear.IsResistOffArmorEnabled then
+        allowOffArmor = sfui.gear.IsResistOffArmorEnabled()
+    else
+        allowOffArmor = true
+    end
+
+    local specID = common.get_current_spec_id()
+    local rule = (specID and specID ~= 0 and sfui.highest.GetRule and sfui.highest.GetRule(specID))
+        or (specID and sfui.highest.rules and sfui.highest.rules[specID])
+    local isPvP = (opts and opts.isPvP ~= nil) and (opts.isPvP == true)
+        or (sfui.gear and sfui.gear.isCurrentlyPvP and sfui.gear.isCurrentlyPvP())
+        or false
+
+    -- 1. Snapshot baseline normal gear BEFORE touching pooledBest/itemDataPool
+    local rawBaseline = sfui.highest.GetBestItems(isPvP)
+    local baselineScoreByLink = {}
+    local rawBase1H, rawBaseOH1, rawBaseOH2 = nil, nil, nil
+    local pooled = sfui.highest.pooledBest
+    if pooled then
+        for sID, list in pairs(pooled) do
+            if type(list) == "table" then
+                for _, itm in ipairs(list) do
+                    if itm and itm.link then
+                        local prev = baselineScoreByLink[itm.link] or 0
+                        if (itm.score or 0) > prev then
+                            baselineScoreByLink[itm.link] = itm.score or 0
+                        end
+                        if sID == 16 and not itm.is2H and not rawBase1H then
+                            rawBase1H = clonePickEntry(itm)
+                        elseif sID == 17 and not itm.is2H and itm.itemEquipLoc ~= "INVTYPE_WEAPONMAINHAND" then
+                            if not rawBaseOH1 then
+                                rawBaseOH1 = clonePickEntry(itm)
+                            elseif not rawBaseOH2 then
+                                rawBaseOH2 = clonePickEntry(itm)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local baselinePick = {}
+    if rawBaseline then
+        for sID, itm in pairs(rawBaseline) do
+            if type(itm) == "table" and sID ~= 0 and sID ~= 4 and sID ~= 19 then
+                baselinePick[sID] = enrichBaselineEntry(itm, lowerKey, baselineScoreByLink)
+            end
+        end
+    end
+    local base1H  = enrichBaselineEntry(rawBase1H, lowerKey, baselineScoreByLink)
+    local baseOH1 = enrichBaselineEntry(rawBaseOH1, lowerKey, baselineScoreByLink)
+    local baseOH2 = enrichBaselineEntry(rawBaseOH2, lowerKey, baselineScoreByLink)
+
+    -- 2. Scan equipped items (even 0 resist) and bag resist items
+    local candidates = {}
+    local equippedBySlot = {}
+    for s = 1, 18 do
+        if s ~= 4 then
+            candidates[s] = {}
+        end
+    end
+
+    local canDualWield = false
+    local evalIndex = 0
+    local currentResist = 0
+
+    for slotID = 1, 18 do
+        if slotID ~= 4 then
+            local link = GetInventoryItemLink("player", slotID)
+            if link and link ~= "" then
+                evalIndex = evalIndex + 1
+                local itemID, _, _, itemEquipLoc = common.get_item_instant_info(link)
+                local itemLevel = common.get_item_level(link)
+                local isValidEq, eqIlvl, eqLoc, _, eqProperArmor, eqDualWield =
+                    sfui.highest.IsItemValidForResist(link, specID, allowOffArmor)
+                if eqDualWield then canDualWield = true end
+                itemEquipLoc = eqLoc or itemEquipLoc
+                itemLevel = eqIlvl or itemLevel
+                local is2H = (itemEquipLoc == "INVTYPE_2HWEAPON" and not (rule and rule.weaps and rule.weaps["2H_Dual"]))
+                    or ((not sfui.highest.isClassicOrVanilla()) and (itemEquipLoc == "INVTYPE_RANGED" or itemEquipLoc == "INVTYPE_RANGEDRIGHT"))
+                local cand = buildResistCandidate(
+                    link, itemID, true, slotID, nil, nil, lowerKey, evalIndex,
+                    baselineScoreByLink, (eqProperArmor ~= false), itemLevel, itemEquipLoc, is2H, true
+                )
+                currentResist = currentResist + (cand.resistVal or 0)
+                equippedBySlot[slotID] = cand
+                if isValidEq then
+                    table.insert(candidates[slotID], cand)
+                end
+            end
+        end
+    end
+
+    common.for_each_bag_item(function(bag, slot, itemID, link)
+        if not link or link == "" then return end
+        local rVal = getSchoolResistForItem(itemID, link, lowerKey)
+        if rVal <= 0 then return end
+        local isValid, itemLevel, itemEquipLoc, _, isProperArmor, itemDualWield =
+            sfui.highest.IsItemValidForResist(link, specID, allowOffArmor)
+        if not isValid then return end
+        if itemDualWield then canDualWield = true end
+
+        local can2H = (rule and rule.weaps and rule.weaps["2H_Dual"] == true) or false
+        local nSlots, s1, s2 = common.get_slots_for_invtype(itemEquipLoc, itemDualWield, can2H)
+        if not nSlots or nSlots <= 0 then return end
+
+        evalIndex = evalIndex + 1
+        local isBound = sfui.highest.IsBagItemBound and sfui.highest.IsBagItemBound(bag, slot) or false
+        local is2H = (itemEquipLoc == "INVTYPE_2HWEAPON" and not can2H)
+            or ((not sfui.highest.isClassicOrVanilla()) and (itemEquipLoc == "INVTYPE_RANGED" or itemEquipLoc == "INVTYPE_RANGEDRIGHT"))
+        local cand = buildResistCandidate(
+            link, itemID, false, nil, bag, slot, lowerKey, evalIndex,
+            baselineScoreByLink, isProperArmor, itemLevel, itemEquipLoc, is2H, isBound
+        )
+        if s1 and candidates[s1] then table.insert(candidates[s1], cand) end
+        if nSlots >= 2 and s2 and s2 ~= s1 and candidates[s2] then table.insert(candidates[s2], cand) end
+    end, true, true, false)
+
+    -- 3. Sort non-paired/non-weapon slots and solve picks
+    local finalPick = {}
+    for slotID = 1, 18 do
+        if slotID ~= 4 and slotID ~= 11 and slotID ~= 12 and slotID ~= 13 and slotID ~= 14 and slotID ~= 16 and slotID ~= 17 then
+            local list = candidates[slotID]
+            table.sort(list, compareResistCandidates)
+            local top = list[1]
+            if top and (top.resistVal or 0) > 0 then
+                finalPick[slotID] = top
+            else
+                finalPick[slotID] = baselinePick[slotID] or equippedBySlot[slotID]
+            end
+        end
+    end
+
+    solveResistPairedSlots(11, 12, candidates[11], candidates[12], baselinePick[11], baselinePick[12], finalPick)
+    solveResistPairedSlots(13, 14, candidates[13], candidates[14], baselinePick[13], baselinePick[14], finalPick)
+    solveResistWeapons(candidates[16], candidates[17], baselinePick[16], baselinePick[17], base1H, baseOH1, baseOH2, canDualWield, finalPick)
+
+    -- 4. Compute summary metrics & swap diff
+    local targetResist = 0
+    local swaps = {}
+    for slotID = 1, 18 do
+        if slotID ~= 4 then
+            local picked = finalPick[slotID]
+            local eq = equippedBySlot[slotID]
+            if picked then
+                targetResist = targetResist + (picked.resistVal or 0)
+                if not (picked.isEquipped and picked.equippedSlot == slotID) then
+                    swaps[#swaps + 1] = {
+                        slotID    = slotID,
+                        oldLink   = eq and eq.link or nil,
+                        newLink   = picked.link,
+                        oldResist = eq and eq.resistVal or 0,
+                        newResist = picked.resistVal or 0,
+                    }
+                end
+            elseif slotID == 17 and finalPick[16] and finalPick[16].is2H and eq then
+                swaps[#swaps + 1] = {
+                    slotID    = 17,
+                    oldLink   = eq.link,
+                    newLink   = nil,
+                    oldResist = eq.resistVal or 0,
+                    newResist = 0,
+                }
+            end
+        end
+    end
+
+    local liveUnitResist = nil
+    if _G.UnitResistance and schoolDef.damageClass ~= nil then
+        local _, _, effective = _G.UnitResistance("player", schoolDef.damageClass)
+        if effective ~= nil and not (issecretvalue and issecretvalue(effective)) and type(effective) == "number" then
+            liveUnitResist = effective
+        end
+    end
+
+    local summary = {
+        school         = lowerKey,
+        currentResist  = currentResist,
+        targetResist   = targetResist,
+        delta          = targetResist - currentResist,
+        liveUnitResist = liveUnitResist,
+        swaps          = swaps,
+        swapCount      = #swaps,
+        allowOffArmor  = allowOffArmor,
+    }
+
+    return finalPick, summary
+end
+
+function sfui.highest.GetResistSummary(schoolKey, opts)
+    if type(schoolKey) ~= "string" then return nil end
+    local lowerKey = schoolKey:lower()
+    if not (common.RESIST_SCHOOL_BY_KEY and common.RESIST_SCHOOL_BY_KEY[lowerKey]) then
+        return nil
+    end
+    local allowOffArmor
+    if opts and opts.allowOffArmor ~= nil then
+        allowOffArmor = (opts.allowOffArmor == true)
+    elseif sfui.gear and sfui.gear.IsResistOffArmorEnabled then
+        allowOffArmor = sfui.gear.IsResistOffArmorEnabled()
+    else
+        allowOffArmor = true
+    end
+    local isPvP = (opts and opts.isPvP ~= nil) and (opts.isPvP == true)
+        or (sfui.gear and sfui.gear.isCurrentlyPvP and sfui.gear.isCurrentlyPvP())
+        or false
+    local cacheKey = lowerKey .. ":" .. (allowOffArmor and "1" or "0") .. ":" .. (isPvP and "pvp" or "pve")
+    local cached = resistSummaryCache[cacheKey]
+    if cached then
+        return cached
+    end
+    local _, summary = sfui.highest.GetBestResistItems(lowerKey, {
+        allowOffArmor = allowOffArmor,
+        isPvP         = isPvP,
+    })
+    if summary then
+        resistSummaryCache[cacheKey] = summary
+    end
+    return summary
 end

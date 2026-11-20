@@ -49,11 +49,64 @@ end
 
 local hide_tooltip = sfui.common.hide_tooltip
 
+local function HasQuickDock()
+    return (not sfui.isRetail) and (sfui.gear.HasQuickDock == true)
+end
+
 local function GetHeaderHeight()
     if sfui.gear.GetHeaderHeight then
         return sfui.gear.GetHeaderHeight()
     end
     return (not sfui.isRetail) and 34 or 56
+end
+
+local function GetHeaderWidth()
+    if sfui.gear.GetHeaderWidth then
+        return sfui.gear.GetHeaderWidth()
+    end
+    return 280
+end
+
+local function GetCollapsedHeight()
+    if sfui.gear.GetCollapsedHeight then
+        return sfui.gear.GetCollapsedHeight()
+    end
+    return GetHeaderHeight()
+end
+
+local function GetContentTopOffset()
+    if sfui.gear.GetContentTopOffset then
+        return sfui.gear.GetContentTopOffset()
+    end
+    return GetHeaderHeight()
+end
+
+local function GetCardHeight()
+    if sfui.gear.GetCardHeight then
+        return sfui.gear.GetCardHeight()
+    end
+    return (not sfui.isRetail) and 168 or 140
+end
+
+local function GetStatRowY()
+    if sfui.gear.GetStatRowY then
+        return sfui.gear.GetStatRowY()
+    end
+    return -112
+end
+
+local function GetLockBaseY()
+    if sfui.gear.GetLockBaseY then
+        return sfui.gear.GetLockBaseY()
+    end
+    return -32
+end
+
+local function GetDropdownWidth()
+    if sfui.gear.GetDropdownWidth then
+        return sfui.gear.GetDropdownWidth()
+    end
+    return 96
 end
 
 -- -------------------------------------------------------------------------
@@ -442,18 +495,18 @@ local function resolveStatOrder(specID, db, pool, isTank)
 end
 sfui.gear.GetResolvedStatOrder = resolveStatOrder
 
-local STAT_ROW_Y = -112
-
 local function ensureStatRowButtons(card, ui, id, numStats)
     if not card or not ui then return end
     ui.statBtns = ui.statBtns or {}
     ui.statTgls = ui.statTgls or {}
 
+    local statRowY = GetStatRowY()
     local startX = (numStats >= 10) and 46 or 48
     local statBtnW = (numStats >= 10) and 26 or 28
     local sepW = (numStats >= 10) and 12 or 14
     local gap = 2
-    local needsLayout = (ui._lastStatCount ~= numStats)
+    local needsLayout = (ui._lastStatCount ~= numStats) or (ui._lastStatRowY ~= statRowY)
+    ui._lastStatRowY = statRowY
 
     local function getLiveContext()
         local ldb = (SfuiDB and SfuiDB.gear and SfuiDB.gear[id]) or {}
@@ -521,10 +574,10 @@ local function ensureStatRowButtons(card, ui, id, numStats)
             sBtn:ClearAllPoints()
             sBtn:SetSize(statBtnW, 20)
             if j == 1 then
-                sBtn:SetPoint("TOPLEFT", card, "TOPLEFT", startX, STAT_ROW_Y)
+                sBtn:SetPoint("TOPLEFT", card, "TOPLEFT", startX, statRowY)
             else
                 sBtn:SetPoint("LEFT", curAnchor, "RIGHT", gap, 0)
-                sBtn:SetPoint("TOP", card, "TOP", 0, STAT_ROW_Y)
+                sBtn:SetPoint("TOP", card, "TOP", 0, statRowY)
             end
         end
         sBtn:Show()
@@ -569,7 +622,7 @@ local function ensureStatRowButtons(card, ui, id, numStats)
                 tgl:ClearAllPoints()
                 tgl:SetSize(sepW, 20)
                 tgl:SetPoint("LEFT", curAnchor, "RIGHT", gap, 0)
-                tgl:SetPoint("TOP", card, "TOP", 0, STAT_ROW_Y)
+                tgl:SetPoint("TOP", card, "TOP", 0, statRowY)
             end
             tgl:Show()
             curAnchor = tgl
@@ -620,7 +673,13 @@ function sfui.gear.UpdateStatUI()
     SfuiDB = SfuiDB or {}
     SfuiDB.gear = SfuiDB.gear or {}
 
-    if SfuiGearManagerFrame.collapsed and sfui.gear.UpdateCollapsedRoleBar then
+    if SfuiGearManagerFrame.EnsureFlavorLayout then
+        SfuiGearManagerFrame:EnsureFlavorLayout()
+    end
+
+    if HasQuickDock() and sfui.gear.UpdateQuickDock then
+        sfui.gear.UpdateQuickDock(SfuiGearManagerFrame)
+    elseif SfuiGearManagerFrame.collapsed and sfui.gear.UpdateCollapsedRoleBar then
         sfui.gear.UpdateCollapsedRoleBar(SfuiGearManagerFrame)
     end
 
@@ -635,8 +694,30 @@ function sfui.gear.UpdateStatUI()
     -- Header Status label: shows active gear mode
     if SfuiGearManagerFrame.statusLabel then
         local lbl = SfuiGearManagerFrame.statusLabel
+        local activeResist = sfui.gear.GetActiveResistSchool and sfui.gear.GetActiveResistSchool()
         local isNaked = (sfui.gear.isNakedPaused and sfui.gear.isNakedPaused())
-        if isNaked then
+        if activeResist then
+            local byKey = common.RESIST_SCHOOL_BY_KEY
+            local def = byKey and byKey[activeResist]
+            local val = nil
+            if def and def.damageClass ~= nil and _G.UnitResistance then
+                local _, _, effective = _G.UnitResistance("player", def.damageClass)
+                if effective ~= nil and not (common.issecretvalue and common.issecretvalue(effective)) and type(effective) == "number" then
+                    val = effective
+                end
+            end
+            if val == nil and sfui.highest and sfui.highest.GetResistSummary then
+                local summary = sfui.highest.GetResistSummary(activeResist)
+                val = summary and summary.currentResist
+            end
+            if val ~= nil then
+                lbl:SetText(string.format("%s resist: %d (locked)", activeResist, val))
+            else
+                lbl:SetText(activeResist .. " resist (locked)")
+            end
+            local c = (def and def.color) or { 1.0, 0.75, 0.3 }
+            lbl:SetTextColor(c[1], c[2], c[3])
+        elseif isNaked then
             lbl:SetText("naked (auto-equip paused)")
             lbl:SetTextColor(1.0, 0.65, 0.2)
         else
@@ -756,9 +837,14 @@ local HEADER_H = GetHeaderHeight()
 sfui.theme.ApplyWindowStyle(gearFrame)
 sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
     if frame.headerBar then
+        local hdrW = GetHeaderWidth()
+        if hdrW then
+            frame.headerBar.customWidth = hdrW
+            frame.headerBar:SetWidth(hdrW)
+        end
         sfui.theme.ApplyHeaderStyle(frame.headerBar, "gear manager")
     end
-    if frame.collapsed then
+    if frame.collapsed and not HasQuickDock() then
         if frame.headerBar then frame.headerBar:Hide() end
         if frame.collapsedRoleBar then frame.collapsedRoleBar:Show() end
     end
@@ -767,6 +853,9 @@ sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
     end
     if frame.upgradesBtn then
         frame.upgradesBtn:SetFrameLevel((frame.closeBtn and frame.closeBtn:GetFrameLevel()) or ((frame:GetFrameLevel() or 1) + 20))
+    end
+    if frame.quickDock then
+        sfui.theme.ApplyContainerStyle(frame.quickDock)
     end
     if frame.content then
         sfui.theme.ApplyContainerStyle(frame.content)
@@ -780,6 +869,8 @@ sfui.theme.RegisterWindow(gearFrame, function(frame, pal)
     end
     if sfui.gear.UpdateFlavorUI and frame.activeSpecID and frame.specUIs and frame.specUIs[frame.activeSpecID] then
         sfui.gear.UpdateFlavorUI(frame.specUIs[frame.activeSpecID], frame.activeSpecID, SfuiDB.gear and SfuiDB.gear[frame.activeSpecID])
+    elseif HasQuickDock() and sfui.gear.UpdateQuickDock then
+        sfui.gear.UpdateQuickDock(frame)
     end
     sfui.gear.UpdateStatUI()
 end)
@@ -787,7 +878,7 @@ gearFrame:Hide()
 gearFrame:SetFrameStrata("DIALOG")
 
 -- Header Bar
-sfui.theme.CreateWindowHeader(gearFrame, "gear manager")
+sfui.theme.CreateWindowHeader(gearFrame, "gear manager", GetHeaderWidth())
 
 -- Close & Collapse Buttons
 local closeBtn = common.create_close_button(gearFrame, function() gearFrame:Hide() end, 22)
@@ -830,30 +921,118 @@ collapsedRoleBar:EnableMouse(false)
 collapsedRoleBar:Hide()
 gearFrame.collapsedRoleBar = collapsedRoleBar
 
-local function UpdateCollapseVisuals(frame)
-    if not frame then return end
-    local curHeaderH = GetHeaderHeight()
-    if frame.collapsed then
-        if frame.collapseBtn then frame.collapseBtn:SetText("+") end
-        if frame.upgradesBtn then frame.upgradesBtn:Hide() end
-        if frame.content then frame.content:Hide() end
-        if frame.headerBar then frame.headerBar:Hide() end
-        if frame.collapsedRoleBar then
-            frame.collapsedRoleBar:Show()
-            if sfui.gear.UpdateCollapsedRoleBar then
-                sfui.gear.UpdateCollapsedRoleBar(frame)
+local function anchorStatusToHeader(frame)
+    if frame.statusLabel and frame.headerBar then
+        frame.statusLabel:ClearAllPoints()
+        frame.statusLabel:SetPoint("LEFT", frame, "LEFT", 12, 0)
+        frame.statusLabel:SetPoint("RIGHT", frame.headerBar, "LEFT", -6, 0)
+        frame.statusLabel:SetPoint("CENTER", frame.headerBar, "CENTER", 0, 0)
+    end
+end
+
+function gearFrame:EnsureFlavorLayout()
+    if not HasQuickDock() then return end
+    if self.headerBar then
+        local hdrW = GetHeaderWidth()
+        if hdrW and self.headerBar.customWidth ~= hdrW then
+            self.headerBar.customWidth = hdrW
+            self.headerBar:SetWidth(hdrW)
+            if sfui.theme and sfui.theme.ApplyHeaderStyle then
+                sfui.theme.ApplyHeaderStyle(self.headerBar, "gear manager")
             end
         end
-        frame:SetSize(496, curHeaderH)
-        if frame.statusLabel then
-            frame.statusLabel:ClearAllPoints()
-            frame.statusLabel:SetPoint("LEFT", frame, "LEFT", 12, 0)
-            if frame.collapsedRoleBar and frame.collapsedRoleBar:IsShown() then
-                frame.statusLabel:SetPoint("RIGHT", frame.collapsedRoleBar, "LEFT", -6, 0)
-                frame.statusLabel:SetPoint("CENTER", frame.collapsedRoleBar, "CENTER", 0, 0)
+    end
+    if self.collapsedRoleBar then
+        self.collapsedRoleBar:Hide()
+    end
+    if not self.quickDock and sfui.gear.BuildQuickDock then
+        sfui.gear.BuildQuickDock(self)
+    end
+    if self.quickDock and not self._quickDockWired then
+        self._quickDockWired = true
+        local dock = self.quickDock
+        local dockLvl = (dock:GetFrameLevel() or 4) + 5
+        if self.autoToggle then
+            if self.autoToggle.SetParent then self.autoToggle:SetParent(dock) end
+            self.autoToggle:SetSize(70, 22)
+            self.autoToggle:ClearAllPoints()
+            self.autoToggle:SetPoint("RIGHT", dock, "RIGHT", -8, 0)
+            self.autoToggle:SetFrameLevel(dockLvl)
+        end
+        if self.highPvP then
+            if self.highPvP.SetParent then self.highPvP:SetParent(dock) end
+            self.highPvP:SetSize(32, 22)
+            self.highPvP:ClearAllPoints()
+            if self.autoToggle then
+                self.highPvP:SetPoint("RIGHT", self.autoToggle, "LEFT", -4, 0)
             else
-                frame.statusLabel:SetPoint("RIGHT", frame, "CENTER", 0, 0)
-                frame.statusLabel:SetPoint("CENTER", frame, "CENTER", 0, 0)
+                self.highPvP:SetPoint("RIGHT", dock, "RIGHT", -82, 0)
+            end
+            self.highPvP:SetFrameLevel(dockLvl)
+        end
+        if self.highPvE then
+            if self.highPvE.SetParent then self.highPvE:SetParent(dock) end
+            self.highPvE:SetSize(32, 22)
+            self.highPvE:ClearAllPoints()
+            if self.highPvP then
+                self.highPvE:SetPoint("RIGHT", self.highPvP, "LEFT", -4, 0)
+            else
+                self.highPvE:SetPoint("RIGHT", dock, "RIGHT", -118, 0)
+            end
+            self.highPvE:SetFrameLevel(dockLvl)
+        end
+        if self.content then
+            local topOff = GetContentTopOffset()
+            self.content:ClearAllPoints()
+            self.content:SetPoint("TOPLEFT", self, "TOPLEFT", 8, -topOff)
+            self.content:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -8, 8)
+        end
+    end
+end
+
+local function UpdateCollapseVisuals(frame)
+    if not frame then return end
+    if frame.EnsureFlavorLayout then
+        frame:EnsureFlavorLayout()
+    end
+    local curHeaderH = GetHeaderHeight()
+    local hasDock = HasQuickDock()
+    if frame.collapsed then
+        if frame.collapseBtn then frame.collapseBtn:SetText("+") end
+        if hasDock then
+            if frame.upgradesBtn then frame.upgradesBtn:Show() end
+            if frame.content then frame.content:Hide() end
+            if frame.headerBar then frame.headerBar:Show() end
+            if frame.collapsedRoleBar then frame.collapsedRoleBar:Hide() end
+            if frame.quickDock then
+                frame.quickDock:Show()
+                if sfui.gear.UpdateQuickDock then
+                    sfui.gear.UpdateQuickDock(frame)
+                end
+            end
+            frame:SetSize(496, GetCollapsedHeight())
+            anchorStatusToHeader(frame)
+        else
+            if frame.upgradesBtn then frame.upgradesBtn:Hide() end
+            if frame.content then frame.content:Hide() end
+            if frame.headerBar then frame.headerBar:Hide() end
+            if frame.collapsedRoleBar then
+                frame.collapsedRoleBar:Show()
+                if sfui.gear.UpdateCollapsedRoleBar then
+                    sfui.gear.UpdateCollapsedRoleBar(frame)
+                end
+            end
+            frame:SetSize(496, curHeaderH)
+            if frame.statusLabel then
+                frame.statusLabel:ClearAllPoints()
+                frame.statusLabel:SetPoint("LEFT", frame, "LEFT", 12, 0)
+                if frame.collapsedRoleBar and frame.collapsedRoleBar:IsShown() then
+                    frame.statusLabel:SetPoint("RIGHT", frame.collapsedRoleBar, "LEFT", -6, 0)
+                    frame.statusLabel:SetPoint("CENTER", frame.collapsedRoleBar, "CENTER", 0, 0)
+                else
+                    frame.statusLabel:SetPoint("RIGHT", frame, "CENTER", 0, 0)
+                    frame.statusLabel:SetPoint("CENTER", frame, "CENTER", 0, 0)
+                end
             end
         end
     else
@@ -862,13 +1041,14 @@ local function UpdateCollapseVisuals(frame)
         if frame.content then frame.content:Show() end
         if frame.headerBar then frame.headerBar:Show() end
         if frame.collapsedRoleBar then frame.collapsedRoleBar:Hide() end
-        frame:SetSize(496, frame.expandedHeight or (curHeaderH + 140))
-        if frame.statusLabel and frame.headerBar then
-            frame.statusLabel:ClearAllPoints()
-            frame.statusLabel:SetPoint("LEFT", frame, "LEFT", 12, 0)
-            frame.statusLabel:SetPoint("RIGHT", frame.headerBar, "LEFT", -6, 0)
-            frame.statusLabel:SetPoint("CENTER", frame.headerBar, "CENTER", 0, 0)
+        if hasDock and frame.quickDock then
+            frame.quickDock:Show()
+            if sfui.gear.UpdateQuickDock then
+                sfui.gear.UpdateQuickDock(frame)
+            end
         end
+        frame:SetSize(496, frame.expandedHeight or (GetContentTopOffset() + GetCardHeight() + 8))
+        anchorStatusToHeader(frame)
     end
 end
 gearFrame.UpdateCollapseVisuals = UpdateCollapseVisuals
@@ -981,6 +1161,7 @@ gearFrame.highPvP:SetPoint("RIGHT", autoToggle, "LEFT", -6, 0)
 gearFrame.highPvP:SetFrameLevel(gearFrame.content:GetFrameLevel() + 5)
 gearFrame.highPvP:SetScript("OnClick", function()
     if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
+    if sfui.gear.SetActiveResistSchool then sfui.gear.SetActiveResistSchool(nil, true) end
     if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
     if sfui.highest then
         sfui.highest.ClearValidationCache()
@@ -998,6 +1179,7 @@ gearFrame.highPvE:SetPoint("RIGHT", gearFrame.highPvP, "LEFT", -4, 0)
 gearFrame.highPvE:SetFrameLevel(gearFrame.content:GetFrameLevel() + 5)
 gearFrame.highPvE:SetScript("OnClick", function()
     if sfui.gear.SetNakedPaused then sfui.gear.SetNakedPaused(false, true) end
+    if sfui.gear.SetActiveResistSchool then sfui.gear.SetActiveResistSchool(nil, true) end
     if sfui.gear.pauseAutoEquip then sfui.gear.pauseAutoEquip(0) end
     if sfui.highest then
         sfui.highest.ClearValidationCache()
@@ -1019,10 +1201,17 @@ gearFrame.statusLabel:SetWordWrap(false)
 gearFrame.statusLabel:SetShadowOffset(0, 0)
 gearFrame.statusLabel:SetText("")
 
+if gearFrame.EnsureFlavorLayout then
+    gearFrame:EnsureFlavorLayout()
+end
+
 -- -------------------------------------------------------------------------
 -- ON SHOW: BUILD CARDS & SPEC NAVIGATION
 -- -------------------------------------------------------------------------
 gearFrame:SetScript("OnShow", function(self)
+    if self.EnsureFlavorLayout then
+        self:EnsureFlavorLayout()
+    end
     if not self.posLoaded then
         self.posLoaded = true
         if SfuiDB.gear_pos then
@@ -1053,14 +1242,13 @@ gearFrame:SetScript("OnShow", function(self)
     local _, specIDs = common.get_player_specs()
     specIDs = specIDs or {}
 
-    local curHeaderH = GetHeaderHeight()
+    local topOff = GetContentTopOffset()
     self.content:ClearAllPoints()
-    self.content:SetPoint("TOPLEFT", self, "TOPLEFT", 8, -curHeaderH)
+    self.content:SetPoint("TOPLEFT", self, "TOPLEFT", 8, -topOff)
     self.content:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -8, 8)
 
-    local isVanillaSpec = not sfui.isRetail
-    local CARD_H = isVanillaSpec and 168 or 140
-    self.expandedHeight = curHeaderH + CARD_H + 8
+    local CARD_H = GetCardHeight()
+    self.expandedHeight = topOff + CARD_H + 8
 
     if SfuiDB and SfuiDB.gear_collapsed ~= nil then
         self.collapsed = SfuiDB.gear_collapsed
@@ -1070,9 +1258,7 @@ gearFrame:SetScript("OnShow", function(self)
 
     self.SelectSpecTab = function(f, specID)
         f.activeSpecID = specID
-        local isVan = not sfui.isRetail
-        local cardH = isVan and 168 or 140
-        f.expandedHeight = GetHeaderHeight() + cardH + 8
+        f.expandedHeight = GetContentTopOffset() + GetCardHeight() + 8
         if f.collapsed then
             UpdateCollapseVisuals(f)
         else
@@ -1141,6 +1327,28 @@ gearFrame:SetScript("OnShow", function(self)
         return ico
     end
 
+    local hasDock = HasQuickDock()
+    local dropW = GetDropdownWidth()
+    local pveDropX = hasDock and 60 or 58
+    local pvpTagX = hasDock and 236 or 166
+    local pvpDropX = hasDock and 288 or 214
+    local lockBaseY = GetLockBaseY()
+    local statRowY = GetStatRowY()
+
+    local function createHorizontalDivider(parent, y)
+        local div = parent:CreateTexture(nil, "ARTWORK")
+        div:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, y)
+        div:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -10, y)
+        div:SetHeight(1)
+        if div.SetColorTexture then
+            div:SetColorTexture(1, 1, 1, 0.12)
+        else
+            div:SetTexture("Interface\\Buttons\\WHITE8x8")
+            if div.SetVertexColor then div:SetVertexColor(1, 1, 1, 0.12) end
+        end
+        return div
+    end
+
     for _, id in ipairs(specIDs or {}) do
         self.specUIs[id] = {}
         local ui = self.specUIs[id]
@@ -1150,30 +1358,35 @@ gearFrame:SetScript("OnShow", function(self)
         card:SetFrameLevel(self.content:GetFrameLevel() + 1)
         ui.card = card
 
-        -- ROW 1: pve / pvp set dropdowns (quick equip buttons are anchored to content at TOPRIGHT)
+        -- ROW 1: pve / pvp set dropdowns (quick equip buttons sit in dock on Classic, TOPRIGHT in content on Retail)
         local pveTag = mkLabel(card, "pve set:", 0.82, 0.72, 0.52)
         pveTag:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -11)
 
-        local pveDrop = common.create_dropdown(card, 96, sfui.gear.GetEquipmentSetOptions, function(val)
+        local pveDrop = common.create_dropdown(card, dropW, sfui.gear.GetEquipmentSetOptions, function(val)
             SfuiDB.gear[id] = SfuiDB.gear[id] or { pve_set = "", pvp_set = "" }
             SfuiDB.gear[id].pve_set = val
             sfui.gear.Update()
             sfui.gear.UpdateStatUI()
         end, "")
-        pveDrop:SetPoint("TOPLEFT", card, "TOPLEFT", 58, -6)
+        pveDrop:SetPoint("TOPLEFT", card, "TOPLEFT", pveDropX, -6)
         ui.pveDrop = pveDrop
 
         local pvpTag = mkLabel(card, "pvp set:", 0.95, 0.55, 0.55)
-        pvpTag:SetPoint("TOPLEFT", card, "TOPLEFT", 166, -11)
+        pvpTag:SetPoint("TOPLEFT", card, "TOPLEFT", pvpTagX, -11)
 
-        local pvpDrop = common.create_dropdown(card, 96, sfui.gear.GetEquipmentSetOptions, function(val)
+        local pvpDrop = common.create_dropdown(card, dropW, sfui.gear.GetEquipmentSetOptions, function(val)
             SfuiDB.gear[id] = SfuiDB.gear[id] or { pve_set = "", pvp_set = "" }
             SfuiDB.gear[id].pvp_set = val
             sfui.gear.Update()
             sfui.gear.UpdateStatUI()
         end, "")
-        pvpDrop:SetPoint("TOPLEFT", card, "TOPLEFT", 214, -6)
+        pvpDrop:SetPoint("TOPLEFT", card, "TOPLEFT", pvpDropX, -6)
         ui.pvpDrop = pvpDrop
+
+        if hasDock then
+            ui.divTop = createHorizontalDivider(card, -34)
+            ui.divBottom = createHorizontalDivider(card, -114)
+        end
 
         -- ROW 2: Lock Slots & Modifiers
         local lockSlots
@@ -1192,13 +1405,13 @@ gearFrame:SetScript("OnShow", function(self)
         end
 
         local pveLockLabel = mkLabel(card, "pve:", PVE_COLOR[1] * 0.8, PVE_COLOR[2] * 0.8, PVE_COLOR[3] * 0.8)
-        pveLockLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -36)
+        pveLockLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 10, lockBaseY - 4)
 
         local lockLabel = mkLabel(card, "lock:", 0.65, 0.60, 0.50)
-        lockLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -61)
+        lockLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 10, lockBaseY - 29)
 
         local pvpLockLabel = mkLabel(card, "pvp:", PVP_COLOR[1] * 0.8, PVP_COLOR[2] * 0.8, PVP_COLOR[3] * 0.8)
-        pvpLockLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -84)
+        pvpLockLabel:SetPoint("TOPLEFT", card, "TOPLEFT", 10, lockBaseY - 52)
 
         local function lockSlot(slot, forPvP)
             local link = GetInventoryItemLink("player", slot)
@@ -1230,12 +1443,12 @@ gearFrame:SetScript("OnShow", function(self)
         local curLockX = 46
         for _, def in ipairs(lockSlots) do
             local pveIco = createLockIcon(card, id, false)
-            pveIco:SetPoint("TOPLEFT", card, "TOPLEFT", curLockX + 1, -32)
+            pveIco:SetPoint("TOPLEFT", card, "TOPLEFT", curLockX + 1, lockBaseY)
             pveIco:Hide()
             table.insert(ui.pveLockIcons, pveIco)
 
             local btn = common.create_flat_button(card, def.label, 24, 20)
-            btn:SetPoint("TOPLEFT", card, "TOPLEFT", curLockX, -57)
+            btn:SetPoint("TOPLEFT", card, "TOPLEFT", curLockX, lockBaseY - 25)
             local capturedSlot = def.slot
             btn:SetScript("OnClick", function() lockSlot(capturedSlot, IsShiftKeyDown()) end)
             btn:SetScript("OnEnter", function(b)
@@ -1274,14 +1487,14 @@ gearFrame:SetScript("OnShow", function(self)
             table.insert(ui.lockBtns, { btn = btn, slotID = def.slot })
 
             local pvpIco = createLockIcon(card, id, true)
-            pvpIco:SetPoint("TOPLEFT", card, "TOPLEFT", curLockX + 1, -80)
+            pvpIco:SetPoint("TOPLEFT", card, "TOPLEFT", curLockX + 1, lockBaseY - 48)
             pvpIco:Hide()
             table.insert(ui.pvpLockIcons, pvpIco)
 
             curLockX = curLockX + 27
         end
 
-        -- Delegate BuildCardModifiers to Retail (tier buttons) or Classic (role buttons)
+        -- Delegate BuildCardModifiers to Retail (tier buttons) or Classic (off-armor + live resist readout)
         if sfui.gear.BuildCardModifiers then
             sfui.gear.BuildCardModifiers(card, ui, id, curLockX)
         end
@@ -1289,7 +1502,7 @@ gearFrame:SetScript("OnShow", function(self)
         -- ROW 3: Stat Priorities & Pawn Weights
         local targetDB = SfuiDB.gear[id] or {}
         local statTag = mkLabel(card, "stats:", 0.65, 0.60, 0.50)
-        statTag:SetPoint("TOPLEFT", card, "TOPLEFT", 10, STAT_ROW_Y - 4)
+        statTag:SetPoint("TOPLEFT", card, "TOPLEFT", 10, statRowY - 4)
         refreshStatRowUI(ui, id, targetDB)
     end
 

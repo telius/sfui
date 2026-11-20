@@ -225,6 +225,43 @@ local validationCache = sfui.highest.validationCache
 sfui.highest.validationCacheCount = sfui.highest.validationCacheCount or 0
 local VALIDATION_CACHE_MAX = 3000
 
+local function resolveClassFlags(specID, playerClass, classID)
+    return {
+        isPaladin = (playerClass == "PALADIN" or classID == 1486 or specID == 1486 or specID == 65 or specID == 66 or specID == 70 or (specID and specID >= 14861 and specID <= 14863)),
+        isWarrior = (playerClass == "WARRIOR" or classID == 1491 or specID == 1491 or specID == 71 or specID == 72 or specID == 73 or (specID and specID >= 14911 and specID <= 14913)),
+        isShaman  = (playerClass == "SHAMAN" or classID == 1489 or specID == 1489 or specID == 262 or specID == 263 or specID == 264 or (specID and specID >= 14891 and specID <= 14893)),
+        isDruid   = (playerClass == "DRUID" or classID == 1484 or specID == 1484 or specID == 102 or specID == 103 or specID == 104 or specID == 105 or (specID and specID >= 14841 and specID <= 14844)),
+        isPriest  = (playerClass == "PRIEST" or classID == 1487 or specID == 1487 or specID == 256 or specID == 257 or specID == 258 or (specID and specID >= 14871 and specID <= 14873)),
+        isRogue   = (playerClass == "ROGUE" or classID == 1488 or specID == 1488 or specID == 259 or specID == 260 or specID == 261 or (specID and specID >= 14881 and specID <= 14883)),
+        isDK      = (playerClass == "DEATHKNIGHT" or classID == 1483 or specID == 1483 or specID == 250 or specID == 251 or specID == 252 or (specID and specID >= 14831 and specID <= 14833)),
+        isHunter  = (playerClass == "HUNTER" or classID == 1485 or specID == 1485 or specID == 253 or specID == 254 or specID == 255 or (specID and specID >= 14851 and specID <= 14853)),
+    }
+end
+
+local function isRelicValidForClass(subclassID, flags)
+    if flags.isDruid then
+        return subclassID == 8 or subclassID == 11 or subclassID == 0
+    elseif flags.isPaladin then
+        return subclassID == 7 or subclassID == 11 or subclassID == 0
+    elseif flags.isShaman then
+        return subclassID == 9 or subclassID == 11 or subclassID == 0
+    elseif flags.isDK then
+        return subclassID == 10 or subclassID == 11 or subclassID == 0
+    end
+    return false
+end
+
+local function canPlayerDualWield(flags, rule)
+    if flags.isRogue then
+        return (sfui.common.is_rogue_dual_wield_known and sfui.common.is_rogue_dual_wield_known()) or false
+    elseif flags.isWarrior or flags.isHunter or flags.isShaman then
+        return (sfui.talents and sfui.talents.is_talent_known and sfui.talents.is_talent_known(674))
+            or (rule and rule.weaps and rule.weaps["1H_Dual"] == true)
+            or false
+    end
+    return false
+end
+
 -- Returns true, itemLevel, statVal, itemEquipLoc if the item is valid for the spec rules
 local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, ignoreTalents)
     local rule = (sfui.highest.GetRule and sfui.highest.GetRule(specID)) or sfui.highest.rules[specID]
@@ -234,13 +271,14 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
     local playerClass, pClassID = sfui.talents.get_player_class()
     local playerClassID = isClassic and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(specID)) or (specID and specID >= 1482 and specID <= 1491 and specID)) or pClassID
 
-    local isPaladin = (playerClass == "PALADIN" or playerClassID == 1486 or specID == 1486 or specID == 65 or specID == 66 or specID == 70 or (specID and specID >= 14861 and specID <= 14863))
-    local isWarrior = (playerClass == "WARRIOR" or playerClassID == 1491 or specID == 1491 or specID == 71 or specID == 72 or specID == 73 or (specID and specID >= 14911 and specID <= 14913))
-    local isShaman  = (playerClass == "SHAMAN" or playerClassID == 1489 or specID == 1489 or specID == 262 or specID == 263 or specID == 264 or (specID and specID >= 14891 and specID <= 14893))
-    local isDruid   = (playerClass == "DRUID" or playerClassID == 1484 or specID == 1484 or specID == 102 or specID == 103 or specID == 104 or specID == 105 or (specID and specID >= 14841 and specID <= 14844))
-    local isPriest  = (playerClass == "PRIEST" or playerClassID == 1487 or specID == 1487 or specID == 256 or specID == 257 or specID == 258 or (specID and specID >= 14871 and specID <= 14873))
-    local isRogue   = (playerClass == "ROGUE" or playerClassID == 1488 or specID == 1488 or specID == 259 or specID == 260 or specID == 261 or (specID and specID >= 14881 and specID <= 14883))
-    local isDK      = (playerClass == "DEATHKNIGHT" or playerClassID == 1483 or specID == 1483 or specID == 250 or specID == 251 or specID == 252 or (specID and specID >= 14831 and specID <= 14833))
+    local cf = resolveClassFlags(specID, playerClass, playerClassID)
+    local isPaladin = cf.isPaladin
+    local isWarrior = cf.isWarrior
+    local isShaman  = cf.isShaman
+    local isDruid   = cf.isDruid
+    local isPriest  = cf.isPriest
+    local isRogue   = cf.isRogue
+    local isDK      = cf.isDK
 
     -- Dynamic Frost DK Talent Overrides (ignored for general loot eligibility)
     if not ignoreTalents and specID == 251 and not isClassic then
@@ -459,17 +497,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         elseif itemEquipLoc == "INVTYPE_RELIC" then
             -- In Classic / Vanilla / Camelot, Relics occupy slot 18:
             -- Druid: Idols (8/11/0), Paladin: Librams (7/11/0), Shaman: Totems (9/11/0), DK: Sigils (10/11/0)
-            if isDruid then
-                if subclassID ~= 8 and subclassID ~= 11 and subclassID ~= 0 then return false end
-            elseif isPaladin then
-                if subclassID ~= 7 and subclassID ~= 11 and subclassID ~= 0 then return false end
-            elseif isShaman then
-                if subclassID ~= 9 and subclassID ~= 11 and subclassID ~= 0 then return false end
-            elseif isDK then
-                if subclassID ~= 10 and subclassID ~= 11 and subclassID ~= 0 then return false end
-            else
-                return false
-            end
+            if not isRelicValidForClass(subclassID, cf) then return false end
         end
     elseif itemClassID == 6 then
         -- Projectile / Ammo (Vanilla / Classic only)
@@ -519,4 +547,102 @@ function sfui.highest.IsItemValidForSpec(itemLink, specID, ignorePlayerLevel, ig
     sfui.highest.validationCacheCount = (sfui.highest.validationCacheCount or 0) + 1
     validationCache[cacheKey] = { isValid, itemLevel, statVal, itemEquipLoc, itemQuality }
     return isValid, itemLevel, statVal, itemEquipLoc, itemQuality
+end
+
+local RESIST_EXCLUDED_LOCS = {
+    INVTYPE_NON_EQUIP = true,
+    INVTYPE_BAG       = true,
+    INVTYPE_BODY      = true,
+    INVTYPE_TABARD    = true,
+    INVTYPE_AMMO      = true,
+    INVTYPE_QUIVER    = true,
+}
+
+local RESIST_NON_ARMOR_LOCS = {
+    INVTYPE_CLOAK    = true,
+    INVTYPE_FINGER   = true,
+    INVTYPE_TRINKET  = true,
+    INVTYPE_NECK     = true,
+    INVTYPE_HOLDABLE = true,
+    INVTYPE_SHIELD   = true,
+    INVTYPE_RELIC    = true,
+}
+
+function sfui.highest.IsItemValidForResist(itemLink, specID, allowOffArmor)
+    if not itemLink or itemLink == "" then return false end
+    local itemID, _, _, itemEquipLoc, _, itemClassID, subclassID = common.get_item_instant_info(itemLink)
+    if not itemEquipLoc or itemEquipLoc == "" or RESIST_EXCLUDED_LOCS[itemEquipLoc] then
+        return false
+    end
+    if sfui.highest.IsFishingPoleItem and sfui.highest.IsFishingPoleItem(itemID, itemLink) then
+        return false
+    end
+    if not sfui.highest.CanPlayerUseItem(itemLink, itemID, false) then
+        return false
+    end
+
+    local _, _, itemQuality, baseLevel, itemMinLevel = GetItemInfo(itemLink)
+    local playerLvl = (UnitLevel and UnitLevel("player")) or 1
+    if itemMinLevel and itemMinLevel > playerLvl then
+        return false
+    end
+
+    local itemLevel = common.get_item_level(itemLink)
+    if not itemLevel or itemLevel == 0 then
+        itemLevel = baseLevel or 1
+    end
+
+    local spec = specID or common.get_current_spec_id()
+    local rule = (sfui.highest.GetRule and sfui.highest.GetRule(spec))
+        or (sfui.highest.rules and spec and sfui.highest.rules[spec])
+    local isClassic = isClassicOrVanilla()
+    local playerClass, pClassID = sfui.talents.get_player_class()
+    local classID = isClassic
+        and ((sfui.gear and sfui.gear.GetClassicClassID and sfui.gear.GetClassicClassID(spec))
+            or (spec and spec >= 1482 and spec <= 1491 and spec))
+        or pClassID
+    local cf = resolveClassFlags(spec, playerClass, classID)
+    local optimalArmor = (rule and rule.armor) or 1
+    local maxWearable = optimalArmor
+    if isClassic then
+        if optimalArmor == 4 and playerLvl < 40 then
+            maxWearable = 3
+        elseif optimalArmor == 3 and playerLvl < 40 then
+            maxWearable = 2
+        end
+    end
+
+    local isProperArmor = true
+    local dualWield = canPlayerDualWield(cf, rule)
+
+    if itemClassID == 4 and not RESIST_NON_ARMOR_LOCS[itemEquipLoc] then
+        if subclassID ~= 5 then
+            if not subclassID or subclassID < 1 or subclassID > maxWearable then
+                return false
+            end
+            isProperArmor = (subclassID == maxWearable) or (isClassic and playerLvl < 20)
+            if not allowOffArmor and not isProperArmor then
+                return false
+            end
+        end
+    elseif itemClassID == 4 then
+        if itemEquipLoc == "INVTYPE_SHIELD" then
+            if not (cf.isWarrior or cf.isPaladin or cf.isShaman) then
+                return false
+            end
+        elseif itemEquipLoc == "INVTYPE_RELIC" then
+            if not isRelicValidForClass(subclassID, cf) then
+                return false
+            end
+        end
+    elseif itemClassID == 2 then
+        if rule and rule.allowedWeapons and subclassID and not rule.allowedWeapons[subclassID] then
+            return false
+        end
+        if itemEquipLoc == "INVTYPE_WEAPONOFFHAND" and not dualWield then
+            return false
+        end
+    end
+
+    return true, itemLevel, itemEquipLoc, itemQuality, isProperArmor, dualWield
 end
