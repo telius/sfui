@@ -42,6 +42,11 @@ local OUT_OF_RANGE_ALPHA       = 0.4
 
 local swingBars                = {}
 sfui.swing._bars               = swingBars
+local swingContainer           = nil
+local DEFAULT_ORDER            = { SWING_MAIN_HAND, SWING_OFF_HAND, SWING_RANGED }
+local HUNTER_ORDER             = { SWING_RANGED, SWING_MAIN_HAND, SWING_OFF_HAND }
+local _activeBars              = {}
+
 local playerClass
 local function GetPlayerClass()
     if not playerClass then
@@ -70,8 +75,12 @@ local _wantBar             = {}
 local _suppressedBar       = {}
 local ClearSwingTimer
 
-local function SharesMainHandSlot()
+local function IsWandMode()
     return IsWandCaster() or hasWandEquipped
+end
+
+local function SharesMainHandSlot()
+    return IsWandMode() or (GetPlayerClass() ~= "HUNTER")
 end
 sfui.swing.SharesMainHandSlot = SharesMainHandSlot
 
@@ -169,12 +178,50 @@ local function CanSwing(swingType)
 end
 
 -- ─── Range Checking Presentation ────────────────────────────────────────────
+local function UpdateContainerAlpha()
+    if not swingContainer then return end
+    local shownCount = 0
+    local outOfRangeCount = 0
+    for i = 1, 3 do
+        local bar = swingBars[SWING_TYPES[i]]
+        if bar and bar:IsShown() then
+            shownCount = shownCount + 1
+            if bar.isOutOfRange then
+                outOfRangeCount = outOfRangeCount + 1
+            end
+        end
+    end
+
+    if shownCount == 0 then
+        swingContainer:SetAlpha(1.0)
+        return
+    end
+
+    -- Apply alpha on container only when every visible bar is out of range (avoids double-dimming);
+    -- otherwise keep container opaque and dim individual out-of-range lanes (e.g. Hunter melee weave).
+    if outOfRangeCount == shownCount then
+        swingContainer:SetAlpha(OUT_OF_RANGE_ALPHA)
+        for i = 1, 3 do
+            local bar = swingBars[SWING_TYPES[i]]
+            if bar and bar:IsShown() then
+                bar:SetAlpha(1.0)
+            end
+        end
+    else
+        swingContainer:SetAlpha(1.0)
+        for i = 1, 3 do
+            local bar = swingBars[SWING_TYPES[i]]
+            if bar and bar:IsShown() then
+                bar:SetAlpha(bar.isOutOfRange and OUT_OF_RANGE_ALPHA or 1.0)
+            end
+        end
+    end
+end
+
 local function SetOutOfRange(bar, isOutOfRange)
     if bar.isOutOfRange == isOutOfRange then return end
     bar.isOutOfRange = isOutOfRange
-
-    local alpha = isOutOfRange and OUT_OF_RANGE_ALPHA or 1.0
-    bar.backdrop:SetAlpha(alpha)
+    UpdateContainerAlpha()
 end
 
 local function GetSwingTimerProvider()
@@ -182,7 +229,7 @@ local function GetSwingTimerProvider()
 end
 
 local function UpdateRangeCheckRegistration(bar)
-    local shouldCheck = bar.backdrop:IsShown() and CanSwing(bar.swingType)
+    local shouldCheck = bar:IsShown() and CanSwing(bar.swingType)
     if shouldCheck == bar.isRangeCheckEnabled then return end
     bar.isRangeCheckEnabled = shouldCheck
     local provider = GetSwingTimerProvider()
@@ -216,14 +263,10 @@ ClearSwingTimer = function(bar)
         shouldHide = not IsMeleeAttacking()
     end
 
-    if shouldHide and bar.backdrop and bar.backdrop:IsShown() then
-        bar.backdrop:Hide()
-        if not isUpdatingVisibility then
-            if SharesMainHandSlot() and sfui.swing.UpdateVisibility then
-                sfui.swing.UpdateVisibility()
-            elseif sfui.swing.UpdatePositions then
-                sfui.swing.UpdatePositions()
-            end
+    if shouldHide and bar:IsShown() then
+        bar:Hide()
+        if not isUpdatingVisibility and sfui.swing.UpdateVisibility then
+            sfui.swing.UpdateVisibility()
         end
     end
 end
@@ -264,7 +307,7 @@ local function GetBarColor(colorKey, swingType)
     local barCfg = cfg.swingBar or {}
     local colors = barCfg.colors or {}
 
-    if swingType == SWING_RANGED and SharesMainHandSlot() then
+    if swingType == SWING_RANGED and IsWandMode() then
         return colors.wand or { 0.4, 0.0, 1.0, 1.0 }
     end
 
@@ -282,30 +325,26 @@ local function UpdateBarColors()
 end
 sfui.swing.UpdateBarColors = UpdateBarColors
 
--- ─── Bar Construction ───────────────────────────────────────────────────────
-local function CreateSwingBar(name, swingType, colorKey)
-    local barCfg = cfg.swingBar or {
-        width = 300,
-        height = 8,
-        spacing = 2,
-        colors = {
-            mainHand = { 0.4, 0.8, 1.0, 1.0 },
-            offHand  = { 1.0, 0.65, 0.2, 1.0 },
-            ranged   = { 0.3, 0.9, 0.4, 1.0 },
-            wand     = { 0.4, 0.0, 1.0, 1.0 },
-        },
-        backdrop = {
-            padding = 1,
-            color = { 0, 0, 0, 0.6 },
-        },
-    }
-
+local function GetBarMetrics()
+    local barCfg = cfg.swingBar or {}
+    local width = barCfg.width or 300
+    local height = barCfg.height or 8
+    local spacing = barCfg.spacing or 2
     local mult = sfui.pixelScale or 1
     local padding = (barCfg.backdrop and barCfg.backdrop.padding or 1) * mult
+    return width, height, padding, spacing, mult
+end
 
-    local backdrop = CreateFrame("Frame", "sfui_" .. name .. "_Backdrop", UIParent, "BackdropTemplate")
+-- ─── Bar Construction ───────────────────────────────────────────────────────
+local function EnsureContainerCreated()
+    if swingContainer then return swingContainer end
+
+    local barCfg = cfg.swingBar or {}
+    local width, height, padding = GetBarMetrics()
+
+    local backdrop = CreateFrame("Frame", "sfui_SwingBar_Backdrop", UIParent, "BackdropTemplate")
     backdrop:SetFrameStrata("MEDIUM")
-    backdrop:SetSize(barCfg.width + padding * 2, barCfg.height + padding * 2)
+    backdrop:SetSize(width + padding * 2, height + padding * 2)
     backdrop:SetBackdrop({
         bgFile = cfg.textures.white,
         tile = true,
@@ -315,11 +354,24 @@ local function CreateSwingBar(name, swingType, colorKey)
     backdrop:SetBackdropColor(unpack(bgColor))
     backdrop:Hide()
 
+    swingContainer = backdrop
+    sfui.swing._container = swingContainer
+    return swingContainer
+end
+
+local function CreateSwingBar(name, swingType, colorKey)
+    local backdrop = EnsureContainerCreated()
+    local width, height = GetBarMetrics()
+
     local statusBar = CreateFrame("StatusBar", "sfui_" .. name, backdrop)
-    statusBar:SetSize(barCfg.width, barCfg.height)
-    statusBar:SetPoint("CENTER")
+    statusBar:SetSize(width, height)
+    statusBar:SetPoint("TOP", backdrop, "TOP", 0, 0)
     statusBar:SetMinMaxValues(0, 1)
     statusBar:SetValue(0)
+    statusBar:Hide()
+    if sfui.common and sfui.common.set_pixel_snapping then
+        sfui.common.set_pixel_snapping(statusBar)
+    end
 
     -- Status bar texture
     local texturePath = (sfui.widgets and sfui.widgets.get_bar_texture and sfui.widgets.get_bar_texture())
@@ -337,7 +389,7 @@ local function CreateSwingBar(name, swingType, colorKey)
     -- Leading Pip (spark) anchored directly to the status bar texture
     local pip = statusBar:CreateTexture(nil, "OVERLAY")
     pip:SetColorTexture(1, 1, 1, 0.9)
-    pip:SetSize(2, barCfg.height + 2)
+    pip:SetSize(2, height + 2)
     local barTex = statusBar:GetStatusBarTexture()
     if barTex then
         pip:SetPoint("CENTER", barTex, "RIGHT", 0, 0)
@@ -357,6 +409,7 @@ end
 
 -- ─── Initialization ─────────────────────────────────────────────────────────
 local function EnsureBarsCreated()
+    EnsureContainerCreated()
     local created = false
     if not swingBars[SWING_MAIN_HAND] then
         local bar = CreateSwingBar("MainHandSwingBar", SWING_MAIN_HAND, "mainHand")
@@ -364,29 +417,26 @@ local function EnsureBarsCreated()
         created = true
     end
     if not swingBars[SWING_OFF_HAND] then
-        local bar = CreateSwingBar("OffHandSwingBar", SWING_OFF_HAND, "offHand")
-        sfui.theme.RegisterBar(bar, "swing")
+        CreateSwingBar("OffHandSwingBar", SWING_OFF_HAND, "offHand")
         created = true
     end
     if not swingBars[SWING_RANGED] then
-        local bar = CreateSwingBar("RangedSwingBar", SWING_RANGED, "ranged")
-        sfui.theme.RegisterBar(bar, "swing")
+        CreateSwingBar("RangedSwingBar", SWING_RANGED, "ranged")
         created = true
     end
     if created then
         UpdateBarColors()
     end
 
-    local mhBar = swingBars[SWING_MAIN_HAND]
-    if mhBar and mhBar.backdrop and not mhBar.backdrop._moverRegistered and sfui.movers and sfui.movers.Register then
-        mhBar.backdrop._moverRegistered = true
-        sfui.movers.Register(mhBar.backdrop, {
+    if swingContainer and not swingContainer._moverRegistered and sfui.movers and sfui.movers.Register then
+        swingContainer._moverRegistered = true
+        sfui.movers.Register(swingContainer, {
             key = "swing",
             label = "swing bars",
             preferredPoint = "BOTTOM",
             customSize = function()
-                local w = (mhBar.backdrop and mhBar.backdrop:GetWidth()) or 302
-                local h = math.max(16, (mhBar.backdrop and mhBar.backdrop:GetHeight()) or 10)
+                local w = (swingContainer and swingContainer:GetWidth()) or 302
+                local h = math.max(16, (swingContainer and swingContainer:GetHeight()) or 10)
                 return w, h
             end,
             getPoint = function()
@@ -394,7 +444,7 @@ local function EnsureBarsCreated()
                 if cp and cp.point and cp.x and cp.y then
                     return cp.point, UIParent, cp.relPoint or cp.point, cp.x, cp.y
                 end
-                local bd = mhBar.backdrop
+                local bd = swingContainer
                 if bd and bd:GetLeft() and bd:GetBottom() and sfui.movers.CalculateRelativeCoordinates then
                     local pt, rPt, x, y = sfui.movers.CalculateRelativeCoordinates(bd:GetLeft(), bd:GetBottom(),
                         bd:GetWidth(), bd:GetHeight(), "BOTTOM")
@@ -498,40 +548,77 @@ end
 
 local lastAnchorFrame, lastSpacing
 
---- Returns the lowest swing bar backdrop frame for anchoring (whether shown or hidden)
+--- Returns the fixed single-row swing bar container frame for anchoring (whether shown or hidden)
 function sfui.swing.GetLowestPossibleBar()
     EnsureBarsCreated()
     if not sfui.swing.IsPossible() then return nil end
     if not lastAnchorFrame then
         sfui.swing.UpdatePositions()
     end
-
-    -- Ranged/wand is always docked lowest when player has a non-wand ranged weapon equipped
-    if hasRangedWeapon and not SharesMainHandSlot() then
-        local rBar = swingBars[SWING_RANGED]
-        if rBar and rBar.backdrop then
-            return rBar.backdrop
-        end
-    end
-
-    if hasOffHandWeapon then
-        local oBar = swingBars[SWING_OFF_HAND]
-        if oBar and oBar.backdrop then
-            return oBar.backdrop
-        end
-    end
-
-    local mBar = swingBars[SWING_MAIN_HAND]
-    if mBar and mBar.backdrop then
-        return mBar.backdrop
-    end
-
-    return nil
+    return swingContainer
 end
 
 -- ─── External Public API for bars.lua ───────────────────────────────────────
 
---- Docks the active swing bars below anchorFrame (bar_minus_1 at -2, or bar0 at -1)
+local function PositionSplitBar(bar, barWidth, height, anchorPoint, yOffset, isSingle)
+    bar.statusBar:SetSize(barWidth, height)
+    bar.statusBar:ClearAllPoints()
+    bar.statusBar:SetPoint(anchorPoint, swingContainer, anchorPoint, 0, yOffset)
+    if bar.pip then
+        bar.pip:SetSize(2, isSingle and (height + 2) or height)
+    end
+end
+
+local function LayoutVisibleBars()
+    if not swingContainer then return end
+
+    local barWidth, barHeight, padding, _, mult = GetBarMetrics()
+    local order = (GetPlayerClass() == "HUNTER" and not IsWandMode()) and HUNTER_ORDER or DEFAULT_ORDER
+
+    local count = 0
+    for i = 1, 3 do
+        local bar = swingBars[order[i]]
+        if bar and bar:IsShown() then
+            count = count + 1
+            _activeBars[count] = bar
+        end
+    end
+    for i = count + 1, #_activeBars do
+        _activeBars[i] = nil
+    end
+
+    if count == 0 then
+        swingContainer:Hide()
+        swingContainer:SetAlpha(1.0)
+        return
+    end
+
+    swingContainer:Show()
+    local gap = math.max(1, math.floor(1 * mult + 0.5))
+
+    if count == 1 then
+        PositionSplitBar(_activeBars[1], barWidth, barHeight, "TOP", -padding, true)
+    elseif count == 2 then
+        local avail = math.max(2, barHeight - gap)
+        local h1 = math.ceil(avail / 2)
+        local h2 = avail - h1
+        PositionSplitBar(_activeBars[1], barWidth, h1, "TOP", -padding, false)
+        PositionSplitBar(_activeBars[2], barWidth, h2, "BOTTOM", padding, false)
+    else
+        local avail = math.max(3, barHeight - gap * 2)
+        local h1 = math.ceil(avail / 3)
+        local rem = avail - h1
+        local h2 = math.ceil(rem / 2)
+        local h3 = rem - h2
+        PositionSplitBar(_activeBars[1], barWidth, h1, "TOP", -padding, false)
+        PositionSplitBar(_activeBars[2], barWidth, h2, "TOP", -(padding + h1 + gap), false)
+        PositionSplitBar(_activeBars[3], barWidth, h3, "BOTTOM", padding, false)
+    end
+
+    UpdateContainerAlpha()
+end
+
+--- Docks the fixed single-row swing bar container below anchorFrame (bar_minus_1 at -2, or bar0 at -1)
 function sfui.swing.UpdatePositions(anchorFrame, spacing)
     EnsureBarsCreated()
     if anchorFrame then
@@ -560,59 +647,19 @@ function sfui.swing.UpdatePositions(anchorFrame, spacing)
     local hasCustomPos = customPos and customPos.point and customPos.x and customPos.y
     if not anchorFrame and not hasCustomPos then return end
 
-    local barCfg = cfg.swingBar or {}
-    local swingSpacing = barCfg.spacing or 2
-
-    local mhBar = swingBars[SWING_MAIN_HAND]
-    local ohBar = swingBars[SWING_OFF_HAND]
-    local rBar = swingBars[SWING_RANGED]
-
-    if mhBar and mhBar.backdrop then
-        mhBar.backdrop:ClearAllPoints()
+    local _, _, _, swingSpacing = GetBarMetrics()
+    if swingContainer then
+        swingContainer:ClearAllPoints()
         if hasCustomPos then
-            mhBar.backdrop:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x,
+            swingContainer:SetPoint(customPos.point, UIParent, customPos.relPoint or customPos.point, customPos.x,
                 customPos.y)
         else
             local primarySpacing = spacing or swingSpacing
-            mhBar.backdrop:SetPoint("TOP", anchorFrame, "BOTTOM", 0, -primarySpacing)
+            swingContainer:SetPoint("TOP", anchorFrame, "BOTTOM", 0, -primarySpacing)
         end
     end
 
-    local mhBackdrop = mhBar and mhBar.backdrop
-    if not mhBackdrop then return end
-
-    if SharesMainHandSlot() then
-        -- Shoot (wand) shares the exact primary slot position as MainHand
-        if rBar and rBar.backdrop then
-            rBar.backdrop:ClearAllPoints()
-            rBar.backdrop:SetPoint("TOP", mhBackdrop, "TOP", 0, 0)
-        end
-        if ohBar and ohBar.backdrop then
-            ohBar.backdrop:ClearAllPoints()
-            local primaryShown = mhBackdrop:IsShown() or (rBar and rBar.backdrop and rBar.backdrop:IsShown())
-            if primaryShown then
-                ohBar.backdrop:SetPoint("TOP", mhBackdrop, "BOTTOM", 0, -swingSpacing)
-            else
-                ohBar.backdrop:SetPoint("TOP", mhBackdrop, "TOP", 0, 0)
-            end
-        end
-    else
-        local currentAnchor = mhBackdrop:IsShown() and mhBackdrop or nil
-        local secondaryOrder = { ohBar, rBar }
-        for _, bar in ipairs(secondaryOrder) do
-            if bar and bar.backdrop then
-                bar.backdrop:ClearAllPoints()
-                if currentAnchor then
-                    bar.backdrop:SetPoint("TOP", currentAnchor, "BOTTOM", 0, -swingSpacing)
-                else
-                    bar.backdrop:SetPoint("TOP", mhBackdrop, "TOP", 0, 0)
-                end
-                if bar.backdrop:IsShown() then
-                    currentAnchor = bar.backdrop
-                end
-            end
-        end
-    end
+    LayoutVisibleBars()
 end
 
 --- Updates visibility of the swing bars based on combat, weapons, and vehicles
@@ -623,9 +670,13 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
     if not enabled then
         isUpdatingVisibility = true
         for _, bar in pairs(swingBars) do
-            bar.backdrop:Hide()
+            bar:Hide()
             ClearSwingTimer(bar)
             UpdateRangeCheckRegistration(bar)
+        end
+        if swingContainer then
+            swingContainer:Hide()
+            swingContainer:SetAlpha(1.0)
         end
         isUpdatingVisibility = false
         return
@@ -638,10 +689,14 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
         for i = 1, 3 do
             local bar = swingBars[SWING_TYPES[i]]
             if bar then
-                bar.backdrop:Hide()
+                bar:Hide()
                 ClearSwingTimer(bar)
                 UpdateRangeCheckRegistration(bar)
             end
+        end
+        if swingContainer then
+            swingContainer:Hide()
+            swingContainer:SetAlpha(1.0)
         end
         isUpdatingVisibility = false
         return
@@ -655,21 +710,27 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
         _suppressedBar[sType] = false
     end
 
-    -- Mutually exclusive ownership when wand/ranged shares the MainHand position
-    if SharesMainHandSlot() and _wantBar[SWING_MAIN_HAND] and _wantBar[SWING_RANGED] then
+    -- Mutually exclusive ownership between ranged and melee for non-hunter classes & wand users
+    local wantMelee = _wantBar[SWING_MAIN_HAND] or _wantBar[SWING_OFF_HAND]
+    if SharesMainHandSlot() and _wantBar[SWING_RANGED] and wantMelee then
         local meleeActive = IsMeleeAttacking()
+        local keepRanged
         if isAutoRepeating and not meleeActive then
-            _wantBar[SWING_MAIN_HAND] = false
-            _suppressedBar[SWING_MAIN_HAND] = true
+            keepRanged = true
         elseif meleeActive and not isAutoRepeating then
-            _wantBar[SWING_RANGED] = false
-            _suppressedBar[SWING_RANGED] = true
-        elseif lastPrimarySwingType == SWING_RANGED then
-            _wantBar[SWING_MAIN_HAND] = false
-            _suppressedBar[SWING_MAIN_HAND] = true
+            keepRanged = false
         else
-            _wantBar[SWING_RANGED] = false
+            keepRanged = (lastPrimarySwingType == SWING_RANGED)
+        end
+
+        if keepRanged then
+            _suppressedBar[SWING_MAIN_HAND] = _wantBar[SWING_MAIN_HAND]
+            _suppressedBar[SWING_OFF_HAND]  = _wantBar[SWING_OFF_HAND]
+            _wantBar[SWING_MAIN_HAND] = false
+            _wantBar[SWING_OFF_HAND]  = false
+        else
             _suppressedBar[SWING_RANGED] = true
+            _wantBar[SWING_RANGED] = false
         end
     end
 
@@ -685,11 +746,11 @@ function sfui.swing.UpdateVisibility(inCombat, hasEnemyTarget, isDragonflying, i
                     local pct = math.max(0, math.min(1, (bar.duration - remaining) / bar.duration))
                     bar.statusBar:SetValue(pct)
                 end
-                bar.backdrop:Show()
+                bar:Show()
                 UpdateRangeCheckRegistration(bar)
                 UpdateRangeState(bar)
             else
-                bar.backdrop:Hide()
+                bar:Hide()
                 if not _suppressedBar[sType] then
                     ClearSwingTimer(bar)
                 end
@@ -718,16 +779,10 @@ function sfui.swing.SetBarTexture(texturePath)
     end
 end
 
---- Returns the lowest visible swing bar backdrop (for any bottom-docking modules)
+--- Returns the swing bar container frame (for any bottom-docking modules)
 function sfui.swing.GetLowestBar(includeHidden)
-    local order = SharesMainHandSlot()
-        and { SWING_OFF_HAND, SWING_RANGED, SWING_MAIN_HAND }
-        or { SWING_RANGED, SWING_OFF_HAND, SWING_MAIN_HAND }
-    for _, sType in ipairs(order) do
-        local bar = swingBars[sType]
-        if bar and bar.backdrop and (bar.backdrop:IsShown() or includeHidden) then
-            return bar.backdrop
-        end
+    if swingContainer and (swingContainer:IsShown() or includeHidden) then
+        return swingContainer
     end
     return nil
 end
@@ -742,15 +797,13 @@ local function OnSwingEvent(event, ...)
         if bar then
             if swingType == SWING_MAIN_HAND or swingType == SWING_OFF_HAND then
                 isAttacking = true
-                if swingType == SWING_MAIN_HAND then
-                    lastPrimarySwingType = SWING_MAIN_HAND
-                end
+                lastPrimarySwingType = SWING_MAIN_HAND
             elseif swingType == SWING_RANGED then
                 isAutoRepeating = true
                 lastPrimarySwingType = SWING_RANGED
             end
             ResetSwingTimer(bar, duration)
-            if not bar.backdrop:IsShown() then
+            if not bar:IsShown() or not (swingContainer and swingContainer:IsShown()) then
                 if sfui.bars and sfui.bars.UpdateVisibility then
                     sfui.bars.UpdateVisibility()
                 else
@@ -771,7 +824,7 @@ local function OnSwingEvent(event, ...)
     elseif event == "PLAYER_TARGET_CHANGED" then
         for i = 1, 3 do
             local bar = swingBars[SWING_TYPES[i]]
-            if bar and bar.backdrop:IsShown() then
+            if bar and bar:IsShown() then
                 UpdateRangeState(bar)
             end
         end

@@ -1817,6 +1817,9 @@ function sfui.trackedbuffs.OnInit()
         and not common.is_addon_loaded("Blizzard_CooldownViewer") then
         common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
+    if common and common.hide_blizzard_cooldown_viewers then
+        common.hide_blizzard_cooldown_viewers()
+    end
     CreateSocketContainer()
     HookBlizzardViewer()
     RegisterEvents()

@@ -31,25 +31,27 @@ local rgb_to_hex = (sfui.colors and sfui.colors.rgb_to_hex)
 chat.issecretvalue = issecretvalue
 
 local DEFAULTS = {
-    bg_alpha         = 0.0,
-    border_alpha     = 0.0,
-    use_theme        = true,       -- native sfui.theme chrome (disable for neutral flat dark chrome)
-    font_override    = false,      -- non-intrusive default: preserve Blizzard font until enabled
-    font_size        = 13,
-    font_outline     = "OUTLINE",  -- "", "OUTLINE", "THICKOUTLINE", "MONOCHROMEOUTLINE"
-    editbox_pos      = "bottom",   -- "bottom" | "top"
-    ghost_tabs       = true,       -- clean flat ghost tabs over GeneralDockManager
-    custom_scrollbar = true,       -- slim 3px flat thumb (hidden while at bottom)
-    url_links        = true,       -- clickable URL copy links
-    hover_tooltips   = true,       -- item/spell/quest hyperlink hover tooltips
-    copy_button      = "hover",    -- "hover" | "always" | "hidden"
-    copy_keep_colors = false,      -- plain text by default in copy popup
-    idle_fade        = false,      -- opt-in idle chrome fade
-    idle_fade_delay  = 15,         -- seconds of inactivity before fading chrome
-    idle_fade_alpha  = 0.0,        -- faded chrome alpha (0.0 - 0.5)
-    width            = 0,          -- 0 = Blizzard native width
-    height           = 0,          -- 0 = Blizzard native height
-    position         = nil,        -- nil = Blizzard native position until moved via sfui.movers
+    bg_alpha            = 0.0,
+    border_alpha        = 0.0,
+    use_theme           = true,       -- native sfui.theme chrome (disable for neutral flat dark chrome)
+    font_override       = false,      -- non-intrusive default: preserve Blizzard font until enabled
+    font_size           = 13,
+    combatlog_font_size = 14,
+    font_outline        = "OUTLINE",  -- "", "OUTLINE", "THICKOUTLINE", "MONOCHROMEOUTLINE"
+    editbox_pos         = "bottom",   -- "bottom" | "top"
+    ghost_tabs          = true,       -- clean flat ghost tabs over GeneralDockManager
+    tab_autofade        = true,       -- fade chat tabs when not hovered, typing, or alerting
+    custom_scrollbar    = true,       -- slim 3px flat thumb (hidden while at bottom)
+    url_links           = true,       -- clickable URL copy links
+    hover_tooltips      = true,       -- item/spell/quest hyperlink hover tooltips
+    copy_button         = "hover",    -- "hover" | "always" | "hidden"
+    copy_keep_colors    = false,      -- plain text by default in copy popup
+    idle_fade           = false,      -- opt-in idle chrome fade
+    idle_fade_delay     = 15,         -- seconds of inactivity before fading chrome
+    idle_fade_alpha     = 0.0,        -- faded chrome alpha (0.0 - 0.5)
+    width               = 0,          -- 0 = Blizzard native width
+    height              = 0,          -- 0 = Blizzard native height
+    position            = nil,        -- nil = Blizzard native position until moved via sfui.movers
 }
 chat.DEFAULTS = DEFAULTS
 
@@ -273,6 +275,13 @@ local FCF_SCHEDULE_HOOKS = {
     "FCF_Close",
     "FCF_DockFrame",
     "FCF_UnDockFrame",
+    "FCF_StartAlertFlash",
+    "FCF_StopAlertFlash",
+}
+
+local FCF_WAKE_TAB_HOOKS = {
+    FCF_Tab_OnClick = true,
+    FCF_OpenTemporaryWindow = true,
 }
 
 local function install_fcf_hooks()
@@ -282,6 +291,7 @@ local function install_fcf_hooks()
     if _G.FCFDock_SelectWindow then
         hooksecurefunc("FCFDock_SelectWindow", function()
             if not sfui.IsModuleEnabled("chat") then return end
+            if chat.WakeTabFade then chat.WakeTabFade() end
             if chat.RefreshTabs then chat.RefreshTabs() end
             if chat.RefreshScrollbars then chat.RefreshScrollbars() end
             if chat.RefreshCornerControls then chat.RefreshCornerControls() end
@@ -293,10 +303,15 @@ local function install_fcf_hooks()
         if not sfui.IsModuleEnabled("chat") then return end
         chat.ScheduleRefresh()
     end
+    local function on_fcf_tab_wake()
+        if not sfui.IsModuleEnabled("chat") then return end
+        if chat.WakeTabFade then chat.WakeTabFade() end
+        chat.ScheduleRefresh()
+    end
     for i = 1, #FCF_SCHEDULE_HOOKS do
         local fnName = FCF_SCHEDULE_HOOKS[i]
         if _G[fnName] then
-            hooksecurefunc(fnName, on_fcf_change)
+            hooksecurefunc(fnName, FCF_WAKE_TAB_HOOKS[fnName] and on_fcf_tab_wake or on_fcf_change)
         end
     end
 end
@@ -357,7 +372,7 @@ function chat:OnSettingsChanged(key, val)
 
     if key == "bg_alpha" or key == "border_alpha" or key == "use_theme" then
         chat.ApplyTheme()
-    elseif key == "font_override" or key == "font_size" or key == "font_outline" then
+    elseif key == "font_override" or key == "font_size" or key == "combatlog_font_size" or key == "font_outline" then
         if chat.ApplyFonts then chat.ApplyFonts() end
     elseif key == "editbox_pos" then
         if chat.ApplyEditBoxPositions then chat.ApplyEditBoxPositions() end
@@ -373,7 +388,7 @@ function chat:OnSettingsChanged(key, val)
         if chat.SyncMoverSize then chat.SyncMoverSize() end
     elseif key == "position" then
         if chat.ApplyChatPosition then chat.ApplyChatPosition() end
-    elseif key == "idle_fade" or key == "idle_fade_delay" or key == "idle_fade_alpha" then
+    elseif key == "idle_fade" or key == "idle_fade_delay" or key == "idle_fade_alpha" or key == "tab_autofade" then
         if chat.RefreshIdleFade then chat.RefreshIdleFade() end
     elseif key == "url_links" or key == "hover_tooltips" then
         if chat.RefreshCopyHooks then chat.RefreshCopyHooks() end
@@ -389,13 +404,15 @@ function chat:GetDebugInfo()
         if d and d.bg then activeFrames = activeFrames + 1 end
     end)
     return {
-        enabled     = sfui.IsModuleEnabled("chat") and true or false,
-        skinned     = activeFrames,
-        useTheme    = chat.Get("use_theme", true) and true or false,
-        ghostTabs   = chat.Get("ghost_tabs", true) and true or false,
-        idleFade    = chat.Get("idle_fade", false) and true or false,
-        customPos   = chat.Get("position", nil) ~= nil,
-        customSize  = (chat.Get("width", 0) > 0 or chat.Get("height", 0) > 0),
+        enabled           = sfui.IsModuleEnabled("chat") and true or false,
+        skinned           = activeFrames,
+        useTheme          = chat.Get("use_theme", true) and true or false,
+        ghostTabs         = chat.Get("ghost_tabs", true) and true or false,
+        tabAutofade       = chat.Get("tab_autofade", true) and true or false,
+        combatLogFontSize = chat.Get("combatlog_font_size", 14),
+        idleFade          = chat.Get("idle_fade", false) and true or false,
+        customPos         = chat.Get("position", nil) ~= nil,
+        customSize        = (chat.Get("width", 0) > 0 or chat.Get("height", 0) > 0),
     }
 end
 

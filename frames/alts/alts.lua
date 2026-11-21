@@ -2023,6 +2023,7 @@ function sfui.alts.initialize()
     sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED",     on_sync_event)
     sfui.events.RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE", on_sync_event)
     sfui.events.RegisterEvent("PLAYER_MONEY",                 on_sync_event)
+    sfui.events.RegisterMessage("SFUI_SPEC_CHANGED",          on_sync_event)
 
     sfui.events.RegisterMessage("SFUI_INVENTORY_DELTA", function()
         local guid = GetCurrentCharacterGUID()

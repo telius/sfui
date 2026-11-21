@@ -151,12 +151,19 @@ sfui.options.RegisterTab({
         end, "renders crisp flat tabs over blizzard tabs while preserving click, drag, and right-click menus."))
         tabs_cb:SetPoint("TOPLEFT", theme_cb, "BOTTOMLEFT", 0, -8)
 
+        local tab_fade_cb = reg_cb(create_checkbox(panel, "auto-fade tabs", function()
+            return get_chat("tab_autofade", true) == true
+        end, function(checked)
+            set_chat("tab_autofade", checked and true or false)
+        end, "fades chat tabs when not hovered, typing, or alerting."))
+        tab_fade_cb:SetPoint("TOPLEFT", tabs_cb, "BOTTOMLEFT", 0, -8)
+
         local sb_cb = reg_cb(create_checkbox(panel, "slim scrollbar", function()
             return get_chat("custom_scrollbar", true) == true
         end, function(checked)
             set_chat("custom_scrollbar", checked and true or false)
         end, "replaces blizzard's chunky scrollbar with a minimal 3px thumb that appears only when scrolled up."))
-        sb_cb:SetPoint("TOPLEFT", tabs_cb, "BOTTOMLEFT", 0, -8)
+        sb_cb:SetPoint("TOPLEFT", tab_fade_cb, "BOTTOMLEFT", 0, -8)
 
         local bg_alpha_slider = reg_slider(create_slider_input(panel, "backdrop opacity (%):", function()
             return math_floor((get_chat("bg_alpha", 0.0) * 100) + 0.5)
@@ -205,8 +212,15 @@ sfui.options.RegisterTab({
         end, "chat text size when font override is enabled.", SLIDER_W))
         font_size_slider:SetPoint("TOPLEFT", font_cb, "BOTTOMLEFT", 0, -12)
 
+        local combatlog_size_slider = reg_slider(create_slider_input(panel, "combatlog font size:", function()
+            return get_chat("combatlog_font_size", 14)
+        end, 9, 24, 1, function(val)
+            set_chat("combatlog_font_size", val)
+        end, "font size for the combat log tab (default 14).", SLIDER_W))
+        combatlog_size_slider:SetPoint("TOPLEFT", font_size_slider, "BOTTOMLEFT", 0, -10)
+
         local outline_label = panel:CreateFontString(nil, "OVERLAY", fontMain)
-        outline_label:SetPoint("TOPLEFT", font_size_slider, "BOTTOMLEFT", 0, -10)
+        outline_label:SetPoint("TOPLEFT", combatlog_size_slider, "BOTTOMLEFT", 0, -10)
         outline_label:SetTextColor(white[1], white[2], white[3])
         outline_label:SetText("font outline:")
 
@@ -281,7 +295,7 @@ sfui.options.RegisterTab({
             return get_chat("idle_fade", false) == true
         end, function(checked)
             set_chat("idle_fade", checked and true or false)
-        end, "gently fades chat backdrop and tabs after inactivity, waking on hover or typing."))
+        end, "gently fades chat backdrop after inactivity, waking on hover or typing."))
         fade_cb:SetPoint("TOPLEFT", hover_cb, "BOTTOMLEFT", 0, -8)
 
         local fade_delay_slider = reg_slider(create_slider_input(panel, "fade delay (s):", function()
@@ -317,9 +331,9 @@ sfui.options.RegisterTab({
         end
 
         if panel.SetContentHeight then
-            panel:SetContentHeight(590)
+            panel:SetContentHeight(660)
         else
-            panel.customContentHeight = 590
+            panel.customContentHeight = 660
         end
     end,
 })

@@ -32,8 +32,17 @@ local SendAddonMessageFallback = _G.SendAddonMessage
 local BNSendGameData = _G.BNSendGameData
 
 local MAX_CHUNK_BYTES = 225
-local SEND_INTERVAL   = 0.12 -- ~8.3 packets/sec (well below WoW chat throttle)
+local SEND_INTERVAL   = 0.09 -- ~11.1 packets/sec (well below WoW chat throttle)
 local REASSEMBLY_TTL  = 60   -- seconds before stale partial buffers expire
+
+local HIGH_PRIORITY_MSG_TYPES = {
+    DELTA_QUEST_PROG    = true,
+    QUEST_DIGEST        = true,
+    DELTA_DIALOG        = true,
+    DELTA_WAYPOINT      = true,
+    DELTA_QUEST_ABANDON = true,
+    WANT                = true,
+}
 
 local function acquire_tbl()
     if sfui.pool and sfui.pool.acquire_table then
@@ -177,11 +186,23 @@ function codec.Deserialize(str)
 end
 
 -- ── Outbound Queue & Chunker ──────────────────────────────────────────────────
+local highPriorityQueue = {}
 local sendQueue = {}
 local queueTicker = nil
+local lastSendTime = -SEND_INTERVAL
 local nextMsgSeq = 1
 local reassemblyBuffers = {}
 local recentWhispers = {}
+
+local function remove_matching_packets(q, predicate)
+    for i = #q, 1, -1 do
+        local pkt = q[i]
+        if pkt and predicate(pkt) then
+            table_remove(q, i)
+            release_tbl(pkt)
+        end
+    end
+end
 
 local function normalize_short_lower(name)
     if type(name) ~= "string" then return nil end
@@ -211,16 +232,13 @@ end
 function codec.CancelWhispersToTarget(target)
     local shortName, fullName = normalize_short_lower(target)
     if not shortName then return end
-    for i = #sendQueue, 1, -1 do
-        local pkt = sendQueue[i]
-        if pkt and pkt.channel == "WHISPER" and pkt.target then
-            local pShort, pFull = normalize_short_lower(pkt.target)
-            if pShort == shortName or pFull == fullName then
-                table_remove(sendQueue, i)
-                release_tbl(pkt)
-            end
-        end
+    local function matchesWhisper(pkt)
+        if pkt.channel ~= "WHISPER" or not pkt.target then return false end
+        local pShort, pFull = normalize_short_lower(pkt.target)
+        return pShort == shortName or pFull == fullName
     end
+    remove_matching_packets(highPriorityQueue, matchesWhisper)
+    remove_matching_packets(sendQueue, matchesWhisper)
 end
 
 local IsInGroup = _G.IsInGroup
@@ -283,13 +301,11 @@ function codec.ResolveGroupChannel()
 end
 
 function codec.PurgeGroupQueue()
-    for i = #sendQueue, 1, -1 do
-        local pkt = sendQueue[i]
-        if pkt and (pkt.channel == "PARTY" or pkt.channel == "RAID" or pkt.channel == "INSTANCE_CHAT") then
-            table_remove(sendQueue, i)
-            release_tbl(pkt)
-        end
+    local function isGroupPacket(pkt)
+        return pkt.channel == "PARTY" or pkt.channel == "RAID" or pkt.channel == "INSTANCE_CHAT"
     end
+    remove_matching_packets(highPriorityQueue, isGroupPacket)
+    remove_matching_packets(sendQueue, isGroupPacket)
 end
 
 local function dispatch_raw_packet(pkt)
@@ -327,7 +343,7 @@ local function dispatch_raw_packet(pkt)
 end
 
 local function process_send_queue()
-    if #sendQueue == 0 then
+    if #highPriorityQueue == 0 and #sendQueue == 0 then
         if queueTicker then
             queueTicker:Cancel()
             queueTicker = nil
@@ -335,9 +351,10 @@ local function process_send_queue()
         return
     end
 
-    local pkt = table_remove(sendQueue, 1)
+    local pkt = (#highPriorityQueue > 0) and table_remove(highPriorityQueue, 1) or table_remove(sendQueue, 1)
     if pkt then
         local ok = dispatch_raw_packet(pkt)
+        lastSendTime = (GetTime and GetTime()) or 0
         if ok and sfui.sync and sfui.sync.stats then
             sfui.sync.stats.packetsSent = (sfui.sync.stats.packetsSent or 0) + 1
             sfui.sync.stats.bytesSent = (sfui.sync.stats.bytesSent or 0) + string_len(pkt.text or "")
@@ -345,7 +362,7 @@ local function process_send_queue()
         release_tbl(pkt)
     end
 
-    if #sendQueue == 0 and queueTicker then
+    if #highPriorityQueue == 0 and #sendQueue == 0 and queueTicker then
         queueTicker:Cancel()
         queueTicker = nil
     end
@@ -357,14 +374,14 @@ local function ensure_queue_ticker()
         queueTicker = C_Timer.NewTicker(SEND_INTERVAL, process_send_queue)
     else
         -- Fallback immediate drain if C_Timer is unavailable
-        while #sendQueue > 0 do
+        while #highPriorityQueue > 0 or #sendQueue > 0 do
             process_send_queue()
         end
     end
 end
 
 function codec.GetQueueLength()
-    return #sendQueue
+    return #highPriorityQueue + #sendQueue
 end
 
 function codec.GetQueueStats()
@@ -372,16 +389,16 @@ function codec.GetQueueStats()
     for _ in pairs(reassemblyBuffers) do
         reassemblyCount = reassemblyCount + 1
     end
-    return #sendQueue, queueTicker ~= nil, reassemblyCount
+    return #highPriorityQueue + #sendQueue, queueTicker ~= nil, reassemblyCount
 end
 
 function codec.FlushQueue()
-    while #sendQueue > 0 do
+    while #highPriorityQueue > 0 or #sendQueue > 0 do
         process_send_queue()
     end
 end
 
-function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAccount)
+function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAccount, highPriority)
     local env = acquire_tbl()
     env.t = msgType
     env.d = dataTable
@@ -389,6 +406,10 @@ function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAc
     release_tbl(env)
     if not payload or payload == "" then return false end
 
+    local wasEmpty = (#highPriorityQueue == 0 and #sendQueue == 0)
+    local targetQueue = (highPriority == true or HIGH_PRIORITY_MSG_TYPES[msgType])
+        and highPriorityQueue
+        or sendQueue
     local totalLen = string_len(payload)
     if totalLen <= MAX_CHUNK_BYTES then
         local pkt = acquire_tbl()
@@ -397,7 +418,7 @@ function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAc
         pkt.channel       = channel
         pkt.target        = target
         pkt.bnetIDAccount = bnetIDAccount
-        table_insert(sendQueue, pkt)
+        table_insert(targetQueue, pkt)
     else
         local msgID = string_format("%x", nextMsgSeq)
         nextMsgSeq = (nextMsgSeq % 65535) + 1
@@ -413,11 +434,17 @@ function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAc
             pkt.channel       = channel
             pkt.target        = target
             pkt.bnetIDAccount = bnetIDAccount
-            table_insert(sendQueue, pkt)
+            table_insert(targetQueue, pkt)
         end
     end
 
-    ensure_queue_ticker()
+    local now = (GetTime and GetTime()) or 0
+    if wasEmpty and (now - lastSendTime) >= SEND_INTERVAL then
+        process_send_queue()
+    end
+    if #highPriorityQueue > 0 or #sendQueue > 0 then
+        ensure_queue_ticker()
+    end
     return true
 end
 

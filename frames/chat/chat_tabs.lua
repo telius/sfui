@@ -32,6 +32,15 @@ local floatGhosts = {}
 local floatSeen = {}
 local origQuickBarParent = nil
 local tabsEnabled = false
+local lastTabAlpha = 1.0
+local hasAlertingTab = false
+
+local function is_frame_hovered(f)
+    if not (f and f.IsShown and f:IsShown() and _G.MouseIsOver) then return false end
+    local ok = _G.MouseIsOver(f)
+    if issecretvalue(ok) then return false end
+    return ok and true or false
+end
 
 local function is_tab_alerting(tab)
     if not tab then return false end
@@ -56,6 +65,7 @@ local function ensure_strip()
     strip:SetFrameStrata("MEDIUM")
     strip:SetFrameLevel(15)
     strip:SetClipsChildren(true)
+    strip:SetAlpha(lastTabAlpha)
     disable_mouse(strip)
     strip:Hide()
 
@@ -353,7 +363,24 @@ function chat.GetTabStrip()
     return strip
 end
 
+function chat.HasAlertingTab()
+    return hasAlertingTab
+end
+
+function chat.IsFloatingHovered()
+    for _, g in pairs(floatGhosts) do
+        if g and g:IsShown() then
+            if is_frame_hovered(g) then return true end
+            local st = g._state
+            local d = st and st.cf and CFD(st.cf)
+            if d and is_frame_hovered(d.bg) then return true end
+        end
+    end
+    return false
+end
+
 function chat.SetTabStripAlpha(alpha)
+    lastTabAlpha = alpha
     if strip then strip:SetAlpha(alpha) end
     for _, g in pairs(floatGhosts) do
         if g then g:SetAlpha(alpha) end
@@ -380,6 +407,7 @@ function chat.RefreshTabs()
     sync_blizzard_dock_alpha(wantGhost)
 
     if not wantGhost then
+        hasAlertingTab = false
         if strip then strip:Hide() end
         for i = 1, #ghosts do
             set_ghost_flash(ghosts[i], false)
@@ -393,6 +421,7 @@ function chat.RefreshTabs()
     end
 
     ensure_strip()
+    strip:SetAlpha(lastTabAlpha)
     local leftExtend = position_strip() or 0
 
     local dock = _G.GENERAL_CHAT_DOCK
@@ -402,6 +431,7 @@ function chat.RefreshTabs()
     local scrollChild = scrollFrame and scrollFrame.GetScrollChild and scrollFrame:GetScrollChild() or nil
 
     local count = 0
+    local anyAlerting = false
     if type(dockList) == "table" then
         for i = 1, #dockList do
             local cf = dockList[i]
@@ -436,9 +466,11 @@ function chat.RefreshTabs()
                 g:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", -1, 0)
                 g:SetHeight(TAB_HEIGHT)
 
+                local alerting = (not isActive) and is_tab_alerting(tab)
+                if alerting then anyAlerting = true end
                 set_ghost_label(g, cf, isTemp)
                 style_ghost(g, cf, isActive, isTemp)
-                set_ghost_flash(g, (not isActive) and is_tab_alerting(tab))
+                set_ghost_flash(g, alerting)
                 g:Show()
             end
         end
@@ -482,6 +514,7 @@ function chat.RefreshTabs()
                 set_ghost_label(g, cf, isTemp)
                 style_ghost(g, cf, true, isTemp)
                 set_ghost_flash(g, false)
+                g:SetAlpha(lastTabAlpha)
                 g:Show()
                 floatSeen[id] = true
             end
@@ -495,6 +528,11 @@ function chat.RefreshTabs()
             g:Hide()
         end
     end
+
+    hasAlertingTab = anyAlerting
+    if anyAlerting and chat.WakeTabFade then
+        chat.WakeTabFade()
+    end
 end
 
 function chat.EnableTabs()
@@ -505,14 +543,20 @@ end
 
 function chat.DisableTabs()
     tabsEnabled = false
+    hasAlertingTab = false
+    lastTabAlpha = 1.0
     sync_blizzard_dock_alpha(false)
-    if strip then strip:Hide() end
+    if strip then
+        strip:SetAlpha(1.0)
+        strip:Hide()
+    end
     for i = 1, #ghosts do
         set_ghost_flash(ghosts[i], false)
         ghosts[i]:Hide()
     end
     for _, g in pairs(floatGhosts) do
         set_ghost_flash(g, false)
+        g:SetAlpha(1.0)
         g:Hide()
     end
 end

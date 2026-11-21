@@ -1575,39 +1575,181 @@ function sfui.common.get_camelot_ruleset()
     return sfui.common.parse_camelot_ruleset(realm) or "normal"
 end
 
--- helper to systematically hide blizzard cooldownviewer frames without mutating EditModeSystemMixin anchors
+-- helper to persistently suppress blizzard cooldownviewer frames without mutating anchors or calling Hide()
+local COOLDOWN_VIEWER_NAMES = {
+    "EssentialCooldownViewer",
+    "UtilityCooldownViewer",
+    "BuffBarCooldownViewer",
+    "BuffIconCooldownViewer",
+}
 local cooldownViewersInitialized = false
+local hookedCooldownViewers = setmetatable({}, { __mode = "k" })
+local hookedCooldownSelections = setmetatable({}, { __mode = "k" })
+local hookedCooldownItems = setmetatable({}, { __mode = "k" })
+local enforcingCooldownAlpha = setmetatable({}, { __mode = "k" })
 
-local function disarm_and_hide_viewer(viewer)
-    if not viewer then return end
+local function force_alpha_zero(frame)
+    if not frame or not frame.SetAlpha then return end
+    if enforcingCooldownAlpha[frame] then return end
 
-    if viewer.SetAlpha and viewer:GetAlpha() ~= 0 then
-        viewer:SetAlpha(0)
-    end
-    if not InCombatLockdown() then
-        local isProtected = viewer.IsProtected and viewer:IsProtected()
-        if not isProtected then
-            if viewer.EnableMouse then viewer:EnableMouse(false) end
-            if viewer.EnableMouseClicks then viewer:EnableMouseClicks(false) end
-            if viewer.EnableMouseMotion then viewer:EnableMouseMotion(false) end
+    enforcingCooldownAlpha[frame] = true
+    frame:SetAlpha(0)
+    enforcingCooldownAlpha[frame] = nil
+end
+
+local function disarm_frame_mouse(frame)
+    if not frame or (InCombatLockdown and InCombatLockdown()) then return end
+    if frame.IsProtected and frame:IsProtected() then return end
+
+    if frame.EnableMouse then frame:EnableMouse(false) end
+    if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(false) end
+    if frame.SetMouseMotionEnabled then frame:SetMouseMotionEnabled(false) end
+    if frame.EnableMouseClicks then frame:EnableMouseClicks(false) end
+    if frame.EnableMouseMotion then frame:EnableMouseMotion(false) end
+end
+
+local function disarm_cooldown_item(itemFrame)
+    if not itemFrame then return end
+
+    -- only disarm mouse input on item frames; do not lock itemFrame alpha because
+    -- tracking/buffs.lua sockets live BuffIconCooldownViewer items at alpha 1.
+    disarm_frame_mouse(itemFrame)
+
+    if not hookedCooldownItems[itemFrame] then
+        hookedCooldownItems[itemFrame] = true
+        if hooksecurefunc and itemFrame.SetTooltipsShown then
+            hooksecurefunc(itemFrame, "SetTooltipsShown", function(self)
+                disarm_frame_mouse(self)
+            end)
         end
     end
 end
 
+local function disarm_viewer_items(viewer)
+    if not viewer or not viewer.itemFramePool or not viewer.itemFramePool.EnumerateActive then return end
+
+    for itemFrame in viewer.itemFramePool:EnumerateActive() do
+        disarm_cooldown_item(itemFrame)
+    end
+end
+
+local function disarm_viewer_selection(viewer)
+    local sel = viewer and viewer.Selection
+    if not sel then return end
+
+    force_alpha_zero(sel)
+    disarm_frame_mouse(sel)
+
+    if not hookedCooldownSelections[sel] then
+        hookedCooldownSelections[sel] = true
+        if hooksecurefunc and sel.SetAlpha then
+            hooksecurefunc(sel, "SetAlpha", function(self)
+                force_alpha_zero(self)
+            end)
+        end
+        if sel.HookScript then
+            sel:HookScript("OnShow", function(self)
+                force_alpha_zero(self)
+                disarm_frame_mouse(self)
+            end)
+        end
+    end
+end
+
+local function disarm_and_hide_viewer(viewer)
+    if not viewer then return end
+
+    force_alpha_zero(viewer)
+    disarm_frame_mouse(viewer)
+    disarm_viewer_selection(viewer)
+    disarm_viewer_items(viewer)
+
+    if not hookedCooldownViewers[viewer] then
+        hookedCooldownViewers[viewer] = true
+        if hooksecurefunc then
+            if viewer.SetAlpha then
+                hooksecurefunc(viewer, "SetAlpha", function(self)
+                    force_alpha_zero(self)
+                end)
+            end
+            if viewer.UpdateSystemSettingOpacity then
+                hooksecurefunc(viewer, "UpdateSystemSettingOpacity", function(self)
+                    force_alpha_zero(self)
+                end)
+            end
+            if viewer.RefreshLayout then
+                hooksecurefunc(viewer, "RefreshLayout", function(self)
+                    force_alpha_zero(self)
+                    disarm_frame_mouse(self)
+                    disarm_viewer_selection(self)
+                    disarm_viewer_items(self)
+                end)
+            end
+            if viewer.OnAcquireItemFrame then
+                hooksecurefunc(viewer, "OnAcquireItemFrame", function(self, itemFrame)
+                    force_alpha_zero(self)
+                    disarm_cooldown_item(itemFrame)
+                end)
+            end
+            if viewer.SetTooltipsShown then
+                hooksecurefunc(viewer, "SetTooltipsShown", function(self)
+                    disarm_viewer_items(self)
+                end)
+            end
+            if viewer.UpdateShownState then
+                hooksecurefunc(viewer, "UpdateShownState", function(self)
+                    force_alpha_zero(self)
+                end)
+            end
+        end
+        if viewer.HookScript then
+            viewer:HookScript("OnShow", function(self)
+                force_alpha_zero(self)
+                disarm_frame_mouse(self)
+                disarm_viewer_selection(self)
+            end)
+        end
+    end
+end
+
+local COOLDOWN_HIDE_REGISTRY_CALLBACKS = {
+    "CinematicFrame.CinematicStopped",
+    "EditMode.Enter",
+    "EditMode.Exit",
+    "EditMode.RefreshCooldownViewer",
+    "CooldownViewerSettings.OnShow",
+    "CooldownViewerSettings.OnHide",
+    "CooldownViewerSettings.OnDataChanged",
+    "UI.TopLevelParentShown",
+}
+
+local COOLDOWN_HIDE_GAME_EVENTS = {
+    "CINEMATIC_STOP",
+    "STOP_MOVIE",
+    "CHALLENGE_MODE_START",
+    "CHALLENGE_MODE_RESET",
+    "UPDATE_SHAPESHIFT_FORM",
+    "UPDATE_BONUS_ACTIONBAR",
+    "EDIT_MODE_LAYOUTS_UPDATED",
+    "PLAYER_ENTERING_WORLD",
+    "PLAYER_SPECIALIZATION_CHANGED",
+    "ACTIVE_TALENT_GROUP_CHANGED",
+    "TRAIT_CONFIG_UPDATED",
+    "COOLDOWN_VIEWER_DATA_LOADED",
+    "PLAYER_REGEN_DISABLED",
+    "PLAYER_REGEN_ENABLED",
+    "UPDATE_OVERRIDE_ACTIONBAR",
+    "UPDATE_VEHICLE_ACTIONBAR",
+}
+
 function sfui.common.hide_blizzard_cooldown_viewers()
     -- ensure the addon is loaded first on retail; on classic / forever it is loaded on demand
     -- by tracking modules to avoid unsupported cvar side-effects.
-    if sfui.isRetail and not InCombatLockdown() then
+    if sfui.isRetail and not (InCombatLockdown and InCombatLockdown()) then
         sfui.common.ensure_addon_loaded("Blizzard_CooldownViewer")
     end
 
-    local viewers = {
-        "EssentialCooldownViewer",
-        "UtilityCooldownViewer",
-        "BuffBarCooldownViewer",
-        "BuffIconCooldownViewer",
-    }
-    for _, name in ipairs(viewers) do
+    for _, name in ipairs(COOLDOWN_VIEWER_NAMES) do
         local viewer = _G[name]
         if viewer then
             disarm_and_hide_viewer(viewer)
@@ -1617,72 +1759,44 @@ function sfui.common.hide_blizzard_cooldown_viewers()
     if not cooldownViewersInitialized then
         cooldownViewersInitialized = true
 
-        -- Cinematic and cutscene frame OnHide hooks
-        if _G.CinematicFrame then
-            _G.CinematicFrame:HookScript("OnHide", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end)
-        end
-        if _G.MovieFrame then
-            _G.MovieFrame:HookScript("OnHide", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end)
+        local function onHideEvent()
+            sfui.common.hide_blizzard_cooldown_viewers()
         end
 
-        -- Blizzard EventRegistry callbacks (strictly non-panel events)
+        if _G.CinematicFrame and _G.CinematicFrame.HookScript then
+            _G.CinematicFrame:HookScript("OnHide", onHideEvent)
+        end
+        if _G.MovieFrame and _G.MovieFrame.HookScript then
+            _G.MovieFrame:HookScript("OnHide", onHideEvent)
+        end
+
         if EventRegistry and EventRegistry.RegisterCallback then
-            EventRegistry:RegisterCallback("CinematicFrame.CinematicStopped", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end, "sfui_hide_cdv")
-            EventRegistry:RegisterCallback("EditMode.Exit", function()
-                sfui.common.hide_blizzard_cooldown_viewers()
-            end, "sfui_hide_cdv")
+            for _, callbackName in ipairs(COOLDOWN_HIDE_REGISTRY_CALLBACKS) do
+                EventRegistry:RegisterCallback(callbackName, onHideEvent, "sfui_hide_cdv")
+            end
         end
 
-        -- Game events for cinematics, movies, challenge mode, stance shifts, and edit mode
-        sfui.events.RegisterEvent("CINEMATIC_STOP", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("STOP_MOVIE", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("CHALLENGE_MODE_START", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("CHALLENGE_MODE_RESET", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("UPDATE_SHAPESHIFT_FORM", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-            sfui.common.hide_blizzard_cooldown_viewers()
-        end)
-        sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)
-            if loadedAddon == "Blizzard_CooldownViewer" then
-                sfui.common.hide_blizzard_cooldown_viewers()
+        if sfui.events and sfui.events.RegisterEvent then
+            for _, eventName in ipairs(COOLDOWN_HIDE_GAME_EVENTS) do
+                sfui.events.RegisterEvent(eventName, onHideEvent)
             end
-        end)
+            sfui.events.RegisterEvent("ADDON_LOADED", function(_, loadedAddon)
+                if loadedAddon == "Blizzard_CooldownViewer" then
+                    onHideEvent()
+                end
+            end)
+        end
     end
 end
 
 function sfui.common.are_blizzard_cooldown_viewers_hidden()
-    local viewers = {
-        "EssentialCooldownViewer",
-        "UtilityCooldownViewer",
-        "BuffIconCooldownViewer",
-        "BuffBarCooldownViewer",
-    }
-    for _, name in ipairs(viewers) do
+    for _, name in ipairs(COOLDOWN_VIEWER_NAMES) do
         local f = _G[name]
-        if f and f.GetAlpha and f:GetAlpha() > 0 then
-            return false
+        if f and f.GetAlpha then
+            local a = f:GetAlpha()
+            if not issecretvalue(a) and a > 0 then
+                return false
+            end
         end
     end
     return true

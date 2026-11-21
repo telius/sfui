@@ -40,6 +40,9 @@ local rawSetPoint = chat.rawSetPoint
 
 local EB_OWNER = "sfui_chat_eb"
 local CHROME_UPDATE_KEY = "sfui_chat_chrome"
+local TAB_FADE_DELAY = 1.5
+local TAB_FADE_IN_SPEED = 6.0
+local TAB_FADE_OUT_SPEED = 1.6
 
 local EDITBOX_TEXTURE_SUFFIXES = { "Left", "Mid", "Right", "FocusLeft", "FocusMid", "FocusRight" }
 
@@ -52,6 +55,8 @@ local frameEnabled = false
 
 local lastActivityTime = 0
 local currentChromeAlpha = 1.0
+local lastTabActivityTime = 0
+local currentTabAlpha = 1.0
 local isPanelHovered = false
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -790,6 +795,7 @@ local function show_active_editbox(eb)
         update_editbox_visuals(eb, true)
     end
     if chat.WakeIdleFade then chat.WakeIdleFade() end
+    if chat.WakeTabFade then chat.WakeTabFade() end
 end
 
 local function hide_inactive_editbox(eb, forceHide)
@@ -980,8 +986,15 @@ local function restore_editbox(cf, d)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Non-Intrusive Opt-In Font Handling
+--  Non-Intrusive Font Handling (Native Fallback + Combat Log 14 Default)
 -- ─────────────────────────────────────────────────────────────────────────────
+
+local function is_combat_log(cf)
+    if _G.IsCombatLog and _G.IsCombatLog(cf) then
+        return true
+    end
+    return cf == _G.ChatFrame2 or cf == _G.COMBATLOG
+end
 
 local function apply_font_to_frame(cf, d)
     if not (cf and cf.SetFont and cf.GetFont) then return end
@@ -993,14 +1006,23 @@ local function apply_font_to_frame(cf, d)
         end
     end
 
-    local active = sfui.IsModuleEnabled("chat") and (chat.Get("font_override", false) == true)
-    if active then
+    local enabled = sfui.IsModuleEnabled("chat")
+    local isCL = is_combat_log(cf)
+    local override = chat.Get("font_override", false) == true
+
+    if enabled and override then
         local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
-        local size = math_max(8, math_min(28, chat.Get("font_size", 13)))
+        local rawSize = isCL and chat.Get("combatlog_font_size", 14) or chat.Get("font_size", 13)
+        local size = math_max(8, math_min(28, rawSize))
         local outline = chat.Get("font_outline", "OUTLINE") or ""
         cf:SetFont(fontFile, size, outline)
         if cf.SetShadowOffset then cf:SetShadowOffset(1, -1) end
         if cf.SetShadowColor then cf:SetShadowColor(0, 0, 0, 0.85) end
+    elseif enabled and isCL then
+        local fontFile = (d.origFont and d.origFont[1]) or "Fonts\\FRIZQT__.TTF"
+        local flags = (d.origFont and d.origFont[3]) or ""
+        local size = math_max(8, math_min(28, chat.Get("combatlog_font_size", 14)))
+        cf:SetFont(fontFile, size, flags)
     elseif d.origFont then
         cf:SetFont(d.origFont[1], d.origFont[2], d.origFont[3])
     end
@@ -1014,23 +1036,41 @@ function chat.ApplyFonts()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Opt-In Idle Chrome Fade & Hover Detection (Zero-Click-Interference)
+--  Auto-Fading Tabs & Opt-In Idle Chrome Fade (Zero-Click-Interference)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-local function apply_chrome_alpha(alpha)
+local function sync_tab_alpha()
+    if not chat.SetTabStripAlpha then return end
+    local tabA = (chat.Get("tab_autofade", true) == true)
+        and math_min(currentTabAlpha, currentChromeAlpha)
+        or currentChromeAlpha
+    chat.SetTabStripAlpha(tabA)
+end
+
+local function apply_panel_alpha(alpha)
     currentChromeAlpha = alpha
     if mainPanel then
         mainPanel:SetAlpha(alpha)
     end
-    if chat.SetTabStripAlpha then
-        chat.SetTabStripAlpha(alpha)
-    end
+    sync_tab_alpha()
+end
+
+local function apply_tab_alpha(alpha)
+    currentTabAlpha = alpha
+    sync_tab_alpha()
 end
 
 function chat.WakeIdleFade()
     lastActivityTime = GetTime and GetTime() or 0
     if currentChromeAlpha ~= 1.0 then
-        apply_chrome_alpha(1.0)
+        apply_panel_alpha(1.0)
+    end
+end
+
+function chat.WakeTabFade()
+    lastTabActivityTime = GetTime and GetTime() or 0
+    if currentTabAlpha ~= 1.0 then
+        apply_tab_alpha(1.0)
     end
 end
 
@@ -1043,13 +1083,23 @@ local function is_any_editbox_shown()
     return false
 end
 
+local function is_mouse_over_safe(f)
+    if not (f and f.IsShown and f:IsShown() and MouseIsOver) then return false end
+    local over = MouseIsOver(f)
+    if issecretvalue(over) then return false end
+    return over and true or false
+end
+
 local function on_chrome_tick(elapsed)
     if not sfui.IsModuleEnabled("chat") then return end
     local strip = chat.GetTabStrip and chat.GetTabStrip()
-    local overPanel = mainPanel and mainPanel:IsShown() and MouseIsOver and MouseIsOver(mainPanel)
-    local overStrip = strip and strip:IsShown() and MouseIsOver and MouseIsOver(strip)
-    local hoverNow = (overPanel or overStrip) and true or false
-    if issecretvalue(hoverNow) then hoverNow = false end
+    local overPanel = is_mouse_over_safe(mainPanel)
+    local overStrip = is_mouse_over_safe(strip)
+    local overCopy = is_mouse_over_safe(copyBtn)
+    local overScroll = is_mouse_over_safe(scrollBtn)
+    local overQuickBar = is_mouse_over_safe(_G.CombatLogQuickButtonFrame_Custom)
+    local overFloat = chat.IsFloatingHovered and chat.IsFloatingHovered()
+    local hoverNow = (overPanel or overStrip or overCopy or overScroll or overQuickBar or overFloat) and true or false
 
     if hoverNow ~= isPanelHovered then
         isPanelHovered = hoverNow
@@ -1058,26 +1108,49 @@ local function on_chrome_tick(elapsed)
         update_corner_buttons()
     end
 
+    local now = GetTime and GetTime() or 0
+    local dt = elapsed or 0.1
+    local editFocused = is_any_editbox_shown()
+    local moversUnlocked = (sfui.movers and sfui.movers.isUnlocked) and true or false
+    local dock = _G.GENERAL_CHAT_DOCK
+    local overflowList = dock and dock.overflowButton and dock.overflowButton.list
+    local overflowShown = (overflowList and overflowList.IsShown and overflowList:IsShown()) and true or false
+    local editModeShown = (_G.EditModeManagerFrame and _G.EditModeManagerFrame.IsShown and _G.EditModeManagerFrame:IsShown()) and true or false
+    local alertingTab = (chat.HasAlertingTab and chat.HasAlertingTab()) and true or false
+
     if chat.Get("idle_fade", false) then
-        local active = hoverNow or is_any_editbox_shown() or (sfui.movers and sfui.movers.isUnlocked)
+        local active = hoverNow or editFocused or moversUnlocked
         if active then
             chat.WakeIdleFade()
         else
             local delay = math_max(2, chat.Get("idle_fade_delay", 15))
             local target = math_max(0, math_min(0.5, chat.Get("idle_fade_alpha", 0.0)))
-            local now = GetTime and GetTime() or 0
             if (now - lastActivityTime) >= delay then
                 if currentChromeAlpha > target then
-                    local nextA = math_max(target, currentChromeAlpha - (elapsed or 0.1) * 2.5)
-                    apply_chrome_alpha(nextA)
+                    apply_panel_alpha(math_max(target, currentChromeAlpha - dt * 2.5))
                 end
             elseif currentChromeAlpha < 1.0 then
-                local nextA = math_min(1.0, currentChromeAlpha + (elapsed or 0.1) * 5.0)
-                apply_chrome_alpha(nextA)
+                apply_panel_alpha(math_min(1.0, currentChromeAlpha + dt * 5.0))
             end
         end
     elseif currentChromeAlpha ~= 1.0 then
-        apply_chrome_alpha(1.0)
+        apply_panel_alpha(1.0)
+    end
+
+    if chat.Get("tab_autofade", true) == true then
+        local tabActive = hoverNow or editFocused or moversUnlocked or editModeShown or overflowShown or alertingTab
+        if tabActive then
+            lastTabActivityTime = now
+            if currentTabAlpha < 1.0 then
+                apply_tab_alpha(math_min(1.0, currentTabAlpha + dt * TAB_FADE_IN_SPEED))
+            end
+        elseif (now - lastTabActivityTime) >= TAB_FADE_DELAY then
+            if currentTabAlpha > 0.0 then
+                apply_tab_alpha(math_max(0.0, currentTabAlpha - dt * TAB_FADE_OUT_SPEED))
+            end
+        end
+    elseif currentTabAlpha ~= 1.0 then
+        apply_tab_alpha(1.0)
     end
 end
 
@@ -1086,6 +1159,7 @@ local function sync_chrome_tick_registration()
     local needTick = sfui.IsModuleEnabled("chat") and (
         chat.Get("copy_button", "hover") == "hover"
         or chat.Get("idle_fade", false) == true
+        or chat.Get("tab_autofade", true) == true
     )
     if needTick then
         sfui.events.RegisterUpdate(CHROME_UPDATE_KEY, 0.10, on_chrome_tick)
@@ -1093,13 +1167,21 @@ local function sync_chrome_tick_registration()
         sfui.events.UnregisterUpdate(CHROME_UPDATE_KEY)
         isPanelHovered = false
         if currentChromeAlpha ~= 1.0 then
-            apply_chrome_alpha(1.0)
+            apply_panel_alpha(1.0)
+        end
+        if currentTabAlpha ~= 1.0 then
+            apply_tab_alpha(1.0)
         end
     end
 end
 
 function chat.RefreshIdleFade()
     chat.WakeIdleFade()
+    if chat.Get("tab_autofade", true) == true then
+        chat.WakeTabFade()
+    elseif currentTabAlpha ~= 1.0 then
+        apply_tab_alpha(1.0)
+    end
     sync_chrome_tick_registration()
 end
 
@@ -1294,6 +1376,7 @@ function chat.RegisterMover()
         end,
         onEnterEditMode = function()
             chat.WakeIdleFade()
+            chat.WakeTabFade()
         end,
         onExitEditMode = function()
             chat.ScheduleRefresh()
@@ -1373,6 +1456,7 @@ function chat.EnableFrame()
     frameEnabled = true
     register_editbox_callbacks()
     chat.WakeIdleFade()
+    chat.WakeTabFade()
     chat.RefreshFrame()
     sync_chrome_tick_registration()
 end

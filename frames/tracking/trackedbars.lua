@@ -1865,7 +1865,11 @@ local _registryHooked = false
 local function HookBuffBarViewer()
     local viewer = GetBuffBarViewer()
     if viewer then
-        viewer:SetAlpha(0)
+        if common and common.hide_blizzard_cooldown_viewers then
+            common.hide_blizzard_cooldown_viewers()
+        elseif viewer.SetAlpha then
+            viewer:SetAlpha(0)
+        end
         if not _viewerHooked then
             _viewerHooked = true
             if viewer.RefreshLayout then

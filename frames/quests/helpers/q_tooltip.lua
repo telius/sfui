@@ -13,15 +13,26 @@ local CreateFrame = _G.CreateFrame
 local C_Timer = _G.C_Timer
 local type = type
 local tostring = tostring
+local tonumber = tonumber
+local pairs = pairs
 local ipairs = ipairs
+local setmetatable = setmetatable
+local math_floor = math.floor
 local string_format = string.format
+local string_lower = string.lower
+local string_match = string.match
+local string_gsub = string.gsub
+local string_byte = string.byte
+local string_sub = string.sub
 
 local table_insert = table.insert
+local table_concat = table.concat
 local select = select
 
 local issecretvalue = sfui.common.issecretvalue
 
 local ICON_CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12:0:0|t "
+local ICON_DONE = "|TInterface\\RaidFrame\\ReadyCheck-Ready:11:11:0:0|t"
 local ICON_BULLET = "|cff888888-|r "
 
 local function IsSafeVal(v)
@@ -412,6 +423,796 @@ local function check_and_append_alt_id(tip, idType, id)
 end
 Tooltip.CheckAndAppendAltID = check_and_append_alt_id
 
+local MAX_DOUBLE_LINE_CHARS = 56
+
+local function StripColorCodes(text)
+    if type(text) ~= "string" then return "" end
+    local clean = string_gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+    clean = string_gsub(clean, "|r", "")
+    clean = string_gsub(clean, "|T.-|t", "")
+    return clean
+end
+
+local function AddCompactRow(tip, leftText, rightText, lr, lg, lb, rr, rg, rb)
+    local visibleLen = #StripColorCodes(leftText) + #StripColorCodes(rightText)
+    if tip.AddDoubleLine and visibleLen <= MAX_DOUBLE_LINE_CHARS then
+        tip:AddDoubleLine(leftText, rightText, lr, lg, lb, rr, rg, rb)
+    else
+        tip:AddLine(leftText, lr, lg, lb, true)
+        tip:AddLine("    " .. rightText, rr, rg, rb, true)
+    end
+end
+
+local function IsObjectiveFinished(txt, finFlag)
+    local qHelper = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest
+    if qHelper and qHelper.IsObjectiveTextFinished then
+        return qHelper.IsObjectiveTextFinished(txt, finFlag)
+    end
+    if finFlag == 1 or finFlag == true then return true end
+    if type(txt) ~= "string" then return false end
+    local cur, max = string_match(txt, "(%d+)%s*/%s*(%d+)")
+    if cur and max then
+        local nCur, nMax = tonumber(cur), tonumber(max)
+        if nCur and nMax and nMax > 0 and nCur >= nMax then
+            return true
+        end
+    end
+    return false
+end
+
+local function HasObjectiveProgress(txt, finFlag)
+    if IsObjectiveFinished(txt, finFlag) then return true end
+    if type(txt) ~= "string" then return false end
+    local cur = string_match(txt, "(%d+)%s*/%s*%d+")
+    if cur and (tonumber(cur) or 0) > 0 then return true end
+    local pct = string_match(txt, "(%d+)%%")
+    if pct and (tonumber(pct) or 0) > 0 then return true end
+    return false
+end
+
+local function MakeParsedFraction(label, cur, max)
+    local cleanLabel = string_gsub(label or "", "[:%s]+$", "")
+    if cleanLabel == "" then return nil end
+    local low = string_lower(cleanLabel)
+    return {
+        key       = low,
+        label     = low,
+        kind      = "fraction",
+        cur       = tonumber(cur),
+        max       = tonumber(max),
+        valueText = cur .. "/" .. max,
+        shortVal  = tostring(tonumber(cur) or cur),
+    }
+end
+
+local function MakeParsedPercent(label, pct)
+    local cleanLabel = string_gsub(label or "", "[:%s]+$", "")
+    if cleanLabel == "" then return nil end
+    local low = string_lower(cleanLabel)
+    return {
+        key       = low,
+        label     = low,
+        kind      = "percent",
+        cur       = tonumber(pct),
+        valueText = pct .. "%",
+        shortVal  = pct .. "%",
+    }
+end
+
+local function ParseObjectiveProgress(rawText)
+    local clean = string_gsub(tostring(rawText or ""), " / ", "/")
+    clean = string_gsub(clean, "^%s+", "")
+    clean = string_gsub(clean, "^[%-•*]%s*", "")
+    clean = string_gsub(clean, "%s+$", "")
+
+    local sLabel, sCur, sMax = string_match(clean, "^(.-)%s*:?%s*(%d+)%s*/%s*(%d+)%s*$")
+    local parsed = sLabel and MakeParsedFraction(sLabel, sCur, sMax)
+    if parsed then return parsed end
+
+    local pCur, pMax, pRest = string_match(clean, "^(%d+)%s*/%s*(%d+)%s+(.+)$")
+    parsed = pCur and MakeParsedFraction(pRest, pCur, pMax)
+    if parsed then return parsed end
+
+    local pctLabel, pctVal = string_match(clean, "^(.-)%s*%((%d+)%%%)$")
+    if not pctLabel then
+        pctLabel, pctVal = string_match(clean, "^(.-)%s*:%s*(%d+)%%$")
+    end
+    parsed = pctLabel and MakeParsedPercent(pctLabel, pctVal)
+    if parsed then return parsed end
+
+    local leadPct, leadLabel = string_match(clean, "^(%d+)%%%s+(.+)$")
+    parsed = leadPct and MakeParsedPercent(leadLabel, leadPct)
+    if parsed then return parsed end
+
+    local low = string_lower(clean)
+    return {
+        key   = low,
+        label = low,
+        kind  = "plain",
+    }
+end
+
+local function BuildSyncedPeerSummary(peerStatuses, reqClass, isRemotePeerQuest, localIsComplete)
+    if not peerStatuses or #peerStatuses == 0 then return nil end
+
+    local missingPeers = {}
+    local readyPeers = {}
+    local completedPeers = {}
+    local inLogPeers = {}
+    local objGroups = {}
+    local objGroupByKey = {}
+    local partyTotal = 0
+    local partyReady = 0
+    local syncedInPartyCount = 0
+
+    local function add_obj_group(peerName, parsed)
+        if not parsed or parsed.key == "" then return end
+        local g = objGroupByKey[parsed.key]
+        if not g then
+            g = {
+                key      = parsed.key,
+                label    = parsed.label,
+                kind     = parsed.kind,
+                max      = parsed.max,
+                sameMax  = (parsed.max ~= nil),
+                allSame  = true,
+                firstVal = parsed.valueText,
+                entries  = {},
+            }
+            objGroupByKey[parsed.key] = g
+            objGroups[#objGroups + 1] = g
+        else
+            if g.kind ~= parsed.kind then
+                g.kind = "mixed"
+                g.sameMax = false
+            elseif g.max ~= parsed.max then
+                g.sameMax = false
+            end
+            if g.firstVal ~= parsed.valueText then
+                g.allSame = false
+            end
+        end
+        g.entries[#g.entries + 1] = {
+            name      = peerName,
+            valueText = parsed.valueText,
+            shortVal  = parsed.shortVal,
+            cur       = parsed.cur,
+        }
+    end
+
+    for _, peer in ipairs(peerStatuses) do
+        if peer.inParty then
+            syncedInPartyCount = syncedInPartyCount + 1
+        end
+        local includePeer = (peer.status ~= "missing")
+            or (peer.inParty == true and (not reqClass or peer.class == reqClass))
+        if includePeer then
+            local pLabel = peer.coloredName or (peer.name and string_lower(peer.name)) or "?"
+            if peer.inParty then
+                partyTotal = partyTotal + 1
+            end
+
+            if peer.status == "missing" then
+                missingPeers[#missingPeers + 1] = pLabel
+            elseif peer.status == "completed" then
+                completedPeers[#completedPeers + 1] = pLabel
+                if peer.inParty then partyReady = partyReady + 1 end
+            elseif peer.status == "ready" then
+                readyPeers[#readyPeers + 1] = pLabel
+                if peer.inParty then partyReady = partyReady + 1 end
+            else
+                local unfinished = {}
+                local hasObjTable = false
+                if type(peer.unfinishedObjs) == "table" and #peer.unfinishedObjs > 0 then
+                    hasObjTable = true
+                    for _, oTxt in ipairs(peer.unfinishedObjs) do
+                        if not IsObjectiveFinished(oTxt, nil) then
+                            unfinished[#unfinished + 1] = oTxt
+                        end
+                    end
+                elseif type(peer.objs) == "table" and #peer.objs > 0 then
+                    hasObjTable = true
+                    for idx, oTxt in ipairs(peer.objs) do
+                        local finFlag = type(peer.objFinished) == "table" and peer.objFinished[idx] or nil
+                        if not IsObjectiveFinished(oTxt, finFlag) then
+                            unfinished[#unfinished + 1] = oTxt
+                        end
+                    end
+                end
+
+                local peerHasProgress
+                if peer.hasProgress ~= nil then
+                    peerHasProgress = (peer.hasProgress == true)
+                else
+                    peerHasProgress = false
+                    local scanList = (type(peer.objs) == "table" and #peer.objs > 0 and peer.objs) or peer.unfinishedObjs
+                    if type(scanList) == "table" then
+                        for idx, oTxt in ipairs(scanList) do
+                            local finFlag = type(peer.objFinished) == "table" and peer.objFinished[idx] or nil
+                            if HasObjectiveProgress(oTxt, finFlag) then
+                                peerHasProgress = true
+                                break
+                            end
+                        end
+                    end
+                end
+
+                if hasObjTable and #unfinished == 0 then
+                    readyPeers[#readyPeers + 1] = pLabel
+                    if peer.inParty then partyReady = partyReady + 1 end
+                elseif #unfinished == 0 or (not isRemotePeerQuest and not peerHasProgress) then
+                    inLogPeers[#inLogPeers + 1] = pLabel
+                else
+                    for _, oTxt in ipairs(unfinished) do
+                        add_obj_group(pLabel, ParseObjectiveProgress(oTxt))
+                    end
+                end
+            end
+        end
+    end
+
+    local hasAny = (#missingPeers > 0)
+        or (#readyPeers > 0)
+        or (#completedPeers > 0)
+        or (#inLogPeers > 0)
+        or (#objGroups > 0)
+
+    return {
+        missingPeers       = missingPeers,
+        readyPeers         = readyPeers,
+        completedPeers     = completedPeers,
+        inLogPeers         = inLogPeers,
+        objGroups          = objGroups,
+        partyTotal         = partyTotal,
+        partyReady         = partyReady,
+        syncedInPartyCount = syncedInPartyCount,
+        hasAny             = hasAny,
+    }
+end
+Tooltip.BuildSyncedPeerSummary = BuildSyncedPeerSummary
+
+local function FormatGroupRightText(group)
+    if group.kind == "plain" or group.allSame then
+        local names = {}
+        for i = 1, #group.entries do
+            names[i] = group.entries[i].name
+        end
+        return table_concat(names, ", ")
+    end
+    local parts = {}
+    for i = 1, #group.entries do
+        local entry = group.entries[i]
+        local val = (group.sameMax and entry.shortVal) or entry.valueText or ""
+        if val ~= "" then
+            parts[i] = entry.name .. " |cffffd100" .. val .. "|r"
+        else
+            parts[i] = entry.name
+        end
+    end
+    return table_concat(parts, ", ")
+end
+
+local function AppendSyncedPeersSection(tip, summary, isRemotePeerQuest, localIsComplete)
+    if not summary or not summary.hasAny then return end
+
+    tip:AddLine(" ")
+
+    local nonEmptyBucket = nil
+    local bucketCount = 0
+    local staticBuckets = {
+        { list = summary.missingPeers,   row = "  missing", single = "synced (missing)", r = 1.00, g = 0.35, b = 0.35 },
+        { list = summary.readyPeers,     row = "  ready",   single = "ready",            r = 0.27, g = 1.00, b = 0.27, isReady = true },
+        { list = summary.completedPeers, row = "  done",    single = "synced (done)",    r = 0.40, g = 0.85, b = 0.45 },
+        { list = summary.inLogPeers,     row = "  in log",  single = "synced (in log)",  r = 1.00, g = 0.82, b = 0.00 },
+    }
+    for _, b in ipairs(staticBuckets) do
+        if #b.list > 0 then
+            bucketCount = bucketCount + 1
+            nonEmptyBucket = b
+        end
+    end
+
+    if #summary.objGroups == 0 and bucketCount == 1 and nonEmptyBucket then
+        local label = nonEmptyBucket.single
+        if nonEmptyBucket.isReady then
+            if (isRemotePeerQuest or localIsComplete) and summary.partyTotal > 0 then
+                label = "synced (all ready)"
+            elseif not isRemotePeerQuest and summary.partyTotal > 0 then
+                label = string_format("synced (%d/%d ready)", summary.partyReady, summary.partyTotal + 1)
+            else
+                label = "synced (ready)"
+            end
+        end
+        AddCompactRow(tip, label, table_concat(nonEmptyBucket.list, ", "),
+            nonEmptyBucket.r, nonEmptyBucket.g, nonEmptyBucket.b, 1, 1, 1)
+        return
+    end
+
+    if summary.partyTotal > 0 then
+        local total = isRemotePeerQuest and summary.partyTotal or (summary.partyTotal + 1)
+        local ready = summary.partyReady + ((not isRemotePeerQuest and localIsComplete) and 1 or 0)
+        tip:AddLine(string_format("synced (%d/%d ready):", ready, total), 1, 0.82, 0)
+    else
+        tip:AddLine("synced peers:", 1, 0.82, 0)
+    end
+
+    for _, b in ipairs(staticBuckets) do
+        if #b.list > 0 then
+            AddCompactRow(tip, b.row, table_concat(b.list, ", "), b.r, b.g, b.b, 1, 1, 1)
+        end
+    end
+
+    for _, group in ipairs(summary.objGroups) do
+        local leftText
+        if group.kind == "plain" or (#group.entries == 1 and not group.entries[1].valueText) then
+            leftText = "  • " .. group.label
+        elseif group.allSame and group.firstVal then
+            leftText = string_format("  • %s (%s)", group.label, group.firstVal)
+        elseif group.kind == "fraction" and group.sameMax and group.max then
+            leftText = string_format("  • %s (/%d)", group.label, group.max)
+        else
+            leftText = "  • " .. group.label
+        end
+        AddCompactRow(tip, leftText, FormatGroupRightText(group), 0.78, 0.85, 0.92, 1, 1, 1)
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Unit / Object Tooltip Party Quest Progress Condenser
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local function Utf8Prefix(str, count)
+    if type(str) ~= "string" or str == "" or count <= 0 then return "" end
+    local len = #str
+    local pos = 1
+    local cp = 0
+    while pos <= len and cp < count do
+        local b = string_byte(str, pos)
+        if not b then break end
+        local charLen = (b >= 240 and 4) or (b >= 224 and 3) or (b >= 192 and 2) or 1
+        pos = pos + charLen
+        cp = cp + 1
+    end
+    return string_sub(str, 1, pos - 1)
+end
+
+local function SplitCharacterName(rawName)
+    local clean = StripColorCodes(tostring(rawName or ""))
+    clean = string_match(clean, "^([^%-]+)") or clean
+    clean = string_gsub(clean, "^%s+", "")
+    clean = string_gsub(clean, "%s+$", "")
+    local fullLower = string_lower(clean)
+    local firstLower = string_match(fullLower, "^(%S+)") or fullLower
+    local secondLower = string_match(fullLower, "^%S+%s+(%S+)")
+    return fullLower, firstLower, secondLower
+end
+
+local function BuildUniqueAbbreviations(players)
+    local abbr = {}
+    for i, p in ipairs(players) do
+        abbr[i] = Utf8Prefix(p.first, 1)
+    end
+
+    local function countAbbrs()
+        local counts = {}
+        for i = 1, #players do
+            local a = abbr[i]
+            counts[a] = (counts[a] or 0) + 1
+        end
+        return counts
+    end
+
+    for len = 1, 4 do
+        local counts = countAbbrs()
+        local anyAdvanced = false
+        for i, p in ipairs(players) do
+            if counts[abbr[i]] > 1 then
+                local longer = Utf8Prefix(p.first, len + 1)
+                if longer ~= abbr[i] then
+                    abbr[i] = longer
+                    anyAdvanced = true
+                end
+            end
+        end
+        if not anyAdvanced then break end
+    end
+
+    local counts = countAbbrs()
+    for i, p in ipairs(players) do
+        if counts[abbr[i]] > 1 and p.second and p.second ~= "" then
+            abbr[i] = Utf8Prefix(p.first, 1) .. Utf8Prefix(p.second, 1)
+        end
+    end
+
+    local map = {}
+    for i, p in ipairs(players) do
+        map[p.key] = abbr[i] ~= "" and abbr[i] or "?"
+    end
+    return map
+end
+Tooltip.BuildUniqueAbbreviations = BuildUniqueAbbreviations
+
+local function SpecTableToHex(t)
+    if type(t) ~= "table" then return nil end
+    local r = t[1] or t.r
+    local g = t[2] or t.g
+    local b = t[3] or t.b
+    if not (r and g and b) then return nil end
+    if sfui.colors and sfui.colors.rgb_to_hex then
+        return "ff" .. sfui.colors.rgb_to_hex(r, g, b)
+    end
+    local ri = math_floor(r * 255 + 0.5)
+    local gi = math_floor(g * 255 + 0.5)
+    local bi = math_floor(b * 255 + 0.5)
+    return string_format("ff%02x%02x%02x", ri, gi, bi)
+end
+
+local PARTY_UNIT_TOKENS = { "player", "party1", "party2", "party3", "party4" }
+
+local function BuildPartyUnitCache()
+    local byFull = {}
+    local byFirst = {}
+    local localName = nil
+    local unitExists = _G.UnitExists
+    local unitNameFn = _G.UnitName
+    local unitGuidFn = _G.UnitGUID
+    local unitClassFn = _G.UnitClass
+
+    if unitExists and unitNameFn then
+        for _, unit in ipairs(PARTY_UNIT_TOKENS) do
+            local exists = unitExists(unit)
+            if not issecretvalue(exists) and exists then
+                local rawName = unitNameFn(unit)
+                if IsSafeVal(rawName) and type(rawName) == "string" and rawName ~= "" then
+                    local guid = unitGuidFn and unitGuidFn(unit) or nil
+                    if issecretvalue(guid) then guid = nil end
+                    local classFile = nil
+                    if unitClassFn then
+                        local _, cls = unitClassFn(unit)
+                        if not issecretvalue(cls) and type(cls) == "string" then
+                            classFile = cls
+                        end
+                    end
+                    local fullLower, firstLower = SplitCharacterName(rawName)
+                    if fullLower ~= "" then
+                        local info = {
+                            unit    = unit,
+                            guid    = guid,
+                            class   = classFile,
+                            isLocal = (unit == "player"),
+                        }
+                        if not byFull[fullLower] then byFull[fullLower] = info end
+                        if not byFirst[firstLower] then byFirst[firstLower] = info end
+                        if unit == "player" then
+                            localName = rawName
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return {
+        byFull    = byFull,
+        byFirst   = byFirst,
+        localName = localName,
+    }
+end
+
+local function FindAltByName(fullLower, firstLower)
+    local alts = _G.SfuiDB and _G.SfuiDB.alts
+    if type(alts) ~= "table" then return nil end
+
+    local bestExact = nil
+    local bestExactSeen = -1
+    local bestFirst = nil
+    local bestFirstSeen = -1
+
+    for _, alt in pairs(alts) do
+        if type(alt) == "table" then
+            local candidateName = alt.fullName or alt.name
+            if type(candidateName) == "string" and candidateName ~= "" then
+                local aFull, aFirst = SplitCharacterName(candidateName)
+                local seen = tonumber(alt.lastUpdate) or 0
+                if aFull == fullLower and seen >= bestExactSeen then
+                    bestExact = alt
+                    bestExactSeen = seen
+                elseif aFirst == firstLower and seen >= bestFirstSeen then
+                    bestFirst = alt
+                    bestFirstSeen = seen
+                end
+            end
+        end
+    end
+
+    return bestExact or bestFirst
+end
+
+local function ResolvePlayerSpecHex(rawName, partyCache)
+    local fullLower, firstLower = SplitCharacterName(rawName)
+    local unitInfo = partyCache and ((partyCache.byFull and partyCache.byFull[fullLower]) or (partyCache.byFirst and partyCache.byFirst[firstLower]))
+    local getSpecColor = sfui.colors and sfui.colors.get_spec_color_table
+    local getClassColor = (sfui.colors and sfui.colors.get_class_color) or (sfui.common and sfui.common.get_class_color)
+
+    if unitInfo and unitInfo.isLocal then
+        local specID = sfui.talents and sfui.talents.get_current_spec_id and sfui.talents.get_current_spec_id()
+        if specID and specID > 0 and getSpecColor then
+            local hex = SpecTableToHex(getSpecColor(specID))
+            if hex then return hex end
+        end
+        if unitInfo.class and getClassColor then
+            return select(4, getClassColor(unitInfo.class))
+        end
+    end
+
+    local alts = _G.SfuiDB and _G.SfuiDB.alts
+    local alt = (unitInfo and unitInfo.guid and type(alts) == "table" and alts[unitInfo.guid])
+        or FindAltByName(fullLower, firstLower)
+
+    local altSpec = alt and tonumber(alt.spec)
+    if altSpec and altSpec > 0 and getSpecColor then
+        local hex = SpecTableToHex(getSpecColor(altSpec))
+        if hex then return hex end
+    end
+
+    local classToken = (unitInfo and unitInfo.class) or (alt and alt.class)
+    if classToken and getClassColor then
+        return select(4, getClassColor(classToken))
+    end
+
+    return "ffcccccc"
+end
+Tooltip.ResolvePlayerSpecHex = ResolvePlayerSpecHex
+
+local function IsPartyPlayerLineFallback(cleanText, nextLine, partyCache, LINE_QUEST_OBJ)
+    if cleanText == "" then return false end
+    if nextLine and not issecretvalue(nextLine) and not issecretvalue(nextLine.type) and nextLine.type == LINE_QUEST_OBJ then
+        return true
+    end
+    local fullLower, firstLower = SplitCharacterName(cleanText)
+    if partyCache and ((partyCache.byFull and partyCache.byFull[fullLower]) or (partyCache.byFirst and partyCache.byFirst[firstLower])) then
+        return true
+    end
+    return false
+end
+
+local function ParseUnitQuestLines(lines, partyCache)
+    local LINE_TYPE = _G.Enum and _G.Enum.TooltipDataLineType
+    if not LINE_TYPE or type(lines) ~= "table" or #lines == 0 then return nil end
+
+    local LINE_NONE = LINE_TYPE.None
+    local LINE_QUEST_TITLE = LINE_TYPE.QuestTitle
+    local LINE_QUEST_PLAYER = LINE_TYPE.QuestPlayer
+    local LINE_QUEST_OBJ = LINE_TYPE.QuestObjective
+    if not (LINE_QUEST_TITLE and LINE_QUEST_PLAYER and LINE_QUEST_OBJ) then return nil end
+
+    local consumed = {}
+    local players = {}
+    local playerByKey = {}
+    local objGroups = {}
+    local objGroupByKey = {}
+    local questSeq = 0
+    local inQuestBlock = false
+    local hasQuestPlayer = false
+    local currentPlayer = (partyCache and partyCache.localName) or (_G.UnitName and _G.UnitName("player")) or "player"
+    if issecretvalue(currentPlayer) or type(currentPlayer) ~= "string" or currentPlayer == "" then
+        currentPlayer = "player"
+    end
+
+    local function ensurePlayer(rawName)
+        local fullLower, firstLower, secondLower = SplitCharacterName(rawName)
+        local pKey = fullLower ~= "" and fullLower or string_lower(tostring(rawName or "?"))
+        if not playerByKey[pKey] then
+            local rec = {
+                key    = pKey,
+                raw    = rawName,
+                first  = firstLower ~= "" and firstLower or pKey,
+                second = secondLower,
+            }
+            playerByKey[pKey] = rec
+            players[#players + 1] = rec
+        end
+        return pKey
+    end
+
+    local function addObjEntry(pKey, parsed, isDone)
+        if not parsed or parsed.key == "" then return end
+        local gKey = tostring(questSeq) .. "|" .. parsed.key
+        local g = objGroupByKey[gKey]
+        if not g then
+            g = {
+                key         = parsed.key,
+                label       = parsed.label,
+                kind        = parsed.kind,
+                max         = parsed.max,
+                sameMax     = (parsed.max ~= nil),
+                allSame     = true,
+                firstVal    = parsed.valueText,
+                entries     = {},
+                seenPlayers = {},
+            }
+            objGroupByKey[gKey] = g
+            objGroups[#objGroups + 1] = g
+        elseif not g.seenPlayers[pKey] then
+            if g.kind ~= parsed.kind then
+                g.kind = "mixed"
+                g.sameMax = false
+            elseif g.max ~= parsed.max then
+                g.sameMax = false
+            end
+            if g.firstVal ~= parsed.valueText then
+                g.allSame = false
+            end
+        end
+        if not g.seenPlayers[pKey] then
+            g.seenPlayers[pKey] = true
+            g.entries[#g.entries + 1] = {
+                playerKey = pKey,
+                valueText = parsed.valueText,
+                shortVal  = parsed.shortVal,
+                cur       = parsed.cur,
+                completed = isDone == true,
+            }
+        end
+    end
+
+    for idx, line in ipairs(lines) do
+        if issecretvalue(line) or type(line) ~= "table" then
+            if inQuestBlock then return nil end
+        else
+            local ltype = line.type
+            local isQuestTyped = not issecretvalue(ltype)
+                and (ltype == LINE_QUEST_TITLE or ltype == LINE_QUEST_PLAYER or ltype == LINE_QUEST_OBJ)
+            if (inQuestBlock or isQuestTyped) and (issecretvalue(ltype) or issecretvalue(line.leftText) or issecretvalue(line.completed)) then
+                return nil
+            end
+
+            if not issecretvalue(ltype) then
+                local rawText = not issecretvalue(line.leftText) and line.leftText or ""
+                local cleanText = StripColorCodes(type(rawText) == "string" and rawText or "")
+                cleanText = string_gsub(string_gsub(cleanText, "^%s+", ""), "%s+$", "")
+
+                if ltype == LINE_QUEST_TITLE then
+                    questSeq = questSeq + 1
+                    inQuestBlock = true
+                    currentPlayer = (partyCache and partyCache.localName) or currentPlayer
+                    consumed[line] = true
+                elseif inQuestBlock then
+                    if ltype == LINE_QUEST_PLAYER then
+                        currentPlayer = cleanText ~= "" and cleanText or currentPlayer
+                        hasQuestPlayer = true
+                        consumed[line] = true
+                    elseif ltype == LINE_QUEST_OBJ then
+                        local pKey = ensurePlayer(currentPlayer)
+                        local parsed = ParseObjectiveProgress(cleanText)
+                        local isDone = IsObjectiveFinished(cleanText, line.completed == true)
+                        addObjEntry(pKey, parsed, isDone)
+                        consumed[line] = true
+                    elseif ltype == LINE_NONE or ltype == nil then
+                        if IsPartyPlayerLineFallback(cleanText, lines[idx + 1], partyCache, LINE_QUEST_OBJ) then
+                            currentPlayer = cleanText
+                            hasQuestPlayer = true
+                            consumed[line] = true
+                        else
+                            inQuestBlock = false
+                        end
+                    else
+                        inQuestBlock = false
+                    end
+                end
+            end
+        end
+    end
+
+    if not hasQuestPlayer or #objGroups == 0 then
+        return nil
+    end
+
+    return {
+        consumed  = consumed,
+        players   = players,
+        objGroups = objGroups,
+    }
+end
+Tooltip.ParseUnitQuestLines = ParseUnitQuestLines
+
+local UNIT_PLAYER_SEP = " |cff888888·|r "
+
+local function RenderCondensedUnitQuestLines(tip, state, partyCache)
+    if not tip or not state or #state.objGroups == 0 then return end
+
+    local abbrMap = BuildUniqueAbbreviations(state.players)
+    local hexByKey = {}
+    for _, p in ipairs(state.players) do
+        hexByKey[p.key] = ResolvePlayerSpecHex(p.raw, partyCache)
+    end
+
+    local function coloredTag(pKey)
+        local hex = hexByKey[pKey] or "ffcccccc"
+        local abbr = abbrMap[pKey] or "?"
+        return string_format("|c%s%s|r", hex, abbr)
+    end
+
+    for _, group in ipairs(state.objGroups) do
+        local allDone = true
+        local anyDone = false
+        for _, e in ipairs(group.entries) do
+            if e.completed then
+                anyDone = true
+            else
+                allDone = false
+            end
+        end
+
+        local allSameUnfinished = (not anyDone) and group.allSame and (group.firstVal ~= nil)
+        local lr, lg, lb = 1.00, 0.85, 0.35
+        if allDone then
+            lr, lg, lb = 0.40, 0.90, 0.45
+        end
+
+        local leftText
+        local rightText
+        if allDone then
+            leftText = (group.firstVal and group.allSame)
+                and string_format("%s (%s)", group.label, group.firstVal)
+                or group.label
+            local tags = {}
+            for i, e in ipairs(group.entries) do
+                tags[i] = coloredTag(e.playerKey)
+            end
+            rightText = table_concat(tags, UNIT_PLAYER_SEP) .. " " .. ICON_DONE
+        elseif group.kind == "plain" then
+            leftText = group.label
+            local parts = {}
+            for i, e in ipairs(group.entries) do
+                parts[i] = e.completed and (coloredTag(e.playerKey) .. " " .. ICON_DONE) or coloredTag(e.playerKey)
+            end
+            rightText = table_concat(parts, UNIT_PLAYER_SEP)
+        elseif allSameUnfinished then
+            leftText = string_format("%s (%s)", group.label, group.firstVal)
+            local tags = {}
+            for i, e in ipairs(group.entries) do
+                tags[i] = coloredTag(e.playerKey)
+            end
+            rightText = table_concat(tags, UNIT_PLAYER_SEP)
+        elseif #group.entries == 1 then
+            local e = group.entries[1]
+            if e.completed then
+                leftText = group.label
+                rightText = coloredTag(e.playerKey) .. " " .. ICON_DONE
+            else
+                leftText = e.valueText and string_format("%s (%s)", group.label, e.valueText) or group.label
+                rightText = coloredTag(e.playerKey)
+            end
+        else
+            local useShort = (group.kind == "fraction" and group.sameMax and group.max ~= nil)
+            if useShort then
+                leftText = string_format("%s (/%d)", group.label, group.max)
+            else
+                leftText = group.label
+            end
+            local parts = {}
+            for i, e in ipairs(group.entries) do
+                local tag = coloredTag(e.playerKey)
+                if e.completed then
+                    parts[i] = tag .. " " .. ICON_DONE
+                else
+                    local val = useShort and (e.shortVal or e.valueText or "") or (e.valueText or "")
+                    if val ~= "" then
+                        parts[i] = tag .. " |cffffffff" .. val .. "|r"
+                    else
+                        parts[i] = tag
+                    end
+                end
+            end
+            rightText = table_concat(parts, UNIT_PLAYER_SEP)
+        end
+
+        AddCompactRow(tip, leftText, rightText, lr, lg, lb, 1, 1, 1)
+    end
+end
+Tooltip.RenderCondensedUnitQuestLines = RenderCondensedUnitQuestLines
+
 function Tooltip.ShowBlockTooltip(owner, bData)
     local tip = sfui.common.get_tooltip()
     if not tip or not bData then return end
@@ -663,28 +1464,48 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             tip:AddLine(questDesc, 0.85, 0.85, 0.85, true)
         end
 
-        -- Objective lines
+        -- Objective lines (exclude synced peer lines injected into tracker blocks)
         if not bData.isRemotePeerQuest then
+            local localObjs = {}
+            local function pushLocalObj(text, done)
+                if text and text ~= "" and not issecretvalue(text) then
+                    localObjs[#localObjs + 1] = { text = tostring(text), done = (done == true) }
+                end
+            end
+
             if bData.lines and #bData.lines > 0 then
-                tip:AddLine(" ")
                 for _, line in ipairs(bData.lines) do
-                    if line.text and line.text ~= "" and not issecretvalue(line.text) then
-                        local r, g, b = 0.75, 0.75, 0.75
-                        if line.completed then r, g, b = 0.30, 0.80, 0.30 end
-                        tip:AddLine("  " .. (line.completed and ICON_CHECK or ICON_BULLET) .. tostring(line.text), r, g, b, true)
+                    if not line.isSynced then
+                        pushLocalObj(line.text, line.completed)
                     end
                 end
-            elseif _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives then
+            end
+
+            if #localObjs == 0 and _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives then
                 local objs = _G.C_QuestLog.GetQuestObjectives(bData.questID)
                 if objs and #objs > 0 then
-                    tip:AddLine(" ")
                     for _, obj in ipairs(objs) do
-                        if obj.text and obj.text ~= "" and not issecretvalue(obj.text) then
-                            local r, g, b = 0.75, 0.75, 0.75
-                            if obj.finished then r, g, b = 0.30, 0.80, 0.30 end
-                            tip:AddLine("  " .. (obj.finished and ICON_CHECK or ICON_BULLET) .. tostring(obj.text), r, g, b, true)
-                        end
+                        pushLocalObj(obj.text, obj.finished)
                     end
+                end
+            end
+
+            if #localObjs == 0 and bData.questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
+                local numObj = _G.GetNumQuestLeaderBoards(bData.questLogIndex)
+                if IsSafeVal(numObj) and type(numObj) == "number" and numObj > 0 then
+                    for objIndex = 1, numObj do
+                        local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, bData.questLogIndex)
+                        pushLocalObj(desc, isFinished)
+                    end
+                end
+            end
+
+            if #localObjs > 0 then
+                tip:AddLine(" ")
+                for _, item in ipairs(localObjs) do
+                    local r, g, b = 0.75, 0.75, 0.75
+                    if item.done then r, g, b = 0.30, 0.80, 0.30 end
+                    tip:AddLine("  " .. (item.done and ICON_CHECK or ICON_BULLET) .. item.text, r, g, b, true)
                 end
             end
         end
@@ -713,49 +1534,40 @@ function Tooltip.ShowBlockTooltip(owner, bData)
             end
         end
 
-        -- Group Party Progress
-        if not bData.isRemotePeerQuest and IsSafeVal(bData.questID) and _G.IsInGroup and _G.IsInGroup() and tip.SetQuestPartyProgress then
+        -- Synced Party / Linked Peer Progress (computed first to avoid duplicating Blizzard party progress)
+        local syncSummary = nil
+        if bData.questID and sfui.sync and sfui.sync.GetQuestPeerStatuses then
+            local peerStatuses = sfui.sync.GetQuestPeerStatuses(bData.questID, false)
+            local reqClass = bData.isClassQuest and bData.classToken or nil
+            syncSummary = BuildSyncedPeerSummary(peerStatuses, reqClass, bData.isRemotePeerQuest == true, isComplete == true)
+        end
+
+        local skipBlizzPartyProgress = false
+        if syncSummary and syncSummary.syncedInPartyCount > 0 and not (_G.IsInRaid and _G.IsInRaid()) then
+            local otherPartyMembers = 0
+            if _G.GetNumSubgroupMembers then
+                local sub = _G.GetNumSubgroupMembers()
+                if IsSafeVal(sub) and type(sub) == "number" then
+                    otherPartyMembers = sub
+                end
+            elseif _G.GetNumGroupMembers then
+                local grp = _G.GetNumGroupMembers()
+                if IsSafeVal(grp) and type(grp) == "number" and grp > 1 then
+                    otherPartyMembers = grp - 1
+                end
+            end
+            if otherPartyMembers > 0 and syncSummary.syncedInPartyCount >= otherPartyMembers then
+                skipBlizzPartyProgress = true
+            end
+        end
+
+        -- Group Party Progress (only when non-synced party/raid members exist)
+        if not skipBlizzPartyProgress and not bData.isRemotePeerQuest and IsSafeVal(bData.questID) and _G.IsInGroup and _G.IsInGroup() and tip.SetQuestPartyProgress then
             tip:SetQuestPartyProgress(bData.questID)
         end
 
-        -- Synced Party / Linked Peer Progress
-        if bData.questID and sfui.sync and sfui.sync.GetQuestPeerStatuses then
-            local peerStatuses = sfui.sync.GetQuestPeerStatuses(bData.questID, false)
-            if peerStatuses and #peerStatuses > 0 then
-                local reqClass = bData.isClassQuest and bData.classToken or nil
-                local anyShown = false
-                for _, peer in ipairs(peerStatuses) do
-                    if peer.status ~= "missing" or not reqClass or peer.class == reqClass then
-                        if not anyShown then
-                            anyShown = true
-                            tip:AddLine(" ")
-                            tip:AddLine("synced peers:", 1, 0.82, 0)
-                        end
-                        local pLabel = "  " .. (peer.coloredName or peer.name or "?")
-                        if peer.status == "missing" then
-                            tip:AddDoubleLine(pLabel, "|cffff5555missing quest|r", 1, 1, 1, 1, 0.35, 0.35)
-                        elseif peer.status == "completed" then
-                            tip:AddDoubleLine(pLabel, "|cff44ff44completed|r", 1, 1, 1, 0.27, 1, 0.27)
-                        elseif peer.status == "ready" then
-                            tip:AddDoubleLine(pLabel, "|cff44ff44ready for turn-in|r", 1, 1, 1, 0.27, 1, 0.27)
-                        else
-                            if peer.objs and #peer.objs > 0 then
-                                tip:AddDoubleLine(pLabel, "|cffffd100in progress|r", 1, 1, 1, 1, 0.82, 0)
-                                local isFinFn = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest and sfui.tracker.helpers.quest.IsObjectiveTextFinished
-                                for idx, oTxt in ipairs(peer.objs) do
-                                    local finFlag = type(peer.objFinished) == "table" and peer.objFinished[idx] or nil
-                                    local isFin = isFinFn and isFinFn(oTxt, finFlag) or false
-                                    local r, g, b = 0.78, 0.85, 0.92
-                                    if isFin then r, g, b = 0.30, 0.80, 0.30 end
-                                    tip:AddLine("    • " .. tostring(oTxt):lower(), r, g, b, true)
-                                end
-                            else
-                                tip:AddDoubleLine(pLabel, "|cffffd100in log|r", 1, 1, 1, 1, 0.82, 0)
-                            end
-                        end
-                    end
-                end
-            end
+        if syncSummary and syncSummary.hasAny then
+            AppendSyncedPeersSection(tip, syncSummary, bData.isRemotePeerQuest == true, isComplete == true)
         end
 
         -- Click hints
@@ -814,5 +1626,79 @@ function Tooltip.HideBlockTooltip(owner, bData)
         tip:Hide()
     end
 end
+
+local pendingUnitCondensed = setmetatable({}, { __mode = "k" })
+local _unitQuestHooked = false
+
+local function InitUnitQuestTooltipCondenser()
+    if _unitQuestHooked then return end
+    local dp = _G.TooltipDataProcessor
+    local dt = _G.Enum and _G.Enum.TooltipDataType
+    local lt = _G.Enum and _G.Enum.TooltipDataLineType
+    if not (dp and dp.AddTooltipPreCall and dp.AddLinePreCall and dp.AddTooltipPostCall and dt and lt) then
+        return
+    end
+    if not (lt.QuestTitle and lt.QuestPlayer and lt.QuestObjective) then
+        return
+    end
+    _unitQuestHooked = true
+
+    local function onPreUnitOrObject(tooltip, tooltipData)
+        pendingUnitCondensed[tooltip] = nil
+        if tooltip ~= _G.GameTooltip or not tooltipData or issecretvalue(tooltipData) then
+            return false
+        end
+        if issecretvalue(tooltipData.lines) or type(tooltipData.lines) ~= "table" then
+            return false
+        end
+        local partyCache = BuildPartyUnitCache()
+        local state = ParseUnitQuestLines(tooltipData.lines, partyCache)
+        if state then
+            pendingUnitCondensed[tooltip] = {
+                state      = state,
+                partyCache = partyCache,
+            }
+        end
+        return false
+    end
+
+    local function onLinePreCall(tooltip, lineData)
+        local pending = pendingUnitCondensed[tooltip]
+        if pending and pending.state and pending.state.consumed[lineData] then
+            return true
+        end
+        return false
+    end
+
+    local function onPostUnitOrObject(tooltip)
+        local pending = pendingUnitCondensed[tooltip]
+        pendingUnitCondensed[tooltip] = nil
+        if pending and pending.state then
+            RenderCondensedUnitQuestLines(tooltip, pending.state, pending.partyCache)
+        end
+    end
+
+    for _, tipType in ipairs({ dt.Unit, dt.Object }) do
+        if tipType then
+            dp.AddTooltipPreCall(tipType, onPreUnitOrObject)
+            dp.AddTooltipPostCall(tipType, onPostUnitOrObject)
+        end
+    end
+
+    for _, lineType in ipairs({ lt.QuestTitle, lt.QuestPlayer, lt.QuestObjective, lt.None }) do
+        if lineType ~= nil then
+            dp.AddLinePreCall(lineType, onLinePreCall)
+        end
+    end
+
+    local gameTip = _G.GameTooltip
+    if gameTip and gameTip.HookScript then
+        gameTip:HookScript("OnTooltipCleared", function(self)
+            pendingUnitCondensed[self] = nil
+        end)
+    end
+end
+Tooltip.InitUnitQuestTooltipCondenser = InitUnitQuestTooltipCondenser
+InitUnitQuestTooltipCondenser()
 
 return Tooltip

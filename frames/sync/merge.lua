@@ -24,7 +24,9 @@ local pairs = _G.pairs
 local ipairs = _G.ipairs
 local tonumber = _G.tonumber
 local tostring = _G.tostring
+local string_byte = string.byte
 local table_insert = table.insert
+local table_sort = table.sort
 local math_max = math.max
 local UnitGUID = _G.UnitGUID
 local GetRealmName = _G.GetRealmName
@@ -1003,7 +1005,8 @@ local function build_quest_entry(questID, questLogIndex, title, level, suggested
                 end
             end
         end
-    elseif questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
+    end
+    if #objList == 0 and questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
         local numLB = _G.GetNumQuestLeaderBoards(questLogIndex) or 0
         for objIdx = 1, numLB do
             local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIdx, questLogIndex)
@@ -1204,6 +1207,59 @@ function merge.CheckLocalCompletedForPeerQuests()
         myAlt._questsDirtyForFullSync = true
     end
     return added
+end
+
+local function hash_digest_string(h, str)
+    for i = 1, #str do
+        h = (h * 33 + string_byte(str, i)) % 4294967296
+    end
+    return (h * 33 + 124) % 4294967296
+end
+
+function merge.ComputeActiveQuestsDigest(alt)
+    if type(alt) ~= "table" then return 0 end
+    local h = 5381
+
+    local capN = type(alt.questCap) == "table" and (tonumber(alt.questCap.n) or 0) or 0
+    local capM = type(alt.questCap) == "table" and (tonumber(alt.questCap.m) or 0) or 0
+    local compCount = 0
+    if type(alt.completedQuests) == "table" then
+        for _, cv in pairs(alt.completedQuests) do
+            if cv and cv ~= 0 then
+                compCount = compCount + 1
+            end
+        end
+    end
+    h = hash_digest_string(h, tostring(capN) .. "/" .. tostring(capM) .. ":" .. tostring(compCount))
+
+    if type(alt.activeQuests) == "table" then
+        local qIDs = {}
+        for rawID in pairs(alt.activeQuests) do
+            local nID = tonumber(rawID)
+            if nID and nID > 0 then
+                qIDs[#qIDs + 1] = nID
+            end
+        end
+        table_sort(qIDs)
+        for _, qID in ipairs(qIDs) do
+            local q = alt.activeQuests[qID] or alt.activeQuests[tostring(qID)]
+            if type(q) == "table" then
+                if q._partial == 1 then
+                    h = hash_digest_string(h, tostring(qID) .. ":P")
+                else
+                    h = hash_digest_string(h, tostring(qID) .. ":" .. tostring(tonumber(q.c) or 0))
+                    if type(q.o) == "table" then
+                        for i = 1, #q.o do
+                            local flag = type(q.f) == "table" and (tonumber(q.f[i]) or 0) or 0
+                            h = hash_digest_string(h, tostring(q.o[i] or "") .. "#" .. tostring(flag))
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return h
 end
 
 function merge.ScanActiveQuestsDelta(turnedInMap, acceptedMap)
@@ -1696,6 +1752,19 @@ function merge.BuildQuestsPayload(guid)
         activeQuests    = deep_copy(alt.activeQuests or {}),
         completedQuests = deep_copy(alt.completedQuests or {}),
         djQuests        = deep_copy(alt.djQuests or {}),
+    }
+end
+
+function merge.BuildQuestDigestPayload(guid)
+    if not guid or not SfuiDB or not SfuiDB.alts or type(SfuiDB.alts[guid]) ~= "table" then
+        return nil
+    end
+    local alt = SfuiDB.alts[guid]
+    normalize_alt_quest_tables(alt)
+    return {
+        g = guid,
+        r = tonumber(alt.questsRev) or tonumber(alt.lastUpdate) or 0,
+        h = merge.ComputeActiveQuestsDigest(alt),
     }
 end
 

@@ -472,6 +472,7 @@ function QuestCommon.PrependMissingQuestLine(lines, syncInfo)
         text      = "! missing: " .. table_concat(syncInfo.missingPeers, ", "),
         completed = false,
         color     = { 1.0, 0.35, 0.35, 1 },
+        isSynced  = true,
     })
 end
 
@@ -483,6 +484,7 @@ function QuestCommon.AppendSyncedQuestLines(lines, syncInfo)
                 text      = table_concat(entry.names, ", ") .. ": " .. entry.text,
                 completed = false,
                 color     = { 0.78, 0.86, 0.95, 1 },
+                isSynced  = true,
             })
         end
     end
@@ -491,6 +493,7 @@ function QuestCommon.AppendSyncedQuestLines(lines, syncInfo)
             text      = "ready: " .. table_concat(syncInfo.readyPeers, ", "),
             completed = true,
             color     = { 0.35, 0.95, 0.35, 1 },
+            isSynced  = true,
         })
     end
 end

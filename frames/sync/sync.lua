@@ -2047,6 +2047,44 @@ end
 -- ── Incoming Message Dispatcher ───────────────────────────────────────────────
 local on_local_quests_updated
 local notify_peer_quest_completed
+local questDeltaPending = false
+local questDeltaDirty = false
+local zoneResyncPending = false
+local questSyncTicker = nil
+local questSyncTickCount = 0
+local lastPeerQuestRx = {}
+local lastPeerQuestWant = {}
+local pendingPartyPull = {}
+
+local function has_active_quest_sync_target()
+    if get_active_group_channel(false) ~= nil then
+        return true
+    end
+    local live = build_live_online_map()
+    return live ~= nil and next(live) ~= nil
+end
+
+local function request_peer_quests_throttled(peerName, guid, channel, bnetIDAccount)
+    if type(guid) ~= "string" or guid == "" then return false end
+    local now = (GetTime and GetTime()) or 0
+    local lastWant = lastPeerQuestWant[guid]
+    if lastWant and (now - lastWant) < 4.0 then
+        return false
+    end
+    lastPeerQuestWant[guid] = now
+    return send_to_peer(peerName, "WANT", { quests = { guid } }, channel, bnetIDAccount)
+end
+
+local function send_quest_digest_to_group()
+    local ch = get_active_group_channel(false)
+    if not ch or not (merge and merge.BuildQuestDigestPayload) then return false end
+    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+        or (UnitGUID and UnitGUID("player"))
+    if not myGUID or issecretvalue(myGUID) then return false end
+    local digest = merge.BuildQuestDigestPayload(myGUID)
+    if not digest then return false end
+    return codec.SendMessage(PREFIX, "QUEST_DIGEST", digest, ch)
+end
 
 local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
     if not sender or is_self_character(sender) then return end
@@ -2151,6 +2189,9 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
         local merged, localCompChanged = merge.MergeQuests(data.guid, data)
         if merged then
             peer.lastSync = now
+            if type(data.guid) == "string" and data.guid ~= "" then
+                lastPeerQuestRx[data.guid] = (GetTime and GetTime()) or 0
+            end
             if localCompChanged and on_local_quests_updated then
                 on_local_quests_updated("PEER_QUEST_SYNC")
             end
@@ -2160,15 +2201,41 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
             local merged, missingDetails, localCompChanged, completedEvents = merge.MergeQuestProgDelta(data)
             if merged then
                 peer.lastSync = now
+                if type(data.g) == "string" and data.g ~= "" then
+                    lastPeerQuestRx[data.g] = (GetTime and GetTime()) or 0
+                end
                 if completedEvents and notify_peer_quest_completed then
                     notify_peer_quest_completed(sender, data.g, completedEvents)
                 end
                 if missingDetails and type(data.g) == "string" and data.g ~= "" then
-                    send_to_peer(sender, "WANT", { quests = { data.g } }, channel, bnetIDAccount)
+                    request_peer_quests_throttled(sender, data.g, channel, bnetIDAccount)
                 end
                 if localCompChanged and on_local_quests_updated then
                     on_local_quests_updated("PEER_QUEST_SYNC")
                 end
+            end
+        end
+    elseif msgType == "QUEST_DIGEST" and s.syncQuests and type(data) == "table" and type(data.g) == "string" and data.g ~= "" then
+        local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+            or (UnitGUID and UnitGUID("player"))
+        if data.g ~= myGUID then
+            peer.lastSync = now
+            local locAlt = SfuiDB and SfuiDB.alts and SfuiDB.alts[data.g]
+            local hasPartial = false
+            if type(locAlt) == "table" and type(locAlt.activeQuests) == "table" then
+                for _, qv in pairs(locAlt.activeQuests) do
+                    if type(qv) == "table" and qv._partial == 1 then
+                        hasPartial = true
+                        break
+                    end
+                end
+            end
+            local locRev = (type(locAlt) == "table" and tonumber(locAlt.questsRev)) or 0
+            local rRev = tonumber(data.r) or 0
+            local rHash = tonumber(data.h)
+            local locHash = (locAlt and merge.ComputeActiveQuestsDigest) and merge.ComputeActiveQuestsDigest(locAlt) or nil
+            if not locAlt or hasPartial or rRev > locRev or (rHash ~= nil and locHash ~= nil and rHash ~= locHash) then
+                request_peer_quests_throttled(sender, data.g, channel, bnetIDAccount)
             end
         end
     elseif msgType == "DATA_DJ_WISHLIST" and s.syncQuests and type(data) == "table" then
@@ -2463,15 +2530,76 @@ local function on_local_fishing_catch_recorded(_, itemID, quantity, quality, map
     on_local_fishing_updated()
 end
 
-local questDeltaPending = false
 local questsBroadcastPending = false
 local pendingTurnedInQuests = {}
 local pendingAcceptedQuests = {}
+
+local function run_fast_quest_delta_scan()
+    if merge.ScanActiveQuestsDelta then
+        local delta = merge.ScanActiveQuestsDelta(pendingTurnedInQuests, pendingAcceptedQuests)
+        if delta then
+            sync.Broadcast("DELTA_QUEST_PROG", delta, true, false)
+            if sfui.tracker and sfui.tracker.RequestRefresh then
+                sfui.tracker.RequestRefresh(0.05)
+            end
+            return true
+        end
+    end
+    return false
+end
+
+local function schedule_fast_quest_delta(delaySeconds)
+    if questDeltaPending then
+        questDeltaDirty = true
+        return
+    end
+    local delay = delaySeconds or 0.15
+    if C_Timer and C_Timer.After then
+        questDeltaPending = true
+        C_Timer.After(delay, function()
+            questDeltaPending = false
+            run_fast_quest_delta_scan()
+            if questDeltaDirty then
+                questDeltaDirty = false
+                schedule_fast_quest_delta(0.20)
+            end
+        end)
+    else
+        run_fast_quest_delta_scan()
+    end
+end
+
 on_local_quests_updated = function(event, arg1, arg2)
     if event == "UNIT_QUEST_LOG_CHANGED" then
         if not issecretvalue(arg1) and arg1 ~= "player" then
             if sfui.tracker and sfui.tracker.RequestRefresh then
                 sfui.tracker.RequestRefresh(0.05)
+            end
+            local s = sync.GetSettings()
+            if s.enabled and s.syncQuests ~= false and type(arg1) == "string" and UnitGUID and C_Timer and C_Timer.After then
+                local rawGUID = UnitGUID(arg1)
+                if not issecretvalue(rawGUID) and type(rawGUID) == "string" and rawGUID ~= "" then
+                    local alts = SfuiDB and SfuiDB.alts
+                    local isSyncedAlt = (type(alts) == "table" and alts[rawGUID] ~= nil)
+                        or (sync.multibox and sync.multibox.IsSyncedCharacter and sync.multibox.IsSyncedCharacter(rawGUID))
+                    if isSyncedAlt and not pendingPartyPull[rawGUID] then
+                        pendingPartyPull[rawGUID] = true
+                        local triggeredAt = (GetTime and GetTime()) or 0
+                        local unitToken = arg1
+                        C_Timer.After(1.0, function()
+                            pendingPartyPull[rawGUID] = nil
+                            local lastRx = lastPeerQuestRx[rawGUID]
+                            if not lastRx or lastRx < triggeredAt then
+                                local rawName = UnitName and UnitName(unitToken)
+                                local peerName = (not issecretvalue(rawName) and type(rawName) == "string") and rawName or nil
+                                local ch = get_active_group_channel(false)
+                                if peerName or ch then
+                                    request_peer_quests_throttled(peerName, rawGUID, ch, nil)
+                                end
+                            end
+                        end)
+                    end
+                end
             end
             return
         end
@@ -2488,21 +2616,7 @@ on_local_quests_updated = function(event, arg1, arg2)
     if not s.enabled or s.syncQuests == false then return end
 
     -- 1. Fast active-quest objective delta (runs even in combat so party members see live objective progress)
-    if not questDeltaPending and C_Timer and C_Timer.After then
-        questDeltaPending = true
-        C_Timer.After(0.35, function()
-            questDeltaPending = false
-            if merge.ScanActiveQuestsDelta then
-                local delta = merge.ScanActiveQuestsDelta(pendingTurnedInQuests, pendingAcceptedQuests)
-                if delta then
-                    sync.Broadcast("DELTA_QUEST_PROG", delta, true, false)
-                    if sfui.tracker and sfui.tracker.RequestRefresh then
-                        sfui.tracker.RequestRefresh(0.05)
-                    end
-                end
-            end
-        end)
-    end
+    schedule_fast_quest_delta(0.15)
 
     -- 2. Full DJ / completed-quest scan (deferred until out of combat)
     if InCombatLockdown and InCombatLockdown() then
@@ -2512,7 +2626,7 @@ on_local_quests_updated = function(event, arg1, arg2)
     if questsBroadcastPending then return end
     questsBroadcastPending = true
     if C_Timer and C_Timer.After then
-        C_Timer.After(2.0, function()
+        C_Timer.After(1.0, function()
             questsBroadcastPending = false
             if InCombatLockdown and InCombatLockdown() then
                 deferredAfterCombat.quests = true
@@ -2544,6 +2658,13 @@ on_local_quests_updated = function(event, arg1, arg2)
     else
         questsBroadcastPending = false
     end
+end
+
+local function on_local_bags_updated()
+    local s = sync.GetSettings()
+    if not s.enabled or s.syncQuests == false then return end
+    if not has_active_quest_sync_target() then return end
+    schedule_fast_quest_delta(0.20)
 end
 
 local djWishlistBroadcastPending = false
@@ -3205,6 +3326,21 @@ local function on_regen_enabled()
     end
 end
 
+local function start_quest_sync_ticker()
+    if questSyncTicker or not (C_Timer and C_Timer.NewTicker) then return end
+    questSyncTicker = C_Timer.NewTicker(5.0, function()
+        local s = sync.GetSettings()
+        if not s.enabled or s.syncQuests == false or not has_active_quest_sync_target() then
+            return
+        end
+        run_fast_quest_delta_scan()
+        questSyncTickCount = questSyncTickCount + 1
+        if (questSyncTickCount % 3) == 0 then
+            send_quest_digest_to_group()
+        end
+    end)
+end
+
 local loginSynced = false
 local function on_entering_world()
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
@@ -3218,11 +3354,12 @@ local function on_entering_world()
     end
 
     sync_machine_store()
+    start_quest_sync_ticker()
 
     if not loginSynced then
         loginSynced = true
         if C_Timer and C_Timer.After then
-            C_Timer.After(4.5, function()
+            C_Timer.After(2.5, function()
                 local s = sync.GetSettings()
                 if s.enabled then
                     sync_machine_store()
@@ -3237,6 +3374,18 @@ local function on_entering_world()
                         sfui.tracker.RequestRefresh(0.1)
                     end
                 end
+            end)
+        end
+    elseif not zoneResyncPending and C_Timer and C_Timer.After then
+        local s = sync.GetSettings()
+        if s.enabled and s.syncQuests ~= false then
+            zoneResyncPending = true
+            C_Timer.After(1.5, function()
+                zoneResyncPending = false
+                local curS = sync.GetSettings()
+                if not curS.enabled or curS.syncQuests == false then return end
+                run_fast_quest_delta_scan()
+                send_quest_digest_to_group()
             end)
         end
     end
@@ -3262,7 +3411,7 @@ local function on_group_roster_update()
     if not get_active_group_channel(allowDiscovery) then return end
     groupRosterPending = true
     if C_Timer and C_Timer.After then
-        C_Timer.After(3.0, function()
+        C_Timer.After(1.2, function()
             groupRosterPending = false
             local ch = get_active_group_channel(allowDiscovery)
             if ch then
@@ -3473,8 +3622,10 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("QUEST_WATCH_UPDATE", on_local_quests_updated)
     sfui.events.RegisterEvent("QUEST_WATCH_LIST_CHANGED", on_local_quests_updated)
     sfui.events.RegisterEvent("QUEST_LOG_CRITERIA_UPDATE", on_local_quests_updated)
+    sfui.events.RegisterEvent("QUEST_CRITERIA_UPDATE", on_local_quests_updated)
     sfui.events.RegisterEvent("UNIT_QUEST_LOG_CHANGED", on_local_quests_updated)
     sfui.events.RegisterEvent("QUEST_LOG_UPDATE", on_local_quests_updated)
+    sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", on_local_bags_updated)
 end
 
 if sfui.events and sfui.events.RegisterMessage then
