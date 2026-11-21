@@ -124,7 +124,7 @@ local function ScanMerchant()
 
     for i = 1, numItems do
         local link = GetMerchantItemLink(i)
-        local itemID = (link and not issecretvalue(link)) and tonumber(link:match("item:(%d+)"))
+        local itemID = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(link)
         if itemID then
             local classID = nil
             if C_Item_GetItemInfoInstant then
@@ -292,7 +292,7 @@ local function ScanLoot()
 
     for i = 1, numItems do
         local link = GetLootSlotLink(i)
-        local itemID = (link and not issecretvalue(link)) and tonumber(link:match("item:(%d+)"))
+        local itemID = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(link)
         if itemID then
             local classID = nil
             if C_Item_GetItemInfoInstant then
@@ -375,7 +375,7 @@ local function ScanQuest()
 
         for i = 1, count do
             local link = GetQuestItemLink(kind, i)
-            local itemID = (link and not issecretvalue(link)) and tonumber(link:match("item:(%d+)"))
+            local itemID = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(link)
             if itemID then
                 local classID = nil
                 if C_Item_GetItemInfoInstant then

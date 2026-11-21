@@ -28,6 +28,7 @@ local Blocks                                   = sfui.tracker.blocks
 local SPACING_SECTION                          = 10
 local SPACING_BLOCK                            = 6
 local SPACING_LINE                             = 2
+local _singleBarScratch                        = {}
 
 --- Untrack all items in a given section
 --- @param sec table Section table containing id and blocks
@@ -401,53 +402,9 @@ function Layout.BuildLayout(container, sections)
                     header.count:SetTextColor(r * 0.50, g * 0.50, b * 0.50, 1)
                 end
 
-                local secID = sec.id
-                header.secID = secID
-                local currentSec = sec
-                header:SetScript("OnClick", function(self, button)
-                    if InCombatLockdown and InCombatLockdown() then return end
-                    if button == "RightButton" then
-                        if secID == "challenges" or secID == "camelot_challenges" then
-                            if _G.ToggleLegacyChallenges then
-                                _G.ToggleLegacyChallenges()
-                            elseif _G.LegacySystemFrame_LoadUI then
-                                pcall(_G.LegacySystemFrame_LoadUI)
-                                if _G.LegacySystemFrame then
-                                    _G.LegacySystemFrame:Show()
-                                end
-                            end
-                            return
-                        elseif secID == "achievements" then
-                            if _G.ToggleAchievementFrame then
-                                _G.ToggleAchievementFrame()
-                            end
-                            return
-                        end
-                    end
-
-                    local IsShiftKeyDown = _G.IsShiftKeyDown
-                    if IsShiftKeyDown and IsShiftKeyDown() then
-                        UntrackSection(currentSec)
-                        for _, mod in ipairs(sfui.tracker.modules) do
-                            if mod.MarkDirty then mod:MarkDirty() end
-                        end
-                        sfui.tracker.RequestRefresh(0.01)
-                        return
-                    end
-                    SfuiDB.questlogSectionsCollapsed = SfuiDB.questlogSectionsCollapsed or {}
-                    local curCollapsed
-                    if isZoneSec then
-                        if currentSec.isCurrentZone then
-                            curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
-                        else
-                            curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] ~= false)
-                        end
-                    else
-                        curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
-                    end
-                    SfuiDB.questlogSectionsCollapsed[secID] = not curCollapsed
-                    sfui.tracker.RequestRefresh(0.01)
-                end)
+                header.secID = sec.id
+                header._sec = sec
+                header._isZoneSec = isZoneSec
 
                 yOffset = yOffset - (header:GetHeight() or 20) - 2
                 hasAnyVisibleContent = true
@@ -563,36 +520,7 @@ function Layout.BuildLayout(container, sections)
                         block.title:SetTextColor(1, 1, 1, 1)
                     end
 
-                    -- Mouse handlers for block
-                    block:SetScript("OnClick", function(self, btn)
-                        if InCombatLockdown and InCombatLockdown() then return end
-                        if bData.OnClick then
-                            bData.OnClick(self, btn)
-                        end
-                    end)
-                    block:SetScript("OnEnter", function(self)
-                        if self.hl then self.hl:SetColorTexture(1, 1, 1, 0.05) end
-                        local tooltipHelper = sfui.tracker.helpers.tooltip
-                        if tooltipHelper and tooltipHelper.ShowBlockTooltip then
-                            tooltipHelper.ShowBlockTooltip(self, bData)
-                        end
-                        if bData.OnEnter then
-                            bData.OnEnter(self)
-                        end
-                    end)
-                    block:SetScript("OnLeave", function(self)
-                        if self.hl then self.hl:SetColorTexture(1, 1, 1, 0) end
-                        local tooltipHelper = sfui.tracker.helpers.tooltip
-                        if tooltipHelper and tooltipHelper.HideBlockTooltip then
-                            tooltipHelper.HideBlockTooltip(self, bData)
-                        else
-                            local tip = sfui.common.get_tooltip()
-                            if tip then tip:Hide() end
-                        end
-                        if bData.OnLeave then
-                            bData.OnLeave(self)
-                        end
-                    end)
+                    block._bData = bData
 
                     local minH = (hasItem or hasFindGroup) and 18 or 14
                     local blockH = math.max(minH, (block.title:GetStringHeight() or 14) + 4)
@@ -623,34 +551,9 @@ function Layout.BuildLayout(container, sections)
                                 line.bullet:SetTextColor(0.6, 0.6, 0.6, 1)
                             end
 
+                            line._block = block
+                            line._bData = bData
                             line:EnableMouse(true)
-                            line:EnableMouseWheel(true)
-                            line:SetScript("OnMouseWheel", function(self, delta)
-                                sfui.tracker.OnMouseWheel(self, delta)
-                            end)
-                            line:SetScript("OnEnter", function()
-                                if block.hl then block.hl:SetColorTexture(1, 1, 1, 0.05) end
-                                local tooltipHelper = sfui.tracker.helpers.tooltip
-                                if tooltipHelper and tooltipHelper.ShowBlockTooltip then
-                                    tooltipHelper.ShowBlockTooltip(block, bData)
-                                end
-                            end)
-                            line:SetScript("OnLeave", function()
-                                if block.hl then block.hl:SetColorTexture(1, 1, 1, 0) end
-                                local tooltipHelper = sfui.tracker.helpers.tooltip
-                                if tooltipHelper and tooltipHelper.HideBlockTooltip then
-                                    tooltipHelper.HideBlockTooltip(block, bData)
-                                else
-                                    local tip = sfui.common.get_tooltip()
-                                    if tip then tip:Hide() end
-                                end
-                            end)
-                            line:SetScript("OnMouseUp", function(_, btn)
-                                if InCombatLockdown and InCombatLockdown() then return end
-                                if bData.OnClick then
-                                    bData.OnClick(block, btn)
-                                end
-                            end)
 
                             local lineH = (line.text:GetStringHeight() or 13) + SPACING_LINE
                             line:SetHeight(lineH)
@@ -659,7 +562,11 @@ function Layout.BuildLayout(container, sections)
                     end
 
                     -- 4. Progress Status Bar(s) (if any)
-                    local barList = bData.progressBars or (bData.progressBar and { bData.progressBar })
+                    local barList = bData.progressBars
+                    if not barList and bData.progressBar then
+                        _singleBarScratch[1] = bData.progressBar
+                        barList = _singleBarScratch
+                    end
                     if barList then
                         for _, barData in ipairs(barList) do
                             local pBar = Blocks.AcquireBar(content)
@@ -688,38 +595,17 @@ function Layout.BuildLayout(container, sections)
                                 pBar.text:SetFormattedText("%d%%", pct)
                             end
 
+                            pBar._block = block
+                            pBar._bData = bData
+                            pBar._barData = barData
                             pBar:EnableMouse(true)
-                            pBar:EnableMouseWheel(true)
-                            pBar:SetScript("OnMouseWheel", function(self, delta)
-                                sfui.tracker.OnMouseWheel(self, delta)
-                            end)
-                            pBar:SetScript("OnEnter", function()
-                                if block.hl then block.hl:SetColorTexture(1, 1, 1, 0.05) end
-                                local tooltipHelper = sfui.tracker.helpers.tooltip
-                                if tooltipHelper and tooltipHelper.ShowBlockTooltip then
-                                    tooltipHelper.ShowBlockTooltip(block, bData)
-                                end
-                            end)
-                            pBar:SetScript("OnLeave", function()
-                                if block.hl then block.hl:SetColorTexture(1, 1, 1, 0) end
-                                local tooltipHelper = sfui.tracker.helpers.tooltip
-                                if tooltipHelper and tooltipHelper.HideBlockTooltip then
-                                    tooltipHelper.HideBlockTooltip(block, bData)
-                                else
-                                    local tip = sfui.common.get_tooltip()
-                                    if tip then tip:Hide() end
-                                end
-                            end)
-                            pBar:SetScript("OnMouseUp", function(_, btn)
-                                if InCombatLockdown and InCombatLockdown() then return end
-                                if bData.OnClick then
-                                    bData.OnClick(block, btn, barData)
-                                end
-                            end)
 
                             local barH = 12
                             pBar:SetHeight(barH)
                             yOffset = yOffset - barH - 4
+                        end
+                        if barList == _singleBarScratch then
+                            _singleBarScratch[1] = nil
                         end
                     end
 
@@ -738,10 +624,6 @@ function Layout.BuildLayout(container, sections)
                             block.timerBarFrame:ClearAllPoints()
                             block.timerBarFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 12, yOffset - 2)
                             block.timerBarFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -4, yOffset - 2)
-                            block.timerBarFrame:EnableMouseWheel(true)
-                            block.timerBarFrame:SetScript("OnMouseWheel", function(self, delta)
-                                sfui.tracker.OnMouseWheel(self, delta)
-                            end)
                             local barH = 5
                             block.timerBarFrame:SetHeight(barH)
                             yOffset = yOffset - barH - 4

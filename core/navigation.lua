@@ -20,23 +20,7 @@ local _questRewardCache = nil
 local _craftedItemCache = nil
 
 local function extract_item_id(itemLinkOrID)
-    if itemLinkOrID == nil or issecretvalue(itemLinkOrID) then
-        return nil
-    end
-    if type(itemLinkOrID) == "number" then
-        return itemLinkOrID > 0 and itemLinkOrID or nil
-    end
-    if type(itemLinkOrID) == "string" then
-        local direct = tonumber(itemLinkOrID)
-        if direct and direct > 0 then
-            return direct
-        end
-        local fromLink = itemLinkOrID:match("item:(%d+)")
-        if fromLink then
-            return tonumber(fromLink)
-        end
-    end
-    return nil
+    return sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(itemLinkOrID)
 end
 
 local function ensure_quest_reward_cache()

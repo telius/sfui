@@ -130,7 +130,7 @@ end
 -- _mode: nil = hidden, "mythic" = M+, "dungeon" = dungeon/delve/scenario
 local _mode           = nil
 local _isPreview      = false
-local _ticker         = nil
+local _tickerActive   = false
 local _timerID        = nil
 local _timeLimit      = 0
 local _bossSplits     = {}
@@ -3031,24 +3031,28 @@ local function InitDungeon()
 end
 
 -- ─── Ticker ───────────────────────────────────────────────
+local function StopTicker()
+    if _tickerActive then
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiMythicTicker")
+        end
+        _tickerActive = false
+    end
+end
+
 local function _OnMythicTicker()
     if _mode == nil or not MF or not MF:IsShown() then
-        if _ticker then _ticker:Cancel() end
-        _ticker = nil
+        StopTicker()
         return
     end
     if _mode == "mythic" then UpdateTimer() end
 end
 
 local function StartTicker()
-    if _ticker then return end
-    _ticker = C_Timer.NewTicker(TICKER_RATE, _OnMythicTicker)
-end
-
-local function StopTicker()
-    if _ticker then
-        _ticker:Cancel()
-        _ticker = nil
+    if _tickerActive then return end
+    if sfui.events and sfui.events.RegisterUpdate then
+        _tickerActive = true
+        sfui.events.RegisterUpdate("SfuiMythicTicker", TICKER_RATE, _OnMythicTicker)
     end
 end
 

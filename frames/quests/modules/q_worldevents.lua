@@ -87,18 +87,7 @@ local lastUpdateTime    = 0
 local reminderCount     = 0
 
 local function FormatTimerSeconds(sec)
-    if not sec or issecretvalue(sec) then return "now" end
-    if sec <= 0 then return "now" end
-    sec = math_floor(sec)
-    if sec >= 3600 then
-        local h = math_floor(sec / 3600)
-        local m = math_floor((sec % 3600) / 60)
-        return (m > 0) and string_format("%dh %dm", h, m) or string_format("%dh", h)
-    elseif sec >= 60 then
-        return string_format("%dm", math_floor(sec / 60))
-    else
-        return string_format("%ds", sec)
-    end
+    return sfui.common.format_duration(sec, "timer", "now")
 end
 
 -- ─── Multi-Tier Progress Extraction Helpers ─────────────────────────────────
@@ -1133,13 +1122,6 @@ sfui.events.RegisterThrottledEvent("UPDATE_ALL_UI_WIDGETS", 0.5, function()
     end
 end)
 
-sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
-    local inCombat = InCombatLockdown and InCombatLockdown()
-    if not inCombat and isDirty then
-        sfui.worldevents.RequestUpdate()
-    end
-end)
-
 sfui.events.RegisterUpdate("WorldEvents", 5.0, function(elapsed)
     sfui.worldevents.OnTimerTick(elapsed)
 end)
@@ -1160,6 +1142,16 @@ local WorldEventsModule = {
 
 function WorldEventsModule:Init(engine)
     self.engine = engine
+end
+
+function WorldEventsModule:OnEvent(event)
+    if event == "QUEST_LOG_UPDATE" then
+        local inCombat = InCombatLockdown and InCombatLockdown()
+        if not inCombat and isDirty then
+            sfui.worldevents.RequestUpdate()
+        end
+    end
+    self:MarkDirty()
 end
 
 function WorldEventsModule:IsEnabled()

@@ -161,7 +161,18 @@ function data.GetQuestXPData(maxXP)
     local totalQuestXP = 0
     local completedCount = 0
 
-    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries then
+    local activeQuests = sfui.queststate and sfui.queststate.GetAllActive and sfui.queststate.GetAllActive()
+    if activeQuests then
+        for qID, entry in pairs(activeQuests) do
+            if entry and entry.isComplete then
+                local xp = (GetQuestLogRewardXP and GetQuestLogRewardXP(qID)) or 0
+                if xp > 0 then
+                    totalQuestXP = totalQuestXP + xp
+                    completedCount = completedCount + 1
+                end
+            end
+        end
+    elseif C_QuestLog and C_QuestLog.GetNumQuestLogEntries then
         local numEntries = C_QuestLog.GetNumQuestLogEntries() or 0
         for i = 1, numEntries do
             local info = C_QuestLog.GetInfo(i)
@@ -628,19 +639,7 @@ end
 --- @param seconds number|nil
 --- @return string
 function data.FormatTime(seconds)
-    if not seconds or seconds <= 0 then return "n/a" end
-    local s = math_floor(seconds)
-    local h = math_floor(s / 3600)
-    local m = math_floor((s % 3600) / 60)
-    local sec = s % 60
-
-    if h > 0 then
-        return string_format("%dh %02dm", h, m)
-    elseif m > 0 then
-        return string_format("%dm %02ds", m, sec)
-    else
-        return string_format("%ds", sec)
-    end
+    return sfui.common.format_duration(seconds, "long", "n/a")
 end
 
 --- Get text visibility alpha based on mouseover setting

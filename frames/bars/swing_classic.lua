@@ -141,6 +141,13 @@ local lastRangeState = {
     [SWING_OFF_HAND]  = nil,
     [SWING_RANGED]    = nil,
 }
+local cachedRangeSpell = {}
+
+local function InvalidateRangeSpellCache()
+    cachedRangeSpell[SWING_MAIN_HAND] = nil
+    cachedRangeSpell[SWING_OFF_HAND]  = nil
+    cachedRangeSpell[SWING_RANGED]    = nil
+end
 
 local function QuerySpellRange(spellID)
     if C_Spell and C_Spell.IsSpellInRange then
@@ -166,14 +173,30 @@ local function ClassicIsTargetWithinSwingRange(swingType)
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("target") then return true end
     if UnitCanAttack and not UnitCanAttack("player", "target") then return true end
 
-    local list = (swingType == SWING_RANGED) and RANGED_RANGE_CANDIDATE_SPELLS or MELEE_RANGE_CANDIDATE_SPELLS
-    for i = 1, #list do
-        local inRange = QuerySpellRange(list[i])
+    local key = (swingType == SWING_RANGED) and SWING_RANGED or SWING_MAIN_HAND
+    local cached = cachedRangeSpell[key]
+    if cached ~= nil then
+        if cached == false then
+            return true
+        end
+        local inRange = QuerySpellRange(cached)
         if inRange ~= nil then
+            return inRange
+        end
+        return true
+    end
+
+    local list = (key == SWING_RANGED) and RANGED_RANGE_CANDIDATE_SPELLS or MELEE_RANGE_CANDIDATE_SPELLS
+    for i = 1, #list do
+        local sid = list[i]
+        local inRange = QuerySpellRange(sid)
+        if inRange ~= nil then
+            cachedRangeSpell[key] = sid
             return inRange
         end
     end
 
+    cachedRangeSpell[key] = false
     return true
 end
 
@@ -301,12 +324,12 @@ local function OnClassicCombatLogEvent()
     local pGUID = GetPlayerGUID()
     if not pGUID then return end
 
-    local _, subevent, _, sourceGUID, _, _, _, destGUID = GetCurrentCombatLogEventInfo()
+    local _, subevent, _, sourceGUID, _, _, _, destGUID, _, _, _, arg12, arg13, _, _, _, _, _, _, _, arg21 = GetCurrentCombatLogEventInfo()
     if not subevent then return end
 
     if sourceGUID == pGUID then
         if subevent == "SWING_DAMAGE" then
-            local isOffHand = select(21, GetCurrentCombatLogEventInfo())
+            local isOffHand = arg21
             local mhSpeed, ohSpeed = GetMainAndOffHandSpeeds()
             if isOffHand and ohSpeed and ohSpeed > 0 then
                 TriggerSwing(SWING_OFF_HAND, ohSpeed)
@@ -314,7 +337,7 @@ local function OnClassicCombatLogEvent()
                 TriggerSwing(SWING_MAIN_HAND, mhSpeed)
             end
         elseif subevent == "SWING_MISSED" then
-            local _, isOffHand = select(12, GetCurrentCombatLogEventInfo())
+            local isOffHand = arg13
             local mhSpeed, ohSpeed = GetMainAndOffHandSpeeds()
             if isOffHand and ohSpeed and ohSpeed > 0 then
                 TriggerSwing(SWING_OFF_HAND, ohSpeed)
@@ -323,7 +346,7 @@ local function OnClassicCombatLogEvent()
             end
         elseif subevent == "SPELL_DAMAGE" or subevent == "SPELL_MISSED" then
             EnsureSpellNameLookups()
-            local spellID, spellName = select(12, GetCurrentCombatLogEventInfo())
+            local spellID, spellName = arg12, arg13
             if (spellID and ON_NEXT_SWING_SPELL_IDS[spellID]) or (spellName and onNextSwingNames[spellName]) then
                 local mhSpeed = GetMainAndOffHandSpeeds()
                 TriggerSwing(SWING_MAIN_HAND, mhSpeed)
@@ -339,8 +362,7 @@ local function OnClassicCombatLogEvent()
             end
         end
     elseif destGUID == pGUID and subevent == "SWING_MISSED" then
-        local missType = select(12, GetCurrentCombatLogEventInfo())
-        if missType == "PARRY" then
+        if arg12 == "PARRY" then
             ApplyParryHaste()
         end
     end
@@ -380,10 +402,12 @@ if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", OnClassicCombatLogEvent)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         playerGUID = UnitGUID and UnitGUID("player") or nil
+        InvalidateRangeSpellCache()
         EnsureSpellNameLookups()
         GetMainAndOffHandSpeeds()
         GetRangedWeaponSpeed()
     end)
+    sfui.events.RegisterEvent("SPELLS_CHANGED", InvalidateRangeSpellCache)
     if sfui.events.RegisterUnitEvent then
         sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", OnClassicSpellcastSucceeded)
         sfui.events.RegisterUnitEvent("UNIT_ATTACK_SPEED", "player", OnClassicAttackSpeedChanged)

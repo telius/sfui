@@ -31,7 +31,7 @@ local SecondsToClock = _G.SecondsToClock or function(s)
     local sec = s % 60
     return string.format("%d:%02d", m, sec)
 end
-local pairs, next, math_max = _G.pairs, _G.next, math.max
+local pairs, next, math_max, math_floor = _G.pairs, _G.next, math.max, math.floor
 local table_insert, table_remove = _G.table.insert, _G.table.remove
 
 local activeTimerBars = {}
@@ -84,24 +84,38 @@ local function OnTimerBarsUpdate()
         else
             local elapsed = now - bar.startTime
             local remaining = math_max(0, bar.timeTotal - elapsed)
-            bar:SetValue(remaining)
+            if bar._lastValue ~= remaining then
+                bar._lastValue = remaining
+                bar:SetValue(remaining)
+            end
 
-            local timeStr = SecondsToClock(remaining)
             if bar.TimeFS then
-                bar.TimeFS:SetText(timeStr)
+                local wholeSec = math_floor(remaining)
+                if bar._lastWholeSec ~= wholeSec then
+                    bar._lastWholeSec = wholeSec
+                    local timeStr = SecondsToClock(remaining)
+                    if bar._lastTimeStr ~= timeStr then
+                        bar._lastTimeStr = timeStr
+                        bar.TimeFS:SetText(timeStr)
+                    end
+                end
             end
 
             -- Color transition: white/cyan -> yellow -> red when low (<25%)
             local pct = (bar.timeTotal > 0) and (remaining / bar.timeTotal) or 0
-            if pct <= 0.20 then
-                bar:SetStatusBarColor(1.0, 0.25, 0.25, 0.85)
-                if bar.TimeFS then bar.TimeFS:SetTextColor(1.0, 0.3, 0.3, 1) end
-            elseif pct <= 0.40 then
-                bar:SetStatusBarColor(1.0, 0.75, 0.20, 0.85)
-                if bar.TimeFS then bar.TimeFS:SetTextColor(1.0, 0.8, 0.2, 1) end
-            else
-                bar:SetStatusBarColor(0.20, 0.80, 1.00, 0.80)
-                if bar.TimeFS then bar.TimeFS:SetTextColor(0.85, 0.85, 0.85, 1) end
+            local colorBucket = (pct <= 0.20 and 1) or (pct <= 0.40 and 2) or 3
+            if bar._lastColorBucket ~= colorBucket then
+                bar._lastColorBucket = colorBucket
+                if colorBucket == 1 then
+                    bar:SetStatusBarColor(1.0, 0.25, 0.25, 0.85)
+                    if bar.TimeFS then bar.TimeFS:SetTextColor(1.0, 0.3, 0.3, 1) end
+                elseif colorBucket == 2 then
+                    bar:SetStatusBarColor(1.0, 0.75, 0.20, 0.85)
+                    if bar.TimeFS then bar.TimeFS:SetTextColor(1.0, 0.8, 0.2, 1) end
+                else
+                    bar:SetStatusBarColor(0.20, 0.80, 1.00, 0.80)
+                    if bar.TimeFS then bar.TimeFS:SetTextColor(0.85, 0.85, 0.85, 1) end
+                end
             end
 
             if remaining <= 0 and not bar.hasExpired then
@@ -138,10 +152,7 @@ function TimerBars.CreateTimerBar(parent)
     sfui.common.create_border(bar, 1, { 0, 0, 0, 1 })
 
     local fs = bar:CreateFontString(nil, "OVERLAY")
-    local fontPath = (sfui.config and sfui.config.fontFile)
-        or (_G.STANDARD_TEXT_FONT and _G.STANDARD_TEXT_FONT ~= "" and _G.STANDARD_TEXT_FONT)
-        or (_G.GameFontNormal and _G.GameFontNormal.GetFont and _G.GameFontNormal:GetFont())
-        or "Fonts\\FRIZQT__.TTF"
+    local fontPath = sfui.common.get_font_file()
     fs:SetFont(fontPath, 9, "")
     fs:SetShadowOffset(0, 0)
     fs:SetShadowColor(0, 0, 0, 0)
@@ -184,6 +195,10 @@ function TimerBars.SetupTimerBar(bar, timeTotal, timeElapsed)
     bar.timeTotal = timeTotal
     bar.startTime = now - (timeElapsed or 0)
     bar.hasExpired = false
+    bar._lastValue = nil
+    bar._lastWholeSec = nil
+    bar._lastTimeStr = nil
+    bar._lastColorBucket = nil
 
     bar:SetMinMaxValues(0, timeTotal)
     local remaining = math_max(0, timeTotal - (timeElapsed or 0))
@@ -206,6 +221,10 @@ function TimerBars.ReleaseTimerBar(bar)
     bar.timeTotal = nil
     bar.startTime = nil
     bar.hasExpired = nil
+    bar._lastValue = nil
+    bar._lastWholeSec = nil
+    bar._lastTimeStr = nil
+    bar._lastColorBucket = nil
     bar:Hide()
     bar:ClearAllPoints()
     table_insert(timerBarPool, bar)

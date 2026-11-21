@@ -423,6 +423,10 @@ local tooltipsHooked = false
 local function HookTooltipClears()
     if tooltipsHooked then return end
     tooltipsHooked = true
+    if sfui.tooltips and sfui.tooltips.RegisterClearCallback then
+        sfui.tooltips.RegisterClearCallback("professions_reagents", ClearTooltipFlag)
+        return
+    end
     local a, b, c = GetTrackedTooltips()
     if a then a:HookScript("OnTooltipCleared", ClearTooltipFlag) end
     if b and b ~= a then b:HookScript("OnTooltipCleared", ClearTooltipFlag) end

@@ -24,6 +24,42 @@ local RECRAFT_MODES = { false, true }
 
 local GetQLState = sfui.questlog.GetState
 
+local function RecipeBlock_OnClick(block, btn)
+    local b = block and block._bData
+    if not b then return end
+    local recipeID = b.recipeID
+    local isRecraft = b.isRecraft
+
+    -- Shift-Click: Untrack
+    if IsShiftKeyDown and IsShiftKeyDown() then
+        if C_TradeSkillUI.SetRecipeTracked then
+            C_TradeSkillUI.SetRecipeTracked(recipeID, false, isRecraft)
+        end
+        sfui.tracker.RequestRefresh(0.05)
+        return
+    end
+
+    -- Right-Click: Toggle Criteria
+    if btn == "RightButton" then
+        local st = GetQLState()
+        st.expandedBlocks = st.expandedBlocks or {}
+        if b._expandKey then
+            st.expandedBlocks[b._expandKey] = not st.expandedBlocks[b._expandKey]
+        end
+        sfui.tracker.RequestRefresh(0.05)
+        return
+    end
+
+    -- Left-Click: Open Recipe Frame
+    if not (InCombatLockdown and InCombatLockdown()) then
+        if _G.ProfessionsUtil and _G.ProfessionsUtil.OpenProfessionFrameToRecipe then
+            _G.ProfessionsUtil.OpenProfessionFrameToRecipe(recipeID)
+        elseif C_TradeSkillUI.OpenRecipe then
+            C_TradeSkillUI.OpenRecipe(recipeID)
+        end
+    end
+end
+
 local function HasNoReagentCost(recipeID)
     return C_TradeSkillUI and C_TradeSkillUI.HasNoReagentCost
         and type(recipeID) == "number" and C_TradeSkillUI.HasNoReagentCost(recipeID) == true
@@ -95,6 +131,23 @@ local RecipesModule = {
 
 function RecipesModule:Init(engine)
     self.engine = engine
+end
+
+local function HasTrackedRecipes()
+    if not (C_TradeSkillUI and C_TradeSkillUI.GetRecipesTracked) then return false end
+    local normal = C_TradeSkillUI.GetRecipesTracked(false)
+    if normal and #normal > 0 then return true end
+    local recraft = C_TradeSkillUI.GetRecipesTracked(true)
+    return (recraft and #recraft > 0) and true or false
+end
+
+function RecipesModule:OnEvent(event)
+    if event == "BAG_UPDATE_DELAYED" or event == "CURRENCY_DISPLAY_UPDATE" or event == "PLAYER_TALENT_UPDATE" then
+        if not self._hadBlocks and not HasTrackedRecipes() then
+            return
+        end
+    end
+    self:MarkDirty()
 end
 
 function RecipesModule:IsEnabled()
@@ -187,35 +240,9 @@ function RecipesModule:BuildBlocks(container)
                             isRecipe   = true,
                             recipeID   = recipeID,
                             isRecraft  = isRecraft,
+                            _expandKey = key,
                             lines      = lines,
-                            OnClick    = function(block, btn)
-                                -- Shift-Click: Untrack
-                                if IsShiftKeyDown and IsShiftKeyDown() then
-                                    if C_TradeSkillUI.SetRecipeTracked then
-                                        C_TradeSkillUI.SetRecipeTracked(recipeID, false, isRecraft)
-                                    end
-                                    sfui.tracker.RequestRefresh(0.05)
-                                    return
-                                end
-
-                                -- Right-Click: Toggle Criteria
-                                if btn == "RightButton" then
-                                    local st = GetQLState()
-                                    st.expandedBlocks = st.expandedBlocks or {}
-                                    st.expandedBlocks[key] = not st.expandedBlocks[key]
-                                    sfui.tracker.RequestRefresh(0.05)
-                                    return
-                                end
-
-                                -- Left-Click: Open Recipe Frame
-                                if not (InCombatLockdown and InCombatLockdown()) then
-                                    if _G.ProfessionsUtil and _G.ProfessionsUtil.OpenProfessionFrameToRecipe then
-                                        _G.ProfessionsUtil.OpenProfessionFrameToRecipe(recipeID)
-                                    elseif C_TradeSkillUI.OpenRecipe then
-                                        C_TradeSkillUI.OpenRecipe(recipeID)
-                                    end
-                                end
-                            end,
+                            OnClick    = RecipeBlock_OnClick,
                         })
                     end
                 end
@@ -224,6 +251,7 @@ function RecipesModule:BuildBlocks(container)
     end
 
     if #blocks > 0 then
+        self._hadBlocks = true
         return {
             {
                 id     = "recipes",
@@ -234,6 +262,7 @@ function RecipesModule:BuildBlocks(container)
         }
     end
 
+    self._hadBlocks = false
     return nil
 end
 

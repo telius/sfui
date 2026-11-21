@@ -178,6 +178,10 @@ SlashCmdList["SFUI"] = function(msg)
         if sfui.upgrades and sfui.upgrades.Toggle then
             sfui.upgrades.Toggle(arg ~= "" and arg or nil)
         end
+    elseif (cmd == "sets" or cmd == "set" or cmd == "tier") and not sfui.isRetail then
+        if sfui.sets and sfui.sets.Toggle then
+            sfui.sets.Toggle(arg ~= "" and arg or nil)
+        end
     elseif cmd == "fish" or cmd == "fishing" or cmd == "atlas" then
         if not sfui.isRetail and (arg == "atlas" or arg == "book" or cmd == "atlas") then
             if sfui.fishing and sfui.fishing.atlas and sfui.fishing.atlas.Toggle then
@@ -319,7 +323,7 @@ SlashCmdList["SFUI"] = function(msg)
             if sfui.isRetail then
                 sfui.common.print("commands: /sf find [query] | /sf [tab] | /sf edit | /sf profile <save|load|sync> | /sf theme [mode] | /sf portals | /sfmem | /rl")
             else
-                sfui.common.print("commands: /sf find [query] | /sf [tab] | /sf edit | /sf profile <save|load|sync> | /sf theme [mode] | /sf recipes | /sf portals | /sf shards | /sfmem | /rl | /totembar")
+                sfui.common.print("commands: /sf find [query] | /sf [tab] | /sf edit | /sf profile <save|load|sync> | /sf theme [mode] | /sf sets | /sf recipes | /sf portals | /sf shards | /sfmem | /rl | /totembar")
             end
         end
     else

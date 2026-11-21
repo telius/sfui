@@ -238,6 +238,33 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     end
 end
 
+local function QuestPopup_OnClick(block, btn)
+    local b = block and block._bData
+    if not b then return end
+    OnQuestBlockClick(block, btn, b._popQuestID, nil, b._popTitle, b._isAutoOffer, false, b._isClickToComplete)
+end
+
+local function QuestBlock_OnClick(block, btn)
+    local b = block and block._bData
+    if not b then return end
+    OnQuestBlockClick(block, btn, b.questID, b.questLogIndex, b.rawTitle, false, b.isExpanded, b.canClickToComplete)
+end
+
+-- Retail sorting: Important -> Campaign -> Meta -> Activities -> Zone
+local RETAIL_SECTION_RANKS = {
+    important  = 1,
+    campaign   = 2,
+    meta       = 3,
+    activities = 4,
+    zone       = 5,
+}
+
+local function CompareRetailSections(a, b)
+    local rA = RETAIL_SECTION_RANKS[a.id] or 99
+    local rB = RETAIL_SECTION_RANKS[b.id] or 99
+    return rA < rB
+end
+
 -- ─────────────────────────────────────────────────────────
 --  SCANNER IMPLEMENTATION
 -- ─────────────────────────────────────────────────────────
@@ -267,6 +294,9 @@ end
 
 function QuestsModule:OnEvent(event, ...)
     local arg1, arg2 = ...
+    if event == "UNIT_QUEST_LOG_CHANGED" and arg1 ~= "player" then
+        return
+    end
     local questID = tonumber(arg1)
     local added = arg2
     if not questID and tonumber(arg2) then
@@ -293,8 +323,6 @@ function QuestsModule:OnEvent(event, ...)
                 pendingChangedQuests[questID] = true
             end
         end
-    elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_AUTOCOMPLETE" then
-        sfui.tracker.RequestRefresh(0.05)
     elseif event == "QUEST_WATCH_LIST_CHANGED" then
         if questID and questID > 0 then
             if not added then
@@ -324,7 +352,7 @@ function QuestsModule:OnEvent(event, ...)
         end
     end
 
-    if event == "QUEST_WATCH_LIST_CHANGED" or event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_CRITERIA_UPDATE" or event == "QUEST_ACCEPTED" then
+    if event == "QUEST_WATCH_LIST_CHANGED" or event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_CRITERIA_UPDATE" or event == "QUEST_ACCEPTED" or event == "QUEST_AUTOCOMPLETE" then
         self:MarkDirty(0.01)
     else
         self:MarkDirty()
@@ -377,27 +405,31 @@ function QuestsModule:BuildBlocks(container)
                 if popUpType == "OFFER" then
                     local sec = GetOrCreateSection("important", "Important", { 1.0, 0.4, 0.2 })
                     table_insert(sec.blocks, {
-                        title      = "[Offer] " .. popTitle,
-                        titleColor = { 1.0, 0.75, 0.2, 1 },
-                        lines      = {
+                        title              = "[Offer] " .. popTitle,
+                        titleColor         = { 1.0, 0.75, 0.2, 1 },
+                        _popQuestID        = qID,
+                        _popTitle          = popTitle,
+                        _isAutoOffer       = true,
+                        _isClickToComplete = false,
+                        lines              = {
                             { text = "Click to view quest offer", completed = false, color = { 0.7, 0.8, 1, 1 } }
                         },
-                        OnClick    = function(block, btn)
-                            OnQuestBlockClick(block, btn, qID, nil, popTitle, true, false, false)
-                        end,
+                        OnClick            = QuestPopup_OnClick,
                     })
                 elseif popUpType == "COMPLETE" then
                     autoCompletePopups[qID] = true
                     local sec = GetOrCreateSection("important", "Important", { 1.0, 0.0, 1.0 })
                     table_insert(sec.blocks, {
-                        title      = "[Complete] " .. popTitle,
-                        titleColor = { 1.0, 0.0, 1.0, 1 }, -- #FF00FF
-                        lines      = {
+                        title              = "[Complete] " .. popTitle,
+                        titleColor         = { 1.0, 0.0, 1.0, 1 }, -- #FF00FF
+                        _popQuestID        = qID,
+                        _popTitle          = popTitle,
+                        _isAutoOffer       = false,
+                        _isClickToComplete = true,
+                        lines              = {
                             { text = (QUEST_WATCH_QUEST_COMPLETE or "Click to complete quest"), completed = true, color = { 1.0, 0.0, 1.0, 1 } }
                         },
-                        OnClick    = function(block, btn)
-                            OnQuestBlockClick(block, btn, qID, nil, popTitle, false, false, true)
-                        end,
+                        OnClick            = QuestPopup_OnClick,
                     })
                 end
             end
@@ -651,26 +683,13 @@ function QuestsModule:BuildBlocks(container)
                 isExpanded         = isExpanded,
                 lines              = lines,
                 progressBar        = progressBar,
-                OnClick            = function(block, btn)
-                    OnQuestBlockClick(block, btn, questID, i, title, false, isExpanded, canClickToComplete)
-                end,
+                OnClick            = QuestBlock_OnClick,
             })
         end
     end
 
     -- Retail sorting: Important -> Campaign -> Meta -> Activities -> Zone
-    local sectionRanks = {
-        important  = 1,
-        campaign   = 2,
-        meta       = 3,
-        activities = 4,
-        zone       = 5,
-    }
-    table_sort(sectionOrder, function(a, b)
-        local rA = sectionRanks[a.id] or 99
-        local rB = sectionRanks[b.id] or 99
-        return rA < rB
-    end)
+    table_sort(sectionOrder, CompareRetailSections)
 
     return sectionOrder
 end

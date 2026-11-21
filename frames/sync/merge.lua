@@ -944,19 +944,7 @@ end
 local function is_local_quest_completed(questID)
     questID = tonumber(questID)
     if not questID or questID <= 0 then return false end
-    local C_QuestLog = _G.C_QuestLog
-    if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
-        if C_QuestLog.IsQuestFlaggedCompleted(questID) then
-            return true
-        end
-    end
-    if _G.IsQuestFlaggedCompleted and _G.IsQuestFlaggedCompleted(questID) then
-        return true
-    end
-    if sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(questID) then
-        return true
-    end
-    return false
+    return (sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(questID)) == true
 end
 
 local function build_quest_entry(questID, questLogIndex, title, level, suggestedGroup, isComplete, headerTitle, fallbackEntry)

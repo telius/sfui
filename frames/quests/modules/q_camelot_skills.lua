@@ -13,16 +13,7 @@ sfui.tracker = sfui.tracker or {}
 sfui.questlog = sfui.questlog or {}
 
 -- Guard: Classic / Camelot only (Exclude Retail)
-local isRetail = sfui.isRetail
-if isRetail == nil then
-    local projectID = _G.WOW_PROJECT_ID or 1
-    local _, _, _, tocVersionNum = _G.GetBuildInfo()
-    tocVersionNum = tonumber(tocVersionNum) or 0
-    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
-    isRetail = (projectID == 1) and not isCamelot
-end
-
-if isRetail then
+if sfui.isRetail then
     return
 end
 
@@ -486,12 +477,11 @@ local function CleanPeerKey(name)
     if sfui.sync and sfui.sync.multibox and sfui.sync.multibox.CleanKey then
         return sfui.sync.multibox.CleanKey(name)
     end
-    local short = string_match(name, "^([^%-]+)") or name
-    return string_lower(short)
+    return string_lower(sfui.common.short_name(name))
 end
 
 local function FormatColoredName(name, classToken)
-    local clean = string_lower(string_match(tostring(name or "player"), "^([^%-]+)") or tostring(name or "player"))
+    local clean = string_lower(sfui.common.short_name(tostring(name or "player")))
     if classToken and sfui.common and sfui.common.class_color_name then
         return sfui.common.class_color_name(clean, classToken)
     end

@@ -142,12 +142,14 @@ function pool.create_frame_pool(parent, frameType, template, onReset)
 
     function fallbackPool:Acquire()
         local frame
+        local isNew = false
         local nInactive = #self.inactiveObjects
         if nInactive > 0 then
             frame = self.inactiveObjects[nInactive]
             self.inactiveObjects[nInactive] = nil
         else
             frame = CreateFrame(self.frameType, nil, self.parent, self.template)
+            isNew = true
         end
 
         self.activeObjects[frame] = true
@@ -157,7 +159,7 @@ function pool.create_frame_pool(parent, frameType, template, onReset)
             self.resetter(self, frame)
         end
 
-        return frame, false
+        return frame, isNew
     end
 
     function fallbackPool:Release(frame)
@@ -201,6 +203,67 @@ function pool.create_frame_pool(parent, frameType, template, onReset)
     return fallbackPool
 end
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 3. Generic Object Pool (frames, textures, or custom factory objects)
+-- ─────────────────────────────────────────────────────────────────────────────
+local objectPoolMethods = {}
+objectPoolMethods.__index = objectPoolMethods
+
+function objectPoolMethods:acquire(...)
+    local free = self._free
+    local n = #free
+    local obj, isNew
+    if n > 0 then
+        obj = free[n]
+        free[n] = nil
+    else
+        obj = self._factory(...)
+        isNew = true
+    end
+    self._active[obj] = true
+    self._count = self._count + 1
+    return obj, isNew
+end
+
+function objectPoolMethods:release(obj)
+    if not obj or not self._active[obj] then return end
+    self._active[obj] = nil
+    self._count = self._count - 1
+    local reset = self._reset
+    if reset then
+        reset(obj)
+    elseif type(obj) == "table" and obj.Hide then
+        obj:Hide()
+    end
+    self._free[#self._free + 1] = obj
+end
+
+function objectPoolMethods:release_all()
+    for obj in pairs(self._active) do
+        self:release(obj)
+    end
+end
+
+function objectPoolMethods:active()
+    return pairs(self._active)
+end
+
+function objectPoolMethods:num_active()
+    return self._count
+end
+
+--- Create a custom factory-backed object pool (Acquire -> obj, isNew; release; release_all).
+function pool.create_object_pool(factory, reset)
+    return setmetatable({
+        _factory = factory,
+        _reset   = reset,
+        _active  = {},
+        _free    = {},
+        _count   = 0,
+    }, objectPoolMethods)
+end
+pool.create_pool = pool.create_object_pool
+
 -- Export common aliases
 sfui.common = sfui.common or {}
 sfui.common.acquire_table = pool.acquire_table
@@ -208,3 +271,5 @@ sfui.common.release_table = pool.release_table
 sfui.common.release_table_deep = pool.release_table_deep
 sfui.common.create_frame_pool = pool.create_frame_pool
 sfui.common.create_table_pool = pool.create_table_pool
+sfui.common.create_object_pool = pool.create_object_pool
+sfui.common.create_pool = pool.create_object_pool

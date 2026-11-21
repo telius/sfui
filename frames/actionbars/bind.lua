@@ -94,9 +94,7 @@ end
 local overlay, tip, dialog
 
 local function get_font_file()
-    return (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
-        or (_G.GameFontNormal and _G.GameFontNormal.GetFont and _G.GameFontNormal:GetFont())
-        or "Fonts\\FRIZQT__.TTF"
+    return sfui.common.get_font_file()
 end
 
 function bind:UpdateTooltip()

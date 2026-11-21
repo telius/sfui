@@ -77,12 +77,7 @@ end
 local function format_ago(ts)
     if not ts or ts <= 0 then return "never" end
     local now = (GetServerTime and GetServerTime()) or time()
-    local diff = now - ts
-    if diff < 5 then return "just now" end
-    if diff < 60 then return string_format("%ds ago", diff) end
-    if diff < 3600 then return string_format("%dm ago", math_floor(diff / 60)) end
-    if diff < 86400 then return string_format("%dh ago", math_floor(diff / 3600)) end
-    return string_format("%dd ago", math_floor(diff / 86400))
+    return sfui.common.format_duration(now - ts, "ago", "just now")
 end
 
 local function create_section_divider(parent, anchorFrame, offsetY)

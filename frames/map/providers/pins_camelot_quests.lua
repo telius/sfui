@@ -557,7 +557,4 @@ if sfui.events and sfui.events.RegisterEvent then
         pins.InvalidateQuestCache()
         pins.RequestRefresh(0)
     end)
-    sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", function()
-        pins.RequestRefresh(0)
-    end)
 end

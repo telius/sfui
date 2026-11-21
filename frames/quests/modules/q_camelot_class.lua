@@ -17,16 +17,7 @@ sfui.tracker           = sfui.tracker or {}
 sfui.questlog          = sfui.questlog or {}
 
 -- Guard: Classic / Camelot only (Exclude Retail)
-local isRetail         = sfui.isRetail
-if isRetail == nil then
-    local projectID = _G.WOW_PROJECT_ID or 1
-    local _, _, _, tocVersionNum = _G.GetBuildInfo()
-    tocVersionNum = tonumber(tocVersionNum) or 0
-    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
-    isRetail = (projectID == 1) and not isCamelot
-end
-
-if isRetail then
+if sfui.isRetail then
     return
 end
 
@@ -700,7 +691,7 @@ function CamelotClassQuestsModule:BuildBlocks(container)
                 local isComplete = (not qGroup.hasIncompletePeers) and (qGroup.readyPeers ~= nil and #qGroup.readyPeers > 0)
                 local hasMissingParty = (qGroup.hasMissingParty == true)
                 if classToken == myClassToken then
-                    local isLocalDone = C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(questID)
+                    local isLocalDone = sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(questID)
                     if not isLocalDone then
                         hasMissingParty = true
                     end

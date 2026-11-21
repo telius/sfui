@@ -81,19 +81,9 @@ local FALLBACK_SPELL_CATEGORIES = {
     },
 }
 
-local function IsSecret(v)
-    return (issecretvalue and issecretvalue(v)) == true
-end
-
-local function IsPlainNumber(v)
-    if issecretvalue and issecretvalue(v) then return false end
-    return type(v) == "number"
-end
-
-local function IsPlainPositiveNumber(v)
-    if issecretvalue and issecretvalue(v) then return false end
-    return type(v) == "number" and v > 0
-end
+local IsSecret = sfui.safety.issecretvalue
+local IsPlainNumber = sfui.safety.IsPlainNumber
+local IsPlainPositiveNumber = sfui.safety.IsPlainPositiveNumber
 
 local function IsPlainNonEmptyString(v)
     if issecretvalue and issecretvalue(v) then return false end
@@ -1057,6 +1047,8 @@ local function SetSlotFallbackTexture(slot, fbTex)
     end
 end
 
+local _hasMissingBuffIcon = false
+
 local function SyncSlotFallbackIcon(slot, blizzFrame)
     if not slot or not slot.fallbackIcon then return end
 
@@ -1085,16 +1077,27 @@ local function SyncSlotFallbackIcon(slot, blizzFrame)
                 return
             end
         end
+        _hasMissingBuffIcon = true
         if slot.fallbackIcon:IsShown() then
             slot.fallbackIcon:Hide()
         end
     else
         local fbTex = 134400
         if validCid then
-            local _, resolvedTex = ResolveBuffDisplay(cid, nil, blizzFrame)
-            if IsPlainValidTexture(resolvedTex) then
-                fbTex = resolvedTex
+            if slot._fbElseCid ~= cid or slot._fbElseEpoch ~= _iconAssetEpoch then
+                local _, resolvedTex = ResolveBuffDisplay(cid, nil, blizzFrame)
+                slot._fbElseResolved = resolvedTex
+                slot._fbElseCid = cid
+                slot._fbElseEpoch = _iconAssetEpoch
             end
+            local resolvedTex = slot._fbElseResolved
+            if IsPlainValidTexture(resolvedTex) and resolvedTex ~= 134400 then
+                fbTex = resolvedTex
+            else
+                _hasMissingBuffIcon = true
+            end
+        else
+            _hasMissingBuffIcon = true
         end
         SetSlotFallbackTexture(slot, fbTex)
     end
@@ -1103,6 +1106,7 @@ end
 -- synchronize active buff items from blizzard's bufficoncooldownviewer
 SyncWithBlizzard = function()
     _buffsDirty = false
+    _hasMissingBuffIcon = false
     if not socketContainer then CreateSocketContainer() end
     if not socketContainer then return end
 
@@ -1709,7 +1713,6 @@ local function OnTrackedBuffsTick()
         end
         local slot = slots[i]
         if slot and slot:IsShown() then
-            EnsureBlizzFrameSocketed(slot, blizzFrame)
             SyncSlotFallbackIcon(slot, blizzFrame)
             SyncSlotPandemicGlow(slot, blizzFrame, allowGlow)
         end
@@ -1736,6 +1739,13 @@ local function HookBlizzardViewer()
         hooksecurefunc(viewer, "RefreshLayout", function()
             wipe(_anchoredSlot)
             SyncWithBlizzard()
+            for i = 1, #activeFrames do
+                local blizzFrame = activeFrames[i]
+                local slot = slots[i]
+                if slot and blizzFrame then
+                    EnsureBlizzFrameSocketed(slot, blizzFrame)
+                end
+            end
             ScheduleBuffsTabRefresh(true)
         end)
         hooksecurefunc(viewer, "RefreshData", function()
@@ -1772,6 +1782,7 @@ local function RegisterEvents()
         RequestBuffsSync(true)
     end
     local function onIconAssetLoaded()
+        if not _hasMissingBuffIcon then return end
         _iconAssetEpoch = _iconAssetEpoch + 1
         RequestBuffsSync(false)
     end
@@ -1785,8 +1796,6 @@ local function RegisterEvents()
     sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", onLayoutEvent)
     sfui.events.RegisterEvent("SPELL_UPDATE_ICON", onIconAssetLoaded)
     sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", onIconAssetLoaded)
-    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", onIconAssetLoaded)
-    sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", onIconAssetLoaded)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", onStateEvent)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", onStateEvent)
     sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", onStateEvent)

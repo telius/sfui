@@ -170,7 +170,7 @@ end
 local function score_quest_reward_choice(choiceIdx)
     local link = _G.GetQuestItemLink and _G.GetQuestItemLink("choice", choiceIdx)
     if not link then return 0, 0, nil, nil, nil end
-    local itemID = tonumber(string_match(link, "item:(%d+)"))
+    local itemID = sfui.items.get_item_id(link)
     local GetItemInfo = (sfui.common and sfui.common.get_item_info) or _G.GetItemInfo
     local _, _, _, _, _, _, _, _, equipLoc, _, sellPrice, classID, subclassID = GetItemInfo(link)
     sellPrice = tonumber(sellPrice) or 0
@@ -411,7 +411,7 @@ local function select_best_quest_reward_choice(allowIncompleteCache)
         end
         local itemName = link and GetItemInfo(link)
         if not link or not itemName then
-            local itemID = (link and tonumber(string_match(link, "item:(%d+)"))) or tonumber(questItemID)
+            local itemID = sfui.items.get_item_id(link) or tonumber(questItemID)
             if itemID and sfui.common and sfui.common.request_item_load then
                 sfui.common.request_item_load(itemID)
             end
@@ -704,10 +704,49 @@ local function is_quest_already_complete(questID, logIndex)
     return false
 end
 
+local function perform_abandon(questID, logIndex, titleStr, sender)
+    if is_quest_already_complete(questID, logIndex) then
+        if sfui.common and sfui.common.print then
+            sfui.common.print(string_format("sync: kept completed quest |cff00ffff%s|r (not auto-abandoning).",
+                string_lower(titleStr or "quest")))
+        end
+        return
+    end
+    replayingAbandon = true
+    if _G.C_QuestLog and _G.C_QuestLog.SetSelectedQuest and _G.C_QuestLog.SetAbandonQuest and _G.C_QuestLog.AbandonQuest then
+        _G.C_QuestLog.SetSelectedQuest(questID)
+        _G.C_QuestLog.SetAbandonQuest()
+        _G.C_QuestLog.AbandonQuest()
+    elseif logIndex and _G.SelectQuestLogEntry and _G.SetAbandonQuest and _G.AbandonQuest then
+        _G.SelectQuestLogEntry(logIndex)
+        _G.SetAbandonQuest()
+        _G.AbandonQuest()
+    end
+    replayingAbandon = false
+    if _G.StaticPopup_Hide then
+        _G.StaticPopup_Hide("ABANDON_QUEST")
+        _G.StaticPopup_Hide("ABANDON_QUEST_WITH_ITEMS")
+    end
+    if sfui.common and sfui.common.print then
+        sfui.common.print(string_format("sync: abandoned quest |cff00ffff%s|r (synced with %s).",
+            string_lower(titleStr or "quest"), string_lower(multibox.CommandName(sender))))
+    end
+end
+
 local function handle_incoming_quest_abandon(sender, data)
     if not should_automate_quests() then return end
     local targetID    = tonumber(data.id)
     local targetTitle = data.title
+
+    local qs = sfui.queststate
+    if qs then
+        local entry = (targetID and targetID > 0 and qs.GetActive and qs.GetActive(targetID))
+            or (targetTitle and targetTitle ~= "" and qs.GetActiveByTitle and qs.GetActiveByTitle(targetTitle))
+        if entry then
+            perform_abandon(entry.questID, entry.logIndex, entry.title or targetTitle, sender)
+        end
+        return
+    end
 
     if _G.C_QuestLog and _G.C_QuestLog.GetNumQuestLogEntries and _G.C_QuestLog.SetAbandonQuest and _G.C_QuestLog.AbandonQuest then
         local numEntries = _G.C_QuestLog.GetNumQuestLogEntries() or 0
@@ -716,28 +755,7 @@ local function handle_incoming_quest_abandon(sender, data)
             if info and not info.isHeader then
                 if (targetID and targetID > 0 and info.questID == targetID)
                     or (targetTitle and targetTitle ~= "" and info.title == targetTitle) then
-                    if is_quest_already_complete(info.questID, i) then
-                        if sfui.common and sfui.common.print then
-                            sfui.common.print(string_format("sync: kept completed quest |cff00ffff%s|r (not auto-abandoning).",
-                                string_lower(info.title or targetTitle or "quest")))
-                        end
-                        return
-                    end
-                    replayingAbandon = true
-                    if _G.C_QuestLog.SetSelectedQuest then
-                        _G.C_QuestLog.SetSelectedQuest(info.questID)
-                    end
-                    _G.C_QuestLog.SetAbandonQuest()
-                    _G.C_QuestLog.AbandonQuest()
-                    replayingAbandon = false
-                    if _G.StaticPopup_Hide then
-                        _G.StaticPopup_Hide("ABANDON_QUEST")
-                        _G.StaticPopup_Hide("ABANDON_QUEST_WITH_ITEMS")
-                    end
-                    if sfui.common and sfui.common.print then
-                        sfui.common.print(string_format("sync: abandoned quest |cff00ffff%s|r (synced with %s).",
-                            string_lower(info.title or targetTitle or "quest"), string_lower(multibox.CommandName(sender))))
-                    end
+                    perform_abandon(info.questID, i, info.title or targetTitle, sender)
                     return
                 end
             end
@@ -749,26 +767,7 @@ local function handle_incoming_quest_abandon(sender, data)
             if not isHeader then
                 if (targetID and targetID > 0 and qID == targetID)
                     or (targetTitle and targetTitle ~= "" and title == targetTitle) then
-                    if is_quest_already_complete(qID, i) then
-                        if sfui.common and sfui.common.print then
-                            sfui.common.print(string_format("sync: kept completed quest |cff00ffff%s|r (not auto-abandoning).",
-                                string_lower(title or targetTitle or "quest")))
-                        end
-                        return
-                    end
-                    replayingAbandon = true
-                    _G.SelectQuestLogEntry(i)
-                    _G.SetAbandonQuest()
-                    _G.AbandonQuest()
-                    replayingAbandon = false
-                    if _G.StaticPopup_Hide then
-                        _G.StaticPopup_Hide("ABANDON_QUEST")
-                        _G.StaticPopup_Hide("ABANDON_QUEST_WITH_ITEMS")
-                    end
-                    if sfui.common and sfui.common.print then
-                        sfui.common.print(string_format("sync: abandoned quest |cff00ffff%s|r (synced with %s).",
-                            string_lower(title or targetTitle or "quest"), string_lower(multibox.CommandName(sender))))
-                    end
+                    perform_abandon(qID, i, title or targetTitle, sender)
                     return
                 end
             end
@@ -1280,7 +1279,7 @@ local function install_hooks_once()
             if not isActive then return end
             local idx = tonumber(choiceIdx) or 0
             local link = (idx > 0 and _G.GetQuestItemLink) and _G.GetQuestItemLink("choice", idx) or nil
-            local rewardID = link and tonumber(string_match(link, "item:(%d+)")) or nil
+            local rewardID = sfui.items.get_item_id(link)
             local qID = (_G.GetQuestID and _G.GetQuestID()) or nil
             broadcast_dialog_choice("turnin", current_npc_name(), idx, _G.GetTitleText and _G.GetTitleText() or "", rewardID, qID)
         end)

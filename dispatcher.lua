@@ -290,6 +290,17 @@ local function _dispatcher_error_handler(err)
         local crashFile, crashLine, crashFunc, frameIdx = _extract_sfui_frame(stack, false)
         local meta = _curCb and _cbMeta[_curCb]
         local kind = _curKind or (meta and meta.kind) or "dispatcher"
+        local errEvent = (kind == "message") and _safe_str(_curEvent) or (_curEvent or "none")
+        local errLabel = _curLabel
+        if not errLabel then
+            if kind == "unit_event" then
+                errLabel = (_curEvent or "event") .. "/" .. _safe_str(_curUnit)
+            elseif kind == "message" then
+                errLabel = "Msg:" .. errEvent
+            else
+                errLabel = errEvent ~= "none" and errEvent or "dispatcher"
+            end
+        end
 
         -- Capture local variables at the crashing sfui stack frame before xpcall unwinds
         local localsStr = nil
@@ -311,8 +322,8 @@ local function _dispatcher_error_handler(err)
             func          = crashFunc or (meta and meta.func),
             registered_at = meta and meta.registered_at or nil,
             dispatch_kind = kind,
-            event         = _curEvent or "none",
-            label         = _curLabel or _curEvent or "dispatcher",
+            event         = errEvent,
+            label         = errLabel,
             unit          = _curUnit,
             args          = _format_dispatch_args(kind, _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4),
             locals        = localsStr,
@@ -323,7 +334,16 @@ local function _dispatcher_error_handler(err)
     elseif _G.geterrorhandler and _G.geterrorhandler() then
         _G.geterrorhandler()(err)
     else
-        local label = _curLabel or _curEvent or "dispatcher"
+        local label = _curLabel
+        if not label then
+            if _curKind == "unit_event" then
+                label = (_curEvent or "event") .. "/" .. _safe_str(_curUnit)
+            elseif _curKind == "message" then
+                label = "Msg:" .. _safe_str(_curEvent)
+            else
+                label = _curEvent or "dispatcher"
+            end
+        end
         _err(label, err)
     end
     return err
@@ -372,16 +392,17 @@ local _snapUpdates = {}
 -- Prevents runaway 0s loops while allowing high-refresh loops up to ~144-200fps.
 local MIN_UPDATE_INTERVAL = 0.005
 
+local _inUpdateLoop = 0
+local _hasRemovedUpdates = false
+
 -- ─── Global event frame ─────────────────────────────────────────────────────
 local ev_frame = CreateFrame("Frame", "SfuiDispatcherFrame")
 
 ev_frame:SetScript("OnEvent", function(_, event, ...)
     local cbs = eventCallbacks[event]
-    if not cbs or #cbs == 0 then return end
-
+    if not cbs then return end
     local n = #cbs
-    local snap = _acquire_snap()
-    for i = 1, n do snap[i] = cbs[i] end
+    if n == 0 then return end
 
     local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
     local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
@@ -392,39 +413,59 @@ ev_frame:SetScript("OnEvent", function(_, event, ...)
     _curArgCount = select("#", ...)
     _curArg1, _curArg2, _curArg3, _curArg4 = ...
 
-    if _memActive then
-        local before = collectgarbage("count")
-        for i = 1, n do
-            local cb = snap[i]
-            snap[i] = nil
-            if type(cb) == "function" then
-                _curCb = cb
+    if n == 1 then
+        local cb = cbs[1]
+        if type(cb) == "function" then
+            _curCb = cb
+            if _memActive then
+                local before = collectgarbage("count")
+                xpcall(cb, _dispatcher_error_handler, event, ...)
+                _mem_after(event, before)
+            else
                 xpcall(cb, _dispatcher_error_handler, event, ...)
             end
         end
-        _mem_after(event, before)
     else
-        for i = 1, n do
-            local cb = snap[i]
-            snap[i] = nil
-            if type(cb) == "function" then
-                _curCb = cb
-                xpcall(cb, _dispatcher_error_handler, event, ...)
+        local snap = _acquire_snap()
+        for i = 1, n do snap[i] = cbs[i] end
+
+        if _memActive then
+            local before = collectgarbage("count")
+            for i = 1, n do
+                local cb = snap[i]
+                snap[i] = nil
+                if type(cb) == "function" then
+                    _curCb = cb
+                    xpcall(cb, _dispatcher_error_handler, event, ...)
+                end
+            end
+            _mem_after(event, before)
+        else
+            for i = 1, n do
+                local cb = snap[i]
+                snap[i] = nil
+                if type(cb) == "function" then
+                    _curCb = cb
+                    xpcall(cb, _dispatcher_error_handler, event, ...)
+                end
             end
         end
+
+        _release_snap()
     end
 
     _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
     _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
-    _release_snap()
 end)
 
 local function _OnDispatcherUpdate(_, elapsed)
     local n = #updateCallbacks
     if n == 0 then return end
 
-    local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
-    local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+    _inUpdateLoop = _inUpdateLoop + 1
+    local saved = false
+    local prevCb, prevKind, prevEvent, prevLabel, prevUnit
+    local prevArgc, prevA1, prevA2, prevA3, prevA4
 
     if _memActive then
         for i = 1, n do
@@ -433,9 +474,14 @@ local function _OnDispatcherUpdate(_, elapsed)
         for i = 1, n do
             local d = _snapUpdates[i]
             _snapUpdates[i] = nil
-            if d and not d.removed and type(d.callback) == "function" then
+            if d and not d.removed then
                 d.elapsed = d.elapsed + elapsed
                 if d.elapsed >= d.interval then
+                    if not saved then
+                        prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+                        prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+                        saved = true
+                    end
                     local label = d.name or "UpdateLoop"
                     local before = collectgarbage("count")
                     _curCb       = d.callback
@@ -454,14 +500,18 @@ local function _OnDispatcherUpdate(_, elapsed)
     else
         for i = 1, n do
             local d = updateCallbacks[i]
-            if d and not d.removed and type(d.callback) == "function" then
+            if d and not d.removed then
                 d.elapsed = d.elapsed + elapsed
                 if d.elapsed >= d.interval then
-                    local label = d.name or "UpdateLoop"
+                    if not saved then
+                        prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
+                        prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
+                        saved = true
+                    end
                     _curCb       = d.callback
                     _curKind     = "update"
                     _curEvent    = "OnUpdate"
-                    _curLabel    = label
+                    _curLabel    = d.name or "UpdateLoop"
                     _curUnit     = nil
                     _curArgCount = 2
                     _curArg1, _curArg2, _curArg3, _curArg4 = d.elapsed, d.interval, nil, nil
@@ -472,8 +522,30 @@ local function _OnDispatcherUpdate(_, elapsed)
         end
     end
 
-    _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
-    _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
+    _inUpdateLoop = _inUpdateLoop - 1
+    if saved then
+        _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
+        _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
+    end
+
+    if _inUpdateLoop == 0 and _hasRemovedUpdates then
+        local writeIdx = 0
+        local total = #updateCallbacks
+        for i = 1, total do
+            local d = updateCallbacks[i]
+            if d and not d.removed then
+                writeIdx = writeIdx + 1
+                updateCallbacks[writeIdx] = d
+            end
+        end
+        for i = writeIdx + 1, total do
+            updateCallbacks[i] = nil
+        end
+        _hasRemovedUpdates = false
+        if writeIdx == 0 then
+            ev_frame:SetScript("OnUpdate", nil)
+        end
+    end
 end
 
 -- ─── Unit event frames (per-unit isolation) ─────────────────────────────────
@@ -491,47 +563,64 @@ local function get_or_create_unit_frame(unit)
         f = CreateFrame("Frame", "SfuiDispatcherUnitFrame_" .. tostring(unit))
         unitFrames[unit] = f
         f:SetScript("OnEvent", function(_, event, u, ...)
-            local eventCbs = unitEventCallbacks[unit] and unitEventCallbacks[unit][event]
-            if not eventCbs or #eventCbs == 0 then return end
+            local byUnit = unitEventCallbacks[unit]
+            local eventCbs = byUnit and byUnit[event]
+            if not eventCbs then return end
             local n = #eventCbs
-            local snap = _acquire_snap()
-            for i = 1, n do snap[i] = eventCbs[i] end
+            if n == 0 then return end
 
             local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
             local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
-            local label = event .. "/" .. _safe_str(u)
             _curKind     = "unit_event"
             _curEvent    = event
-            _curLabel    = label
+            _curLabel    = nil
             _curUnit     = u
             _curArgCount = select("#", u, ...)
             _curArg1, _curArg2, _curArg3, _curArg4 = u, ...
 
-            if _memActive then
-                local before = collectgarbage("count")
-                for i = 1, n do
-                    local cb = snap[i]
-                    snap[i] = nil
-                    if type(cb) == "function" then
-                        _curCb = cb
+            if n == 1 then
+                local cb = eventCbs[1]
+                if type(cb) == "function" then
+                    _curCb = cb
+                    if _memActive then
+                        local before = collectgarbage("count")
+                        xpcall(cb, _dispatcher_error_handler, event, u, ...)
+                        _mem_after(event, before)
+                    else
                         xpcall(cb, _dispatcher_error_handler, event, u, ...)
                     end
                 end
-                _mem_after(event, before)
             else
-                for i = 1, n do
-                    local cb = snap[i]
-                    snap[i] = nil
-                    if type(cb) == "function" then
-                        _curCb = cb
-                        xpcall(cb, _dispatcher_error_handler, event, u, ...)
+                local snap = _acquire_snap()
+                for i = 1, n do snap[i] = eventCbs[i] end
+
+                if _memActive then
+                    local before = collectgarbage("count")
+                    for i = 1, n do
+                        local cb = snap[i]
+                        snap[i] = nil
+                        if type(cb) == "function" then
+                            _curCb = cb
+                            xpcall(cb, _dispatcher_error_handler, event, u, ...)
+                        end
+                    end
+                    _mem_after(event, before)
+                else
+                    for i = 1, n do
+                        local cb = snap[i]
+                        snap[i] = nil
+                        if type(cb) == "function" then
+                            _curCb = cb
+                            xpcall(cb, _dispatcher_error_handler, event, u, ...)
+                        end
                     end
                 end
+
+                _release_snap()
             end
 
             _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
             _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
-            _release_snap()
         end)
     end
     return f
@@ -682,6 +771,7 @@ function sfui.events.RegisterUpdate(arg1, arg2, arg3)
     else
         interval, callback = arg1, arg2
     end
+    if type(callback) ~= "function" then return end
     interval = math.max(interval or 0, MIN_UPDATE_INTERVAL)
     _record_caller(callback, nil, "update")
 
@@ -711,6 +801,16 @@ end
 --- Unregister an OnUpdate callback by name or function reference.
 function sfui.events.UnregisterUpdate(target)
     if not target then return end
+    if _inUpdateLoop > 0 then
+        for i = #updateCallbacks, 1, -1 do
+            local d = updateCallbacks[i]
+            if d and (d.name == target or d.callback == target) then
+                d.removed = true
+                _hasRemovedUpdates = true
+            end
+        end
+        return
+    end
     for i = #updateCallbacks, 1, -1 do
         local d = updateCallbacks[i]
         if d and (d.name == target or d.callback == target) then
@@ -787,11 +887,25 @@ function sfui.events.RegisterDebouncedEvent(event, delay, callback)
     local meta = _record_caller(callback, nil, "debounced_event")
     delay = (type(delay) == "number" and delay > 0 and delay) or 0.15
     local timer = nil
+    local deadline = 0
+    local firesAt = 0
     local lastA1, lastA2, lastA3
     local lastArgc = 0
     local label = event .. " (debounced)"
 
-    local onTimerFired = function()
+    local onTimerFired
+    onTimerFired = function()
+        local cTimer = _G.C_Timer
+        local getTime = _G.GetTime
+        if getTime and cTimer and cTimer.NewTimer then
+            local now = getTime()
+            local rem = deadline - now
+            if rem > 0.005 and deadline > (firesAt + 0.005) then
+                firesAt = now + rem
+                timer = cTimer.NewTimer(rem, onTimerFired)
+                return
+            end
+        end
         timer = nil
         local a, b, c = lastA1, lastA2, lastA3
         local argc = lastArgc
@@ -815,13 +929,14 @@ function sfui.events.RegisterDebouncedEvent(event, delay, callback)
     local wrapper = function(ev, a1, a2, a3)
         lastA1, lastA2, lastA3 = a1, a2, a3
         lastArgc = (a3 ~= nil and 3) or (a2 ~= nil and 2) or (a1 ~= nil and 1) or 0
-        if timer then
-            timer:Cancel()
-            timer = nil
-        end
-        local C_Timer = _G.C_Timer
-        if C_Timer and C_Timer.NewTimer then
-            timer = C_Timer.NewTimer(delay, onTimerFired)
+        local cTimer = _G.C_Timer
+        if cTimer and cTimer.NewTimer then
+            local now = _G.GetTime and _G.GetTime() or 0
+            deadline = now + delay
+            if not timer then
+                firesAt = deadline
+                timer = cTimer.NewTimer(delay, onTimerFired)
+            end
         else
             callback(ev, a1, a2, a3)
         end
@@ -837,11 +952,25 @@ function sfui.events.RegisterDebouncedUnitEvent(event, unit, delay, callback)
     local meta = _record_caller(callback, nil, "debounced_unit_event")
     delay = (type(delay) == "number" and delay > 0 and delay) or 0.15
     local timer = nil
+    local deadline = 0
+    local firesAt = 0
     local lastA1, lastA2, lastA3
     local lastArgc = 0
     local label = event .. "/" .. _safe_str(unit) .. " (debounced)"
 
-    local onTimerFired = function()
+    local onTimerFired
+    onTimerFired = function()
+        local cTimer = _G.C_Timer
+        local getTime = _G.GetTime
+        if getTime and cTimer and cTimer.NewTimer then
+            local now = getTime()
+            local rem = deadline - now
+            if rem > 0.005 and deadline > (firesAt + 0.005) then
+                firesAt = now + rem
+                timer = cTimer.NewTimer(rem, onTimerFired)
+                return
+            end
+        end
         timer = nil
         local a, b, c = lastA1, lastA2, lastA3
         local argc = lastArgc
@@ -865,13 +994,14 @@ function sfui.events.RegisterDebouncedUnitEvent(event, unit, delay, callback)
     local wrapper = function(ev, u, a1, a2, a3)
         lastA1, lastA2, lastA3 = a1, a2, a3
         lastArgc = (a3 ~= nil and 3) or (a2 ~= nil and 2) or (a1 ~= nil and 1) or 0
-        if timer then
-            timer:Cancel()
-            timer = nil
-        end
-        local C_Timer = _G.C_Timer
-        if C_Timer and C_Timer.NewTimer then
-            timer = C_Timer.NewTimer(delay, onTimerFired)
+        local cTimer = _G.C_Timer
+        if cTimer and cTimer.NewTimer then
+            local now = _G.GetTime and _G.GetTime() or 0
+            deadline = now + delay
+            if not timer then
+                firesAt = deadline
+                timer = cTimer.NewTimer(delay, onTimerFired)
+            end
         else
             callback(ev, u, a1, a2, a3)
         end
@@ -917,47 +1047,64 @@ end
 --- Uses snapshotting and pcall isolation.
 function sfui.events.SendMessage(message, ...)
     local cbs = messageCallbacks[message]
-    if not cbs or #cbs == 0 then return end
-
+    if not cbs then return end
     local n = #cbs
-    local snap = _acquire_snap()
-    for i = 1, n do snap[i] = cbs[i] end
+    if n == 0 then return end
 
-    local label = "Msg:" .. _safe_str(message)
     local prevCb, prevKind, prevEvent, prevLabel, prevUnit = _curCb, _curKind, _curEvent, _curLabel, _curUnit
     local prevArgc, prevA1, prevA2, prevA3, prevA4 = _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4
     _curKind     = "message"
-    _curEvent    = _safe_str(message)
-    _curLabel    = label
+    _curEvent    = message
+    _curLabel    = nil
     _curUnit     = nil
     _curArgCount = select("#", ...)
     _curArg1, _curArg2, _curArg3, _curArg4 = ...
 
-    if _memActive then
-        local before = collectgarbage("count")
-        for i = 1, n do
-            local cb = snap[i]
-            snap[i] = nil
-            if type(cb) == "function" then
-                _curCb = cb
+    if n == 1 then
+        local cb = cbs[1]
+        if type(cb) == "function" then
+            _curCb = cb
+            if _memActive then
+                local memLabel = "Msg:" .. _safe_str(message)
+                local before = collectgarbage("count")
+                xpcall(cb, _dispatcher_error_handler, message, ...)
+                _mem_after(memLabel, before)
+            else
                 xpcall(cb, _dispatcher_error_handler, message, ...)
             end
         end
-        _mem_after(label, before)
     else
-        for i = 1, n do
-            local cb = snap[i]
-            snap[i] = nil
-            if type(cb) == "function" then
-                _curCb = cb
-                xpcall(cb, _dispatcher_error_handler, message, ...)
+        local snap = _acquire_snap()
+        for i = 1, n do snap[i] = cbs[i] end
+
+        if _memActive then
+            local memLabel = "Msg:" .. _safe_str(message)
+            local before = collectgarbage("count")
+            for i = 1, n do
+                local cb = snap[i]
+                snap[i] = nil
+                if type(cb) == "function" then
+                    _curCb = cb
+                    xpcall(cb, _dispatcher_error_handler, message, ...)
+                end
+            end
+            _mem_after(memLabel, before)
+        else
+            for i = 1, n do
+                local cb = snap[i]
+                snap[i] = nil
+                if type(cb) == "function" then
+                    _curCb = cb
+                    xpcall(cb, _dispatcher_error_handler, message, ...)
+                end
             end
         end
+
+        _release_snap()
     end
 
     _curCb, _curKind, _curEvent, _curLabel, _curUnit = prevCb, prevKind, prevEvent, prevLabel, prevUnit
     _curArgCount, _curArg1, _curArg2, _curArg3, _curArg4 = prevArgc, prevA1, prevA2, prevA3, prevA4
-    _release_snap()
 end
 
 --- Called by sfui.mem when its watcher starts or stops, to update the hot-path flag.

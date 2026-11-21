@@ -36,14 +36,13 @@ local LEGACY_POINTS_CURRENCY_ID = 4225
 local _challengeData = {}
 local _challengeColor = { 0.08, 0.72, 0.22, 1.0 }
 
+local base = sfui.experience.base
+local chalBarObj = nil
 local challengesContainer = nil
 local challengesBar = nil
-local tickFrame = nil
-local ticks = {}
 local textLeft = nil
 local textCenter = nil
 local textRight = nil
-local unlockOverlay = nil
 
 --- Check if the camelot legacy challenge system is supported by the client
 --- @return boolean
@@ -234,150 +233,46 @@ end
 --- Set status bar texture directly
 --- @param tex string|nil
 function challenges.SetBarTexture(tex)
-    if challengesBar then challengesBar:SetStatusBarTexture(sfui.common.get_bar_texture(tex)) end
+    base.SetBarTexture(chalBarObj, tex)
 end
 
 --- Get challenges container frame
 --- @return Frame|nil
 function challenges.GetFrame()
-    if not challengesContainer and challenges.Create then
-        challenges.Create()
-    end
     return challengesContainer
 end
 
 --- Apply theme styling to the challenges bar
 function challenges.ApplyTheme()
-    if not challengesContainer then return end
-
-    if sfui.theme and sfui.theme.ApplyStatusBarStyle then
-        sfui.theme.ApplyStatusBarStyle(challengesContainer, "xp")
-    else
-        challengesContainer:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
-        challengesContainer:SetBackdropColor(0.04, 0.04, 0.04, 0.85)
-        challengesContainer:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
-    end
-
-    challenges.SetBarTexture()
+    base.ApplyTheme(chalBarObj, "xp")
 end
+
+local CHAL_UNLOCK_OPTS = {
+    bgColor         = { 0.08, 0.72, 0.22, 0.45 },
+    borderColor     = { 0.2, 0.9, 0.3, 1 },
+    label           = "|cff14b83bchallenges bar|r |cffaaaaaa(drag to move)|r",
+    dragMovesExpBar = true,
+    onLockUpdate    = function()
+        challenges.UpdateValues()
+    end,
+}
 
 --- Set unlocked dragging state and toggle visual mover overlay for challenges bar
 --- @param unlocked boolean
 function challenges.SetUnlocked(unlocked)
-    if not challengesContainer then return end
-    challengesContainer._isUnlocked = unlocked
-
-    if unlocked then
-        if not unlockOverlay then
-            unlockOverlay = CreateFrame("Frame", nil, challengesContainer, "BackdropTemplate")
-            unlockOverlay:SetAllPoints(challengesContainer)
-            unlockOverlay:SetFrameLevel(challengesContainer:GetFrameLevel() + 30)
-            unlockOverlay:EnableMouse(true)
-            unlockOverlay:RegisterForDrag("LeftButton")
-
-            local bg = unlockOverlay:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints()
-            bg:SetColorTexture(0.08, 0.72, 0.22, 0.45)
-            unlockOverlay.bg = bg
-
-            if sfui.widgets and sfui.widgets.create_border then
-                sfui.widgets.create_border(unlockOverlay, 1, { 0.2, 0.9, 0.3, 1 })
-            end
-
-            local lbl = unlockOverlay:CreateFontString(nil, "OVERLAY", sfui.config and sfui.config.font_small or "GameFontNormalSmall")
-            lbl:SetPoint("CENTER", unlockOverlay, "CENTER", 0, 0)
-            lbl:SetText("|cff14b83bchallenges bar|r |cffaaaaaa(drag to move)|r")
-            unlockOverlay.lbl = lbl
-
-            unlockOverlay:SetScript("OnDragStart", function()
-                local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-                local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
-                if isExpShown then
-                    expBar:StartMoving()
-                else
-                    challengesContainer:StartMoving()
-                end
-            end)
-            unlockOverlay:SetScript("OnDragStop", function()
-                local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-                local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
-                local targetFrame = isExpShown and expBar or challengesContainer
-                targetFrame:StopMovingOrSizing()
-                local point, _, relPoint, x, y = targetFrame:GetPoint()
-                if sfui.db and sfui.db.Set then
-                    sfui.db.Set("experience", "pos", {
-                        point = point,
-                        relativePoint = relPoint,
-                        x = math_floor(x + 0.5),
-                        y = math_floor(y + 0.5),
-                    })
-                end
-            end)
-        end
-        challengesContainer:Show()
-        challengesContainer:SetAlpha(1.0)
-        unlockOverlay:Show()
-    else
-        if unlockOverlay then
-            unlockOverlay:Hide()
-        end
-        challenges.UpdateValues()
-    end
+    base.SetUnlocked(chalBarObj, unlocked, CHAL_UNLOCK_OPTS)
 end
 
 --- Update 20-segment tick marks
 --- @param innerWidth number
 --- @param innerHeight number
 local function UpdateTicks(innerWidth, innerHeight)
-    if not tickFrame then return end
-
-    local cfg = sfui.config.experience or {}
-    local showTicks = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showTicks", cfg.showTicks == true))
-    if showTicks == nil then showTicks = false end
-
-    if not showTicks or innerWidth <= 0 then
-        tickFrame:Hide()
-        return
-    end
-
-    tickFrame:Show()
-    tickFrame:ClearAllPoints()
-    tickFrame:SetPoint("TOPLEFT", challengesContainer, "TOPLEFT", 1, -1)
-    tickFrame:SetPoint("BOTTOMRIGHT", challengesContainer, "BOTTOMRIGHT", -1, 1)
-
-    local numSegments = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "tickCount", 20)) or 20
-    local numDividers = numSegments - 1
-
-    for i = 1, numDividers do
-        local tick = ticks[i]
-        if not tick then
-            tick = tickFrame:CreateTexture(nil, "OVERLAY")
-            tick:SetTexture("Interface\\Buttons\\WHITE8X8")
-            tick:SetVertexColor(0, 0, 0, 0.45)
-            ticks[i] = tick
-        end
-
-        local xPos = (innerWidth / numSegments) * i
-        tick:ClearAllPoints()
-        tick:SetPoint("TOPLEFT", tickFrame, "TOPLEFT", xPos - 0.5, 0)
-        tick:SetPoint("BOTTOMLEFT", tickFrame, "BOTTOMLEFT", xPos - 0.5, 0)
-        tick:SetWidth(1)
-        tick:Show()
-    end
-
-    for i = numDividers + 1, #ticks do
-        ticks[i]:Hide()
-    end
+    base.UpdateTicks(chalBarObj, innerWidth, innerHeight)
 end
 
 --- Update text display visibility based on mouseover setting
 local function UpdateTextVisibility(isHovering)
-    if not textLeft or not textCenter or not textRight then return end
-    local data = sfui.experience.data
-    local alpha = data and data.GetTextAlpha and data.GetTextAlpha(isHovering) or (isHovering and 1.0 or 0.0)
-    textLeft:SetAlpha(alpha)
-    textCenter:SetAlpha(alpha)
-    textRight:SetAlpha(alpha)
+    base.UpdateTextVisibility(chalBarObj, isHovering)
 end
 
 --- Update layout and docking position relative to experience or reputation bars
@@ -433,11 +328,7 @@ function challenges.UpdateLayout()
         challengesContainer:SetPoint(pos.point or "BOTTOM", _G.UIParent, pos.relativePoint or pos.point or "BOTTOM", pos.x or 0, pos.y or 4)
     end
 
-    if challengesBar then
-        challengesBar:ClearAllPoints()
-        challengesBar:SetPoint("TOPLEFT", challengesContainer, "TOPLEFT", 1, -1)
-        challengesBar:SetPoint("BOTTOMRIGHT", challengesContainer, "BOTTOMRIGHT", -1, 1)
-    end
+    base.AnchorSubBars(chalBarObj)
 
     local actualWidth = challengesContainer:GetWidth()
     if not actualWidth or actualWidth <= 0 then
@@ -529,17 +420,7 @@ function challenges.ApplyToBar(statusBar, tLeft, tCenter, tRight, textFormat)
 
     -- Text: Center = Current / Max (Percent)
     if tCenter then
-        local curStr = formatNumber(data.current)
-        local maxStr = formatNumber(data.max)
-        if textFormat == "PERCENT_CURRENT" then
-            tCenter:SetText(string_format("%s / %s (%.1f%%)", curStr, maxStr, data.percent))
-        elseif textFormat == "PERCENT" then
-            tCenter:SetText(string_format("%.1f%%", data.percent))
-        elseif textFormat == "REMAINING" then
-            tCenter:SetText(string_format("-%s (%.1f%%)", formatNumber(data.remaining), data.percent))
-        else
-            tCenter:SetText(string_format("%s / %s", curStr, maxStr))
-        end
+        tCenter:SetText(base.FormatProgressText(textFormat, data.current, data.max, data.percent, nil, data.remaining))
     end
 
     -- Text: Right = Remaining or completed
@@ -647,52 +528,22 @@ end
 function challenges.Create()
     if challengesContainer then return challengesContainer end
 
-    challengesContainer = CreateFrame("Button", "SfuiChallengesBar", _G.UIParent, "BackdropTemplate")
-    challengesContainer:Hide()
-    challengesContainer:SetFrameStrata("HIGH")
-    challengesContainer:SetFrameLevel(20)
-    challengesContainer:SetClampedToScreen(true)
-    challengesContainer:EnableMouse(true)
-    challengesContainer:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    chalBarObj = base.CreateTrackedBar({
+        globalName    = "SfuiChallengesBar",
+        frameLevel    = 20,
+        numSubBars    = 1,
+        hasTicks      = true,
+        textInset     = 8,
+        startHidden   = true,
+        styleKey      = "xp",
+        registerTheme = true,
+    })
 
-    -- Status bar fill
-    challengesBar = CreateFrame("StatusBar", nil, challengesContainer)
-    challengesBar:SetFrameLevel(challengesContainer:GetFrameLevel() + 1)
-    challengesBar:EnableMouse(false)
-
-    -- Tick marks frame
-    tickFrame = CreateFrame("Frame", nil, challengesContainer)
-    tickFrame:SetFrameLevel(challengesContainer:GetFrameLevel() + 2)
-    tickFrame:EnableMouse(false)
-
-    -- Text overlay frame
-    local textFrame = CreateFrame("Frame", nil, challengesContainer)
-    textFrame:SetFrameLevel(challengesContainer:GetFrameLevel() + 3)
-    textFrame:SetAllPoints(challengesContainer)
-    textFrame:EnableMouse(false)
-
-    local font = (sfui.config and sfui.config.font) or "GameFontHighlightSmall"
-
-    textLeft = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textLeft:SetPoint("LEFT", textFrame, "LEFT", 8, 0)
-    textLeft:SetJustifyH("LEFT")
-    textLeft:SetTextColor(0.92, 0.92, 0.92, 1.0)
-    textLeft:SetShadowOffset(1, -1)
-    textLeft:SetShadowColor(0, 0, 0, 1)
-
-    textCenter = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textCenter:SetPoint("CENTER", textFrame, "CENTER", 0, 0)
-    textCenter:SetJustifyH("CENTER")
-    textCenter:SetTextColor(1.0, 1.0, 1.0, 1.0)
-    textCenter:SetShadowOffset(1, -1)
-    textCenter:SetShadowColor(0, 0, 0, 1)
-
-    textRight = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textRight:SetPoint("RIGHT", textFrame, "RIGHT", -8, 0)
-    textRight:SetJustifyH("RIGHT")
-    textRight:SetTextColor(0.85, 0.85, 0.85, 1.0)
-    textRight:SetShadowOffset(1, -1)
-    textRight:SetShadowColor(0, 0, 0, 1)
+    challengesContainer = chalBarObj.container
+    challengesBar = chalBarObj.mainBar
+    textLeft = chalBarObj.textLeft
+    textCenter = chalBarObj.textCenter
+    textRight = chalBarObj.textRight
 
     -- Mouse Interactions & Tooltip
     challengesContainer:SetScript("OnEnter", function(self)
@@ -703,7 +554,7 @@ function challenges.Create()
         challenges.RenderTooltip(tip)
     end)
 
-    challengesContainer:SetScript("OnLeave", function(self)
+    challengesContainer:SetScript("OnLeave", function()
         UpdateTextVisibility(false)
         if sfui.common and sfui.common.hide_tooltip then
             sfui.common.hide_tooltip()
@@ -713,7 +564,7 @@ function challenges.Create()
         end
     end)
 
-    challengesContainer:SetScript("OnClick", function(self, button)
+    challengesContainer:SetScript("OnClick", function(_, button)
         if InCombatLockdown and InCombatLockdown() then return end
         if IsShiftKeyDown() then
             challenges.ShareToChat()
@@ -738,41 +589,7 @@ function challenges.Create()
         end
     end)
 
-    -- Dragging support when unlocked
-    challengesContainer:SetMovable(true)
-    challengesContainer:RegisterForDrag("LeftButton")
-    challengesContainer:SetScript("OnDragStart", function(self)
-        if challengesContainer._isUnlocked then
-            local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-            local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
-            if isExpShown then
-                expBar:StartMoving()
-            else
-                self:StartMoving()
-            end
-        end
-    end)
-    challengesContainer:SetScript("OnDragStop", function(self)
-        if challengesContainer._isUnlocked then
-            local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-            local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
-            local targetFrame = isExpShown and expBar or self
-            targetFrame:StopMovingOrSizing()
-            local point, _, relPoint, x, y = targetFrame:GetPoint()
-            if sfui.db and sfui.db.Set then
-                sfui.db.Set("experience", "pos", {
-                    point = point,
-                    relativePoint = relPoint,
-                    x = math_floor(x + 0.5),
-                    y = math_floor(y + 0.5),
-                })
-            end
-        end
-    end)
-
-    if sfui.theme and sfui.theme.RegisterBar then
-        sfui.theme.RegisterBar(challengesContainer, "xp")
-    end
+    base.AttachDragHandlers(chalBarObj, true)
 
     challengesContainer:HookScript("OnShow", function()
         if sfui.experience.pet and sfui.experience.pet.UpdateLayout then

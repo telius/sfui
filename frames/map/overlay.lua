@@ -36,6 +36,8 @@ local IsShiftKeyDown   = _G.IsShiftKeyDown
 local IsIndoors        = _G.IsIndoors
 local IsInInstance     = _G.IsInInstance
 local GetInstanceInfo  = _G.GetInstanceInfo
+local GetTime          = _G.GetTime
+local wipe             = _G.wipe or table.wipe
 
 local math_abs   = math.abs
 local math_sin   = math.sin
@@ -136,6 +138,7 @@ end
 local isActive                 = false
 local pendingCombatSync        = false
 local pendingMouseSync         = false
+local FlushCombatSync, QueueCombatSync
 local hybridHooked             = false
 local clusterHooked            = false
 local zoomButtonsHooked        = false
@@ -201,8 +204,18 @@ local perfState = {
     scratchVec2         = nil,
     hbdMouseApplied     = setmetatable({}, { __mode = "k" }),
     hbdSweptOnce        = false,
-    lastPinPushFacing   = 0,
-    lastPinPushMap      = nil,
+    lastPinPushFacing       = 0,
+    lastPinPushMap          = nil,
+    lastPinPushWX           = nil,
+    lastPinPushWY           = nil,
+    lastPinPushAt           = 0,
+    lastCompassPushFacing   = nil,
+    altDown                 = nil,
+    lastFallbackPosAt       = -1,
+    lastFallbackMapID       = nil,
+    lastFallbackWX          = nil,
+    lastFallbackWY          = nil,
+    lastFallbackCont        = nil,
     lastPinPushRad      = nil,
     lastPinPushRot      = nil,
     genericChildrenN    = 0,
@@ -277,22 +290,48 @@ local function sync_compass()
     end
 end
 
+local optCache = {}
+local optCacheValid = false
+
+local function refresh_opt_cache()
+    optCacheValid = false
+    wipe(optCache)
+end
+
 -- ── Options & Data Pack Accessors ─────────────────────────────────────────────
 local function ensure_db()
     if not _G.SfuiDB then return DEFAULTS end
+    local dirty = false
     for k, v in pairs(DEFAULTS) do
         if _G.SfuiDB[k] == nil then
             _G.SfuiDB[k] = v
+            dirty = true
         end
+    end
+    if dirty then
+        refresh_opt_cache()
     end
     return _G.SfuiDB
 end
 
 local function get_opt(key)
-    if _G.SfuiDB and _G.SfuiDB[key] ~= nil then
-        return _G.SfuiDB[key]
+    if optCacheValid then
+        local cached = optCache[key]
+        if cached ~= nil then
+            return cached
+        end
     end
-    return DEFAULTS[key]
+    local val
+    if _G.SfuiDB and _G.SfuiDB[key] ~= nil then
+        val = _G.SfuiDB[key]
+    else
+        val = DEFAULTS[key]
+    end
+    if _G.SfuiDB and val ~= nil then
+        optCacheValid = true
+        optCache[key] = val
+    end
+    return val
 end
 
 local function get_map_data()
@@ -469,10 +508,19 @@ local function sync_overlay_ticker()
             ev.UnregisterUpdate("MapOverlay")
         end
     end
+    if sfui.map then
+        if sfui.map.compass and sfui.map.compass.SetExternalDrive then
+            sfui.map.compass:SetExternalDrive(shouldRun)
+        end
+        if sfui.map.pins and sfui.map.pins.SetOverlayDriving then
+            sfui.map.pins.SetOverlayDriving(shouldRun)
+        end
+    end
 end
 
 local function refresh_panel_visibility()
     if not isActive then return end
+    refresh_opt_cache()
     local nextHidden = has_blocking_panel_open()
     if nextHidden ~= panelHidden then
         panelHidden = nextHidden
@@ -650,6 +698,7 @@ local function handle_overlay_wheel(_, delta)
         local nxt = math_max(0.15, math_min(1.0, round_num(cur + step * 0.05, 2)))
         if _G.SfuiDB then
             _G.SfuiDB[key] = nxt
+            refresh_opt_cache()
         end
         viewCache.dirty = true
         update_effective_alphas(true)
@@ -658,6 +707,7 @@ local function handle_overlay_wheel(_, delta)
         local nxtZ = math_max(0, math_min(5, math_floor(curZ + 0.5) + step))
         if _G.SfuiDB then
             _G.SfuiDB.overlay_zoom = nxtZ
+            refresh_opt_cache()
         end
         if Minimap and Minimap.SetZoom then
             Minimap:SetZoom(nxtZ)
@@ -901,6 +951,7 @@ apply_pin_mouse_state = function(force)
         perfState.lastAppliedWheel = wheelActive
     else
         perfState.lastAppliedActive = nil
+        QueueCombatSync()
     end
     return true
 end
@@ -1135,6 +1186,7 @@ local function refresh_canvas_layout()
             force_hbd_reposition()
         else
             pendingCombatSync = true
+            QueueCombatSync()
         end
     end
 end
@@ -1335,6 +1387,7 @@ local function restore_corner_minimap_immediate()
         end
     elseif Minimap and not can_modify_region(Minimap) then
         pendingCombatSync = true
+        QueueCombatSync()
     end
 end
 
@@ -1373,6 +1426,7 @@ local function apply_minimap_state()
                 if Minimap.EnableMouseWheel then Minimap:EnableMouseWheel(false) end
             else
                 pendingCombatSync = true
+                QueueCombatSync()
             end
             apply_overlay_mask()
         else
@@ -1420,6 +1474,7 @@ local function apply_minimap_state()
                 if Minimap.EnableMouseWheel then Minimap:EnableMouseWheel(true) end
             else
                 pendingCombatSync = true
+                QueueCombatSync()
             end
         end
 
@@ -1439,6 +1494,20 @@ local function apply_minimap_state()
     end
     apply_pin_mouse_state()
     force_hbd_reposition()
+end
+
+FlushCombatSync = function()
+    if pendingCombatSync then
+        apply_minimap_state()
+    elseif pendingMouseSync then
+        apply_pin_mouse_state()
+    end
+end
+
+QueueCombatSync = function()
+    if InCombatLockdown and InCombatLockdown() and sfui.safety and sfui.safety.DeferOutOfCombat then
+        sfui.safety.DeferOutOfCombat("overlay_combat_sync", sfui.safety.OOC_P1, FlushCombatSync)
+    end
 end
 
 -- ── Player State, Waypoint & Corpse Navigation Targets ────────────────────────
@@ -1478,15 +1547,25 @@ local function get_player_world_state()
         local data = get_map_data()
         local isUnmappedInst = inInst and (not data or not data.instances or not instID or data.instances[instID] == nil)
         if not isUnmappedInst and bestMapID and _G.C_Map and _G.C_Map.GetPlayerMapPosition and _G.C_Map.GetWorldPosFromMapPos then
-            local pos = _G.C_Map.GetPlayerMapPosition(bestMapID, "player")
-            if pos and not is_secret(pos) and pos.GetXY then
-                local c, wpos = _G.C_Map.GetWorldPosFromMapPos(bestMapID, pos)
-                if c ~= nil and wpos ~= nil and not is_secret(c) and not is_secret(wpos) and wpos.GetXY then
-                    local pwX, pwY = wpos:GetXY()
-                    if pwX ~= nil and pwY ~= nil and not is_secret(pwX) and not is_secret(pwY) then
-                        wx, wy, cont = pwX, pwY, c
+            local now = (GetTime and GetTime()) or 0
+            if perfState.lastFallbackMapID == bestMapID and perfState.lastFallbackPosAt >= 0 and (now - perfState.lastFallbackPosAt) < 0.1 then
+                wx, wy, cont = perfState.lastFallbackWX, perfState.lastFallbackWY, perfState.lastFallbackCont
+            else
+                local pos = _G.C_Map.GetPlayerMapPosition(bestMapID, "player")
+                if pos and not is_secret(pos) and pos.GetXY then
+                    local c, wpos = _G.C_Map.GetWorldPosFromMapPos(bestMapID, pos)
+                    if c ~= nil and wpos ~= nil and not is_secret(c) and not is_secret(wpos) and wpos.GetXY then
+                        local pwX, pwY = wpos:GetXY()
+                        if pwX ~= nil and pwY ~= nil and not is_secret(pwX) and not is_secret(pwY) then
+                            wx, wy, cont = pwX, pwY, c
+                        end
                     end
                 end
+                perfState.lastFallbackPosAt = now
+                perfState.lastFallbackMapID = bestMapID
+                perfState.lastFallbackWX    = wx
+                perfState.lastFallbackWY    = wy
+                perfState.lastFallbackCont  = cont
             end
         end
     end
@@ -1618,40 +1697,15 @@ local function new_pin_record()
     return acq and acq() or {}
 end
 
+local _emptyQuests = {}
 local function get_active_quests_map()
     local qs = sfui.queststate
-    if qs and qs.GetAllActive then
-        return qs.GetAllActive()
-    end
-    local inLog = {}
-    local num = (_G.C_QuestLog and _G.C_QuestLog.GetNumQuestLogEntries and _G.C_QuestLog.GetNumQuestLogEntries())
-        or (_G.GetNumQuestLogEntries and _G.GetNumQuestLogEntries())
-        or 0
-    if is_secret(num) or type(num) ~= "number" then num = 0 end
-    for i = 1, num do
-        local info = _G.C_QuestLog and _G.C_QuestLog.GetInfo and _G.C_QuestLog.GetInfo(i)
-        if info and info.questID and not info.isHeader then
-            local qid = info.questID
-            local isComp = _G.C_QuestLog.IsComplete and _G.C_QuestLog.IsComplete(qid)
-            inLog[qid] = { isComplete = (not is_secret(isComp)) and (isComp == true), title = info.title }
-        elseif _G.GetQuestLogTitle then
-            local title, _, _, isHeader, _, complete, _, qid = _G.GetQuestLogTitle(i)
-            if qid and not isHeader and qid > 0 then
-                inLog[qid] = { isComplete = (complete == 1 or complete == true), title = title }
-            end
-        end
-    end
-    return inLog
+    return (qs and qs.GetAllActive and qs.GetAllActive()) or _emptyQuests
 end
 
 local function get_quest_revision()
     local qs = sfui.queststate
-    if qs and qs.GetRevision then
-        return qs.GetRevision()
-    end
-    local qCount = _G.C_QuestLog and _G.C_QuestLog.GetNumQuestLogEntries and _G.C_QuestLog.GetNumQuestLogEntries()
-    if is_secret(qCount) or type(qCount) ~= "number" then return 0 end
-    return qCount
+    return (qs and qs.GetRevision and qs.GetRevision()) or 0
 end
 
 local QDB_FIELDS = { "name", "objectives", "finishedBy", "triggerEnd" }
@@ -2458,8 +2512,9 @@ update_view = function(elapsed)
     local hasData = (data ~= nil)
     local sz = get_opt("overlay_size") or 560
     local wx, wy, cont, bestMapID, facing, viewRadius, rotate = get_player_world_state()
+    perfState.lastCompassPushFacing = rotate and facing or nil
     local mode = get_opt("overlay_pins_mode") or "auto"
-    local altNow = is_alt_down_clean()
+    local altNow = (perfState.altDown ~= nil) and perfState.altDown or is_alt_down_clean()
     local altOpt = get_opt("overlay_alt_interactive") ~= false
     local interactive = (altOpt and altNow and not panelHidden) and true or false
     local wheelActive = interactive
@@ -2522,14 +2577,22 @@ update_view = function(elapsed)
         return
     end
 
+    local now = (GetTime and GetTime()) or 0
+    local movedForPins = perfState.lastPinPushWX == nil or perfState.lastPinPushWY == nil
+        or math_abs(wx - perfState.lastPinPushWX) >= 0.05
+        or math_abs(wy - perfState.lastPinPushWY) >= 0.05
     if (rotate and math_abs(facing - perfState.lastPinPushFacing) >= 0.01)
         or perfState.lastPinPushMap ~= bestMapID
         or perfState.lastPinPushRad ~= viewRadius
-        or perfState.lastPinPushRot ~= rotate then
+        or perfState.lastPinPushRot ~= rotate
+        or (movedForPins and (now - perfState.lastPinPushAt) >= 0.1) then
         perfState.lastPinPushFacing = facing
         perfState.lastPinPushMap = bestMapID
         perfState.lastPinPushRad = viewRadius
         perfState.lastPinPushRot = rotate
+        perfState.lastPinPushWX = wx
+        perfState.lastPinPushWY = wy
+        perfState.lastPinPushAt = now
         if sfui.map and sfui.map.pins and sfui.map.pins.UpdateMinimapPins then
             sfui.map.pins.UpdateMinimapPins(false, bestMapID, facing, viewRadius, rotate)
         end
@@ -2596,6 +2659,7 @@ update_view = function(elapsed)
                     local contTiles = (data.continents and cont ~= nil and data.continents[cont])
                         or (cont == 0 and data.outdoor) or nil
                     if contTiles then
+                        local contPrefix = data.continentPrefixes and data.continentPrefixes[cont]
                         local tileYds = data.tileYards or (1600 / 3)
                         local halfTile = tileYds * 0.5
                         local cullR = viewRadius + 2
@@ -2617,6 +2681,10 @@ update_view = function(elapsed)
                                     local dxN = math_abs(wx - cx) - halfTile
                                     if dxN < 0 then dxN = 0 end
                                     if (dxN * dxN + dyNSq) <= cullRSq then
+                                        if fname == true and contPrefix then
+                                            fname = contPrefix .. "_" .. tx .. "_" .. ty .. ".blp"
+                                            contTiles[txOff + ty] = fname
+                                        end
                                         collect_tile(data.texBase, fname, cx, cy, tileYds)
                                     end
                                 end
@@ -2703,12 +2771,19 @@ on_overlay_tick = function(elapsed)
         return
     end
     update_view(elapsed)
+    if sfui.map and sfui.map.compass and sfui.map.compass.UpdateFacing then
+        sfui.map.compass:UpdateFacing(perfState.lastCompassPushFacing)
+    end
 end
 
 -- ── Transition & Lifecycle Handlers ───────────────────────────────────────────
 local function handle_zone_or_portal_transition(isEnteringWorld)
     perfState.inTransition = true
     perfState.cachedInstID = nil
+    perfState.lastFallbackPosAt = -1
+    perfState.lastFallbackMapID = nil
+    perfState.altDown = is_alt_down_clean()
+    refresh_opt_cache()
     directPinsDirty = true
     hbdFilterDirty = true
     lastInstPinCont = nil
@@ -2787,16 +2862,13 @@ local function ensure_events_wired()
             sync_rotate_cvar(false)
         end
     end)
-    reg_ev("PLAYER_REGEN_ENABLED", function()
-        if pendingCombatSync then
-            apply_minimap_state()
-        elseif pendingMouseSync then
-            apply_pin_mouse_state()
-        end
-    end)
     reg_ev("MODIFIER_STATE_CHANGED", function(_, key)
         if not isActive then return end
-        if (key ~= "LALT" and key ~= "RALT") or (get_opt("overlay_alt_interactive") == false) then
+        if key ~= "LALT" and key ~= "RALT" then
+            return
+        end
+        perfState.altDown = is_alt_down_clean()
+        if get_opt("overlay_alt_interactive") == false then
             return
         end
         if apply_pin_mouse_state() then
@@ -2899,6 +2971,7 @@ end
 
 function overlay:SetActive(state)
     ensure_db()
+    refresh_opt_cache()
     local nextState = state and true or false
     if isActive == nextState then return end
 
@@ -2911,6 +2984,9 @@ function overlay:SetActive(state)
     isActive = nextState
     perfState.cachedInstID = nil
     perfState.lastAppliedActive = nil
+    perfState.altDown = nextState and is_alt_down_clean() or false
+    perfState.lastFallbackPosAt = -1
+    perfState.lastFallbackMapID = nil
     directPinsDirty = true
     lastInstPinCont = nil
     lastPinCont = nil
@@ -2966,6 +3042,8 @@ end
 function overlay:RefreshLayout()
     if perfState.refreshingLayout then return end
     perfState.refreshingLayout = true
+    refresh_opt_cache()
+    perfState.altDown = isActive and is_alt_down_clean() or false
     viewCache.dirty = true
     if isActive then
         hook_minimap_cluster()
@@ -3009,6 +3087,7 @@ end
 function overlay:OnSettingsChanged(key)
     if type(key) ~= "string" then return end
     if key:sub(1, 8) == "overlay_" then
+        refresh_opt_cache()
         viewCache.dirty = true
         self:RefreshLayout()
     end
@@ -3041,6 +3120,7 @@ end
 
 function overlay:HandleSlash(msg)
     ensure_db()
+    refresh_opt_cache()
     local clean = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
     if clean == "" or clean == "toggle" then
         self:Toggle()

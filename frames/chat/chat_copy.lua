@@ -105,9 +105,7 @@ function chat.CleanChatLine(text, keepColors)
     text = text:gsub("|n", "\n")
 
     if not keepColors then
-        text = text:gsub("|cn[^:]+:", "")
-        text = text:gsub("|c%x%x%x%x%x%x%x%x", "")
-        text = text:gsub("|r", "")
+        text = sfui.common.strip_colors(text)
     end
 
     text = text:gsub(PIPE_GUARD, "|")
@@ -312,7 +310,7 @@ end
 
 local function show_url_popup(url)
     if not url or issecretvalue(url) or type(url) ~= "string" then return end
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
     if not urlFrame then
         urlFrame = CreateFrame("Frame", "SfuiChatUrlFrame", UIParent, "BackdropTemplate")
         urlFrame:SetSize(340, 56)
@@ -493,7 +491,7 @@ end
 local function build_copy_window()
     if copyFrame then return copyFrame end
     local colors = chat.GetColors()
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
 
     local f = CreateFrame("Frame", "SfuiChatCopyFrame", UIParent, "BackdropTemplate")
     f:SetSize(560, 360)

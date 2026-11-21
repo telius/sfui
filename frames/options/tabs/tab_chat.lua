@@ -35,6 +35,10 @@ sfui.options.RegisterTab({
                 end
             end
             sfui.db.Set("chat", "position", nil)
+            sfui.db.Set("chat", "frame_font_sizes", nil)
+        end
+        if sfui.chat and sfui.chat.ApplyFonts then
+            sfui.chat.ApplyFonts()
         end
         if sfui.chat and sfui.chat.ResetChatPosition and not (_G.InCombatLockdown and _G.InCombatLockdown()) then
             sfui.chat.ResetChatPosition()
@@ -207,16 +211,20 @@ sfui.options.RegisterTab({
 
         local font_size_slider = reg_slider(create_slider_input(panel, "font size:", function()
             return get_chat("font_size", 13)
-        end, 9, 24, 1, function(val)
-            set_chat("font_size", val)
-        end, "chat text size when font override is enabled.", SLIDER_W))
+        end, 8, 28, 1, function(val)
+            if sfui.chat and sfui.chat.SetFontSize then
+                sfui.chat.SetFontSize(val)
+            else
+                set_chat("font_size", val)
+            end
+        end, "chat text size. also syncs with blizzard's chat tab font size menu.", SLIDER_W))
         font_size_slider:SetPoint("TOPLEFT", font_cb, "BOTTOMLEFT", 0, -12)
 
         local combatlog_size_slider = reg_slider(create_slider_input(panel, "combatlog font size:", function()
             return get_chat("combatlog_font_size", 14)
-        end, 9, 24, 1, function(val)
+        end, 8, 28, 1, function(val)
             set_chat("combatlog_font_size", val)
-        end, "font size for the combat log tab (default 14).", SLIDER_W))
+        end, "font size for the combat log tab (default 14). syncs with blizzard's tab font size menu.", SLIDER_W))
         combatlog_size_slider:SetPoint("TOPLEFT", font_size_slider, "BOTTOMLEFT", 0, -10)
 
         local outline_label = panel:CreateFontString(nil, "OVERLAY", fontMain)

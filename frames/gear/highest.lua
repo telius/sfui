@@ -713,7 +713,7 @@ function sfui.highest.GetBestItems(isPvP)
                     for _, line in ipairs(tooltipData.lines) do
                         local leftText = line.leftText
                         if leftText then
-                            local cleanText = leftText:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+                            local cleanText = sfui.common.strip_colors(leftText)
                             local ltext = cleanText:lower()
                             if ltext:find("level") and (ltext:find("pvp") or ltext:find("arena") or ltext:find("battleground")) then
                                 local pvpMatch = cleanText:match("(%d%d%d)")

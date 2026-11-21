@@ -109,7 +109,7 @@ local byName
 local holder, levelText, fishText, areaName
 local hooked = false
 local hookAttempted = false
-local waiter
+local waiterRegistered = false
 
 local function HexColor(r, g, b)
     return "|cff" .. sfui.colors.rgb_to_hex(r, g, b)
@@ -325,6 +325,16 @@ local function TryBuild()
     return true
 end
 
+local function OnWorldMapAddonLoaded(_, name)
+    if name == "Blizzard_WorldMap" then
+        if waiterRegistered and sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("ADDON_LOADED", OnWorldMapAddonLoaded)
+        end
+        waiterRegistered = false
+        TryBuild()
+    end
+end
+
 function sfui.zonelevels.Refresh()
     local any = IsLevelsEnabled() or IsFishingEnabled()
     if hooked then
@@ -337,28 +347,28 @@ function sfui.zonelevels.Refresh()
         return
     end
     if not any then
-        if waiter then waiter:UnregisterEvent("ADDON_LOADED") end
+        if waiterRegistered and sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("ADDON_LOADED", OnWorldMapAddonLoaded)
+        end
+        waiterRegistered = false
         return
     end
     if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Blizzard_WorldMap") then
         TryBuild()
         return
     end
-    if not waiter then
-        waiter = CreateFrame("Frame")
-        waiter:SetScript("OnEvent", function(self, _, name)
-            if name == "Blizzard_WorldMap" then
-                self:UnregisterEvent("ADDON_LOADED")
-                TryBuild()
-            end
-        end)
+    if not waiterRegistered and sfui.events and sfui.events.RegisterEvent then
+        waiterRegistered = true
+        sfui.events.RegisterEvent("ADDON_LOADED", OnWorldMapAddonLoaded)
     end
-    waiter:RegisterEvent("ADDON_LOADED")
 end
 
-local initFrame = CreateFrame("Frame")
-initFrame:RegisterEvent("PLAYER_LOGIN")
-initFrame:SetScript("OnEvent", function(self)
-    self:UnregisterEvent("PLAYER_LOGIN")
+local function OnZoneLevelsLogin()
+    if sfui.events and sfui.events.UnregisterEvent then
+        sfui.events.UnregisterEvent("PLAYER_LOGIN", OnZoneLevelsLogin)
+    end
     sfui.zonelevels.Refresh()
-end)
+end
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_LOGIN", OnZoneLevelsLogin)
+end

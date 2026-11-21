@@ -29,6 +29,7 @@ local RegisterStateDriver = _G.RegisterStateDriver
 local GetTime             = _G.GetTime
 local math_min            = _G.math.min
 local math_max            = _G.math.max
+local math_floor          = _G.math.floor
 local string_format       = _G.string.format
 local issecretvalue = sfui.common.issecretvalue
 local PowerBarColor       = _G.PowerBarColor
@@ -419,15 +420,37 @@ local castSpark = castStatusBar:CreateTexture(nil, "OVERLAY")
 castSpark:SetTexture("Interface/CastingBar/UI-CastingBar-Spark")
 castSpark:SetBlendMode("ADD")
 castSpark:SetSize(16, 32)
+castSpark:SetPoint("CENTER", castStatusBar, "LEFT", 0, 0)
 castSpark:Hide()
 
 local _castBarWidth = 0
+local _lastCastTenths = nil
+local _vehicleTickInterval = nil
+
+local on_vehicle_update
+
+local function SyncVehicleTicker()
+    if not frame:IsShown() then
+        if _vehicleTickInterval ~= nil then
+            _vehicleTickInterval = nil
+            sfui.events.UnregisterUpdate("VehicleBar")
+        end
+        return
+    end
+    local targetRate = (_casting or _channeling) and 0.033 or 0.15
+    if _vehicleTickInterval ~= targetRate then
+        _vehicleTickInterval = targetRate
+        sfui.events.RegisterUpdate("VehicleBar", targetRate, on_vehicle_update)
+    end
+end
 
 local function StopCastBar()
     _casting = false
     _channeling = false
+    _lastCastTenths = nil
     castBackdrop:Hide()
     castSpark:Hide()
+    SyncVehicleTicker()
 end
 
 local function StartCast(unit)
@@ -470,6 +493,8 @@ local function StartCast(unit)
 
         castSpark:Show()
         castBackdrop:Show()
+        _lastCastTenths = nil
+        SyncVehicleTicker()
         return
     end
 
@@ -504,6 +529,8 @@ local function StartCast(unit)
 
         castSpark:Show()
         castBackdrop:Show()
+        _lastCastTenths = nil
+        SyncVehicleTicker()
         return
     end
 
@@ -520,11 +547,14 @@ local function UpdateCastProgress()
             local elapsed = now - _castStart
             castStatusBar:SetValue(elapsed)
             local remaining = math_max(0, _castEnd - now)
-            castTimerText:SetText(string_format("%.1f", remaining))
+            local tenths = math_floor(remaining * 10 + 0.5)
+            if tenths ~= _lastCastTenths then
+                _lastCastTenths = tenths
+                castTimerText:SetFormattedText("%.1f", tenths * 0.1)
+            end
             if _castDuration > 0 then
                 local w = _castBarWidth > 0 and _castBarWidth or castStatusBar:GetWidth()
                 local prog = math_min(1, math_max(0, elapsed / _castDuration))
-                castSpark:ClearAllPoints()
                 castSpark:SetPoint("CENTER", castStatusBar, "LEFT", w * prog, 0)
             end
         end
@@ -534,11 +564,14 @@ local function UpdateCastProgress()
         else
             local remaining = math_max(0, _castEnd - now)
             castStatusBar:SetValue(remaining)
-            castTimerText:SetText(string_format("%.1f", remaining))
+            local tenths = math_floor(remaining * 10 + 0.5)
+            if tenths ~= _lastCastTenths then
+                _lastCastTenths = tenths
+                castTimerText:SetFormattedText("%.1f", tenths * 0.1)
+            end
             if _castDuration > 0 then
                 local w = _castBarWidth > 0 and _castBarWidth or castStatusBar:GetWidth()
                 local prog = math_min(1, math_max(0, remaining / _castDuration))
-                castSpark:ClearAllPoints()
                 castSpark:SetPoint("CENTER", castStatusBar, "LEFT", w * prog, 0)
             end
         end
@@ -821,12 +854,18 @@ end
 
 -- ─── OnUpdate Ticker (non-secure) ────────────────────────────────────────────
 local ticker = 0
-local function on_vehicle_update(elapsed)
-    UpdateCastProgress()
-    ticker = ticker + elapsed
-    if ticker >= TICK_RATE then
+on_vehicle_update = function(elapsed)
+    if _casting or _channeling then
+        UpdateCastProgress()
+        ticker = ticker + elapsed
+        if ticker >= TICK_RATE then
+            ticker = 0
+            UpdateUsable()
+            UpdateVehicleHealth()
+            UpdateVehiclePower()
+        end
+    else
         ticker = 0
-        UpdateCooldowns()
         UpdateUsable()
         UpdateVehicleHealth()
         UpdateVehiclePower()
@@ -877,6 +916,7 @@ local function register_vehicle_active_events()
     if _combatEventsRegistered then return end
     _combatEventsRegistered = true
     sfui.events.RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN", UpdateCooldowns)
+    sfui.events.RegisterEvent("SPELL_UPDATE_COOLDOWN",     UpdateCooldowns)
     sfui.events.RegisterEvent("ACTIONBAR_UPDATE_USABLE",   UpdateUsable)
     sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
     sfui.events.RegisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
@@ -886,6 +926,7 @@ local function unregister_vehicle_active_events()
     if not _combatEventsRegistered then return end
     _combatEventsRegistered = false
     sfui.events.UnregisterEvent("ACTIONBAR_UPDATE_COOLDOWN", UpdateCooldowns)
+    sfui.events.UnregisterEvent("SPELL_UPDATE_COOLDOWN",     UpdateCooldowns)
     sfui.events.UnregisterEvent("ACTIONBAR_UPDATE_USABLE",   UpdateUsable)
     sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "player",  on_unit_cast)
     sfui.events.UnregisterUnitEvents(VEHICLE_CAST_EVENTS, "vehicle", on_unit_cast)
@@ -901,7 +942,7 @@ end
 frame:SetScript("OnShow", function()
     UpdateBar()
     register_vehicle_active_events()
-    sfui.events.RegisterUpdate("VehicleBar", 0.033, on_vehicle_update)
+    SyncVehicleTicker()
 end)
 
 frame:SetScript("OnHide", function()
@@ -913,7 +954,7 @@ frame:SetScript("OnHide", function()
             sfui.vehicle.AnimateButtonUp(i)
         end
     end
-    sfui.events.UnregisterUpdate("VehicleBar")
+    SyncVehicleTicker()
     frame:SetScript("OnUpdate", nil)
 end)
 

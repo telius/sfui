@@ -116,7 +116,6 @@ function sfui.talents.get_current_spec_id()
 end
 sfui.common.get_current_spec_id = sfui.talents.get_current_spec_id
 sfui.common.update_cached_spec_id = sfui.talents.update_cached_spec_id
-sfui.common.invalidate_spec_cache = sfui.talents.invalidate_spec_cache
 
 --- Returns the dominant specialization ID based on spent talent points in Classic/Camelot,
 --- or the active specialization ID in Retail.
@@ -548,6 +547,7 @@ function sfui.talents.invalidate_spec_cache(force)
         end
     end
 end
+sfui.common.invalidate_spec_cache = sfui.talents.invalidate_spec_cache
 
 local function on_login_or_enter()
     sfui.talents.get_player_class()

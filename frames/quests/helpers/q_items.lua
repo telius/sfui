@@ -63,18 +63,21 @@ local function OnRangeUpdate()
             activeButtons[btn] = nil
         else
             local inRange = IsQuestLogSpecialItemInRange(btn.questLogIndex)
-            local dot = btn.RangeDot
-            if inRange == 0 then
-                -- Out of range: Red dot
-                dot:SetColorTexture(1.0, 0.2, 0.2, 0.95)
-                dot:Show()
-            elseif inRange == 1 then
-                -- In range with valid target: Gray dot
-                dot:SetColorTexture(0.7, 0.7, 0.7, 0.85)
-                dot:Show()
-            else
-                -- No target or range check not applicable
-                dot:Hide()
+            if btn._lastRangeState ~= inRange then
+                btn._lastRangeState = inRange
+                local dot = btn.RangeDot
+                if inRange == 0 then
+                    -- Out of range: Red dot
+                    dot:SetColorTexture(1.0, 0.2, 0.2, 0.95)
+                    dot:Show()
+                elseif inRange == 1 then
+                    -- In range with valid target: Gray dot
+                    dot:SetColorTexture(0.7, 0.7, 0.7, 0.85)
+                    dot:Show()
+                else
+                    -- No target or range check not applicable
+                    dot:Hide()
+                end
             end
         end
     end
@@ -211,10 +214,7 @@ function Items.CreateItemButton(parent)
 
     -- Charge Count FontString
     local count = btn:CreateFontString(nil, "OVERLAY")
-    local fontPath = (sfui.config and sfui.config.fontFile)
-        or (_G.STANDARD_TEXT_FONT and _G.STANDARD_TEXT_FONT ~= "" and _G.STANDARD_TEXT_FONT)
-        or (_G.GameFontNormal and _G.GameFontNormal.GetFont and _G.GameFontNormal:GetFont())
-        or "Fonts\\FRIZQT__.TTF"
+    local fontPath = sfui.common.get_font_file()
     count:SetFont(fontPath, 10, "OUTLINE")
     count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 1, -1)
     count:SetTextColor(1, 1, 1, 1)
@@ -307,7 +307,8 @@ function Items.SetupItemButton(btn, questLogIndex, questID, itemInfo)
     btn.questLogIndex = questLogIndex
     btn.questID = questID
     btn.itemLink = itemInfo.link
-    btn.itemID = itemInfo.link and tonumber(itemInfo.link:match("item:(%d+)"))
+    btn.itemID = sfui.items.get_item_id(itemInfo.link)
+    btn._lastRangeState = false
 
     btn.Icon:SetTexture(itemInfo.texture)
 
@@ -335,6 +336,7 @@ function Items.ReleaseItemButton(btn)
     btn.itemLink = nil
     btn.itemID = nil
     btn.isGlowing = false
+    btn._lastRangeState = false
     if btn.GlowTex then btn.GlowTex:Hide() end
     if btn.RangeDot then btn.RangeDot:Hide() end
     btn:Hide()

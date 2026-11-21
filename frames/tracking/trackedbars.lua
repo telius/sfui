@@ -1159,6 +1159,14 @@ local function SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
     myBar._config = config
 
     local _, isAttached, showStacksText, showDurationEnabled, showNameEnabled, showStacks, wantCenteredStacks, isTimerAndStacks = ResolveBarTextFlags(config)
+    myBar._isStackMode = isStackMode
+    myBar._isAttached = isAttached
+    myBar._showStacksText = showStacksText
+    myBar._showDurationEnabled = showDurationEnabled
+    myBar._showNameEnabled = showNameEnabled
+    myBar._showStacks = showStacks
+    myBar._wantCenteredStacks = wantCenteredStacks
+    myBar._isTimerAndStacks = isTimerAndStacks
     local needStacks = isStackMode or showStacksText or (showStacks and not isAttached)
 
     if config and config.spellID then
@@ -1505,6 +1513,10 @@ local function ProcessBlizzardSync()
     end
 
     -- Process Blizzard Frames
+    local specBars = common.get_tracked_bars()
+    local barDb = SfuiDB and SfuiDB.trackedBars or _emptyTable
+    local hideInactive = barDb.hideInactive ~= false -- Default to True if nil
+    local currentSpec = common.get_current_spec_id and common.get_current_spec_id()
     for blizzFrame in viewer.itemFramePool:EnumerateActive() do
         if blizzFrame.cooldownID then
             local id = blizzFrame.cooldownID
@@ -1516,7 +1528,6 @@ local function ProcessBlizzardSync()
 
             -- Every frame in BuffBarCooldownViewer.itemFramePool is an active TrackedBar (Category 3);
             -- avoid calling CooldownViewerSettings:GetDataProvider():GetCooldownInfoForID() which taints LayoutManager
-            local specBars = common.get_tracked_bars()
             local isManuallyTracked = specBars and specBars[id]
             local isCoverSpell = auraResolver and auraResolver.IsCoverSpell and auraResolver.IsCoverSpell(info, id)
             local isValidTrackedBar = not isCoverSpell
@@ -1534,7 +1545,6 @@ local function ProcessBlizzardSync()
                 if not isSpecRestricted and not isManuallyTracked and cfg.trackedBars and cfg.trackedBars.defaults then
                     local def = cfg.trackedBars.defaults[id]
                     if def and def.specID then
-                        local currentSpec = common.get_current_spec_id and common.get_current_spec_id()
                         if currentSpec and not (common.is_spec_match and common.is_spec_match(def.specID, currentSpec) or def.specID == currentSpec) then
                             isSpecRestricted = true
                         end
@@ -1568,10 +1578,6 @@ local function ProcessBlizzardSync()
                     -- on stale count text (from the previous tick) we get a Hide→SyncData→Show
                     -- sequence on every aura refresh, which is exactly the Bone Shield flash.
                     SyncBarData(myBar, blizzFrame, config, isStackMode, id, info)
-
-                    -- Sync Visibility
-                    local barDb = SfuiDB and SfuiDB.trackedBars or _emptyTable
-                    local hideInactive = barDb.hideInactive ~= false -- Default to True if nil
 
                     -- Check if this is a stack mode bar with active stacks
                     -- (count state is now populated by SyncBarData above)
@@ -1714,7 +1720,17 @@ local function UpdateBarsState()
             local myBar = bars[blizzFrame.cooldownID]
             if myBar and not myBar._selfDriven and myBar:IsShown() and blizzFrame.Bar then
                 local config = myBar._config or GetTrackedBarConfig(blizzFrame.cooldownID)
-                local isStackMode, isAttached, showStacksText, showDurationEnabled, _, showStacks, _, isTimerAndStacks = ResolveBarTextFlags(config)
+                local isStackMode, isAttached, showStacksText, showDurationEnabled, showStacks, isTimerAndStacks
+                if myBar._isAttached ~= nil then
+                    isStackMode = myBar._isStackMode
+                    isAttached = myBar._isAttached
+                    showStacksText = myBar._showStacksText
+                    showDurationEnabled = myBar._showDurationEnabled
+                    showStacks = myBar._showStacks
+                    isTimerAndStacks = myBar._isTimerAndStacks
+                else
+                    isStackMode, isAttached, showStacksText, showDurationEnabled, _, showStacks, _, isTimerAndStacks = ResolveBarTextFlags(config)
+                end
                 local needLiveStacks = isStackMode or showStacksText or (showStacks and not isAttached)
 
                 -- Live stack refresh from Blizzard's cached auraData with active-floor & peak-sustain guards

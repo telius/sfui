@@ -52,8 +52,8 @@ function map.GetCanvas()
     local wmf = _G.WorldMapFrame
     if not wmf then return nil end
     if type(wmf.GetCanvas) == "function" then
-        local ok, canvas = pcall(wmf.GetCanvas, wmf)
-        if ok and canvas then return canvas end
+        local canvas = wmf:GetCanvas()
+        if canvas then return canvas end
     end
     if wmf.ScrollContainer then
         return wmf.ScrollContainer.Child or wmf.ScrollContainer
@@ -66,12 +66,12 @@ end
 function map.GetCurrentMapID()
     local wmf = _G.WorldMapFrame
     if wmf and wmf.GetMapID then
-        local ok, id = pcall(wmf.GetMapID, wmf)
-        if ok and id then return id end
+        local id = wmf:GetMapID()
+        if id then return id end
     end
     if C_Map and C_Map.GetBestMapForUnit then
-        local ok, id = pcall(C_Map.GetBestMapForUnit, "player")
-        if ok and id then return id end
+        local id = C_Map.GetBestMapForUnit("player")
+        if id then return id end
     end
     return nil
 end
@@ -88,11 +88,11 @@ function map.OpenToQuest(questID, questLogIndex, superTrack)
         if is_in_combat() then return end
 
         if C_QuestLog and C_QuestLog.SetSelectedQuest and questID then
-            pcall(C_QuestLog.SetSelectedQuest, questID)
+            C_QuestLog.SetSelectedQuest(questID)
         end
 
         if superTrack ~= false and C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID and questID then
-            pcall(C_SuperTrack.SetSuperTrackedQuestID, questID)
+            C_SuperTrack.SetSuperTrackedQuestID(questID)
         end
 
         if _G.QuestMapFrame_OpenToQuestDetails and questID then
@@ -139,8 +139,8 @@ function map.OpenWorldMap(mapID, hasWaypoint, onOpenCallback)
         if C_Map and type(C_Map.OpenWorldMap) == "function" then
             local targetMapID = mapID
             if hasWaypoint and C_Map.GetUserWaypoint then
-                local ok, wp = pcall(C_Map.GetUserWaypoint)
-                if ok and wp and wp.uiMapID then
+                local wp = C_Map.GetUserWaypoint()
+                if wp and wp.uiMapID then
                     targetMapID = wp.uiMapID
                 end
             end
@@ -204,7 +204,7 @@ function map.SetSuperTrackedQuestID(questID)
     C_Timer.After(0, function()
         if is_in_combat() then return end
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
-            pcall(C_SuperTrack.SetSuperTrackedQuestID, qID)
+            C_SuperTrack.SetSuperTrackedQuestID(qID)
         end
     end)
 end
@@ -217,7 +217,7 @@ function map.SetSuperTrackedUserWaypoint(enabled)
     C_Timer.After(0, function()
         if is_in_combat() then return end
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-            pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, state)
+            C_SuperTrack.SetSuperTrackedUserWaypoint(state)
         end
     end)
 end
@@ -231,9 +231,9 @@ function map.SetSuperTrackedMapPin(pinType, pinID)
         if is_in_combat() then return end
         if not C_SuperTrack then return end
         if pinID and pinID > 0 and C_SuperTrack.SetSuperTrackedMapPin then
-            pcall(C_SuperTrack.SetSuperTrackedMapPin, pinType, pinID)
+            C_SuperTrack.SetSuperTrackedMapPin(pinType, pinID)
         elseif C_SuperTrack.ClearSuperTrackedMapPin then
-            pcall(C_SuperTrack.ClearSuperTrackedMapPin, pinType)
+            C_SuperTrack.ClearSuperTrackedMapPin(pinType)
         end
     end)
 end
@@ -246,7 +246,7 @@ function map.SetSuperTrackedContent(trackableType, trackableID)
     C_Timer.After(0, function()
         if is_in_combat() then return end
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedContent then
-            pcall(C_SuperTrack.SetSuperTrackedContent, trackableType, trackableID)
+            C_SuperTrack.SetSuperTrackedContent(trackableType, trackableID)
         end
     end)
 end
@@ -274,7 +274,7 @@ function map.SetUserWaypoint(mapID, x, y, label, fromRemote)
             pcall(C_Map.SetUserWaypoint, pt)
         end
         if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-            pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
+            C_SuperTrack.SetSuperTrackedUserWaypoint(true)
         end
     end)
 
@@ -369,7 +369,7 @@ local function guard_pin_instance(pin)
     end
 end
 
-local function guard_all_map_pin_mixins()
+local function guard_all_map_pin_mixins(scanGlobals)
     -- 1. Explicit target Blizzard mixins
     for _, name in ipairs(TARGET_PIN_MIXINS) do
         local mixin = _G[name]
@@ -378,10 +378,12 @@ local function guard_all_map_pin_mixins()
         end
     end
 
-    -- 2. Dynamically guard any other pin mixin in _G ending with PinMixin
-    for k, v in pairs(_G) do
-        if type(k) == "string" and type(v) == "table" and k:find("PinMixin$") then
-            guard_mixin(v)
+    -- 2. Dynamically guard any other pin mixin in _G ending with PinMixin (first load / map addon load only)
+    if scanGlobals ~= false then
+        for k, v in pairs(_G) do
+            if type(k) == "string" and type(v) == "table" and k:find("PinMixin$") then
+                guard_mixin(v)
+            end
         end
     end
 
@@ -401,11 +403,11 @@ end
 if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("ADDON_LOADED", function(_, arg1)
         if arg1 and (arg1 == "Blizzard_MapCanvas" or arg1 == "Blizzard_SharedMapDataProviders" or arg1 == "Blizzard_WorldMap") then
-            guard_all_map_pin_mixins()
+            guard_all_map_pin_mixins(true)
         end
     end)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
-        guard_all_map_pin_mixins()
+        guard_all_map_pin_mixins(false)
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         local wmf = _G.WorldMapFrame

@@ -811,9 +811,7 @@ if not mail._shiftClickHooked and _G.hooksecurefunc then
         if _G.ChatEdit_GetActiveWindow and _G.ChatEdit_GetActiveWindow() then return end
         if not link then return end
 
-        local itemID = (common and common.get_item_instant_info and select(1, common.get_item_instant_info(link)))
-            or (_G.GetItemInfoInstant and select(1, _G.GetItemInfoInstant(link)))
-            or tonumber(link:match("item:(%d+)"))
+        local itemID = sfui.items.get_item_id(link)
         if not itemID then return end
 
         if centerMode == "ignored" then

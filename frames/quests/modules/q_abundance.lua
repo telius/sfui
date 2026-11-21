@@ -59,11 +59,14 @@ local COLOR_ABUNDANCE_FULL    = { 1.00, 0.25, 0.20, 0.95 }
 local COLOR_SECTION_HEADER    = { 1.00, 0.78, 0.15 }
 
 -- ─── Scenario Active Detection ──────────────────────────────────────────────
-function sfui.abundance.IsActive()
-    local inScenario = C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario()
-    if not inScenario then
-        return false
-    end
+local _cachedInScenario = nil
+local _cachedScenarioIsAbundance = nil
+
+local function RefreshScenarioCache()
+    local inScenario = (C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario()) and true or false
+    _cachedInScenario = inScenario
+    _cachedScenarioIsAbundance = false
+    if not inScenario then return end
 
     local name = nil
     if C_ScenarioInfo and C_ScenarioInfo.GetScenarioInfo then
@@ -74,6 +77,18 @@ function sfui.abundance.IsActive()
     end
 
     if name and not issecretvalue(name) and type(name) == "string" and name:lower():find("abundance") then
+        _cachedScenarioIsAbundance = true
+    end
+end
+
+function sfui.abundance.IsActive()
+    if _cachedInScenario == nil then
+        RefreshScenarioCache()
+    end
+    if not _cachedInScenario then
+        return false
+    end
+    if _cachedScenarioIsAbundance then
         return true
     end
 
@@ -205,8 +220,13 @@ end
 local _wasActive = false
 
 function AbundanceModule:OnEvent(event, arg1, ...)
-    if event == "UNIT_AURA" and arg1 ~= "player" then
-        return
+    if event == "UNIT_AURA" then
+        if arg1 ~= "player" or (_cachedInScenario == false and not _wasActive) then
+            return
+        end
+    elseif event == "SCENARIO_UPDATE" or event == "SCENARIO_STAGE_UPDATE" or event == "SCENARIO_COMPLETED"
+        or event == "ZONE_CHANGED_NEW_AREA" or event == "PLAYER_ENTERING_WORLD" then
+        RefreshScenarioCache()
     end
     local active = sfui.abundance.IsActive()
     if not active and not _wasActive then

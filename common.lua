@@ -554,34 +554,87 @@ end
 -- Trailing-Edge Debounce & Unified Out-of-Combat Queue Delegation
 -- ────────────────────────────────────────────────────────────────────────────
 -- trailing-edge debounce: only the last call per key within `delay` seconds runs.
--- uses a generation counter instead of timer handles (C_Timer.After returns nil).
-local _debounceGen = {}
+-- reuses a persistent slot and single timer per key to avoid per-event closures.
+local _debounceSlots = {}
 function sfui.common.debounce(key, delay, fn)
     if type(fn) ~= "function" then return end
-    if sfui.events and sfui.events.RecordCaller then
-        sfui.events.RecordCaller(fn, nil, "debounce")
-    end
-    local gen = (_debounceGen[key] or 0) + 1
-    _debounceGen[key] = gen
-    local label = "debounce:" .. tostring(key)
-    if not (C_Timer and C_Timer.After) then
-        _debounceGen[key] = nil
+    local cTimer = _G.C_Timer
+    local hasNewTimer = cTimer and cTimer.NewTimer
+    local hasAfter = cTimer and cTimer.After
+    if not hasNewTimer and not hasAfter then
+        local keyStr = tostring(key)
+        local label = "debounce:" .. keyStr
         if sfui.events and sfui.events.SafeCall then
-            sfui.events.SafeCall(fn, "debounce", tostring(key), label)
+            sfui.events.SafeCall(fn, "debounce", keyStr, label)
         else
             fn()
         end
         return
     end
-    C_Timer.After(delay or 0, function()
-        if _debounceGen[key] ~= gen then return end
-        _debounceGen[key] = nil
-        if sfui.events and sfui.events.SafeCall then
-            sfui.events.SafeCall(fn, "debounce", tostring(key), label)
-        else
-            fn()
+
+    local slot = _debounceSlots[key]
+    if not slot then
+        local keyStr = tostring(key)
+        local label = "debounce:" .. keyStr
+        slot = {
+            fn = nil,
+            deadline = 0,
+            firesAt = 0,
+            timer = nil,
+            active = false,
+            gen = 0,
+        }
+        slot.onFire = function()
+            local now = _G.GetTime and _G.GetTime() or 0
+            local rem = slot.deadline - now
+            if rem > 0.005 and slot.deadline > (slot.firesAt + 0.005) then
+                slot.firesAt = now + rem
+                if cTimer.NewTimer then
+                    slot.timer = cTimer.NewTimer(rem, slot.onFire)
+                else
+                    cTimer.After(rem, slot.onFire)
+                end
+                return
+            end
+            slot.timer = nil
+            slot.active = false
+            local cb = slot.fn
+            slot.fn = nil
+            if type(cb) == "function" then
+                if sfui.events and sfui.events.SafeCall then
+                    sfui.events.SafeCall(cb, "debounce", keyStr, label)
+                else
+                    cb()
+                end
+            end
         end
-    end)
+        _debounceSlots[key] = slot
+    end
+
+    local wait = delay or 0
+    local now = _G.GetTime and _G.GetTime() or 0
+    slot.fn = fn
+    slot.deadline = now + wait
+
+    if hasNewTimer then
+        if slot.timer and (slot.deadline + 0.005) < slot.firesAt then
+            slot.timer:Cancel()
+            slot.timer = nil
+            slot.active = false
+        end
+        if not slot.active then
+            slot.active = true
+            slot.firesAt = slot.deadline
+            slot.timer = cTimer.NewTimer(wait, slot.onFire)
+        end
+    else
+        -- C_Timer.After fallback (cannot cancel; guard with gen on shorter delay)
+        if not slot.active or (slot.deadline + 0.005) < slot.firesAt then
+            slot.active = true
+            slot.firesAt = slot.deadline
+            cTimer.After(wait, slot.onFire)
+        end
+    end
 end
 
 --- Enqueue a callback via the unified priority-budgeted OOC queue in `core/safety.lua`.
@@ -753,6 +806,10 @@ end
 
 function sfui.common.is_in_vehicle()
     if sfui.common.is_dragonflying() then return false end
+    local cur = sfui.state and sfui.state.current
+    if cur and cur.revision > 0 and cur.inVehicle then
+        return true
+    end
     if UnitInVehicle("player") or UnitHasVehicleUI("player") then return true end
     if UnitExists("vehicle") and UnitVehicleSkin and UnitVehicleSkin("player") ~= nil then return true end
     if C_ActionBar and C_ActionBar.HasVehicleActionBar and C_ActionBar.HasVehicleActionBar() then return true end
@@ -930,8 +987,14 @@ local sharedScanTooltip
 function sfui.common.get_scan_tooltip()
     if not sharedScanTooltip and _G.CreateFrame then
         sharedScanTooltip = _G.CreateFrame("GameTooltip", "SfuiScanTooltip", _G.UIParent, "GameTooltipTemplate")
+        if sharedScanTooltip then
+            sharedScanTooltip._sfuiIsScanner = true
+            sfui.scanTooltip = sharedScanTooltip
+        end
     end
     if sharedScanTooltip then
+        sharedScanTooltip._sfuiIsScanner = true
+        sfui.scanTooltip = sharedScanTooltip
         local owner = _G.UIParent or _G.WorldFrame
         if sharedScanTooltip.SetOwner and owner then
             sharedScanTooltip:SetOwner(owner, "ANCHOR_NONE")
@@ -978,7 +1041,7 @@ function sfui.common.is_item_known(itemLink)
         end
     end
 
-    local itemID = tonumber(string.match(itemLink, "item:(%d+)"))
+    local itemID = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(itemLink)
     if itemID then
         if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
             local _, sourceID = C_TransmogCollection.GetItemInfo(itemID)
@@ -1078,13 +1141,14 @@ end
 
 function sfui.common.is_quest_completed(questID)
     if not questID then return false end
+    if sfui.queststate and sfui.queststate.IsCompleted then
+        return sfui.queststate.IsCompleted(questID)
+    end
     if _G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted then
-        local ok, done = pcall(_G.C_QuestLog.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
+        return _G.C_QuestLog.IsQuestFlaggedCompleted(questID) == true
     end
     if _G.IsQuestFlaggedCompleted then
-        local ok, done = pcall(_G.IsQuestFlaggedCompleted, questID)
-        if ok and done then return true end
+        return _G.IsQuestFlaggedCompleted(questID) == true
     end
     return false
 end

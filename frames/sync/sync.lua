@@ -1414,6 +1414,14 @@ function sync.SyncAllNow()
 end
 
 local hwReloadFrame = nil
+local on_regen_enabled
+
+local function schedule_combat_flush(tier)
+    if on_regen_enabled and _G.InCombatLockdown and _G.InCombatLockdown()
+        and sfui.safety and sfui.safety.DeferOutOfCombat then
+        sfui.safety.DeferOutOfCombat("sync_combat_flush", tier or sfui.safety.OOC_P2, on_regen_enabled)
+    end
+end
 
 local function do_raw_reload()
     if _G.C_UI and _G.C_UI.Reload then
@@ -1426,6 +1434,7 @@ end
 local function arm_hardware_reload_catcher(sender)
     if _G.InCombatLockdown and _G.InCombatLockdown() then
         sync._pendingRemoteReload = tostring(sender or "peer")
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P1)
         return
     end
 
@@ -1458,6 +1467,7 @@ local function arm_hardware_reload_catcher(sender)
         local function trigger_now()
             if _G.InCombatLockdown and _G.InCombatLockdown() then
                 sync._pendingRemoteReload = hwReloadFrame.senderName or "peer"
+                schedule_combat_flush(sfui.safety and sfui.safety.OOC_P1)
                 hwReloadFrame:Hide()
                 return
             end
@@ -1471,6 +1481,7 @@ local function arm_hardware_reload_catcher(sender)
             sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
                 if hwReloadFrame and hwReloadFrame:IsShown() then
                     sync._pendingRemoteReload = hwReloadFrame.senderName or "peer"
+                    schedule_combat_flush(sfui.safety and sfui.safety.OOC_P1)
                     hwReloadFrame:Hide()
                 end
             end)
@@ -2050,7 +2061,7 @@ local notify_peer_quest_completed
 local questDeltaPending = false
 local questDeltaDirty = false
 local zoneResyncPending = false
-local questSyncTicker = nil
+local questSyncActive = false
 local questSyncTickCount = 0
 local lastPeerQuestRx = {}
 local lastPeerQuestWant = {}
@@ -2309,6 +2320,7 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
                 sfui.common.print("sync: reload request from |cff00ffff" .. string_lower(tostring(sender)) .. "|r deferred until combat ends.")
             end
             sync._pendingRemoteReload = tostring(sender or "peer")
+            schedule_combat_flush(sfui.safety and sfui.safety.OOC_P1)
         else
             execute_local_reload(true, sender)
         end
@@ -2389,6 +2401,7 @@ local function on_local_alt_synced(event, guid, isLogout)
     if not s.enabled or not s.syncAlts then return end
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.alt = true
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
         return
     end
     if altBroadcastPending then return end
@@ -2398,6 +2411,7 @@ local function on_local_alt_synced(event, guid, isLogout)
             altBroadcastPending = false
             if InCombatLockdown and InCombatLockdown() then
                 deferredAfterCombat.alt = true
+                schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
                 return
             end
             local myGUID = guid or (UnitGUID and UnitGUID("player"))
@@ -2416,6 +2430,7 @@ local function on_local_recipe_updated(event, itemID, realm, guid, isKnown)
     if not s.enabled or not s.syncRecipes then return end
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.recipes = true
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
         return
     end
     sync.Broadcast("DELTA_RECIPE", {
@@ -2432,6 +2447,7 @@ local function on_local_recipe_batch_updated(event, realm, guid)
     if not s.enabled or not s.syncRecipes then return end
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.recipes = true
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
         return
     end
     if recipeBatchBroadcastPending then return end
@@ -2441,6 +2457,7 @@ local function on_local_recipe_batch_updated(event, realm, guid)
             recipeBatchBroadcastPending = false
             if InCombatLockdown and InCombatLockdown() then
                 deferredAfterCombat.recipes = true
+                schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
                 return
             end
             local myGUID = guid or (UnitGUID and UnitGUID("player"))
@@ -2461,6 +2478,7 @@ local function on_local_contacts_updated()
     if not s.enabled or not s.syncContacts then return end
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.contacts = true
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
         return
     end
     if contactsBroadcastPending then return end
@@ -2470,6 +2488,7 @@ local function on_local_contacts_updated()
             contactsBroadcastPending = false
             if InCombatLockdown and InCombatLockdown() then
                 deferredAfterCombat.contacts = true
+                schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
                 return
             end
             local payload = merge.BuildContactsPayload()
@@ -2489,6 +2508,7 @@ local function on_local_fishing_updated()
     sync_machine_store()
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.fishing = true
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
         return
     end
     if fishingBroadcastPending then return end
@@ -2498,6 +2518,7 @@ local function on_local_fishing_updated()
             fishingBroadcastPending = false
             if InCombatLockdown and InCombatLockdown() then
                 deferredAfterCombat.fishing = true
+                schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
                 return
             end
             local myGUID = UnitGUID and UnitGUID("player")
@@ -2517,6 +2538,7 @@ local function on_local_fishing_catch_recorded(_, itemID, quantity, quality, map
     sync_machine_store()
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.fishing = true
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
         return
     end
     local myGUID = UnitGUID and UnitGUID("player")
@@ -2621,6 +2643,7 @@ on_local_quests_updated = function(event, arg1, arg2)
     -- 2. Full DJ / completed-quest scan (deferred until out of combat)
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.quests = true
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
         return
     end
     if questsBroadcastPending then return end
@@ -2630,6 +2653,7 @@ on_local_quests_updated = function(event, arg1, arg2)
             questsBroadcastPending = false
             if InCombatLockdown and InCombatLockdown() then
                 deferredAfterCombat.quests = true
+                schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
                 return
             end
             local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
@@ -2673,6 +2697,7 @@ local function on_local_dj_wishlist_updated()
     if not s.enabled or s.syncQuests == false then return end
     if InCombatLockdown and InCombatLockdown() then
         deferredAfterCombat.djWishlist = true
+        schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
         return
     end
     if djWishlistBroadcastPending then return end
@@ -2682,6 +2707,7 @@ local function on_local_dj_wishlist_updated()
             djWishlistBroadcastPending = false
             if InCombatLockdown and InCombatLockdown() then
                 deferredAfterCombat.djWishlist = true
+                schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
                 return
             end
             local payload = merge.BuildDJWishlistPayload and merge.BuildDJWishlistPayload()
@@ -2707,10 +2733,7 @@ local function on_local_waypoint_set(_, mapID, x, y, label)
 end
 
 -- ── Cross-Account Quest & Party Helpers ───────────────────────────────────────
-local function short_name(s)
-    if type(s) ~= "string" then return "" end
-    return string_match(s, "^([^%-]+)") or s
-end
+local short_name = sfui.common.short_name
 
 local function alt_display_name(alt, guid)
     if type(alt) ~= "table" then return "" end
@@ -2731,12 +2754,8 @@ local function format_colored_char_name(alt, fallbackName, guid)
     end
     local cleanName = short_name(rawName):lower()
     local classToken = alt and alt.class
-    if classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken] then
-        local c = _G.RAID_CLASS_COLORS[classToken]
-        local rgbHex = (sfui.colors and sfui.colors.rgb_to_hex) and sfui.colors.rgb_to_hex(c.r, c.g, c.b)
-            or string.format("%02x%02x%02x", math.floor((c.r or 1) * 255), math.floor((c.g or 1) * 255), math.floor((c.b or 1) * 255))
-        local hex = c.colorStr or ("ff" .. rgbHex)
-        return "|c" .. hex .. cleanName .. "|r"
+    if classToken and sfui.colors and sfui.colors.class_color_name then
+        return sfui.colors.class_color_name(cleanName, classToken)
     end
     return cleanName
 end
@@ -2762,7 +2781,6 @@ notify_peer_quest_completed = function(sender, guid, completedEvents)
             if ev.kind == "turnin" then
                 if pendingTurnedInQuests[qID]
                     or (myAlt and myAlt.completedQuests and myAlt.completedQuests[qID] == 1)
-                    or (_G.C_QuestLog and _G.C_QuestLog.IsQuestFlaggedCompleted and _G.C_QuestLog.IsQuestFlaggedCompleted(qID))
                     or (sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(qID)) then
                     suppress = true
                 end
@@ -3293,7 +3311,7 @@ function sync.GetSyncedPeerClassQuests()
     return questOrder
 end
 
-local function on_regen_enabled()
+on_regen_enabled = function()
     if sync._pendingRemoteReload then
         local pendingSender = sync._pendingRemoteReload
         sync._pendingRemoteReload = false
@@ -3326,19 +3344,22 @@ local function on_regen_enabled()
     end
 end
 
+local function on_quest_sync_tick()
+    local s = sync.GetSettings()
+    if not s.enabled or s.syncQuests == false or not has_active_quest_sync_target() then
+        return
+    end
+    run_fast_quest_delta_scan()
+    questSyncTickCount = questSyncTickCount + 1
+    if (questSyncTickCount % 3) == 0 then
+        send_quest_digest_to_group()
+    end
+end
+
 local function start_quest_sync_ticker()
-    if questSyncTicker or not (C_Timer and C_Timer.NewTicker) then return end
-    questSyncTicker = C_Timer.NewTicker(5.0, function()
-        local s = sync.GetSettings()
-        if not s.enabled or s.syncQuests == false or not has_active_quest_sync_target() then
-            return
-        end
-        run_fast_quest_delta_scan()
-        questSyncTickCount = questSyncTickCount + 1
-        if (questSyncTickCount % 3) == 0 then
-            send_quest_digest_to_group()
-        end
-    end)
+    if questSyncActive or not (sfui.events and sfui.events.RegisterUpdate) then return end
+    questSyncActive = true
+    sfui.events.RegisterUpdate("SfuiQuestSyncTicker", 5.0, on_quest_sync_tick)
 end
 
 local loginSynced = false
@@ -3612,7 +3633,6 @@ end
 -- ── Register Events ───────────────────────────────────────────────────────────
 if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_entering_world)
-    sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", on_regen_enabled)
     sfui.events.RegisterEvent("CHAT_MSG_ADDON", on_chat_msg_addon)
     sfui.events.RegisterEvent("BN_CHAT_MSG_ADDON", on_bn_chat_msg_addon)
     sfui.events.RegisterEvent("GROUP_ROSTER_UPDATE", on_group_roster_update)

@@ -26,7 +26,6 @@ local string_format = string.format
 local math_ceil = math.ceil
 local math_min = math.min
 local GetTime = _G.GetTime
-local C_Timer = _G.C_Timer
 local C_ChatInfo = _G.C_ChatInfo
 local SendAddonMessageFallback = _G.SendAddonMessage
 local BNSendGameData = _G.BNSendGameData
@@ -188,7 +187,7 @@ end
 -- ── Outbound Queue & Chunker ──────────────────────────────────────────────────
 local highPriorityQueue = {}
 local sendQueue = {}
-local queueTicker = nil
+local queueTickerActive = false
 local lastSendTime = -SEND_INTERVAL
 local nextMsgSeq = 1
 local reassemblyBuffers = {}
@@ -207,7 +206,7 @@ end
 local function normalize_short_lower(name)
     if type(name) ~= "string" then return nil end
     local lower = name:lower()
-    return lower:match("^([^%-]+)") or lower, lower
+    return sfui.common.short_name(lower), lower
 end
 
 function codec.RecordWhisperTarget(target)
@@ -342,12 +341,18 @@ local function dispatch_raw_packet(pkt)
     return false
 end
 
+local function stop_queue_ticker()
+    if queueTickerActive then
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiSyncCodecQueue")
+        end
+        queueTickerActive = false
+    end
+end
+
 local function process_send_queue()
     if #highPriorityQueue == 0 and #sendQueue == 0 then
-        if queueTicker then
-            queueTicker:Cancel()
-            queueTicker = nil
-        end
+        stop_queue_ticker()
         return
     end
 
@@ -362,18 +367,18 @@ local function process_send_queue()
         release_tbl(pkt)
     end
 
-    if #highPriorityQueue == 0 and #sendQueue == 0 and queueTicker then
-        queueTicker:Cancel()
-        queueTicker = nil
+    if #highPriorityQueue == 0 and #sendQueue == 0 then
+        stop_queue_ticker()
     end
 end
 
 local function ensure_queue_ticker()
-    if queueTicker then return end
-    if C_Timer and C_Timer.NewTicker then
-        queueTicker = C_Timer.NewTicker(SEND_INTERVAL, process_send_queue)
+    if queueTickerActive then return end
+    if sfui.events and sfui.events.RegisterUpdate then
+        queueTickerActive = true
+        sfui.events.RegisterUpdate("SfuiSyncCodecQueue", SEND_INTERVAL, process_send_queue)
     else
-        -- Fallback immediate drain if C_Timer is unavailable
+        -- Fallback immediate drain if event update scheduler is unavailable
         while #highPriorityQueue > 0 or #sendQueue > 0 do
             process_send_queue()
         end
@@ -389,7 +394,7 @@ function codec.GetQueueStats()
     for _ in pairs(reassemblyBuffers) do
         reassemblyCount = reassemblyCount + 1
     end
-    return #highPriorityQueue + #sendQueue, queueTicker ~= nil, reassemblyCount
+    return #highPriorityQueue + #sendQueue, queueTickerActive, reassemblyCount
 end
 
 function codec.FlushQueue()

@@ -226,6 +226,9 @@ local function RunEquipPlan(best, opts)
 
     local function onEquipFinished()
         isEquippingInProgress = false
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiHighestEquipWatch")
+        end
         if equipWatchdog and equipWatchdog.Cancel then
             equipWatchdog:Cancel()
             equipWatchdog = nil
@@ -450,28 +453,29 @@ local function RunEquipPlan(best, opts)
 
                         if isVis then
                             local ticks = 0
-                            local watchTicker
-                            watchTicker = _G.C_Timer.NewTicker(0.2, function()
-                                if _G.InCombatLockdown and _G.InCombatLockdown() then
-                                    watchTicker:Cancel()
-                                    onEquipFinished()
-                                    return
-                                end
-                                ticks = ticks + 1
-                                local stillVis = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("EQUIP_BIND")
-                                    or _G.StaticPopup_Visible("EQUIP_BIND_TRADEABLE")
-                                    or _G.StaticPopup_Visible("EQUIP_BIND_REFUNDABLE")))
-                                if not stillVis or ticks > 300 then
-                                    watchTicker:Cancel()
-                                    _G.C_Timer.After(0.15, function()
-                                        if _G.InCombatLockdown and _G.InCombatLockdown() then
-                                            onEquipFinished()
-                                            return
-                                        end
-                                        equipNext(index + 1)
-                                    end)
-                                end
-                            end)
+                            if sfui.events and sfui.events.RegisterUpdate then
+                                sfui.events.RegisterUpdate("SfuiHighestEquipWatch", 0.2, function()
+                                    if _G.InCombatLockdown and _G.InCombatLockdown() then
+                                        sfui.events.UnregisterUpdate("SfuiHighestEquipWatch")
+                                        onEquipFinished()
+                                        return
+                                    end
+                                    ticks = ticks + 1
+                                    local stillVis = (_G.StaticPopup_Visible and (_G.StaticPopup_Visible("EQUIP_BIND")
+                                        or _G.StaticPopup_Visible("EQUIP_BIND_TRADEABLE")
+                                        or _G.StaticPopup_Visible("EQUIP_BIND_REFUNDABLE")))
+                                    if not stillVis or ticks > 300 then
+                                        sfui.events.UnregisterUpdate("SfuiHighestEquipWatch")
+                                        _G.C_Timer.After(0.15, function()
+                                            if _G.InCombatLockdown and _G.InCombatLockdown() then
+                                                onEquipFinished()
+                                                return
+                                            end
+                                            equipNext(index + 1)
+                                        end)
+                                    end
+                                end)
+                            end
                         else
                             _G.C_Timer.After(0.08, function()
                                 if _G.InCombatLockdown and _G.InCombatLockdown() then
@@ -633,6 +637,9 @@ sfui.highest.toggle = sfui.highest.EquipHighestILvl
 
 if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        if sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiHighestEquipWatch")
+        end
         if isEquippingInProgress then
             isEquippingInProgress = false
             pendingEquipRequest = nil

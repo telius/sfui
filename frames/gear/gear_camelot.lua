@@ -1033,7 +1033,7 @@ local function createDockResistButton(dock, gearFrame, def)
 
     local countFS = rBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     if countFS.SetFont then
-        local fontPath = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        local fontPath = sfui.common.get_font_file()
         countFS:SetFont(fontPath, 9, "OUTLINE")
     end
     countFS:SetPoint("BOTTOMRIGHT", rBtn, "BOTTOMRIGHT", -1, 1)
@@ -1089,7 +1089,7 @@ local function createDockResistButton(dock, gearFrame, def)
                 local slotName = (common and common.get_slot_name and common.get_slot_name(sw.slotID) or ("slot " .. tostring(sw.slotID))):lower()
                 local newName = sw.newLink and ((common.get_item_info and select(1, common.get_item_info(sw.newLink))) or sw.newLink) or "empty"
                 if type(newName) == "string" then
-                    newName = newName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):lower()
+                    newName = sfui.common.strip_colors(newName):lower()
                 else
                     newName = "item"
                 end

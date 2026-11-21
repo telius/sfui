@@ -23,6 +23,13 @@ local string_format        = _G.string.format
 
 local DJ_DB = sfui.dungeonjournal.GetDB
 
+local function GetAccentHex()
+    local pal = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
+    local accent = pal and pal.accentColor or nil
+    local a1, a2, a3 = (accent and accent[1]) or 1, (accent and accent[2]) or 0.82, (accent and accent[3]) or 0.2
+    return (sfui.colors and sfui.colors.rgb_to_hex and sfui.colors.rgb_to_hex(a1, a2, a3)) or "ffd133", a1, a2, a3
+end
+
 local function RenderDropSource(tooltip, ctx)
     if not tooltip or DJ_DB().showItemTooltips == false then return end
     local itemID = ctx and ctx.itemID
@@ -33,12 +40,8 @@ local function RenderDropSource(tooltip, ctx)
 
     tooltip._sfuiDJAnnotated = itemID
 
-    local pal = sfui.theme and sfui.theme.GetPalette and sfui.theme.GetPalette()
-    local accent = pal and pal.accentColor or nil
-    local a1, a2, a3 = (accent and accent[1]) or 1, (accent and accent[2]) or 0.82, (accent and accent[3]) or 0.2
-
+    local hex, a1, a2, a3 = GetAccentHex()
     if not source.tooltipLine or source.accent1 ~= a1 or source.accent2 ~= a2 or source.accent3 ~= a3 then
-        local hex = sfui.colors.rgb_to_hex(a1, a2, a3)
         local bossName    = tostring(source.bossName or "encounter"):lower()
         local dungeonName = tostring(source.dungeonName or "dungeon"):lower()
         source.accent1 = a1
@@ -48,6 +51,65 @@ local function RenderDropSource(tooltip, ctx)
     end
 
     tooltip:AddLine(source.tooltipLine, 1, 1, 1, true)
+end
+
+local function CountOwnedT0Pieces(t0Set)
+    if not (t0Set and t0Set.pieces) then return 0 end
+    local count = 0
+    local getCount = (_G.C_Item and _G.C_Item.GetItemCount) or _G.GetItemCount
+    for _, id in ipairs(t0Set.pieces) do
+        local owned = false
+        if sfui.inventory and sfui.inventory.GetCount and (sfui.inventory.GetCount(id) or 0) > 0 then
+            owned = true
+        elseif getCount and (getCount(id, true) or 0) > 0 then
+            owned = true
+        elseif _G.GetInventoryItemID then
+            for slot = 1, 19 do
+                if _G.GetInventoryItemID("player", slot) == id then
+                    owned = true
+                    break
+                end
+            end
+        end
+        if owned then count = count + 1 end
+    end
+    return count
+end
+
+local function RenderSetInfo(tooltip, ctx)
+    if not tooltip or DJ_DB().showItemTooltips == false then return end
+    local itemID = ctx and ctx.itemID
+    if not itemID or tooltip._sfuiSetAnnotated == itemID then return end
+
+    local sc = sfui.sets_camelot
+    if not (sc and sc.GetItemSetInfo) then return end
+    local info = sc.GetItemSetInfo(itemID)
+    if not info then return end
+
+    tooltip._sfuiSetAnnotated = itemID
+
+    if tooltip._sfuiDJAnnotated ~= itemID and sc.GetPieceSources then
+        local srcs = sc.GetPieceSources(itemID)
+        local first = srcs and srcs[1]
+        if first and first.displayBoss then
+            local hex = GetAccentHex()
+            local who = tostring(first.displayBoss):lower()
+            if first.mobs then
+                who = who .. " (" .. tostring(first.mobs):lower() .. ")"
+            end
+            local dPart = first.dungeonName and ("  ·  |cff888888" .. tostring(first.dungeonName):lower() .. "|r") or ""
+            tooltip:AddLine(string_format("|cff%sdrops from:|r %s%s", hex, who, dPart), 1, 1, 1, true)
+        end
+    end
+
+    if sc.GetT0UpgradeInfo then
+        local upg = sc.GetT0UpgradeInfo(itemID)
+        if upg and upg.t0Set then
+            local ownedCnt = CountOwnedT0Pieces(upg.t0Set)
+            local totalCnt = #(upg.t0Set.pieces or {})
+            tooltip:AddLine(string_format("|cffb066fft0.5 upgrade:|r %s (%d/%d t0 owned)", tostring(upg.stageName or ""):lower(), ownedCnt, totalCnt), 1, 1, 1, true)
+        end
+    end
 end
 
 local function RenderWishlist(tooltip, ctx)
@@ -78,34 +140,12 @@ end
 local function OnTooltipCleared(tooltip)
     if tooltip then
         tooltip._sfuiDJAnnotated = nil
+        tooltip._sfuiSetAnnotated = nil
         tooltip._sfuiDJWishAnnotated = nil
     end
 end
 
-if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
-    sfui.tooltips.RegisterItemProvider("drop_source", 20, RenderDropSource)
-    sfui.tooltips.RegisterItemProvider("wishlist", 30, RenderWishlist)
-    sfui.tooltips.RegisterClearCallback("dj_tooltips", OnTooltipCleared)
-else
-    local function LegacySetItem(tooltip, data)
-        local itemID = data and data.id
-        if not itemID and TooltipUtil and TooltipUtil.GetDisplayedItem then
-            local _, _, id = TooltipUtil.GetDisplayedItem(tooltip)
-            itemID = id
-        end
-        if not itemID and tooltip and tooltip.GetItem then
-            local _, link = tooltip:GetItem()
-            if link then itemID = tonumber(link:match("item:(%d+)")) end
-        end
-        if not itemID then return end
-        local ctx = { itemID = itemID }
-        RenderDropSource(tooltip, ctx)
-        RenderWishlist(tooltip, ctx)
-    end
-    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
-        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, LegacySetItem)
-    elseif GameTooltip then
-        GameTooltip:HookScript("OnTooltipSetItem", LegacySetItem)
-        if ItemRefTooltip then ItemRefTooltip:HookScript("OnTooltipSetItem", LegacySetItem) end
-    end
-end
+sfui.tooltips.RegisterItemProvider("drop_source", 20, RenderDropSource)
+sfui.tooltips.RegisterItemProvider("set_info", 25, RenderSetInfo)
+sfui.tooltips.RegisterItemProvider("wishlist", 30, RenderWishlist)
+sfui.tooltips.RegisterClearCallback("dj_tooltips", OnTooltipCleared)

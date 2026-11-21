@@ -25,6 +25,13 @@ local pendingBindings = {}
 local pendingKeyMap = nil
 local isApplyingBindings = false
 local buttonIndex = 0
+local FlushDeferredRingOps
+
+local function QueueDeferredRingOps()
+    if InCombatLockdown and InCombatLockdown() and sfui.safety and sfui.safety.DeferOutOfCombat then
+        sfui.safety.DeferOutOfCombat("ring_secure_flush", sfui.safety.OOC_P0, FlushDeferredRingOps)
+    end
+end
 
 local MOD_COMBOS = {
     "", "ALT-", "CTRL-", "ALT-CTRL-",
@@ -361,6 +368,7 @@ function secure.push_ring_slots(ringID, slots)
     local btn = secure.get_or_create_button(ringID)
     if InCombatLockdown and InCombatLockdown() then
         pendingPushes[ringID] = slots
+        QueueDeferredRingOps()
         return
     end
     apply_slots_to_button(btn, slots)
@@ -433,6 +441,7 @@ end
 function secure.apply_all_bindings(ringKeyMap)
     if InCombatLockdown and InCombatLockdown() then
         pendingKeyMap = ringKeyMap
+        QueueDeferredRingOps()
         return
     end
     pendingKeyMap = nil
@@ -475,6 +484,7 @@ function secure.apply_binding(ringID, key)
     local btn = secure.get_or_create_button(ringID)
     if InCombatLockdown and InCombatLockdown() then
         pendingBindings[ringID] = key or false
+        QueueDeferredRingOps()
         return
     end
     isApplyingBindings = true
@@ -493,7 +503,7 @@ function secure.clear_binding(ringID)
 end
 
 -- flush any queued slot pushes or bindings when leaving combat
-sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+FlushDeferredRingOps = function()
     for ringID, slots in pairs(pendingPushes) do
         local btn = secureButtons[ringID]
         if btn then
@@ -520,4 +530,4 @@ sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
         end
         isApplyingBindings = false
     end
-end)
+end

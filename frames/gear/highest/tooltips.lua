@@ -177,7 +177,7 @@ local function GetWeaponDPS(itemData)
             for _, line in ipairs(data.lines) do
                 local left = line.leftText
                 if left and type(left) == "string" then
-                    local clean = left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                    local clean = sfui.common.strip_colors(left, true)
                     local m = clean:match("%(([%d%.,]+)%s+[Dd][Aa][Mm][Aa][Gg][Ee]%s+[Pp][Ee][Rr]%s+[Ss][Ee][Cc][Oo][Nn][Dd]%)")
                         or clean:match("([%d%.,]+)%s+[Dd][Aa][Mm][Aa][Gg][Ee]%s+[Pp][Ee][Rr]%s+[Ss][Ee][Cc][Oo][Nn][Dd]")
                         or clean:match("%(([%d%.,]+)%s+[Dd][Pp][Ss]%)")

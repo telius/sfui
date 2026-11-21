@@ -48,12 +48,7 @@ local GetMoney                                = _G.GetMoney
 
 local wipe                                    = sfui.common.wipe
 
-local function IsSecret(v)
-    if v == nil then return false end
-    if _G.issecretvalue and _G.issecretvalue(v) then return true end
-    if sfui.common and sfui.common.issecretvalue and sfui.common.issecretvalue(v) then return true end
-    return false
-end
+local IsSecret                                  = sfui.safety.issecretvalue
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -130,11 +125,7 @@ local SKILL_ICONS                             = {
 }
 
 local function GetFont(size)
-    local f = (sfui.config and sfui.config.fontFile)
-        or (sfui.config and sfui.config.fonts and sfui.config.fonts.regular)
-        or (_G.STANDARD_TEXT_FONT and _G.STANDARD_TEXT_FONT ~= "" and _G.STANDARD_TEXT_FONT)
-        or "Fonts\\FRIZQT__.TTF"
-    return f, size or 48, ""
+    return sfui.common.get_font_file(), size or 48, ""
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -442,7 +433,7 @@ local function CreateRowFrame(parent)
                     local linkToEquip = self.itemLink
                     if InCombatLockdown and InCombatLockdown() then
                         if sfui.safety and sfui.safety.DeferOutOfCombat then
-                            sfui.safety.DeferOutOfCombat("lootfeed_equip_" .. tostring(linkToEquip), "OOC_P0", function(lnk)
+                            sfui.safety.DeferOutOfCombat("lootfeed_equip_" .. tostring(linkToEquip), sfui.safety.OOC_P0 or 0, function(lnk)
                                 equipFn(lnk)
                             end, linkToEquip)
                             if sfui.print then
@@ -879,35 +870,11 @@ end
 -- 1. Money Formatter Helpers
 local function FormatCopperString(copper)
     if not copper or IsSecret(copper) then return "0" .. COIN_COPPER end
-    local g = math_floor(copper / 10000)
-    local s = math_floor((copper % 10000) / 100)
-    local c = copper % 100
-    local out = ""
-    if g > 0 then
-        out = out .. tostring(g) .. COIN_GOLD .. " "
-    end
-    if s > 0 or g > 0 then
-        out = out .. tostring(s) .. COIN_SILVER .. " "
-    end
-    out = out .. tostring(c) .. COIN_COPPER
-    return out
+    return sfui.safety.SafeGetCoinTextureString(copper)
 end
 
 local function FormatAbbreviatedGold(copper)
-    if not copper or IsSecret(copper) then return "0" .. COIN_COPPER end
-    local g = math_floor(copper / 10000)
-    if g >= 1000000 then
-        return string_format("%.2fM", g / 1000000) .. COIN_GOLD
-    elseif g >= 1000 then
-        return string_format("%.1fK", g / 1000) .. COIN_GOLD
-    elseif g > 0 then
-        return tostring(g) .. COIN_GOLD
-    end
-    local s = math_floor((copper % 10000) / 100)
-    if s > 0 then
-        return tostring(s) .. COIN_SILVER
-    end
-    return tostring(copper % 100) .. COIN_COPPER
+    return sfui.common.format_money_abbreviated(copper, true)
 end
 
 -- 2. Item Loot
@@ -976,7 +943,7 @@ OnItemLoot = function(msg, looterName)
 
     -- Parse Item Data
     local itemName, _, itemQuality, itemLevel, _, _, _, _, _, itemTexture, sellPrice = GetItemInfo(itemLink)
-    local itemID = tonumber(string_match(itemLink, "item:(%d+)"))
+    local itemID = sfui.items.get_item_id(itemLink)
 
     -- Handle asynchronous uncached items
     if not itemName then
@@ -1017,14 +984,21 @@ OnItemLoot = function(msg, looterName)
     local key = "ITEM_" .. (itemID or itemLink) .. (looterName and ("_" .. looterName) or "")
     local displayTitle = itemLink
     if looterName and looterName ~= "" then
-        local cleanLooter = string_match(looterName, "^([^-]+)") or looterName
+        local cleanLooter = sfui.common.short_name(looterName)
         local _, classFile = UnitClass(looterName)
         if (not classFile or IsSecret(classFile)) and cleanLooter ~= looterName then
             _, classFile = UnitClass(cleanLooter)
         end
         if IsSecret(classFile) then classFile = nil end
-        local cColor = classFile and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classFile]
-        local cTag = cColor and string_format("|c%s%s|r", cColor.colorStr or "ffffffff", cleanLooter) or cleanLooter
+        local customColor = classFile and _G.CUSTOM_CLASS_COLORS and _G.CUSTOM_CLASS_COLORS[classFile]
+        local cTag
+        if customColor then
+            cTag = string_format("|c%s%s|r", customColor.colorStr or ("ff" .. sfui.colors.rgb_to_hex(customColor)), cleanLooter)
+        elseif classFile then
+            cTag = sfui.colors.class_color_name(cleanLooter, classFile)
+        else
+            cTag = cleanLooter
+        end
         displayTitle = string_format("%s (|cffa0a0a0%s|r)", itemLink, cTag)
     end
 

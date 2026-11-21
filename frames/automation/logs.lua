@@ -17,7 +17,6 @@ sfui.logs = {}
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local _G            = _G
-local CreateFrame   = _G.CreateFrame
 local GetInstanceInfo = _G.GetInstanceInfo
 local IsInInstance  = _G.IsInInstance
 local LoggingCombat = _G.LoggingCombat
@@ -65,8 +64,6 @@ local sfui_started_log = false
 local stopTimer = nil
 local evalTimer = nil
 local eventsRegistered = false
-
-local eventFrame = CreateFrame("Frame")
 
 local function GetDefaultsTable()
     return (sfui.config and sfui.config.logs) or {}
@@ -220,22 +217,41 @@ local function ScheduleEvaluate(immediate)
     end)
 end
 
-local function SyncEventRegistration()
+local SyncEventRegistration
+
+local function OnLogEvent(event)
+    if event == "PLAYER_ENTERING_WORLD" then
+        SyncEventRegistration()
+        if sfui.logs.is_enabled() then
+            ScheduleEvaluate(false)
+        end
+        return
+    end
+    if not sfui.logs.is_enabled() then return end
+    if event == "CHALLENGE_MODE_START" then
+        ScheduleEvaluate(true)
+    else
+        ScheduleEvaluate(false)
+    end
+end
+
+SyncEventRegistration = function()
     local enabled = (_G.SfuiDB and _G.SfuiDB.autoCombatLog == true)
+    if not (sfui.events and sfui.events.RegisterEvent) then return end
     if enabled and not eventsRegistered then
         eventsRegistered = true
-        eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-        eventFrame:RegisterEvent("RAID_INSTANCE_WELCOME")
+        sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", OnLogEvent)
+        sfui.events.RegisterEvent("RAID_INSTANCE_WELCOME", OnLogEvent)
         if sfui.isRetail then
-            eventFrame:RegisterEvent("CHALLENGE_MODE_START")
-            eventFrame:RegisterEvent("PVP_MATCH_ACTIVE")
+            sfui.events.RegisterEvent("CHALLENGE_MODE_START", OnLogEvent)
+            sfui.events.RegisterEvent("PVP_MATCH_ACTIVE", OnLogEvent)
         end
     elseif not enabled and eventsRegistered then
         eventsRegistered = false
-        eventFrame:UnregisterEvent("ZONE_CHANGED_NEW_AREA")
-        eventFrame:UnregisterEvent("RAID_INSTANCE_WELCOME")
-        eventFrame:UnregisterEvent("CHALLENGE_MODE_START")
-        eventFrame:UnregisterEvent("PVP_MATCH_ACTIVE")
+        sfui.events.UnregisterEvent("ZONE_CHANGED_NEW_AREA", OnLogEvent)
+        sfui.events.UnregisterEvent("RAID_INSTANCE_WELCOME", OnLogEvent)
+        sfui.events.UnregisterEvent("CHALLENGE_MODE_START", OnLogEvent)
+        sfui.events.UnregisterEvent("PVP_MATCH_ACTIVE", OnLogEvent)
     end
 end
 
@@ -258,22 +274,9 @@ function sfui.logs.set_enabled(enabled)
     sfui.logs.refresh()
 end
 
-eventFrame:SetScript("OnEvent", function(_, event)
-    if event == "PLAYER_ENTERING_WORLD" then
-        SyncEventRegistration()
-        if sfui.logs.is_enabled() then
-            ScheduleEvaluate(false)
-        end
-        return
-    end
-    if not sfui.logs.is_enabled() then return end
-    if event == "CHALLENGE_MODE_START" then
-        ScheduleEvaluate(true)
-    else
-        ScheduleEvaluate(false)
-    end
-end)
-eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnLogEvent)
+end
 
 local _logsDebug = {}
 function sfui.logs_debug_info()

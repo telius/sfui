@@ -1,7 +1,7 @@
 if not sfui.isRetail then return end
 
 local scanQueue = {}
-local processingTicker
+local processingActive = false
 local targetExpac = -1
 
 local GetItemInfoInstant = sfui.common.get_item_instant_info
@@ -38,14 +38,16 @@ local function Process()
         end
     end
 
-    if #scanQueue == 0 and processingTicker then
-        processingTicker:Cancel()
-        processingTicker = nil
+    if #scanQueue == 0 and processingActive then
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiTransferProcess")
+        end
+        processingActive = false
     end
 end
 
 local function Action(expTarget)
-    if processingTicker then return end
+    if processingActive then return end
 
     targetExpac = expTarget
     scanQueue = {}
@@ -60,8 +62,9 @@ local function Action(expTarget)
         end
     end
 
-    if #scanQueue > 0 then
-        processingTicker = C_Timer.NewTicker(0.1, Process)
+    if #scanQueue > 0 and sfui.events and sfui.events.RegisterUpdate then
+        processingActive = true
+        sfui.events.RegisterUpdate("SfuiTransferProcess", 0.1, Process)
     end
 end
 
@@ -136,9 +139,11 @@ local function on_bank_open(_, interactionType)
 end
 local function on_bank_close(_, interactionType)
     if interactionType == nil or interactionType == 1 then
-        if processingTicker then
-            processingTicker:Cancel()
-            processingTicker = nil
+        if processingActive then
+            if sfui.events and sfui.events.UnregisterUpdate then
+                sfui.events.UnregisterUpdate("SfuiTransferProcess")
+            end
+            processingActive = false
         end
         scanQueue = {}
         if sfui.transferContainer then
@@ -155,7 +160,7 @@ sfui.events.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE",  on_bank_clos
 local _transferDebug = {}
 function sfui.transfer_debug_info()
     _transferDebug.queueSize = #scanQueue
-    _transferDebug.active    = processingTicker ~= nil
+    _transferDebug.active    = processingActive
     return _transferDebug
 end
 

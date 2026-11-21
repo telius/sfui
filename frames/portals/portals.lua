@@ -17,9 +17,7 @@ local str_format        = string.format
 local CreateFrame       = _G.CreateFrame
 local UIParent          = _G.UIParent
 local C_Spell           = _G.C_Spell
-local C_SpellBook       = _G.C_SpellBook
 local C_ToyBox          = _G.C_ToyBox
-local C_Timer           = _G.C_Timer
 local C_Item            = _G.C_Item
 local GetProfessions    = _G.GetProfessions
 local GetProfessionInfo = _G.GetProfessionInfo
@@ -35,13 +33,6 @@ local C_MythicPlus      = _G.C_MythicPlus
 local InCombatLockdown  = _G.InCombatLockdown
 local issecretvalue = sfui.common.issecretvalue
 
-local C_SpellBook_IsSpellKnownOrInSpellBook = C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook
-local C_SpellBook_IsSpellInSpellBook        = C_SpellBook and C_SpellBook.IsSpellInSpellBook
-local C_SpellBook_IsSpellKnown             = C_SpellBook and C_SpellBook.IsSpellKnown
-local IsPlayerSpell                        = _G.IsPlayerSpell
-local C_Spell_IsSpellKnown                 = C_Spell and C_Spell.IsSpellKnown
-local C_Spell_IsSpellKnownOrOverridesKnown = C_Spell and C_Spell.IsSpellKnownOrOverridesKnown
-
 -- ========================
 -- Shared Backdrop Tables
 -- ========================
@@ -50,17 +41,8 @@ local BACKDROP_ICON = {
     edgeSize = 1,
     insets   = { left = 0, right = 0, top = 0, bottom = 0 },
 }
-local BACKDROP_ROW = {
-    bgFile   = "Interface\\Buttons\\WHITE8x8",
-    edgeFile = "Interface\\Buttons\\WHITE8x8",
-    edgeSize = 1,
-    insets   = { left = 0, right = 0, top = 0, bottom = 0 },
-}
-local BACKDROP_MENU = {
-    bgFile   = "Interface\\Buttons\\WHITE8x8",
-    edgeFile = "Interface\\Buttons\\WHITE8x8",
-    edgeSize = 1,
-}
+local BACKDROP_ROW  = sfui.widgets.FLAT_BACKDROP
+local BACKDROP_MENU = sfui.widgets.FLAT_BACKDROP
 
 sfui.portals.BACKDROP_ICON = BACKDROP_ICON
 sfui.portals.BACKDROP_ROW  = BACKDROP_ROW
@@ -119,7 +101,7 @@ local function set_attr(frame, name, val)
 end
 sfui.portals.set_attr = set_attr
 
-local function arm_spell(spellID, portalID, frame)
+local function arm_action(kind, primary, portalID, frame)
     if InCombatLockdown() or not frame or not frame:IsVisible() then return end
     if portalFrame and not portalFrame:IsShown() then return end
     if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
@@ -127,98 +109,77 @@ local function arm_spell(spellID, portalID, frame)
     end
     currentHoverFrame = frame
     set_attr(actionBtn, "pressAndHoldAction", nil)
-    if spellID then
-        set_attr(actionBtn, "type", "spell")
-        set_attr(actionBtn, "spell", spellID)
-        set_attr(actionBtn, "type1", "spell")
-        set_attr(actionBtn, "spell1", spellID)
-    else
-        set_attr(actionBtn, "type", nil)
-        set_attr(actionBtn, "spell", nil)
-        set_attr(actionBtn, "type1", nil)
-        set_attr(actionBtn, "spell1", nil)
-    end
-    if portalID and sfui.portals.player_has_spell(portalID) then
-        set_attr(actionBtn, "type2", "spell")
-        set_attr(actionBtn, "spell2", portalID)
-    else
+    set_attr(actionBtn, "typerelease", nil)
+    set_attr(actionBtn, "typerelease1", nil)
+    set_attr(actionBtn, "typerelease2", nil)
+    if kind == "spell" then
+        if primary then
+            set_attr(actionBtn, "type", "spell")
+            set_attr(actionBtn, "spell", primary)
+            set_attr(actionBtn, "type1", "spell")
+            set_attr(actionBtn, "spell1", primary)
+        else
+            set_attr(actionBtn, "type", nil)
+            set_attr(actionBtn, "spell", nil)
+            set_attr(actionBtn, "type1", nil)
+            set_attr(actionBtn, "spell1", nil)
+        end
+        if portalID and sfui.portals.player_has_spell(portalID) then
+            set_attr(actionBtn, "type2", "spell")
+            set_attr(actionBtn, "spell2", portalID)
+        else
+            set_attr(actionBtn, "type2", nil)
+            set_attr(actionBtn, "spell2", nil)
+        end
+        set_attr(actionBtn, "toy", nil)
+        set_attr(actionBtn, "toy1", nil)
+        set_attr(actionBtn, "item", nil)
+        set_attr(actionBtn, "item1", nil)
+    elseif kind == "toy" then
+        set_attr(actionBtn, "type", "toy")
+        set_attr(actionBtn, "toy", primary)
+        set_attr(actionBtn, "type1", "toy")
+        set_attr(actionBtn, "toy1", primary)
         set_attr(actionBtn, "type2", nil)
+        set_attr(actionBtn, "toy2", nil)
+        set_attr(actionBtn, "spell", nil)
+        set_attr(actionBtn, "spell1", nil)
         set_attr(actionBtn, "spell2", nil)
+        set_attr(actionBtn, "item", nil)
+        set_attr(actionBtn, "item1", nil)
+    elseif kind == "item" then
+        local itemStr = "item:" .. primary
+        set_attr(actionBtn, "type", "item")
+        set_attr(actionBtn, "item", itemStr)
+        set_attr(actionBtn, "type1", "item")
+        set_attr(actionBtn, "item1", itemStr)
+        set_attr(actionBtn, "type2", nil)
+        set_attr(actionBtn, "item2", nil)
+        set_attr(actionBtn, "spell", nil)
+        set_attr(actionBtn, "spell1", nil)
+        set_attr(actionBtn, "spell2", nil)
+        set_attr(actionBtn, "toy", nil)
+        set_attr(actionBtn, "toy1", nil)
     end
-    set_attr(actionBtn, "typerelease", nil)
-    set_attr(actionBtn, "typerelease1", nil)
-    set_attr(actionBtn, "typerelease2", nil)
-    set_attr(actionBtn, "toy", nil)
-    set_attr(actionBtn, "toy1", nil)
-    set_attr(actionBtn, "item", nil)
-    set_attr(actionBtn, "item1", nil)
     actionBtn:ClearAllPoints()
     actionBtn:SetAllPoints(frame)
     actionBtn:SetFrameStrata("TOOLTIP")
     actionBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
     actionBtn:Show()
 end
-sfui.portals.arm_spell = arm_spell
-
+local function arm_spell(spellID, portalID, frame)
+    arm_action("spell", spellID, portalID, frame)
+end
 local function arm_toy(toyID, frame)
-    if InCombatLockdown() or not frame or not frame:IsVisible() then return end
-    if portalFrame and not portalFrame:IsShown() then return end
-    if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
-        currentHoverFrame.resetHover()
-    end
-    currentHoverFrame = frame
-    set_attr(actionBtn, "pressAndHoldAction", nil)
-    set_attr(actionBtn, "type", "toy")
-    set_attr(actionBtn, "toy", toyID)
-    set_attr(actionBtn, "type1", "toy")
-    set_attr(actionBtn, "toy1", toyID)
-    set_attr(actionBtn, "type2", nil)
-    set_attr(actionBtn, "toy2", nil)
-    set_attr(actionBtn, "typerelease", nil)
-    set_attr(actionBtn, "typerelease1", nil)
-    set_attr(actionBtn, "typerelease2", nil)
-    set_attr(actionBtn, "spell", nil)
-    set_attr(actionBtn, "spell1", nil)
-    set_attr(actionBtn, "spell2", nil)
-    set_attr(actionBtn, "item", nil)
-    set_attr(actionBtn, "item1", nil)
-    actionBtn:ClearAllPoints()
-    actionBtn:SetAllPoints(frame)
-    actionBtn:SetFrameStrata("TOOLTIP")
-    actionBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
-    actionBtn:Show()
+    arm_action("toy", toyID, nil, frame)
 end
-sfui.portals.arm_toy = arm_toy
-
 local function arm_item(itemID, frame)
-    if InCombatLockdown() or not frame or not frame:IsVisible() then return end
-    if portalFrame and not portalFrame:IsShown() then return end
-    if currentHoverFrame and currentHoverFrame ~= frame and currentHoverFrame.resetHover then
-        currentHoverFrame.resetHover()
-    end
-    currentHoverFrame = frame
-    set_attr(actionBtn, "pressAndHoldAction", nil)
-    set_attr(actionBtn, "type", "item")
-    set_attr(actionBtn, "item", "item:" .. itemID)
-    set_attr(actionBtn, "type1", "item")
-    set_attr(actionBtn, "item1", "item:" .. itemID)
-    set_attr(actionBtn, "type2", nil)
-    set_attr(actionBtn, "item2", nil)
-    set_attr(actionBtn, "typerelease", nil)
-    set_attr(actionBtn, "typerelease1", nil)
-    set_attr(actionBtn, "typerelease2", nil)
-    set_attr(actionBtn, "spell", nil)
-    set_attr(actionBtn, "spell1", nil)
-    set_attr(actionBtn, "spell2", nil)
-    set_attr(actionBtn, "toy", nil)
-    set_attr(actionBtn, "toy1", nil)
-    actionBtn:ClearAllPoints()
-    actionBtn:SetAllPoints(frame)
-    actionBtn:SetFrameStrata("TOOLTIP")
-    actionBtn:SetFrameLevel((frame:GetFrameLevel() or 1) + 15)
-    actionBtn:Show()
+    arm_action("item", itemID, nil, frame)
 end
-sfui.portals.arm_item = arm_item
+sfui.portals.arm_action = arm_action
+sfui.portals.arm_spell  = arm_spell
+sfui.portals.arm_toy    = arm_toy
+sfui.portals.arm_item   = arm_item
 
 local isDisarming = false
 local function disarm()
@@ -289,31 +250,7 @@ local function is_engineer()
 end
 sfui.portals.is_engineer = is_engineer
 
-local function player_has_spell(spellID)
-    if not spellID then return false end
-    if C_SpellBook_IsSpellKnownOrInSpellBook and C_SpellBook_IsSpellKnownOrInSpellBook(spellID) then
-        return true
-    end
-    if IsPlayerSpell and IsPlayerSpell(spellID) then
-        return true
-    end
-    if C_SpellBook_IsSpellInSpellBook and C_SpellBook_IsSpellInSpellBook(spellID) then
-        return true
-    end
-    if C_SpellBook_IsSpellKnown and C_SpellBook_IsSpellKnown(spellID, Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 1) then
-        return true
-    end
-    if C_Spell_IsSpellKnown and C_Spell_IsSpellKnown(spellID) then
-        return true
-    end
-    if C_Spell_IsSpellKnownOrOverridesKnown and C_Spell_IsSpellKnownOrOverridesKnown(spellID) then
-        return true
-    end
-    if _G.IsSpellKnown and _G.IsSpellKnown(spellID) then
-        return true
-    end
-    return false
-end
+local player_has_spell = sfui.common.is_spell_known
 sfui.portals.player_has_spell = player_has_spell
 
 local function toy_is_accessible(toyID)
@@ -383,16 +320,6 @@ local function spell_cd_remaining(spellID)
 end
 sfui.portals.spell_cd_remaining = spell_cd_remaining
 
-local function toy_cd_remaining(toyID)
-    if is_restricted_content() then return 0 end
-    local start, dur = sfui.api.GetItemCooldown(toyID)
-    if start and start > 0 and dur and dur > 0 then
-        return start + dur - GetTime()
-    end
-    return 0
-end
-sfui.portals.toy_cd_remaining = toy_cd_remaining
-
 local function item_cd_remaining(itemID)
     if is_restricted_content() then return 0 end
     local start, dur = sfui.api.GetItemCooldown(itemID)
@@ -401,26 +328,30 @@ local function item_cd_remaining(itemID)
     end
     return 0
 end
+local toy_cd_remaining = item_cd_remaining
 sfui.portals.item_cd_remaining = item_cd_remaining
+sfui.portals.toy_cd_remaining  = toy_cd_remaining
 
 local function fmt_cd(secs)
-    if secs <= 0 then return "" end
-    if secs > 3600 then
-        return str_format("%.1fh", secs / 3600)
-    elseif secs > 60 then
-        return str_format("%dm", secs / 60)
-    else
-        return str_format("%ds", secs)
-    end
+    return sfui.common.format_duration(secs, "cooldown_hm", "")
 end
 sfui.portals.fmt_cd = fmt_cd
+
+local function track_dynamic(parent, obj)
+    if parent and obj then
+        parent._dynamicObjects = parent._dynamicObjects or {}
+        parent._dynamicObjects[#parent._dynamicObjects + 1] = obj
+    end
+    return obj
+end
+sfui.portals.track_dynamic = track_dynamic
 
 local function make_section_header(parent, text, yOffset)
     local host = (parent and parent.overlayFrame) or parent
     local fs = host:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     fs:SetPoint("TOPLEFT", parent, "TOPLEFT", 5, yOffset)
     fs:SetText("|cff6600ff" .. text .. "|r")
-    return fs
+    return track_dynamic(parent, fs)
 end
 sfui.portals.make_section_header = make_section_header
 
@@ -430,7 +361,7 @@ local function make_divider(parent, yOffset, width)
     line:SetSize(width or (FRAME_WIDTH - 14), 1)
     line:SetPoint("TOPLEFT", parent, "TOPLEFT", 7, yOffset)
     line:SetColorTexture(unpack(cfg.colors.gray))
-    return line
+    return track_dynamic(parent, line)
 end
 sfui.portals.make_divider = make_divider
 
@@ -512,11 +443,7 @@ local function show_tooltip(owner, spellID, toyID, label, portalID, cdRem, extra
 end
 sfui.portals.show_tooltip = show_tooltip
 
-local function hide_tooltip()
-    if GameTooltip and GameTooltip:IsShown() then
-        GameTooltip:Hide()
-    end
-end
+local hide_tooltip = sfui.common.hide_tooltip
 sfui.portals.hide_tooltip = hide_tooltip
 
 -- Action button event scripts
@@ -561,26 +488,25 @@ actionBtn:SetScript("OnLeave", function(self)
 end)
 
 -- ========================
--- Widget: M+ portal icon (48x48)
+-- Shared Widget: Icon Tile (M+ Spell, Travel Toy, Hearthstone Scroll)
 -- ========================
-local function make_spell_icon(parent, spellID, label, x, y)
+local function make_icon_tile(parent, opts)
+    local size = opts.size or ICON_SIZE
     local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    frame:SetSize(ICON_SIZE, ICON_SIZE)
-    frame:SetPoint("TOPLEFT", x, y)
+    frame:SetSize(size, size)
+    frame:SetPoint("TOPLEFT", opts.x, opts.y)
     frame:EnableMouse(true)
+    if opts.enableWheel then
+        frame:EnableMouseWheel(true)
+    end
     frame:SetBackdrop(BACKDROP_ICON)
     frame:SetBackdropBorderColor(unpack(cfg.colors.black))
 
     local tex = frame:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
-    local function update_icon()
-        local iconID = sfui.common.get_spell_icon(spellID)
-        if iconID then
-            tex:SetTexture(iconID)
-            sfui.common.set_square_icon_coords(tex)
-        end
+    if opts.cropOnCreate then
+        sfui.common.set_square_icon_coords(tex)
     end
-    update_icon()
     frame.tex = tex
 
     local cd = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
@@ -594,37 +520,53 @@ local function make_spell_icon(parent, spellID, label, x, y)
     grey:SetColorTexture(0, 0, 0, 0.5)
     grey:Hide()
 
-    local specBadge = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    specBadge:SetSize(16, 16)
-    specBadge:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 2, -2)
-    specBadge:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    specBadge:SetFrameLevel(frame:GetFrameLevel() + 5)
-    local specIcon = specBadge:CreateTexture(nil, "ARTWORK")
-    specIcon:SetAllPoints()
-    sfui.common.set_square_icon_coords(specIcon)
-    specBadge:Hide()
-    frame.specBadge = specBadge
+    local specBadge, specIcon
+    if opts.withSpecBadge then
+        specBadge = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+        specBadge:SetSize(16, 16)
+        specBadge:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 2, -2)
+        specBadge:SetBackdrop({
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        specBadge:SetFrameLevel(frame:GetFrameLevel() + 5)
+        specIcon = specBadge:CreateTexture(nil, "ARTWORK")
+        specIcon:SetAllPoints()
+        sfui.common.set_square_icon_coords(specIcon)
+        specBadge:Hide()
+        frame.specBadge = specBadge
+    end
 
-    local shortStr = sfui.common.get_short_string(label)
-    if shortStr and shortStr ~= "" then
+    if opts.label and opts.label ~= "" then
+        local fontFile = sfui.common.get_font_file()
         local text = frame:CreateFontString(nil, "OVERLAY")
-        local fontFile = _G.GameFontNormal:GetFont()
-        text:SetFont(fontFile, 9, "OUTLINE")
+        text:SetFont(fontFile, opts.fontSize or 9, "OUTLINE")
         text:SetPoint("TOP", frame, "BOTTOM", 0, -2)
-        text:SetText(shortStr)
+        if opts.wrapLabel then
+            text:SetWidth(size + 8)
+            text:SetJustifyH("CENTER")
+        end
+        text:SetText(opts.label)
         text:SetTextColor(0.9, 0.9, 0.9)
     end
 
+    local function update_icon()
+        if opts.updateIcon then
+            opts.updateIcon(tex)
+        end
+    end
+    update_icon()
+
     local function refresh()
-        if not tex:GetTexture() then update_icon() end
-        local rem = spell_cd_remaining(spellID)
+        if not opts.skipEmptyTexCheck and not tex:GetTexture() then
+            update_icon()
+        end
+        local rem = opts.getRemaining() or 0
         local onCD = rem > 0
         if onCD then
-            local startTime, duration = sfui.common.get_spell_cooldown(spellID)
-            if startTime > 0 and duration > 0 and not (issecretvalue and (issecretvalue(startTime) or issecretvalue(duration))) then
+            local startTime, duration = opts.getCooldown()
+            if startTime and startTime > 0 and duration and duration > 0
+                and not (issecretvalue and (issecretvalue(startTime) or issecretvalue(duration))) then
                 if frame._lastCDStart ~= startTime or frame._lastCDDur ~= duration then
                     frame._lastCDStart = startTime
                     frame._lastCDDur   = duration
@@ -655,40 +597,40 @@ local function make_spell_icon(parent, spellID, label, x, y)
             end
         end
 
-        local specID = sfui.portals.get_dungeon_spec and sfui.portals.get_dungeon_spec(label)
-        if specID ~= frame._lastSpecID then
-            frame._lastSpecID = specID
-            if specID and specID ~= 0 then
-                local icon = sfui.common.get_spec_icon(specID)
-                if icon then
-                    specIcon:SetTexture(icon)
-                    local r, g, b = sfui.common.get_spec_color(specID)
-                    specBadge:SetBackdropBorderColor(r, g, b, 1)
-                    specBadge:Show()
+        if specBadge and opts.getSpecID then
+            local specID = opts.getSpecID()
+            if specID ~= frame._lastSpecID then
+                frame._lastSpecID = specID
+                if specID and specID ~= 0 then
+                    local icon = sfui.common.get_spec_icon(specID)
+                    if icon then
+                        specIcon:SetTexture(icon)
+                        local r, g, b = sfui.common.get_spec_color(specID)
+                        specBadge:SetBackdropBorderColor(r, g, b, 1)
+                        specBadge:Show()
+                    else
+                        specBadge:Hide()
+                    end
                 else
                     specBadge:Hide()
                 end
-            else
-                specBadge:Hide()
             end
         end
     end
+    frame.updateIcon = update_icon
     frame.refresh = refresh
     refresh()
 
     local function reset_hover()
         frame._isHovered = false
-        local rem = spell_cd_remaining(spellID)
-        set_cd_border(frame, rem)
+        set_cd_border(frame, opts.getRemaining() or 0)
     end
     frame.resetHover = reset_hover
 
     frame:SetScript("OnEnter", function(self)
         self._isHovered = true
         self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
-        arm_spell(spellID, nil, self)
-        local rem = spell_cd_remaining(spellID)
-        show_tooltip(self, spellID, nil, label, nil, rem)
+        opts.onEnterArm(self)
     end)
     frame:SetScript("OnLeave", function(self)
         if currentlyClicking then return end
@@ -700,7 +642,39 @@ local function make_spell_icon(parent, spellID, label, x, y)
         hide_tooltip()
     end)
 
-    return frame
+    return track_dynamic(parent, frame)
+end
+sfui.portals.make_icon_tile = make_icon_tile
+
+local function make_spell_icon(parent, spellID, label, x, y)
+    return make_icon_tile(parent, {
+        size          = ICON_SIZE,
+        x             = x,
+        y             = y,
+        label         = sfui.common.get_short_string(label),
+        fontSize      = 9,
+        withSpecBadge = true,
+        updateIcon    = function(tex)
+            local iconID = sfui.common.get_spell_icon(spellID)
+            if iconID then
+                tex:SetTexture(iconID)
+                sfui.common.set_square_icon_coords(tex)
+            end
+        end,
+        getRemaining  = function()
+            return spell_cd_remaining(spellID)
+        end,
+        getCooldown   = function()
+            return sfui.common.get_spell_cooldown(spellID)
+        end,
+        getSpecID     = function()
+            return sfui.portals.get_dungeon_spec and sfui.portals.get_dungeon_spec(label)
+        end,
+        onEnterArm    = function(self)
+            arm_spell(spellID, nil, self)
+            show_tooltip(self, spellID, nil, label, nil, spell_cd_remaining(spellID))
+        end,
+    })
 end
 sfui.portals.make_spell_icon = make_spell_icon
 
@@ -832,7 +806,7 @@ local function make_action_row(parent, spellID, portalID, toyID, name, icon, yPo
         hide_tooltip()
     end)
 
-    return frame
+    return track_dynamic(parent, frame)
 end
 sfui.portals.make_action_row = make_action_row
 
@@ -840,109 +814,29 @@ sfui.portals.make_action_row = make_action_row
 -- Widget: travel toy icon (32x32 compact grid)
 -- ========================
 local function make_toy_icon(parent, toyID, label, x, y)
-    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    frame:SetSize(TOY_ICON_SIZE, TOY_ICON_SIZE)
-    frame:SetPoint("TOPLEFT", x, y)
-    frame:EnableMouse(true)
-    frame:SetBackdrop(BACKDROP_ICON)
-    frame:SetBackdropBorderColor(unpack(cfg.colors.black))
-
-    local tex = frame:CreateTexture(nil, "ARTWORK")
-    tex:SetAllPoints()
-    sfui.common.set_square_icon_coords(tex)
-    local function update_icon()
-        local iconID = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(toyID)
-        if iconID then tex:SetTexture(iconID) end
-    end
-    update_icon()
-
-    local cd = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
-    cd:SetAllPoints()
-    cd:SetDrawSwipe(true)
-    cd:SetDrawEdge(true)
-    cd:SetHideCountdownNumbers(false)
-
-    local grey = frame:CreateTexture(nil, "OVERLAY")
-    grey:SetAllPoints()
-    grey:SetColorTexture(0, 0, 0, 0.5)
-    grey:Hide()
-
-    if label and label ~= "" then
-        local fontFile = _G.GameFontNormal:GetFont()
-        local text = frame:CreateFontString(nil, "OVERLAY")
-        text:SetFont(fontFile, 8, "OUTLINE")
-        text:SetPoint("TOP", frame, "BOTTOM", 0, -2)
-        text:SetWidth(TOY_ICON_SIZE + 8)
-        text:SetJustifyH("CENTER")
-        text:SetText(label)
-        text:SetTextColor(0.9, 0.9, 0.9)
-    end
-
-    local function refresh()
-        if not tex:GetTexture() then update_icon() end
-        local rem = toy_cd_remaining(toyID)
-        local onCD = rem > 0
-        if onCD then
-            local start, dur = sfui.api.GetItemCooldown(toyID)
-            if start and start > 0 and dur and dur > 0 then
-                if frame._lastStart ~= start or frame._lastDur ~= dur then
-                    frame._lastStart = start
-                    frame._lastDur   = dur
-                    cd:SetCooldown(start, dur)
-                end
-            else
-                cd:Clear()
-                frame._lastStart = nil
-                frame._lastDur   = nil
-            end
-            if not frame._isOnCD then
-                frame._isOnCD = true
-                grey:Show()
-                if not frame._isHovered then
-                    frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-                end
-            end
-        else
-            if frame._isOnCD or frame._isOnCD == nil then
-                frame._isOnCD = false
-                cd:Clear()
-                frame._lastStart = nil
-                frame._lastDur   = nil
-                grey:Hide()
-                if not frame._isHovered then
-                    frame:SetBackdropBorderColor(unpack(cfg.colors.black))
-                end
-            end
-        end
-    end
-    frame.refresh = refresh
-    refresh()
-
-    local function reset_hover()
-        frame._isHovered = false
-        local rem = toy_cd_remaining(toyID)
-        set_cd_border(frame, rem)
-    end
-    frame.resetHover = reset_hover
-
-    frame:SetScript("OnEnter", function(self)
-        self._isHovered = true
-        self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
-        arm_toy(toyID, self)
-        local rem = toy_cd_remaining(toyID)
-        show_tooltip(self, nil, toyID, nil, nil, rem)
-    end)
-    frame:SetScript("OnLeave", function(self)
-        if currentlyClicking then return end
-        if currentHoverFrame == self and actionBtn:IsShown() then
-            return
-        end
-        reset_hover()
-        disarm()
-        hide_tooltip()
-    end)
-
-    return frame
+    return make_icon_tile(parent, {
+        size         = TOY_ICON_SIZE,
+        x            = x,
+        y            = y,
+        label        = label,
+        fontSize     = 8,
+        wrapLabel    = true,
+        cropOnCreate = true,
+        updateIcon   = function(tex)
+            local iconID = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(toyID)
+            if iconID then tex:SetTexture(iconID) end
+        end,
+        getRemaining = function()
+            return item_cd_remaining(toyID)
+        end,
+        getCooldown  = function()
+            return sfui.api.GetItemCooldown(toyID)
+        end,
+        onEnterArm   = function(self)
+            arm_toy(toyID, self)
+            show_tooltip(self, nil, toyID, nil, nil, item_cd_remaining(toyID))
+        end,
+    })
 end
 sfui.portals.make_toy_icon = make_toy_icon
 
@@ -983,7 +877,25 @@ local function create_base_frame(name)
         f.overlayFrame = overlay
     end
 
+    if f._dynamicObjects then
+        for i = #f._dynamicObjects, 1, -1 do
+            local obj = f._dynamicObjects[i]
+            f._dynamicObjects[i] = nil
+            if obj then
+                if obj.Hide then obj:Hide() end
+                if obj.ClearAllPoints then obj:ClearAllPoints() end
+                if obj.SetParent then obj:SetParent(nil) end
+            end
+        end
+    else
+        f._dynamicObjects = {}
+    end
+
     f.refreshable = {}
+    f.legacyHeaders = nil
+    f.legacyMenus = nil
+    f.updateRunes = nil
+    f.customRefresh = nil
 
     f:ClearAllPoints()
     if SfuiDB and SfuiDB.portals_point and SfuiDB.portals_x and SfuiDB.portals_y then
@@ -1009,7 +921,7 @@ end
 sfui.portals.create_base_frame = create_base_frame
 
 local function setup_frame_scripts(frame)
-    local refreshTicker = nil
+    local tickerActive = false
     local lastRefreshPass = 0
 
     local function run_refresh_pass(self, force)
@@ -1038,6 +950,23 @@ local function setup_frame_scripts(frame)
         end
     end
 
+    local function stop_ticker()
+        if tickerActive then
+            if sfui.events and sfui.events.UnregisterUpdate then
+                sfui.events.UnregisterUpdate("SfuiPortalsRefresh")
+            end
+            tickerActive = false
+        end
+    end
+
+    local function on_refresh_tick()
+        if not frame or not frame:IsShown() then
+            stop_ticker()
+            return
+        end
+        run_refresh_pass(frame, true)
+    end
+
     frame:SetScript("OnShow", function(self)
         if sfui.theme and sfui.theme.ApplyWindowStyle then
             sfui.theme.ApplyWindowStyle(self, { cornerBrackets = true })
@@ -1046,21 +975,16 @@ local function setup_frame_scripts(frame)
             end
         end
         run_refresh_pass(self)
-        if not refreshTicker then
-            refreshTicker = C_Timer.NewTicker(1.0, function()
-                if not frame or not frame:IsShown() then return end
-                run_refresh_pass(frame, true)
-            end)
+        if not tickerActive and sfui.events and sfui.events.RegisterUpdate then
+            tickerActive = true
+            sfui.events.RegisterUpdate("SfuiPortalsRefresh", 1.0, on_refresh_tick)
         end
     end)
 
     frame:SetScript("OnHide", function()
         disarm()
         hide_tooltip()
-        if refreshTicker then
-            refreshTicker:Cancel()
-            refreshTicker = nil
-        end
+        stop_ticker()
         if frame.legacyMenus then
             for _, m in ipairs(frame.legacyMenus) do
                 m:Hide()
@@ -1068,12 +992,7 @@ local function setup_frame_scripts(frame)
         end
     end)
 
-    frame.cancelTicker = function()
-        if refreshTicker then
-            refreshTicker:Cancel()
-            refreshTicker = nil
-        end
-    end
+    frame.cancelTicker = stop_ticker
 end
 sfui.portals.setup_frame_scripts = setup_frame_scripts
 

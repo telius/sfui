@@ -26,14 +26,7 @@ local providersById = {}
 --  SHARED FORMATTING & VISUAL / ACTION DEFAULTS
 -- ─────────────────────────────────────────────────────────────
 local function FormatTime(seconds)
-    if not seconds or seconds <= 0 then return "" end
-    if seconds >= 3600 then
-        return string_format("%dh", math_floor(seconds / 3600))
-    elseif seconds >= 60 then
-        return string_format("%dm", math_ceil(seconds / 60))
-    else
-        return string_format("%ds", math_max(1, math_floor(seconds)))
-    end
+    return sfui.common.format_duration(seconds, "short", "")
 end
 P.FormatTime = FormatTime
 

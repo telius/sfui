@@ -126,17 +126,19 @@ local function ResolveSpecAndRoles()
     return specID, canonicalRole, classicRole
 end
 
+local _anyChanged = false
+
+local function setField(key, val)
+    if current[key] ~= val then
+        current[key] = val
+        _changedFlags[key] = true
+        _anyChanged = true
+    end
+end
+
 local function RefreshState(combatEvent)
     wipe(_changedFlags)
-    local anyChanged = false
-
-    local function setField(key, val)
-        if current[key] ~= val then
-            current[key] = val
-            _changedFlags[key] = true
-            anyChanged = true
-        end
-    end
+    _anyChanged = false
 
     if current.playerClass == "" and sfui.common and sfui.common.get_player_class then
         setField("playerClass", sfui.common.get_player_class() or "")
@@ -196,14 +198,14 @@ local function RefreshState(combatEvent)
     setField("role", role)
     setField("classicRole", classicRole)
 
-    if anyChanged then
+    if _anyChanged then
         current.revision = current.revision + 1
         if sfui.events and sfui.events.SendMessage then
             sfui.events.SendMessage("SFUI_STATE_CHANGED", _changedFlags, current)
         end
     end
 
-    return anyChanged
+    return _anyChanged
 end
 
 function S.Refresh(combatEvent)

@@ -529,23 +529,7 @@ local function GetTSMBuyoutCopper(itemID)
 end
 
 local function FormatCopperShort(copper)
-    if common and common.format_money_short then
-        return common.format_money_short(copper, { compact_gold = true, omit_copper_with_silver = true })
-    end
-    if type(copper) ~= "number" or copper <= 0 then return "0c" end
-    local total = math.floor(copper + 0.5)
-    local g = math.floor(total / 10000)
-    local s = math.floor((total % 10000) / 100)
-    local c = total % 100
-    if g > 0 then
-        if g >= 100 or s == 0 then
-            return tostring(g) .. "g"
-        end
-        return string.format("%dg %ds", g, s)
-    elseif s > 0 then
-        return tostring(s) .. "s"
-    end
-    return tostring(c) .. "c"
+    return common.format_money_short(copper, { compact_gold = true, omit_copper_with_silver = true })
 end
 
 local function GetTooltip()
@@ -572,18 +556,7 @@ local function IsQuestCompleted(questID)
     if not questID or issecretvalue(questID) or type(questID) ~= "number" or questID <= 0 then
         return false
     end
-    if sfui.queststate and sfui.queststate.IsCompleted then
-        return sfui.queststate.IsCompleted(questID) == true
-    end
-    if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
-        local done = C_QuestLog.IsQuestFlaggedCompleted(questID)
-        if not issecretvalue(done) then
-            return done == true
-        end
-    elseif _G.IsQuestFlaggedCompleted then
-        return _G.IsQuestFlaggedCompleted(questID) == true
-    end
-    return false
+    return (common and common.is_quest_completed and common.is_quest_completed(questID)) == true
 end
 
 local function NormalizeCoords(x, y)
@@ -1535,8 +1508,7 @@ local function IsItemCurrentlyEquipped(itemID, slotIDs)
     for _, sID in ipairs(slotIDs) do
         local link = GetInventoryItemLink("player", sID)
         if link and not issecretvalue(link) then
-            local eqID = (common and common.get_item_id and common.get_item_id(link))
-                or tonumber(tostring(link):match("item:(%d+)"))
+            local eqID = common and common.get_item_id and common.get_item_id(link)
             if eqID == itemID then
                 return true
             end
@@ -2499,9 +2471,12 @@ local function RunQuestiePass(serial, ctx, db, minLvl, maxLvl, equipOnly, djQues
     end
 end
 
+local QueueCombatDirtyScan
+
 local function StartScan(force)
     if InCombatLockdown and InCombatLockdown() then
         state.isDirty = true
+        QueueCombatDirtyScan()
         if RefreshUI and IsPanelVisible() then
             RefreshUI()
         end
@@ -2712,6 +2687,18 @@ local function StartScan(force)
     end
 end
 
+local function FlushCombatDirtyScan()
+    if state.isDirty and IsPanelVisible() then
+        StartScan(false)
+    end
+end
+
+QueueCombatDirtyScan = function()
+    if InCombatLockdown and InCombatLockdown() and sfui.safety and sfui.safety.DeferOutOfCombat then
+        sfui.safety.DeferOutOfCombat("upgrades_dirty_scan", sfui.safety.OOC_P2, FlushCombatDirtyScan)
+    end
+end
+
 -- ─── Formatting & Source Actions ──────────────────────────────────────────────
 local function FormatPct(pct)
     if not pct then return "" end
@@ -2837,10 +2824,7 @@ local function ExecuteSourceAction(src, mouseButton)
 end
 
 -- ─── Theme & Visual Styling ───────────────────────────────────────────────────
-local GetFontPath = (sfui.common and sfui.common.get_font_file)
-    or function()
-        return (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
-    end
+local GetFontPath = sfui.common.get_font_file
 
 local function UpdateFilterVisuals()
     local db = DB()
@@ -3336,8 +3320,7 @@ RenderVisibleRows = function()
         end
         row.icoFrame:SetBackdropBorderColor(qr, qg, qb, 0.95)
 
-        local titleHex = (sfui.colors and sfui.colors.rgb_to_hex) and sfui.colors.rgb_to_hex(qr, qg, qb)
-            or string.format("%02x%02x%02x", math.floor(qr * 255), math.floor(qg * 255), math.floor(qb * 255))
+        local titleHex = sfui.colors.rgb_to_hex(qr, qg, qb)
         local title = "|cff" .. titleHex .. (entry.name or ("item #" .. tostring(entry.itemID))) .. "|r"
 
         if showSlotTag then
@@ -3357,6 +3340,10 @@ RenderVisibleRows = function()
         end
         if entry.isResistEntry and entry.isEquipped then
             title = title .. "  |cff66ddaa[equipped]|r"
+        end
+        local setMeta = sfui.sets_camelot and sfui.sets_camelot.GetItemSetInfo and sfui.sets_camelot.GetItemSetInfo(entry.itemID)
+        if setMeta and setMeta.badgeTag then
+            title = title .. "  |cff" .. (setMeta.badgeColor or "44ddaa") .. "[" .. setMeta.badgeTag .. "]|r"
         end
         if entry.isHidden then
             title = title .. "  |cffaa6666[hidden]|r"
@@ -3980,6 +3967,29 @@ local function BuildPanelContents(container, insetX, topY, bottomInset)
     ui.emptyText = emptyText
 end
 
+local sessionEvictionTimer = nil
+
+local function CancelSessionEviction()
+    if sessionEvictionTimer then
+        if sessionEvictionTimer.Cancel then
+            sessionEvictionTimer:Cancel()
+        end
+        sessionEvictionTimer = nil
+    end
+end
+
+local function OnSessionEvict()
+    sessionEvictionTimer = nil
+    ClearSessionIndex()
+end
+
+local function ScheduleSessionEviction()
+    CancelSessionEviction()
+    if C_Timer and C_Timer.NewTimer then
+        sessionEvictionTimer = C_Timer.NewTimer(60, OnSessionEvict)
+    end
+end
+
 local function CreateUpgradesWindow()
     if ui.frame then return ui.frame end
 
@@ -4036,6 +4046,7 @@ local function CreateUpgradesWindow()
     f:SetScript("OnShow", function()
         U.OnPanelShown()
     end)
+    f:SetScript("OnHide", ScheduleSessionEviction)
 
     f:Hide()
     return f
@@ -4057,11 +4068,13 @@ function U.MountPanel(parentContainer, hostWindow)
     parentContainer:SetScript("OnShow", function()
         U.OnPanelShown()
     end)
+    parentContainer:HookScript("OnHide", ScheduleSessionEviction)
     ApplyRowTheme(parentContainer, theme and theme.GetPalette and theme.GetPalette())
     return ui.frame
 end
 
 function U.OnPanelShown()
+    CancelSessionEviction()
     StartScan(false)
     if state.coroutine and coroutine.status(state.coroutine) ~= "dead" then
         EnsureDriverFrame():Show()
@@ -4082,6 +4095,7 @@ end
 function U.MarkDirty()
     state.isDirty = true
     if not IsPanelVisible() then return end
+    QueueCombatDirtyScan()
     local run = function()
         if IsPanelVisible() then
             StartScan(true)
@@ -4119,6 +4133,7 @@ function U.SetResistFilter(schoolKey)
     end
     state.resistFilter = clean
     state.isDirty = true
+    QueueCombatDirtyScan()
     if ui.scroll and ui.scroll.SetVerticalScroll then
         ui.scroll:SetVerticalScroll(0)
     end
@@ -4138,6 +4153,7 @@ function U.Open(slotArg)
             if state.resistFilter ~= clean then
                 state.resistFilter = clean
                 state.isDirty = true
+                QueueCombatDirtyScan()
             end
             if ui.scroll and ui.scroll.SetVerticalScroll then
                 ui.scroll:SetVerticalScroll(0)
@@ -4146,6 +4162,7 @@ function U.Open(slotArg)
             if state.resistFilter ~= nil then
                 state.resistFilter = nil
                 state.isDirty = true
+                QueueCombatDirtyScan()
             end
         elseif SLOT_KEY_TO_DEF[clean] then
             DB().selectedSlot = clean
@@ -4245,13 +4262,6 @@ local function OnGameEvent(event, arg1, arg2)
         return
     end
 
-    if event == "PLAYER_REGEN_ENABLED" then
-        if state.isDirty and IsPanelVisible() then
-            StartScan(false)
-        end
-        return
-    end
-
     if event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_LEVEL_UP"
         or event == "QUEST_TURNED_IN" or event == "PLAYER_TALENT_UPDATE" then
         U.MarkDirty()
@@ -4264,7 +4274,6 @@ if sfui.events then
         sfui.events.RegisterEvent("PLAYER_LEVEL_UP", OnGameEvent)
         sfui.events.RegisterEvent("QUEST_TURNED_IN", OnGameEvent)
         sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", OnGameEvent)
-        sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", OnGameEvent)
         sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnGameEvent)
     end
     if sfui.events.RegisterUnitEvent then

@@ -173,10 +173,25 @@ local SLOT_LABELS = {
 
 
 
+local RestoreDefaultLootFilter
+local _ejFilterInitialized = false
+
 local function EnsureEJ()
-    if EJ_GetInstanceByIndex then return true end
-    sfui.common.ensure_addon_loaded("Blizzard_EncounterJournal")
-    return EJ_GetInstanceByIndex ~= nil
+    if not EJ_GetInstanceByIndex then
+        sfui.common.ensure_addon_loaded("Blizzard_EncounterJournal")
+    end
+    if not EJ_GetInstanceByIndex then return false end
+    if not _ejFilterInitialized and RestoreDefaultLootFilter then
+        _ejFilterInitialized = true
+        local curClass, curSpec
+        if EJ_GetLootFilter then
+            curClass, curSpec = EJ_GetLootFilter()
+        end
+        if not curClass or curClass == 0 or not curSpec or curSpec == 0 then
+            RestoreDefaultLootFilter()
+        end
+    end
+    return true
 end
 
 local itemClassCache = {}
@@ -604,7 +619,7 @@ local function FetchEncounterLoot(bossID)
     return SortLootItems(lootOrder)
 end
 
-local function RestoreDefaultLootFilter(savedClass, savedSpec)
+RestoreDefaultLootFilter = function(savedClass, savedSpec)
     if savedClass and savedClass > 0 then
         securecall(EJ_SetLootFilter, savedClass, savedSpec or 0)
     else
@@ -1032,6 +1047,10 @@ end
 local iconPool      = {}
 local iconPoolCount = 0
 
+local ItemIcon_OnEnter
+local ItemIcon_OnLeave
+local ItemIcon_OnClick
+
 local ITEM_BORDER_SZ = 2
 
 local function CreateButtonBorders(b)
@@ -1077,7 +1096,7 @@ local function AcquireIconBtn(parent)
         CreateButtonBorders(b)
         b.badge = b:CreateFontString(nil, "OVERLAY")
         b.badge:SetDrawLayer("OVERLAY", 7)
-        b.badge:SetFont("Fonts\\FRIZQT__.TTF", 8, "")
+        b.badge:SetFont(sfui.common.get_font_file(), 8, "")
         b.badge:SetShadowOffset(0, 0)
         b.badge:SetShadowColor(0, 0, 0, 0)
         b.badge:SetPoint("BOTTOMRIGHT", -2, 2)
@@ -1103,9 +1122,21 @@ local function AcquireIconBtn(parent)
         b.crossTex:SetAlpha(0.9)
         b.crossTex:Hide()
 
+        b:SetScript("OnEnter", ItemIcon_OnEnter)
+        b:SetScript("OnLeave", ItemIcon_OnLeave)
+        b:SetScript("OnClick", ItemIcon_OnClick)
+
         iconPool[iconPoolCount] = b
     else
         CreateButtonBorders(b)
+        b._curItem = nil
+        b._itemID = nil
+        b._keyID = nil
+        b._isBoss = nil
+        b._card = nil
+        b._isUsed = nil
+        b._isOwned = nil
+        b._isDungeonItem = nil
         b.tex:ClearAllPoints()
         b.tex:SetPoint("TOPLEFT", 0, 0)
         b.tex:SetPoint("BOTTOMRIGHT", 0, 0)
@@ -1120,7 +1151,7 @@ local function AcquireIconBtn(parent)
             b.crossTex:Hide()
         end
         if b.badge then
-            b.badge:SetFont("Fonts\\FRIZQT__.TTF", 8, "")
+            b.badge:SetFont(sfui.common.get_font_file(), 8, "")
             b.badge:SetShadowOffset(0, 0)
             b.badge:SetShadowColor(0, 0, 0, 0)
             b.badge:SetTextColor(1, 1, 1, 1)
@@ -1139,9 +1170,14 @@ local function ReleaseIconPool()
         local b = iconPool[i]
         if b then
             b:Hide()
-            b:SetScript("OnEnter", nil)
-            b:SetScript("OnLeave", nil)
-            b:SetScript("OnClick", nil)
+            b._curItem = nil
+            b._itemID = nil
+            b._keyID = nil
+            b._isBoss = nil
+            b._card = nil
+            b._isUsed = nil
+            b._isOwned = nil
+            b._isDungeonItem = nil
             if sfui.glows and sfui.glows.stop_glow then
                 sfui.glows.stop_glow(b)
             end
@@ -1288,7 +1324,7 @@ local function AcquireCard(parent)
         targetBtn.iconTex = tIcon
 
         local tBadge = targetBtn:CreateFontString(nil, "OVERLAY")
-        tBadge:SetFont("Fonts\\FRIZQT__.TTF", 8, "OUTLINE")
+        tBadge:SetFont(sfui.common.get_font_file(), 8, "OUTLINE")
         tBadge:SetPoint("BOTTOMRIGHT", targetBtn, "BOTTOMRIGHT", 2, -1)
         tBadge:SetTextColor(1, 0.85, 0.2, 1)
         targetBtn.badge = tBadge
@@ -1710,116 +1746,140 @@ local function SetupItemButton(b, curItem, keyID, isBoss, card)
     end
 
     local isDungeonItem = not isBoss
+    b._curItem = curItem
+    b._itemID = itemID
+    b._keyID = keyID
+    b._isBoss = isBoss
+    b._card = card
+    b._isUsed = isUsed
+    b._isOwned = isOwned
+    b._isDungeonItem = isDungeonItem
+end
 
-    b:SetScript("OnEnter", function(self)
-        if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        if isDungeonItem and C_EncounterJournal and C_EncounterJournal.SetPreviewMythicPlusLevel then
-            securecall(C_EncounterJournal.SetPreviewMythicPlusLevel, 10)
-        end
-        local bestLink = GetHighestItemLink(curItem, isDungeonItem)
-        if bestLink then
-            GameTooltip:SetHyperlink(bestLink)
-        else
-            GameTooltip:SetItemByID(itemID)
-        end
-        AddSpecLinesToTooltip(curItem)
+ItemIcon_OnEnter = function(self)
+    local curItem = self._curItem
+    local itemID = self._itemID
+    if not GameTooltip or not curItem or not itemID then return end
+    local isDungeonItem = self._isDungeonItem
+    local isUsed = self._isUsed
+    local isOwned = self._isOwned
 
-        if isUsed then
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if isDungeonItem and C_EncounterJournal and C_EncounterJournal.SetPreviewMythicPlusLevel then
+        securecall(C_EncounterJournal.SetPreviewMythicPlusLevel, 10)
+    end
+    local bestLink = GetHighestItemLink(curItem, isDungeonItem)
+    if bestLink then
+        GameTooltip:SetHyperlink(bestLink)
+    else
+        GameTooltip:SetItemByID(itemID)
+    end
+    AddSpecLinesToTooltip(curItem)
+
+    if isUsed then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cffff2020[bonus roll used]|r", 1, 0.2, 0.2)
+        GameTooltip:AddLine("|cff888888<alt + right-click to toggle used state>|r", 0.6, 0.6, 0.6)
+    else
+        if sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffff2020[bonus roll used]|r", 1, 0.2, 0.2)
+            GameTooltip:AddLine("|cff00ff00[bonus roll available]|r", 0, 1, 0)
             GameTooltip:AddLine("|cff888888<alt + right-click to toggle used state>|r", 0.6, 0.6, 0.6)
-        else
-            if sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cff00ff00[bonus roll available]|r", 0, 1, 0)
-                GameTooltip:AddLine("|cff888888<alt + right-click to toggle used state>|r", 0.6, 0.6, 0.6)
-            end
-            if isOwned then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cff00ccff[item in inventory / bank]|r", 0, 0.8, 1)
-            end
         end
-
-        local isTargeted = sfui.bonusroll and sfui.bonusroll.IsItemTargeted and sfui.bonusroll.IsItemTargeted(itemID)
-        if isTargeted then
+        if isOwned then
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffcc44ff◆ targeted for bonus roll reminder|r", 0.8, 0.4, 0.8)
+            GameTooltip:AddLine("|cff00ccff[item in inventory / bank]|r", 0, 0.8, 1)
         end
-        GameTooltip:AddLine("|cff888888<shift + right-click to toggle bonus roll target>|r", 0.6, 0.6, 0.6)
+    end
 
-        GameTooltip:Show()
-    end)
-    b:SetScript("OnLeave", function()
-        if isDungeonItem and C_EncounterJournal and C_EncounterJournal.SetPreviewMythicPlusLevel then
-            securecall(C_EncounterJournal.SetPreviewMythicPlusLevel, 0)
+    local isTargeted = sfui.bonusroll and sfui.bonusroll.IsItemTargeted and sfui.bonusroll.IsItemTargeted(itemID)
+    if isTargeted then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cffcc44ff◆ targeted for bonus roll reminder|r", 0.8, 0.4, 0.8)
+    end
+    GameTooltip:AddLine("|cff888888<shift + right-click to toggle bonus roll target>|r", 0.6, 0.6, 0.6)
+
+    GameTooltip:Show()
+end
+
+ItemIcon_OnLeave = function(self)
+    if self._isDungeonItem and C_EncounterJournal and C_EncounterJournal.SetPreviewMythicPlusLevel then
+        securecall(C_EncounterJournal.SetPreviewMythicPlusLevel, 0)
+    end
+    if GameTooltip then
+        GameTooltip:Hide()
+    end
+end
+
+ItemIcon_OnClick = function(self, mouseBtn)
+    local curItem = self._curItem
+    local itemID = self._itemID
+    local keyID = self._keyID
+    local isBoss = self._isBoss
+    local card = self._card
+    local isDungeonItem = self._isDungeonItem
+    if not curItem or not itemID then return end
+
+    local bestLink = GetHighestItemLink(curItem, isDungeonItem)
+    if mouseBtn == "LeftButton" then
+        if IsModifiedClick("CHATLINK") and bestLink then
+            sfui.common.insert_link_to_chat(bestLink)
+            return
+        elseif IsModifiedClick("DRESSUP") and bestLink then
+            DressUpItemLink(bestLink)
+            return
         end
-        if GameTooltip then
-            GameTooltip:Hide()
+    elseif mouseBtn == "RightButton" then
+        if IsShiftKeyDown() and sfui.bonusroll and sfui.bonusroll.ToggleItemTarget then
+            sfui.bonusroll.ToggleItemTarget(keyID, isBoss, itemID)
+            SetupItemButton(self, curItem, keyID, isBoss, card)
+            if card and card.targetBtn and card.targetBtn.Refresh then
+                card.targetBtn:Refresh()
+            end
+            if GameTooltip:IsOwned(self) then
+                ItemIcon_OnEnter(self)
+            end
+            return
         end
-    end)
-    b:SetScript("OnClick", function(_, mouseBtn)
-        local bestLink = GetHighestItemLink(curItem, isDungeonItem)
-        if mouseBtn == "LeftButton" then
-            if IsModifiedClick("CHATLINK") and bestLink then
-                sfui.common.insert_link_to_chat(bestLink)
-                return
-            elseif IsModifiedClick("DRESSUP") and bestLink then
-                DressUpItemLink(bestLink)
-                return
-            end
-        elseif mouseBtn == "RightButton" then
-            if IsShiftKeyDown() and sfui.bonusroll and sfui.bonusroll.ToggleItemTarget then
-                sfui.bonusroll.ToggleItemTarget(keyID, isBoss, itemID)
-                SetupItemButton(b, curItem, keyID, isBoss, card)
-                if card and card.targetBtn and card.targetBtn.Refresh then
-                    card.targetBtn:Refresh()
-                end
-                if GameTooltip:IsOwned(b) then
-                    b:GetScript("OnEnter")(b)
-                end
-                return
-            end
 
-            if IsAltKeyDown() and sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
-                local curUsed = sfui.bonusroll.IsUsed(itemID)
-                sfui.bonusroll.SetUsed(itemID, not curUsed, nil, nil, true)
-                SetupItemButton(b, curItem, keyID, isBoss, card)
-                if GameTooltip:IsOwned(b) then
-                    b:GetScript("OnEnter")(b)
-                end
-                return
+        if IsAltKeyDown() and sfui.bonusroll and sfui.bonusroll.IsEligible and sfui.bonusroll.IsEligible(itemID) then
+            local curUsed = sfui.bonusroll.IsUsed(itemID)
+            sfui.bonusroll.SetUsed(itemID, not curUsed, nil, nil, true)
+            SetupItemButton(self, curItem, keyID, isBoss, card)
+            if GameTooltip:IsOwned(self) then
+                ItemIcon_OnEnter(self)
             end
+            return
+        end
 
-            -- Right-click: advance loot spec one step for this boss/dungeon
-            local db  = DB()
-            local cur = 0
-            if isBoss then
-                local e = db.bosses[keyID]
-                cur = (type(e) == "table" and e.spec) or (type(e) == "number" and e) or 0
+        -- Right-click: advance loot spec one step for this boss/dungeon
+        local db  = DB()
+        local cur = 0
+        if isBoss then
+            local e = db.bosses[keyID]
+            cur = (type(e) == "table" and e.spec) or (type(e) == "number" and e) or 0
+        else
+            local curDung = db.dungeons and db.dungeons[keyID]
+            cur = (type(curDung) == "table" and curDung.spec) or (type(curDung) == "number" and curDung) or 0
+        end
+        local nxt = CycleSpec(cur)
+        if isBoss then
+            local e = db.bosses[keyID]
+            if type(e) ~= "table" then
+                e = { spec = (type(e) == "number" and e or 0) }
+                db.bosses[keyID] = e
+            end
+            e.spec = nxt
+        else
+            db.dungeons = db.dungeons or {}
+            if type(db.dungeons[keyID]) == "table" then
+                db.dungeons[keyID].spec = nxt
             else
-                local curDung = db.dungeons and db.dungeons[keyID]
-                cur = (type(curDung) == "table" and curDung.spec) or (type(curDung) == "number" and curDung) or 0
+                db.dungeons[keyID] = nxt
             end
-            local nxt = CycleSpec(cur)
-            if isBoss then
-                local e = db.bosses[keyID]
-                if type(e) ~= "table" then
-                    e = { spec = (type(e) == "number" and e or 0) }
-                    db.bosses[keyID] = e
-                end
-                e.spec = nxt
-            else
-                db.dungeons = db.dungeons or {}
-                if type(db.dungeons[keyID]) == "table" then
-                    db.dungeons[keyID].spec = nxt
-                else
-                    db.dungeons[keyID] = nxt
-                end
-            end
-            card.specBtn:Refresh()
         end
-    end)
+        card.specBtn:Refresh()
+    end
 end
 
 -- ─── Card population ──────────────────────────────────────────────────────────
@@ -2097,7 +2157,7 @@ function sfui.lootviewer.CreateFrame()
         btn:SetText(text)
         local fs = btn:GetFontString()
         if fs then
-            fs:SetFont("Fonts\\FRIZQT__.TTF", 11, "")
+            fs:SetFont(sfui.common.get_font_file(), 11, "")
             fs:SetTextColor(1, 1, 1, 1)
         end
         btn.text = fs
@@ -2249,7 +2309,7 @@ function sfui.lootviewer.CreateFrame()
         bgFile = "Interface\\Buttons\\WHITE8x8",
     })
     searchBox:SetBackdropColor(0.08, 0.08, 0.08, 1)
-    searchBox:SetFont("Fonts\\FRIZQT__.TTF", 11, "")
+    searchBox:SetFont(sfui.common.get_font_file(), 11, "")
     searchBox:SetTextColor(0.85, 0.85, 0.85, 1)
     searchBox:SetAutoFocus(false)
     searchBox:SetMaxLetters(40)
@@ -2554,11 +2614,13 @@ function sfui.lootviewer.CreateFrame()
 end
 
 function sfui.lootviewer.Toggle()
+    EnsureEJ()
     if not frame then frame = sfui.lootviewer.CreateFrame() end
     if frame:IsShown() then frame:Hide() else frame:Show() end
 end
 
 function sfui.lootviewer.Open()
+    EnsureEJ()
     if not frame then frame = sfui.lootviewer.CreateFrame() end
     if not frame:IsShown() then frame:Show() end
 end
@@ -2579,18 +2641,7 @@ sfui.lootviewer.GetRaidData    = GetRaidData
 sfui.lootviewer.GetDungeonData = GetDungeonData
 
 function sfui.lootviewer.initialize()
-    -- Add delay on initialization so Blizzard_EncounterJournal loads and stabilizes cleanly
-    C_Timer.After(2.0, function()
-        EnsureEJ()
-        -- Ensure the default Blizzard EJ filter is set to the player's current class and active spec
-        local curClass, curSpec
-        if EJ_GetLootFilter then
-            curClass, curSpec = EJ_GetLootFilter()
-        end
-        if not curClass or curClass == 0 or not curSpec or curSpec == 0 then
-            RestoreDefaultLootFilter()
-        end
-    end)
+    -- Blizzard_EncounterJournal is loaded lazily on Open/Toggle/GetRaidData/GetDungeonData
 end
 
 -- ─── Spec change & seasonal map invalidation ──────────────────────────────────

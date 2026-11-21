@@ -481,8 +481,7 @@ local function resolve_angler_meta(guid, cData)
         or (cData and cData.name)
         or altDisp
         or "?"
-    local shortName = rawName:match("^([^%-]+)") or rawName
-    shortName = shortName:lower()
+    local shortName = sfui.common.short_name(rawName):lower()
 
     local classToken = (cData and cData.class) or (alt and alt.class)
     local coloredName = (sfui.common and sfui.common.class_color_name and sfui.common.class_color_name(shortName, classToken)) or shortName
@@ -1145,7 +1144,7 @@ local _cachedBestPole = { bag = 0, slot = 0, link = "" }
 --- Authoritatively uses Item Class (Weapon = 2, Profession = 19) and Item Subclass (Fishingpole = 20, Fishing = 9).
 local function is_fishing_pole_item(itemID, itemLink)
     if not itemID and itemLink then
-        itemID = (sfui.common and sfui.common.get_item_id and sfui.common.get_item_id(itemLink)) or tonumber(itemLink:match("item:(%d+)"))
+        itemID = sfui.common.get_item_id(itemLink)
     end
     if not itemID and not itemLink then return false end
     if itemID and _poleItemCache[itemID] ~= nil then
@@ -1713,7 +1712,7 @@ local function record_current_loot()
         local mapID = sfui.common.get_player_map_id()
         for i = 1, num do
             local link = _G.GetLootSlotLink and _G.GetLootSlotLink(i)
-            local itemID = (sfui.common and sfui.common.get_item_id and sfui.common.get_item_id(link)) or (link and tonumber(link:match("item:(%d+)")))
+            local itemID = sfui.common.get_item_id(link)
             if itemID then
                 local _, _, quantity, _, quality = _G.GetLootSlotInfo(i)
                 sfui.fishing.RecordCatch(itemID, quantity or 1, quality or 0, mapID, link)

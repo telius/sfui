@@ -19,6 +19,59 @@ local iconButtonPool = {}
 
 local C_Timer = _G.C_Timer
 local GetItemIcon = _G.GetItemIcon or (C_Item and C_Item.GetItemIconByID)
+local wipe = _G.wipe
+
+local RefreshSidecar
+local UpdateProgressBar
+local HideProgressBar
+
+local _sortedList = {}
+local _descParts = {}
+local _displayButtons = {}
+
+local function CompareManifestEntries(a, b)
+    local lvlA = tonumber(a.level) or 1
+    local lvlB = tonumber(b.level) or 1
+    if lvlA ~= lvlB then
+        return lvlA > lvlB
+    end
+    return (a.name or ""):lower() < (b.name or ""):lower()
+end
+
+local function SidecarDelayedRefresh()
+    if RefreshSidecar then RefreshSidecar(true) end
+end
+
+local function SidecarDispatchProgress(curr, total, recipient)
+    UpdateProgressBar(curr, total, string.format("sending %s (%d/%d)", recipient, curr, total))
+    if sidecarFrame and sidecarFrame.dispatchBtn then
+        sidecarFrame.dispatchBtn:SetText("cancel")
+    end
+end
+
+local function SidecarDispatchDone()
+    HideProgressBar()
+    if RefreshSidecar then RefreshSidecar(true) end
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.8, SidecarDelayedRefresh)
+    end
+end
+
+local function SidecarSend_OnClick(self)
+    local guid = self._guid
+    if not guid then return end
+    if mail.IsDispatching() then
+        mail.CancelDispatch("user cancelled")
+        HideProgressBar()
+        if RefreshSidecar then RefreshSidecar(true) end
+        return
+    end
+
+    local started, err = mail.StartDispatch(SidecarDispatchProgress, SidecarDispatchDone, guid)
+    if not started and common and common.print then
+        common.print(string.format("|cffff3333dispatch error: %s.|r", err or "unknown"))
+    end
+end
 
 local function AcquireIconButton(parent)
     local btn = table.remove(iconButtonPool)
@@ -114,6 +167,7 @@ local function AcquireRow(parent)
 
         local sendBtn = common.create_flat_button(r, "send", 36, 20)
         sendBtn:SetPoint("RIGHT", r, "RIGHT", -6, 0)
+        sendBtn:SetScript("OnClick", SidecarSend_OnClick)
         r.sendBtn = sendBtn
 
         r.itemIcons = {}
@@ -122,6 +176,7 @@ local function AcquireRow(parent)
         r:ClearAllPoints()
         r:Show()
         if r.sendBtn then
+            r.sendBtn._guid = nil
             r.sendBtn:Show()
         end
         r.itemIcons = r.itemIcons or {}
@@ -133,8 +188,8 @@ end
 local function ReleaseRows()
     for _, r in ipairs(activeRows) do
         if r.sendBtn then
+            r.sendBtn._guid = nil
             r.sendBtn:Hide()
-            r.sendBtn:SetScript("OnClick", nil)
         end
         if r.itemIcons then
             for _, btn in ipairs(r.itemIcons) do
@@ -146,18 +201,18 @@ local function ReleaseRows()
                 btn.overflowItems = nil
                 table.insert(iconButtonPool, btn)
             end
-            r.itemIcons = {}
+            wipe(r.itemIcons)
         end
         r:Hide()
         r:ClearAllPoints()
         r:SetParent(UIParent)
         table.insert(rowPool, r)
     end
-    activeRows = {}
+    wipe(activeRows)
 end
 
 
-local function UpdateProgressBar(current, total, label)
+UpdateProgressBar = function(current, total, label)
     if not sidecarFrame or not sidecarFrame.progressBar then return end
     local bar = sidecarFrame.progressBar
     bar:Show()
@@ -167,7 +222,7 @@ local function UpdateProgressBar(current, total, label)
     bar.text:SetText(label or "")
 end
 
-local function HideProgressBar()
+HideProgressBar = function()
     if not sidecarFrame or not sidecarFrame.progressBar then return end
     sidecarFrame.progressBar:Hide()
     sidecarFrame.progressBar.fill:SetWidth(0)
@@ -243,7 +298,7 @@ end
 
 --- Update the sidecar manifest display
 --- @param force boolean? If true, bypasses signature memoization and re-scans bags
-local function RefreshSidecar(force)
+RefreshSidecar = function(force)
     if not sidecarFrame or not sidecarFrame:IsShown() then return end
 
     local currentSig = GetInventorySignature()
@@ -264,18 +319,12 @@ local function RefreshSidecar(force)
     local maxIcons = 4
 
     -- Sort manifest by alt level descending, with name tie-breaker
-    local sortedList = {}
+    local sortedList = _sortedList
+    wipe(sortedList)
     for _, data in pairs(manifest) do
         table.insert(sortedList, data)
     end
-    table.sort(sortedList, function(a, b)
-        local lvlA = tonumber(a.level) or 1
-        local lvlB = tonumber(b.level) or 1
-        if lvlA ~= lvlB then
-            return lvlA > lvlB
-        end
-        return (a.name or ""):lower() < (b.name or ""):lower()
-    end)
+    table.sort(sortedList, CompareManifestEntries)
 
     for _, data in ipairs(sortedList) do
         local r = AcquireRow(sidecarFrame.content)
@@ -311,7 +360,8 @@ local function RefreshSidecar(force)
             end
         end
 
-        local parts = {}
+        local parts = _descParts
+        wipe(parts)
         if boeCount > 0 then table.insert(parts, string.format("%d boe", boeCount)) end
         if assignedCount > 0 then table.insert(parts, string.format("%d assigned", assignedCount)) end
         if lockboxCount > 0 then table.insert(parts, string.format("%d %s", lockboxCount, lockboxCount == 1 and "lockbox" or "lockboxes")) end
@@ -327,36 +377,13 @@ local function RefreshSidecar(force)
             r.sendBtn:SetPoint("RIGHT", r, "RIGHT", -6, 0)
             r.sendBtn:Show()
             r.sendBtn:SetText(mail.IsDispatching() and "cancel" or "send")
-            r.sendBtn:SetScript("OnClick", function()
-                if mail.IsDispatching() then
-                    mail.CancelDispatch("user cancelled")
-                    HideProgressBar()
-                    RefreshSidecar(true)
-                    return
-                end
-
-                local started, err = mail.StartDispatch(function(curr, total, recipient)
-                    UpdateProgressBar(curr, total, string.format("sending %s (%d/%d)", recipient, curr, total))
-                    if sidecarFrame and sidecarFrame.dispatchBtn then
-                        sidecarFrame.dispatchBtn:SetText("cancel")
-                    end
-                end, function(success, reason)
-                    HideProgressBar()
-                    RefreshSidecar(true)
-                    if C_Timer and C_Timer.After then
-                        C_Timer.After(0.8, function() RefreshSidecar(true) end)
-                    end
-                end, data.guid)
-
-                if not started and common and common.print then
-                    common.print(string.format("|cffff3333dispatch error: %s.|r", err or "unknown"))
-                end
-            end)
+            r.sendBtn._guid = data.guid
         end
 
         -- ── Build queued item icons aligned to the right (flush to left of r.sendBtn) ──
         local totalQueued = #data.items
-        local displayButtons = {}
+        local displayButtons = _displayButtons
+        wipe(displayButtons)
 
         if totalQueued > 0 then
             local numToDisplay = math.min(totalQueued, maxIcons)
@@ -372,9 +399,16 @@ local function RefreshSidecar(force)
                     local remaining = totalQueued - (maxIcons - 1)
                     btn.isOverflow = true
                     btn.itemLink = nil
-                    btn.overflowItems = {}
+                    local ov = btn._overflowBuf
+                    if not ov then
+                        ov = {}
+                        btn._overflowBuf = ov
+                    else
+                        wipe(ov)
+                    end
+                    btn.overflowItems = ov
                     for oIdx = maxIcons, totalQueued do
-                        table.insert(btn.overflowItems, data.items[oIdx])
+                        table.insert(ov, data.items[oIdx])
                     end
 
                     local leadItem = data.items[maxIcons]

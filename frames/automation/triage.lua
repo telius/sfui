@@ -971,7 +971,7 @@ local function create_triage_prompt()
     deleteBtn:SetText("delete")
     local dfs = deleteBtn:GetFontString()
     if dfs then
-        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        local fontFile = sfui.common.get_font_file()
         dfs:SetFont(fontFile, 11, "")
         dfs:SetTextColor(1, 1, 1, 1)
     end
@@ -1207,10 +1207,8 @@ local function get_slot_item_id(bag, slot)
     local getLink = (C_Container and C_Container.GetContainerItemLink) or GetContainerItemLink
     if getLink then
         local link = getLink(bag, slot)
-        if link then
-            local parsedID = link:match("item:(%d+)")
-            if parsedID then return tonumber(parsedID) end
-        end
+        local parsedID = sfui.items.get_item_id(link)
+        if parsedID then return parsedID end
     end
     return nil
 end

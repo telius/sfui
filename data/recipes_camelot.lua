@@ -4568,6 +4568,7 @@ end
 sfui.recipes_camelot._raw = RAW
 sfui.recipes_camelot.num_recipes = 2115
 sfui.recipes_camelot.recipes = setmetatable(decodedCache, {
+    __mode = "v",
     __index = function(t, sid)
         local raw = RAW[sid]
         if raw then

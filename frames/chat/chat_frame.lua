@@ -30,6 +30,7 @@ local pairs = _G.pairs
 local ipairs = _G.ipairs
 local type = _G.type
 local tonumber = _G.tonumber
+local select = _G.select
 
 local issecretvalue = chat.issecretvalue
 local CFD = chat.CFD
@@ -52,6 +53,7 @@ local scrollBtn = nil
 local ebCallbacksRegistered = false
 local ebHooksInstalled = false
 local frameEnabled = false
+local inFcfFontHook = false
 
 local lastActivityTime = 0
 local currentChromeAlpha = 1.0
@@ -592,7 +594,7 @@ end
 local function ensure_corner_buttons(panel1)
     if not panel1 or copyBtn then return end
     local colors = chat.GetColors()
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
 
     copyBtn = CreateFrame("Button", "SfuiChatCopyButton", panel1, "BackdropTemplate")
     copyBtn:SetSize(38, 18)
@@ -986,7 +988,7 @@ local function restore_editbox(cf, d)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Non-Intrusive Font Handling (Native Fallback + Combat Log 14 Default)
+--  Non-Intrusive Font Handling (Native Fallback + Combat Log 14 Default + FCF Sync)
 -- ─────────────────────────────────────────────────────────────────────────────
 
 local function is_combat_log(cf)
@@ -996,43 +998,255 @@ local function is_combat_log(cf)
     return cf == _G.ChatFrame2 or cf == _G.COMBATLOG
 end
 
-local function apply_font_to_frame(cf, d)
-    if not (cf and cf.SetFont and cf.GetFont) then return end
-    if not d.origFontSaved then
-        local f, s, fl = cf:GetFont()
-        if not (issecretvalue(f) or issecretvalue(s) or issecretvalue(fl)) and f then
-            d.origFontSaved = true
-            d.origFont = { f, s or 14, fl or "" }
+local function clamp_font_size(raw)
+    if raw == nil or issecretvalue(raw) then return nil end
+    local n = tonumber(raw)
+    if not n or n <= 0 then return nil end
+    return math_max(8, math_min(28, math_floor(n + 0.5)))
+end
+
+local function snapshot_orig_font(cf, d, id)
+    if d.origFontSaved then return end
+    local f, s, fl = cf:GetFont()
+    if issecretvalue(f) or issecretvalue(s) or issecretvalue(fl) or not f then return end
+
+    local origSize = s
+    local maxStatic = _G.NUM_CHAT_WINDOWS or 10
+    if type(id) == "number" and id >= 1 and id <= maxStatic and not cf.isTemporary and _G.FCF_GetChatWindowInfo then
+        local _, blizzSize = _G.FCF_GetChatWindowInfo(id)
+        if type(blizzSize) == "number" and not issecretvalue(blizzSize) and blizzSize > 0 then
+            origSize = blizzSize
         end
     end
+
+    d.origFontSaved = true
+    d.origFont = { f, math_floor((origSize or 14) + 0.5), fl or "" }
+
+    if cf.GetShadowOffset then
+        local ox, oy = cf:GetShadowOffset()
+        if not issecretvalue(ox) and not issecretvalue(oy) and type(ox) == "number" and type(oy) == "number" then
+            d.origShadowOffset = { ox, oy }
+        end
+    end
+    if cf.GetShadowColor then
+        local sr, sg, sb, sa = cf:GetShadowColor()
+        if not (issecretvalue(sr) or issecretvalue(sg) or issecretvalue(sb) or issecretvalue(sa)) and type(sr) == "number" then
+            d.origShadowColor = { sr, sg, sb, sa or 1 }
+        end
+    end
+end
+
+local function sync_blizzard_window_size(cf, id, size)
+    local maxStatic = _G.NUM_CHAT_WINDOWS or 10
+    if cf.isTemporary or type(id) ~= "number" or id < 1 or id > maxStatic then return end
+    if not _G.SetChatWindowSize then return end
+    local stored = _G.GetChatWindowInfo and select(2, _G.GetChatWindowInfo(id))
+    if stored == nil or issecretvalue(stored) or stored ~= size then
+        _G.SetChatWindowSize(id, size)
+    end
+end
+
+local function apply_font_if_needed(cf, wantFile, wantSize, wantFlags)
+    local curFile, curSize, curFlags = cf:GetFont()
+    local flags = wantFlags or ""
+    if not (issecretvalue(curFile) or issecretvalue(curSize) or issecretvalue(curFlags))
+        and curFile == wantFile
+        and type(curSize) == "number"
+        and math_floor(curSize + 0.5) == wantSize
+        and (curFlags or "") == flags then
+        return
+    end
+    cf:SetFont(wantFile, wantSize, flags)
+end
+
+local function restore_shadow(cf, d)
+    if not d.shadowAppliedBySfui then return end
+    if cf.SetShadowOffset then
+        local o = d.origShadowOffset
+        cf:SetShadowOffset(o and o[1] or 0, o and o[2] or 0)
+    end
+    if cf.SetShadowColor then
+        local c = d.origShadowColor
+        cf:SetShadowColor(c and c[1] or 0, c and c[2] or 0, c and c[3] or 0, c and c[4] or 0)
+    end
+    d.shadowAppliedBySfui = false
+end
+
+local function resolve_target_size(cf, d, id, isCL, override)
+    if isCL then
+        return clamp_font_size(chat.Get("combatlog_font_size", 14)) or 14
+    end
+    if cf.isTemporary and d and type(d.tempFontSize) == "number" then
+        return clamp_font_size(d.tempFontSize)
+    end
+    local ffs = chat.Get("frame_font_sizes", nil)
+    if type(ffs) == "table" and type(id) == "number" and type(ffs[id]) == "number" then
+        return clamp_font_size(ffs[id])
+    end
+    if override then
+        return clamp_font_size(chat.Get("font_size", 13)) or 13
+    end
+    if type(ffs) == "table" and type(ffs["*"]) == "number" then
+        return clamp_font_size(ffs["*"])
+    end
+    return nil
+end
+
+local function apply_font_to_frame(cf, d, id)
+    if not (cf and cf.SetFont and cf.GetFont) then return end
+    id = id or (cf.GetID and cf:GetID())
 
     local enabled = sfui.IsModuleEnabled("chat")
     local isCL = is_combat_log(cf)
     local override = chat.Get("font_override", false) == true
+    local targetSize = enabled and resolve_target_size(cf, d, id, isCL, override) or nil
 
-    if enabled and override then
-        local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
-        local rawSize = isCL and chat.Get("combatlog_font_size", 14) or chat.Get("font_size", 13)
-        local size = math_max(8, math_min(28, rawSize))
-        local outline = chat.Get("font_outline", "OUTLINE") or ""
-        cf:SetFont(fontFile, size, outline)
-        if cf.SetShadowOffset then cf:SetShadowOffset(1, -1) end
-        if cf.SetShadowColor then cf:SetShadowColor(0, 0, 0, 0.85) end
-    elseif enabled and isCL then
-        local fontFile = (d.origFont and d.origFont[1]) or "Fonts\\FRIZQT__.TTF"
-        local flags = (d.origFont and d.origFont[3]) or ""
-        local size = math_max(8, math_min(28, chat.Get("combatlog_font_size", 14)))
-        cf:SetFont(fontFile, size, flags)
-    elseif d.origFont then
-        cf:SetFont(d.origFont[1], d.origFont[2], d.origFont[3])
+    if not enabled or (not override and not targetSize) then
+        if d.fontAppliedBySfui then
+            if d.origFont then
+                apply_font_if_needed(cf, d.origFont[1], d.origFont[2], d.origFont[3])
+                sync_blizzard_window_size(cf, id, d.origFont[2])
+            end
+            restore_shadow(cf, d)
+            d.fontAppliedBySfui = false
+        end
+        return
     end
+
+    snapshot_orig_font(cf, d, id)
+
+    local wantFile, wantFlags, wantSize
+    if override then
+        wantFile = sfui.common.get_font_file()
+        wantFlags = chat.Get("font_outline", "OUTLINE") or ""
+        wantSize = targetSize or clamp_font_size(chat.Get("font_size", 13)) or 13
+        apply_font_if_needed(cf, wantFile, wantSize, wantFlags)
+        if not d.shadowAppliedBySfui then
+            if cf.SetShadowOffset then cf:SetShadowOffset(1, -1) end
+            if cf.SetShadowColor then cf:SetShadowColor(0, 0, 0, 0.85) end
+            d.shadowAppliedBySfui = true
+        end
+    else
+        local curFile, _, curFlags = cf:GetFont()
+        wantFile = (d.origFont and d.origFont[1]) or ((not issecretvalue(curFile)) and curFile) or sfui.common.get_font_file()
+        wantFlags = (d.origFont and d.origFont[3]) or ((not issecretvalue(curFlags)) and curFlags) or ""
+        wantSize = targetSize
+        apply_font_if_needed(cf, wantFile, wantSize, wantFlags)
+        restore_shadow(cf, d)
+    end
+
+    d.fontAppliedBySfui = true
+    sync_blizzard_window_size(cf, id, wantSize)
 end
 
 function chat.ApplyFonts()
-    chat.ForEachChatFrame(function(cf)
+    chat.ForEachChatFrame(function(cf, id)
         local d = CFD(cf)
-        if d then apply_font_to_frame(cf, d) end
+        if d then apply_font_to_frame(cf, d, id) end
     end)
+end
+
+function chat.SetFontSize(val)
+    local size = clamp_font_size(val)
+    if not size then return end
+    chat.ForEachChatFrame(function(cf)
+        if cf.isTemporary then
+            local d = chat._cfd[cf]
+            if d then d.tempFontSize = nil end
+        end
+    end)
+    chat._suppressFontApply = true
+    chat.Set("frame_font_sizes", { ["*"] = size })
+    chat.Set("font_size", size)
+    chat._suppressFontApply = false
+    chat.ApplyFonts()
+end
+
+function chat.OnFCFSetFontSize(self, chatFrame, fontSize)
+    if not sfui.IsModuleEnabled("chat") or inFcfFontHook then return end
+    local cf = chatFrame or (_G.FCF_GetCurrentChatFrame and _G.FCF_GetCurrentChatFrame())
+    local rawSize = fontSize
+    if rawSize == nil and type(self) == "table" then
+        rawSize = self.value
+    end
+    if not cf then return end
+    local size = clamp_font_size(rawSize)
+    if not size then return end
+
+    local id = cf.GetID and cf:GetID()
+    local maxStatic = _G.NUM_CHAT_WINDOWS or 10
+    local d = CFD(cf)
+
+    if cf.isTemporary or (type(id) == "number" and id > maxStatic) then
+        if not cf.inUse then
+            if d then d.tempFontSize = nil end
+            return
+        end
+        if d then
+            d.tempFontSize = size
+            if d.origFont then d.origFont[2] = size end
+        end
+        return
+    end
+
+    if type(id) == "number" and id > 2 and cf.isInitialized == 0 then
+        return
+    end
+
+    inFcfFontHook = true
+    if d and d.origFont then
+        d.origFont[2] = size
+    end
+
+    chat._suppressFontApply = true
+    if is_combat_log(cf) then
+        chat.Set("combatlog_font_size", size)
+        local curFfs = chat.Get("frame_font_sizes", nil)
+        if type(curFfs) == "table" and curFfs[id] ~= nil then
+            local nextTbl = {}
+            local hasAny = false
+            for k, v in pairs(curFfs) do
+                if k ~= id then
+                    nextTbl[k] = v
+                    hasAny = true
+                end
+            end
+            chat.Set("frame_font_sizes", hasAny and nextTbl or nil)
+        end
+    elseif type(id) == "number" and id >= 1 and id <= maxStatic then
+        local curFfs = chat.Get("frame_font_sizes", nil)
+        local nextTbl = {}
+        if type(curFfs) == "table" then
+            for k, v in pairs(curFfs) do
+                nextTbl[k] = v
+            end
+        end
+        nextTbl[id] = size
+        chat.Set("frame_font_sizes", nextTbl)
+        if id == 1 or cf == _G.DEFAULT_CHAT_FRAME then
+            chat.Set("font_size", size)
+        end
+    end
+    chat._suppressFontApply = false
+    inFcfFontHook = false
+
+    chat.ApplyFonts()
+end
+
+function chat.OnFCFResetChatWindows()
+    if not sfui.IsModuleEnabled("chat") then return end
+    chat.ForEachChatFrame(function(cf)
+        local d = chat._cfd[cf]
+        if d then
+            d.origFontSaved = nil
+            d.origFont = nil
+            d.fontAppliedBySfui = nil
+            d.shadowAppliedBySfui = nil
+            d.tempFontSize = nil
+        end
+    end)
+    chat.Set("frame_font_sizes", nil)
+    chat.ScheduleRefresh()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -1074,11 +1288,32 @@ function chat.WakeTabFade()
     end
 end
 
+local cachedEditBoxes = nil
+local lastScrolledState = nil
+local lastCopyBtnOver = false
+
 local function is_any_editbox_shown()
-    local maxStatic = _G.NUM_CHAT_WINDOWS or 10
-    for i = 1, maxStatic do
-        local eb = _G["ChatFrame" .. i .. "EditBox"]
-        if eb and eb:IsShown() and is_editbox_focused(eb) then return true end
+    if _G.ChatEdit_GetActiveWindow then
+        local activeEB = _G.ChatEdit_GetActiveWindow()
+        if activeEB and activeEB:IsShown() then
+            return true
+        end
+    end
+    if not cachedEditBoxes then
+        cachedEditBoxes = {}
+        local maxStatic = _G.NUM_CHAT_WINDOWS or 10
+        for i = 1, maxStatic do
+            local eb = _G["ChatFrame" .. i .. "EditBox"]
+            if eb then
+                cachedEditBoxes[#cachedEditBoxes + 1] = eb
+            end
+        end
+    end
+    for i = 1, #cachedEditBoxes do
+        local eb = cachedEditBoxes[i]
+        if eb:IsShown() and is_editbox_focused(eb) then
+            return true
+        end
     end
     return false
 end
@@ -1090,35 +1325,55 @@ local function is_mouse_over_safe(f)
     return over and true or false
 end
 
+local function is_active_chat_scrolled()
+    local activeCF = chat.GetActiveChatFrame()
+    if activeCF and activeCF.GetScrollOffset then
+        local off = activeCF:GetScrollOffset()
+        if not issecretvalue(off) and type(off) == "number" and off > 0 then
+            return true
+        end
+    end
+    return false
+end
+
 local function on_chrome_tick(elapsed)
     if not sfui.IsModuleEnabled("chat") then return end
     local strip = chat.GetTabStrip and chat.GetTabStrip()
-    local overPanel = is_mouse_over_safe(mainPanel)
-    local overStrip = is_mouse_over_safe(strip)
-    local overCopy = is_mouse_over_safe(copyBtn)
-    local overScroll = is_mouse_over_safe(scrollBtn)
-    local overQuickBar = is_mouse_over_safe(_G.CombatLogQuickButtonFrame_Custom)
-    local overFloat = chat.IsFloatingHovered and chat.IsFloatingHovered()
-    local hoverNow = (overPanel or overStrip or overCopy or overScroll or overQuickBar or overFloat) and true or false
+    local hoverNow = is_mouse_over_safe(mainPanel)
+        or is_mouse_over_safe(strip)
+        or is_mouse_over_safe(copyBtn)
+        or is_mouse_over_safe(scrollBtn)
+        or is_mouse_over_safe(_G.CombatLogQuickButtonFrame_Custom)
+        or (chat.IsFloatingHovered and chat.IsFloatingHovered())
+        or false
 
-    if hoverNow ~= isPanelHovered then
+    local scrolledNow = scrollBtn and is_active_chat_scrolled() or false
+    local copyBtnOver = copyBtn and copyBtn:IsShown() and is_mouse_over_safe(copyBtn) or false
+    local hoverChanged = (hoverNow ~= isPanelHovered)
+    local scrollChanged = (scrolledNow ~= lastScrolledState)
+    local copyOverChanged = (copyBtnOver ~= lastCopyBtnOver)
+
+    if hoverChanged or scrollChanged or copyOverChanged then
         isPanelHovered = hoverNow
+        lastScrolledState = scrolledNow
+        lastCopyBtnOver = copyBtnOver
         update_corner_buttons()
-    elseif copyBtn and chat.Get("copy_button", "hover") == "hover" then
-        update_corner_buttons()
+    end
+
+    local idleFade = chat.Get("idle_fade", false)
+    local tabFade = (chat.Get("tab_autofade", true) == true)
+    if not idleFade and not tabFade then
+        if currentChromeAlpha ~= 1.0 then apply_panel_alpha(1.0) end
+        if currentTabAlpha ~= 1.0 then apply_tab_alpha(1.0) end
+        return
     end
 
     local now = GetTime and GetTime() or 0
     local dt = elapsed or 0.1
-    local editFocused = is_any_editbox_shown()
+    local editFocused = (not hoverNow) and is_any_editbox_shown() or false
     local moversUnlocked = (sfui.movers and sfui.movers.isUnlocked) and true or false
-    local dock = _G.GENERAL_CHAT_DOCK
-    local overflowList = dock and dock.overflowButton and dock.overflowButton.list
-    local overflowShown = (overflowList and overflowList.IsShown and overflowList:IsShown()) and true or false
-    local editModeShown = (_G.EditModeManagerFrame and _G.EditModeManagerFrame.IsShown and _G.EditModeManagerFrame:IsShown()) and true or false
-    local alertingTab = (chat.HasAlertingTab and chat.HasAlertingTab()) and true or false
 
-    if chat.Get("idle_fade", false) then
+    if idleFade then
         local active = hoverNow or editFocused or moversUnlocked
         if active then
             chat.WakeIdleFade()
@@ -1137,8 +1392,16 @@ local function on_chrome_tick(elapsed)
         apply_panel_alpha(1.0)
     end
 
-    if chat.Get("tab_autofade", true) == true then
-        local tabActive = hoverNow or editFocused or moversUnlocked or editModeShown or overflowShown or alertingTab
+    if tabFade then
+        local tabActive = hoverNow or editFocused or moversUnlocked
+        if not tabActive then
+            local dock = _G.GENERAL_CHAT_DOCK
+            local overflowList = dock and dock.overflowButton and dock.overflowButton.list
+            local overflowShown = (overflowList and overflowList.IsShown and overflowList:IsShown()) and true or false
+            local editModeShown = (_G.EditModeManagerFrame and _G.EditModeManagerFrame.IsShown and _G.EditModeManagerFrame:IsShown()) and true or false
+            local alertingTab = (chat.HasAlertingTab and chat.HasAlertingTab()) and true or false
+            tabActive = overflowShown or editModeShown or alertingTab
+        end
         if tabActive then
             lastTabActivityTime = now
             if currentTabAlpha < 1.0 then
@@ -1423,7 +1686,7 @@ end
 
 function chat.RefreshFrame()
     if not sfui.IsModuleEnabled("chat") then return end
-    chat.ForEachChatFrame(function(cf)
+    chat.ForEachChatFrame(function(cf, id)
         local d = CFD(cf)
         strip_chat_chrome(cf, d)
         local bg = ensure_panel(cf, d)
@@ -1434,7 +1697,7 @@ function chat.RefreshFrame()
         update_scrollbar(cf)
         ensure_wheel_boost(cf, d)
         skin_editbox(cf, d)
-        apply_font_to_frame(cf, d)
+        apply_font_to_frame(cf, d, id)
         if cf == _G.ChatFrame1 then
             ensure_corner_buttons(bg)
         end
@@ -1468,7 +1731,7 @@ function chat.DisableFrame()
         sfui.events.UnregisterUpdate(CHROME_UPDATE_KEY)
     end
 
-    chat.ForEachChatFrame(function(cf)
+    chat.ForEachChatFrame(function(cf, id)
         local d = CFD(cf)
         if d.bg then
             if sfui.theme and sfui.theme.ClearFrameThemeLayers then
@@ -1479,7 +1742,7 @@ function chat.DisableFrame()
         if d.scrollTrack then d.scrollTrack:Hide() end
         restore_editbox(cf, d)
         restore_chat_chrome(cf, d)
-        apply_font_to_frame(cf, d)
+        apply_font_to_frame(cf, d, id)
     end)
 
     if copyBtn then copyBtn:Hide() end

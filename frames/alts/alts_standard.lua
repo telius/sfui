@@ -51,6 +51,31 @@ local GetNumSavedInstances = _G.GetNumSavedInstances
 local IsModifiedClick = _G.IsModifiedClick
 local ChatFrame_OpenChat = _G.ChatFrame_OpenChat
 local securecall = _G.securecall
+local UnitGUID = _G.UnitGUID
+
+local _standardTempProfs = {}
+local _standardTempRuns = {}
+
+local QUESTS_CORE_DONE   = { 0.40, 0.00, 1.00, 0.85 } -- #6600ff vivid purple
+local QUESTS_CORE_PROG   = { 0.18, 0.00, 0.45, 0.85 } -- dark purple
+local QUESTS_BONUS_DONE  = { 0.90, 0.52, 0.00, 0.85 } -- #e68500 amber/gold
+local QUESTS_BONUS_PROG  = { 0.40, 0.22, 0.00, 0.85 } -- dark amber
+local QUESTS_AVAIL_COLOR = { 0.06, 0.06, 0.07, 0.60 } -- near-black
+local QUESTS_CORE_TEXT   = "|cffaa66ff"
+local QUESTS_BONUS_TEXT  = "|cffffaa44"
+
+local function CompareDungeonRuns(a, b)
+    if a.level ~= b.level then return a.level > b.level end
+    return (a.durationSec or 0) < (b.durationSec or 0)
+end
+
+local function CompareStandardProfs(a, b)
+    return (a.name or "") < (b.name or "")
+end
+
+local function CompareEJInstances(a, b)
+    return a.id < b.id
+end
 
 local AcquireTable = sfui.alts.AcquireTable
 local ReleaseTable = sfui.alts.ReleaseTable
@@ -722,8 +747,9 @@ local function GetQuestStatus(def)
     end
 
     -- 2. Wrapper Quest Check
+    local isDone = sfui.common and sfui.common.is_quest_completed
     if def.wrapperID then
-        if not def.skipFlagCheck and C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(def.wrapperID) then
+        if not def.skipFlagCheck and isDone and isDone(def.wrapperID) then
             isComplete = true
             doneCount = targetCap
             return isComplete, inProgress, progressText, pNum, doneCount, targetCap
@@ -753,7 +779,7 @@ local function GetQuestStatus(def)
     -- 3. Rotating Pool / Single Quest
     if def.pool then
         for _, pID in ipairs(def.pool) do
-            if not def.skipFlagCheck and C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(pID) then
+            if not def.skipFlagCheck and isDone and isDone(pID) then
                 doneCount = doneCount + 1
             elseif C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(pID) then
                 inProgress = true
@@ -785,7 +811,7 @@ local function GetQuestStatus(def)
         end
     elseif def.questID then
         local qID = def.questID
-        if not def.skipFlagCheck and C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(qID) then
+        if not def.skipFlagCheck and isDone and isDone(qID) then
             isComplete = true
             doneCount = targetCap
         elseif C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(qID) then
@@ -994,10 +1020,7 @@ local function PerformSync(data, isLogout)
                         durationSec = r.durationSec or 0,
                     })
                 end
-                table.sort(data.vault.dungeonRuns, function(a, b)
-                    if a.level ~= b.level then return a.level > b.level end
-                    return (a.durationSec or 0) < (b.durationSec or 0)
-                end)
+                table.sort(data.vault.dungeonRuns, CompareDungeonRuns)
             end
         end
     end
@@ -1255,7 +1278,7 @@ local function PerformSync(data, isLogout)
                     if tracking.treatise then
                         pData.total = pData.total + 1
                         for _, qid in ipairs(tracking.treatise) do
-                            if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(qid) then
+                            if sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(qid) then
                                 pData.done = pData.done + 1
                                 d.treatise = true
                                 break
@@ -1266,7 +1289,7 @@ local function PerformSync(data, isLogout)
                     if tracking.quest then
                         pData.total = pData.total + 1
                         for _, qid in ipairs(tracking.quest) do
-                            if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(qid) then
+                            if sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(qid) then
                                 pData.done = pData.done + 1
                                 d.quest = true
                                 break
@@ -1278,7 +1301,7 @@ local function PerformSync(data, isLogout)
                         pData.total = pData.total + #tracking.treasures
                         for _, tList in ipairs(tracking.treasures) do
                             for _, qid in ipairs(tList) do
-                                if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(qid) then
+                                if sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(qid) then
                                     pData.done = pData.done + 1
                                     d.treasures = d.treasures + 1
                                     break
@@ -1393,6 +1416,485 @@ local function GetVaultTrack(g, l, ilvl)
     return nil
 end
 
+local function StandardUnderCapILvl_OnEnter(self)
+    local altData = self._altData
+    if not altData then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(string.format("Level %d", altData.level or 0), 1, 1, 1)
+    GameTooltip:AddDoubleLine("item level:", string.format("%.1f", self._val or 0), NORMAL_FONT_COLOR.r,
+        NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 1, 1)
+    GameTooltip:Show()
+end
+
+local function StandardRating_OnEnter(self)
+    local altData = self._altData
+    local val = self._val
+    if not altData or not val then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("mythic+ rating", 1, 1, 1)
+    local rColor = C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor and
+        C_ChallengeMode.GetDungeonScoreRarityColor(val)
+    local rr, rg, rb = 1, 1, 1
+    if rColor then rr, rg, rb = rColor.r, rColor.g, rColor.b end
+    GameTooltip:AddDoubleLine("overall:", tostring(val), 1, 1, 1, rr, rg, rb)
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("best keys this season:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g,
+        NORMAL_FONT_COLOR.b)
+    local maps = (C_ChallengeMode and C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable()) or {}
+    for _, mID in ipairs(maps) do
+        local mName = C_ChallengeMode.GetMapUIInfo(mID)
+        local dData = altData.dungeons and altData.dungeons[mID]
+        local lvl   = dData and dData.level or 0
+        local timed = dData and dData.timed or 0
+        local lvlStr, lr, lg, lb
+        if lvl > 0 then
+            if lvl > timed then
+                lvlStr = "+" .. lvl .. "†"
+                lr, lg, lb = 0.5, 0.5, 0.5
+            else
+                lvlStr = "+" .. timed
+                local kc = C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
+                if timed >= 12 then
+                    lr, lg, lb = 1, 0.5, 0
+                elseif kc then
+                    lr, lg, lb = kc.r, kc.g, kc.b
+                else
+                    lr, lg, lb = 1, 1, 1
+                end
+            end
+        else
+            lvlStr = "-"
+            lr, lg, lb = 0.4, 0.4, 0.4
+        end
+        GameTooltip:AddDoubleLine(mName or "?", lvlStr, 1, 1, 1, lr, lg, lb)
+    end
+    GameTooltip:Show()
+end
+
+local function StandardKeystone_OnEnter(self)
+    local ksSnap = self._ksSnap
+    if not ksSnap then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if ksSnap.link then
+        GameTooltip:SetHyperlink(ksSnap.link)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("<shift-click to link>", GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g,
+            GREEN_FONT_COLOR.b)
+    else
+        local fullName = ksSnap.mapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and
+            C_ChallengeMode.GetMapUIInfo(ksSnap.mapID)
+        GameTooltip:SetText(fullName or ksSnap.name or "Keystone")
+        GameTooltip:AddLine("+" .. ksSnap.level, 1, 1, 1)
+    end
+    GameTooltip:Show()
+end
+
+local function StandardKeystone_OnMouseUp(self)
+    local ksSnap = self._ksSnap
+    if not ksSnap then return end
+    if IsModifiedClick("CHATLINK") and ksSnap.link then
+        if not (sfui.common and sfui.common.insert_link_to_chat and sfui.common.insert_link_to_chat(ksSnap.link)) then
+            if ChatFrame_OpenChat then ChatFrame_OpenChat(ksSnap.link) end
+        end
+    end
+end
+
+local function StandardDungeon_OnEnter(self)
+    local mapID = self._mapID
+    local best = self._best
+    local isKnown = self._isKnown
+    if not mapID then return end
+    local fullName = C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(mapID)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(fullName or "Dungeon")
+    if best and best.level > 0 then
+        local timed = best.timed or 0
+        if timed > 0 then
+            local timedColor = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and
+                C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
+            local tr, tg, tb = 1, 1, 1
+            if timed >= 12 then
+                tr, tg, tb = 1, 0.5, 0
+            elseif timedColor then
+                tr, tg, tb = timedColor.r, timedColor.g, timedColor.b
+            end
+            GameTooltip:AddDoubleLine("timed:", "+" .. timed, 1, 1, 1, tr, tg, tb)
+        end
+        if best.level > timed then
+            GameTooltip:AddDoubleLine("best (depleted):", "+" .. best.level, 1, 1, 1, 0.5, 0.5, 0.5)
+        end
+    else
+        GameTooltip:AddLine("not yet completed.", 0.5, 0.5, 0.5)
+    end
+    if isKnown and not InCombatLockdown() then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("<left-click to cast dungeon teleport>", 0.2, 1.0, 0.4)
+        sfui.portals.ArmDungeon(mapID, self)
+    end
+    GameTooltip:Show()
+end
+
+local function StandardDungeon_OnLeave()
+    sfui.portals.Disarm()
+    GameTooltip:Hide()
+end
+
+local function StandardCurrency_OnEnter(self)
+    if not GameTooltip then return end
+    local tooltipLines = self._tooltipLines
+    local count = self._tooltipLineCount or 0
+    local cat = self._cat
+    local isGroup = self._isGroup
+    if not tooltipLines or not cat then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if not isGroup then
+        local tLine = tooltipLines[1]
+        if tLine and tLine.itemConfig then
+            local name = tLine.name or ResolveCurrencyOrItemName(tLine.itemConfig)
+
+            GameTooltip:AddLine(string.format("|T%s:16:16:0:0|t %s", tostring(tLine.itemConfig.icon or 134400), name))
+
+            if tLine.cData and type(tLine.cData) == "table" then
+                if tLine.hasWeeklyLimit and tLine.weeklyMax > 0 then
+                    GameTooltip:AddDoubleLine("weekly earned:",
+                        string.format("%d / %d", tLine.weeklyEarned or 0, tLine.weeklyMax), 1, 1, 1, 1, 1, 1)
+                elseif tLine.displayMaxQuantity > 0 then
+                    if tLine.cData.useTotalEarned then
+                        GameTooltip:AddDoubleLine("season earned:",
+                            string.format("%d / %d", tLine.cData.totalEarned or 0, tLine.displayMaxQuantity), 1, 1, 1, 1, 1, 1)
+                    else
+                        GameTooltip:AddDoubleLine("holding cap:",
+                            string.format("%d / %d", tLine.cData.val or 0, tLine.displayMaxQuantity), 1, 1, 1, 1, 1, 1)
+                    end
+                else
+                    local val = tLine.cData.val or 0
+                    GameTooltip:AddDoubleLine("total:", tostring(val), 1, 1, 1, 1, 1, 1)
+                end
+                if tLine.isCapped then
+                    local capMsg = tLine.hasWeeklyLimit and "weekly cap reached!" or
+                        (tLine.cData.useTotalEarned and "season cap reached!" or "holding cap reached!")
+                    GameTooltip:AddLine(capMsg, 1, 0, 0)
+                end
+            else
+                local val = tLine.cData or 0
+                GameTooltip:AddDoubleLine("total:", tostring(val), 1, 1, 1, 1, 1, 1)
+            end
+        end
+        GameTooltip:Show()
+        return
+    end
+
+    GameTooltip:AddLine(cat.label or "currencies", 1, 1, 1)
+    for idx = 1, count do
+        local tLine = tooltipLines[idx]
+        local name = tLine.name or ResolveCurrencyOrItemName(tLine.itemConfig)
+        local icon = tLine.itemConfig and tLine.itemConfig.icon
+        local iconPrefix = (icon and icon ~= 0 and icon ~= "") and string.format("|T%s:14:14:0:0|t ", tostring(icon)) or ""
+        local cData = tLine.cData
+        local val = tLine.count or 0
+        local maxQty = tLine.displayMaxQuantity or 0
+        local earned = tLine.earned or val
+
+        if tLine.itemConfig and tLine.itemConfig.isSparkDust then
+            GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
+                string.format("%d in bags", val), 1, 1, 1, 1, 1, 1)
+            if maxQty > 0 then
+                local statusColor = earned >= maxQty and "|cff00ff88" or
+                    (earned > 0 and "|cffffaa00" or "|cffff4444")
+                GameTooltip:AddDoubleLine("season earned / cap:",
+                    string.format("%s%d / %d|r", statusColor, earned, maxQty), 1, 1, 1, 1, 1, 1)
+            end
+        elseif cData and type(cData) == "table" then
+            if tLine.hasWeeklyLimit and tLine.weeklyMax > 0 then
+                GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
+                    string.format("%d (weekly: %d / %d)", val, tLine.weeklyEarned or 0, tLine.weeklyMax), 1, 1, 1, 1, 1, 1)
+            elseif maxQty > 0 then
+                if cData.useTotalEarned then
+                    GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
+                        string.format("%d (season: %d / %d)", val, earned, maxQty), 1, 1, 1, 1, 1, 1)
+                else
+                    GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
+                        string.format("%d (holding cap: %d / %d)", val, val, maxQty), 1, 1, 1, 1, 1, 1)
+                end
+            else
+                GameTooltip:AddDoubleLine(iconPrefix .. name .. ":", tostring(val), 1, 1, 1, 1, 1, 1)
+            end
+            if tLine.isCapped then
+                local capMsg = tLine.hasWeeklyLimit and "weekly cap reached!" or
+                    (cData.useTotalEarned and "season cap reached!" or "holding cap reached!")
+                GameTooltip:AddLine(capMsg, 1, 0, 0)
+            end
+        else
+            GameTooltip:AddDoubleLine(iconPrefix .. name .. ":", tostring(val), 1, 1, 1, 1, 1, 1)
+        end
+    end
+    GameTooltip:Show()
+end
+
+local function StandardQuestsGrid_OnEnter(self)
+    local q = self._q
+    local BLOCKS = self._blocks
+    if not BLOCKS then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("weekly quests (champion+ gear)")
+
+    -- Core group header
+    GameTooltip:AddLine("|cffaa66ffpinnacle caches (champion track)|r", 1, 1, 1)
+    for _, block in ipairs(BLOCKS) do
+        if block.group == "core" then
+            local status = q and q[block.key]
+            local color  = "|cff555555"
+            local valStr = "not started"
+            if status then
+                if status.completed then
+                    color  = QUESTS_CORE_TEXT
+                    valStr = "completed"
+                elseif status.progressText then
+                    color  = "|cff886699"
+                    valStr = status.progressText
+                elseif status.progress and status.progress > 0 then
+                    color  = "|cff886699"
+                    valStr = status.progress .. "%"
+                elseif status.active then
+                    color  = "|cff886699"
+                    valStr = "in progress"
+                end
+            end
+            GameTooltip:AddDoubleLine(block.label, color .. valStr .. "|r", 1, 1, 1, 1, 1, 1)
+        end
+    end
+
+    -- Bonus group header
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("|cffffaa44delves, prey & event caches (champion / hero)|r", 1, 1, 1)
+    for _, block in ipairs(BLOCKS) do
+        if block.group == "bonus" then
+            local status = q and q[block.key]
+            local color  = "|cff555555"
+            local valStr = "not started"
+            if block.key == "twRaid" and not (status and (status.completed or status.active)) then
+                valStr = "no tw event active"
+            elseif block.key == "bonusEvent" and not (status and (status.completed or status.active)) then
+                valStr = "no event quest taken"
+            end
+            if status then
+                if status.completed then
+                    color  = QUESTS_BONUS_TEXT
+                    valStr = "completed"
+                elseif block.isCount and status.done and status.done > 0 then
+                    color  = "|cffcc8833"
+                    valStr = string.format("%d / %d", status.done, status.total or 4)
+                elseif status.progressText then
+                    color  = "|cffcc8833"
+                    valStr = status.progressText
+                elseif status.active or (status.progress and status.progress > 0) then
+                    color  = "|cffcc8833"
+                    valStr = "in progress"
+                end
+            end
+            GameTooltip:AddDoubleLine(block.label, color .. valStr .. "|r", 1, 1, 1, 1, 1, 1)
+        end
+    end
+
+    if q and q.gildedStash and not q.gildedStash.active and not q.gildedStash.completed then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cff888888stash updates near silvermoon delve hub|r")
+    end
+    GameTooltip:Show()
+end
+
+local function StandardProfSlot_OnEnter(self)
+    local pData = self._profData
+    if not pData then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(((pData.name or "profession") .. " knowledge"):lower())
+    GameTooltip:AddDoubleLine("skill level:", string.format("%d", pData.skill or 0), 1, 1, 1, 1, 1, 1)
+    if pData.catchUp and pData.catchUp > 0 then
+        GameTooltip:AddDoubleLine("catch-up available:", pData.catchUp, 1, 0.82, 0, 1, 0.82, 0)
+    end
+
+    if pData.total and pData.total > 0 then
+        GameTooltip:AddLine("weekly progress", 1, 1, 1)
+        local tStr = (pData.details and pData.details.treatise) and "|cff00ff00Done|r" or "|cffff0000Missing|r"
+        GameTooltip:AddDoubleLine("treatise:", tStr, 1, 1, 1, 1, 1, 1)
+        local qStr = (pData.details and pData.details.quest) and "|cff00ff00Done|r" or "|cffff0000Missing|r"
+        GameTooltip:AddDoubleLine("weekly quest/patron:", qStr, 1, 1, 1, 1, 1, 1)
+        if pData.details and pData.details.treasuresMax and pData.details.treasuresMax > 0 then
+            local gColor = (pData.details.treasures or 0) >= pData.details.treasuresMax and "|cff00ff00" or "|cffff0000"
+            GameTooltip:AddDoubleLine("treasures/drops:",
+                string.format("%s%d / %d|r", gColor, pData.details.treasures or 0,
+                    pData.details.treasuresMax), 1, 1, 1, 1, 1, 1)
+        end
+    end
+    GameTooltip:Show()
+end
+
+local function StandardVaultRow_OnEnter(self)
+    local cat = self._cat
+    local group = self._group
+    local altData = self._altData
+    local altGuid = self._guid
+    if not cat or not group or not altData then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("great vault: " .. (cat.label or group))
+    local vGroup = altData.vault and altData.vault[group]
+
+    if altData.vault and altData.vault.hasReward then
+        GameTooltip:AddLine("✨ reward ready to claim!", 1, 0.82, 0)
+        GameTooltip:AddLine(" ")
+    end
+
+    for idx = 1, 3 do
+        local v = vGroup and vGroup[idx]
+        if group == "world" and idx == 2 and v and (v.id == 229 or v.threshold == 3) then
+            v.id = 208
+            v.threshold = 4
+            if not v.level or v.level == 0 then
+                local s3 = vGroup[3]
+                local s1 = vGroup[1]
+                if s3 and s3.level and s3.level > 0 then
+                    v.level = s3.level
+                    v.itemLevel = v.itemLevel or s3.itemLevel
+                elseif s1 and s1.level and s1.level > 0 then
+                    v.level = s1.level
+                    v.itemLevel = v.itemLevel or s1.itemLevel
+                end
+            end
+        end
+
+        if v and v.threshold and v.threshold > 0 then
+            local isUnlocked = (v.progress or 0) >= v.threshold
+            local statusStr = isUnlocked and "|cff00ff00Unlocked|r" or
+                string.format("%d/%d", v.progress or 0, v.threshold)
+
+            local detailParts = {}
+            if v.level and v.level > 0 then
+                local diffName
+                if group == "raid" then
+                    diffName = GetDifficultyName(v.level)
+                elseif group == "dungeon" then
+                    diffName = (v.level >= 2 and string.format("+%d", v.level)) or "M0"
+                else
+                    diffName = string.format("Tier %d", v.level)
+                end
+                table.insert(detailParts, diffName)
+            end
+
+            local ilvl = GetVaultItemLevel(group, v.level, v)
+            local track = GetVaultTrack(group, v.level, ilvl)
+            if ilvl and (isUnlocked or (v.level and v.level > 0)) then
+                if track then
+                    table.insert(detailParts, string.format("|cffffd100%d ilvl|r (%s)", ilvl, track))
+                else
+                    table.insert(detailParts, string.format("|cffffd100%d ilvl|r", ilvl))
+                end
+            end
+
+            local extraStr = ""
+            if #detailParts > 0 then
+                extraStr = " (" .. table.concat(detailParts, " — ") .. ")"
+            end
+
+            GameTooltip:AddDoubleLine("slot " .. idx .. ":", statusStr .. extraStr, 1, 1, 1, 1, 1, 1)
+        end
+    end
+
+    -- Dungeon Great Vault: list the 10 runs that populate the vault with 1, 4, 10 highlighted
+    if group == "dungeon" then
+        local runs = altData.vault and altData.vault.dungeonRuns
+        local isPlayer = (altGuid and altGuid == UnitGUID("player")) or
+            (altGuid and altGuid == GetCurrentCharacterGUID())
+        if (not runs or #runs == 0) and isPlayer and C_MythicPlus and C_MythicPlus.GetRunHistory then
+            local weeklyRuns = C_MythicPlus.GetRunHistory(false, true)
+            if weeklyRuns and #weeklyRuns > 0 then
+                runs = _standardTempRuns
+                wipe(runs)
+                for _, r in ipairs(weeklyRuns) do
+                    local dName = (C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(r.mapChallengeModeID)) or
+                        ("Map " .. tostring(r.mapChallengeModeID))
+                    table.insert(runs, {
+                        mapID = r.mapChallengeModeID,
+                        level = r.level,
+                        name = dName,
+                        completed = r.completed,
+                        durationSec = r.durationSec or 0,
+                    })
+                end
+                table.sort(runs, CompareDungeonRuns)
+            end
+        end
+
+        if runs and #runs > 0 then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("weekly runs (top 10):", 1, 0.82, 0)
+            for rIdx = 1, math.min(10, #runs) do
+                local r = runs[rIdx]
+                local isMilestone = (rIdx == 1 or rIdx == 4 or rIdx == 10)
+                local prefix = string.format("%2d. ", rIdx)
+                local dName = r.name or "Dungeon"
+                local lvlStr = string.format("+%d", r.level or 0)
+                if r.completed == false then
+                    lvlStr = lvlStr .. " |cffff5555(Depleted)|r"
+                end
+
+                if isMilestone then
+                    local slotTag = (rIdx == 1 and "  [Slot 1]") or (rIdx == 4 and "  [Slot 2]") or "  [Slot 3]"
+                    GameTooltip:AddDoubleLine(
+                        string.format("|cff00ffff%s%s%s|r", prefix, dName, slotTag),
+                        string.format("|cff00ffff%s|r", lvlStr),
+                        0, 1, 1, 0, 1, 1
+                    )
+                else
+                    GameTooltip:AddDoubleLine(
+                        string.format("|cffbbbbbb%s%s|r", prefix, dName),
+                        string.format("|cffffffff%s|r", lvlStr),
+                        0.7, 0.7, 0.7, 1, 1, 1
+                    )
+                end
+            end
+        else
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("no mythic+ runs recorded this week.", 0.5, 0.5, 0.5)
+        end
+    end
+
+    GameTooltip:Show()
+end
+
+local function StandardM0Grid_OnEnter(self)
+    local ejInstances = self._ejInstances
+    local m0Data = self._m0Data
+    if not ejInstances then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("mythic 0 lockouts")
+    for _, inst in ipairs(ejInstances) do
+        local isLocked = m0Data and m0Data[inst.id]
+        local status = isLocked and "|cff00ffffCompleted|r" or "|cff888888Available|r"
+        GameTooltip:AddDoubleLine(inst.name, status, 1, 1, 1, 1, 1, 1)
+    end
+    GameTooltip:Show()
+end
+
+local function StandardRaidGrid_OnEnter(self)
+    local difficulty = self._difficulty
+    local bossData = self._bossData
+    local cat = self._cat
+    local numBosses = self._val or 8
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    local diffName = (difficulty == 16 and "Mythic") or (difficulty == 15 and "Heroic") or "Normal"
+    GameTooltip:SetText((cat and cat.label) or (diffName .. " Raid"))
+    local killed = 0
+    if bossData then
+        for bIdx = 1, numBosses do
+            if bossData[bIdx] then killed = killed + 1 end
+        end
+    end
+    GameTooltip:AddDoubleLine("progress:", string.format("%d / %d bosses", killed, numBosses), 1, 1, 1, 1, 1, 1)
+    GameTooltip:Show()
+end
+
 local function RenderCell(cell, cat, altData, classColor, col, altGuid)
     local text = cell.text
     if not text then return false end
@@ -1405,17 +1907,13 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetTextColor(unpack(sfui.config.colors.white))
             if val and val > 0 then
                 cell:EnableMouse(true)
-                cell:SetScript("OnEnter", function(self)
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    GameTooltip:AddLine(string.format("Level %d", altData.level or 0), 1, 1, 1)
-                    GameTooltip:AddDoubleLine("item level:", string.format("%.1f", val), NORMAL_FONT_COLOR.r,
-                        NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 1, 1)
-                    GameTooltip:Show()
-                end)
-                cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                cell._altData = altData
+                cell._val = val
+                cell._onEnter = StandardUnderCapILvl_OnEnter
+                cell._onLeave = nil
             else
-                cell:SetScript("OnEnter", nil)
-                cell:SetScript("OnLeave", nil)
+                cell._onEnter = nil
+                cell._onLeave = nil
             end
         else
             if cat.key == "rating" and (val == 0 or not val) then
@@ -1429,57 +1927,18 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             end
             if cat.key == "rating" and val > 0 then
                 local color = C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor and
-                C_ChallengeMode.GetDungeonScoreRarityColor(val)
+                    C_ChallengeMode.GetDungeonScoreRarityColor(val)
                 if color then
                     text:SetTextColor(color.r, color.g, color.b)
                 end
                 cell:EnableMouse(true)
-                cell:SetScript("OnEnter", function(self)
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    GameTooltip:AddLine("mythic+ rating", 1, 1, 1)
-                    local rColor = C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor and
-                    C_ChallengeMode.GetDungeonScoreRarityColor(val)
-                    local rr, rg, rb = 1, 1, 1
-                    if rColor then rr, rg, rb = rColor.r, rColor.g, rColor.b end
-                    GameTooltip:AddDoubleLine("overall:", tostring(val), 1, 1, 1, rr, rg, rb)
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("best keys this season:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g,
-                        NORMAL_FONT_COLOR.b)
-                    local maps = (C_ChallengeMode and C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable()) or
-                    {}
-                    for _, mID in ipairs(maps) do
-                        local mName = C_ChallengeMode.GetMapUIInfo(mID)
-                        local dData = altData.dungeons and altData.dungeons[mID]
-                        local lvl   = dData and dData.level or 0
-                        local timed = dData and dData.timed or 0
-                        local lvlStr, lr, lg, lb
-                        if lvl > 0 then
-                            if lvl > timed then
-                                lvlStr = "+" .. lvl .. "†"
-                                lr, lg, lb = 0.5, 0.5, 0.5
-                            else
-                                lvlStr = "+" .. timed
-                                local kc = C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
-                                if timed >= 12 then
-                                    lr, lg, lb = 1, 0.5, 0
-                                elseif kc then
-                                    lr, lg, lb = kc.r, kc.g, kc.b
-                                else
-                                    lr, lg, lb = 1, 1, 1
-                                end
-                            end
-                        else
-                            lvlStr = "-"
-                            lr, lg, lb = 0.4, 0.4, 0.4
-                        end
-                        GameTooltip:AddDoubleLine(mName or "?", lvlStr, 1, 1, 1, lr, lg, lb)
-                    end
-                    GameTooltip:Show()
-                end)
-                cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                cell._altData = altData
+                cell._val = val
+                cell._onEnter = StandardRating_OnEnter
+                cell._onLeave = nil
             else
-                cell:SetScript("OnEnter", nil)
-                cell:SetScript("OnLeave", nil)
+                cell._onEnter = nil
+                cell._onLeave = nil
             end
         end
         return true
@@ -1526,37 +1985,17 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 text:SetTextColor(unpack(sfui.config.colors.white))
             end
 
-            local ksSnap = ks
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                if ksSnap.link then
-                    GameTooltip:SetHyperlink(ksSnap.link)
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("<shift-click to link>", GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g,
-                        GREEN_FONT_COLOR.b)
-                else
-                    local fullName = ksSnap.mapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and
-                    C_ChallengeMode.GetMapUIInfo(ksSnap.mapID)
-                    GameTooltip:SetText(fullName or ksSnap.name or "Keystone")
-                    GameTooltip:AddLine("+" .. ksSnap.level, 1, 1, 1)
-                end
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
-            cell:SetScript("OnMouseUp", function()
-                if IsModifiedClick("CHATLINK") and ksSnap.link then
-                    if not (sfui.common and sfui.common.insert_link_to_chat and sfui.common.insert_link_to_chat(ksSnap.link)) then
-                        if ChatFrame_OpenChat then ChatFrame_OpenChat(ksSnap.link) end
-                    end
-                end
-            end)
+            cell._ksSnap = ks
+            cell._onEnter = StandardKeystone_OnEnter
+            cell._onLeave = nil
+            cell._onMouseUp = StandardKeystone_OnMouseUp
         else
             text:SetText("-")
             text:SetTextColor(0.5, 0.5, 0.5)
-            cell:SetScript("OnEnter", nil)
-            cell:SetScript("OnLeave", nil)
-            cell:SetScript("OnMouseUp", nil)
+            cell._onEnter = nil
+            cell._onLeave = nil
+            cell._onMouseUp = nil
         end
         return true
     elseif cat.type == "dungeon" then
@@ -1589,7 +2028,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             else
                 text:SetText(tostring(timed))
                 local color = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and
-                C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
+                    C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
                 if timed >= 12 then
                     text:SetTextColor(1, 0.5, 0)
                 elseif color then
@@ -1604,47 +2043,23 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            local fullName = C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(mapID)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(fullName or "Dungeon")
-            if best and best.level > 0 then
-                local timed = best.timed or 0
-                if timed > 0 then
-                    local timedColor = C_ChallengeMode and C_ChallengeMode.GetKeystoneLevelRarityColor and
-                    C_ChallengeMode.GetKeystoneLevelRarityColor(timed)
-                    local tr, tg, tb = 1, 1, 1
-                    if timed >= 12 then
-                        tr, tg, tb = 1, 0.5, 0
-                    elseif timedColor then
-                        tr, tg, tb = timedColor.r, timedColor.g, timedColor.b
-                    end
-                    GameTooltip:AddDoubleLine("timed:", "+" .. timed, 1, 1, 1, tr, tg, tb)
-                end
-                if best.level > timed then
-                    GameTooltip:AddDoubleLine("best (depleted):", "+" .. best.level, 1, 1, 1, 0.5, 0.5, 0.5)
-                end
-            else
-                GameTooltip:AddLine("not yet completed.", 0.5, 0.5, 0.5)
-            end
-            if isKnown and not InCombatLockdown() then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("<left-click to cast dungeon teleport>", 0.2, 1.0, 0.4)
-                sfui.portals.ArmDungeon(mapID, self)
-            end
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function()
-            sfui.portals.Disarm()
-            GameTooltip:Hide()
-        end)
+        cell._mapID = mapID
+        cell._best = best
+        cell._isKnown = isKnown
+        cell._onEnter = StandardDungeon_OnEnter
+        cell._onLeave = StandardDungeon_OnLeave
         return true
     elseif cat.type == "currency" or cat.type == "currency_group" then
         local isGroup = (cat.type == "currency_group")
         local items = isGroup and cat.items or { cat }
 
         local displayText = ""
-        local tooltipLines = {}
+        local tooltipLines = cell._tooltipLines
+        if not tooltipLines then
+            tooltipLines = {}
+            cell._tooltipLines = tooltipLines
+        end
+        local tlCount = 0
 
         for _, itemConfig in ipairs(items) do
             -- Re-query icon if not yet cached on startup
@@ -1708,7 +2123,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
 
             local val = cData and (type(cData) == "table" and cData.val or cData) or 0
             local currentEarned = cData and type(cData) == "table" and
-            (cData.useTotalEarned and cData.totalEarned or cData.val) or val
+                (cData.useTotalEarned and cData.totalEarned or cData.val) or val
             local displayVal
             if itemConfig.showSeasonEarned and displayMaxQuantity > 0 then
                 displayVal = string.format("%d/%d", currentEarned, displayMaxQuantity)
@@ -1735,7 +2150,7 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                     string.format("|T%s:12:12:0:0|t %s%s|r", tostring(itemConfig.icon or 134400), colorCode, displayVal)
             elseif isCapped then
                 local errCol = (sfui.config.appearance and sfui.config.appearance.errorColor) or
-                { 1, 0.2, 0.2 }
+                    { 1, 0.2, 0.2 }
                 local r, g, b = unpack(errCol)
                 local colorCode = "|cff" .. sfui.colors.rgb_to_hex(r, g, b)
                 displayText = displayText ..
@@ -1744,110 +2159,34 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 displayText = displayText .. string.format("|T%s:12:12:0:0|t %s", tostring(itemConfig.icon or 134400), displayVal)
             end
 
-            table.insert(tooltipLines, {
-                itemConfig = itemConfig,
-                cData = cData,
-                isCapped = isCapped,
-                displayMaxQuantity = displayMaxQuantity,
-                count = val,
-                earned = currentEarned,
-                max = displayMaxQuantity,
-                hasWeeklyLimit = hasWeeklyLimit,
-                weeklyEarned = weeklyEarned,
-                weeklyMax = weeklyMax,
-            })
+            tlCount = tlCount + 1
+            local tLine = tooltipLines[tlCount]
+            if not tLine then
+                tLine = {}
+                tooltipLines[tlCount] = tLine
+            end
+            tLine.itemConfig = itemConfig
+            tLine.cData = cData
+            tLine.isCapped = isCapped
+            tLine.displayMaxQuantity = displayMaxQuantity
+            tLine.count = val
+            tLine.earned = currentEarned
+            tLine.max = displayMaxQuantity
+            tLine.hasWeeklyLimit = hasWeeklyLimit
+            tLine.weeklyEarned = weeklyEarned
+            tLine.weeklyMax = weeklyMax
+            tLine.name = nil
         end
 
         text:SetText(displayText)
         text:SetTextColor(unpack(sfui.config.colors.white))
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            if not GameTooltip then return end
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            if not isGroup then
-                local tLine = tooltipLines[1]
-                if tLine and tLine.itemConfig then
-                    local name = tLine.name or ResolveCurrencyOrItemName(tLine.itemConfig)
-
-                    GameTooltip:AddLine(string.format("|T%s:16:16:0:0|t %s", tostring(tLine.itemConfig.icon or 134400), name))
-
-                    if tLine.cData and type(tLine.cData) == "table" then
-                        if tLine.hasWeeklyLimit and tLine.weeklyMax > 0 then
-                            GameTooltip:AddDoubleLine("weekly earned:",
-                                string.format("%d / %d", tLine.weeklyEarned or 0, tLine.weeklyMax), 1, 1, 1, 1, 1, 1)
-                        elseif tLine.displayMaxQuantity > 0 then
-                            if tLine.cData.useTotalEarned then
-                                GameTooltip:AddDoubleLine("season earned:",
-                                    string.format("%d / %d", tLine.cData.totalEarned or 0, tLine.displayMaxQuantity), 1, 1, 1, 1, 1, 1)
-                            else
-                                GameTooltip:AddDoubleLine("holding cap:",
-                                    string.format("%d / %d", tLine.cData.val or 0, tLine.displayMaxQuantity), 1, 1, 1, 1, 1, 1)
-                            end
-                        else
-                            local val = tLine.cData.val or 0
-                            GameTooltip:AddDoubleLine("total:", tostring(val), 1, 1, 1, 1, 1, 1)
-                        end
-                        if tLine.isCapped then
-                            local capMsg = tLine.hasWeeklyLimit and "weekly cap reached!" or
-                                (tLine.cData.useTotalEarned and "season cap reached!" or "holding cap reached!")
-                            GameTooltip:AddLine(capMsg, 1, 0, 0)
-                        end
-                    else
-                        local val = tLine.cData or 0
-                        GameTooltip:AddDoubleLine("total:", tostring(val), 1, 1, 1, 1, 1, 1)
-                    end
-                end
-                GameTooltip:Show()
-                return
-            end
-
-            GameTooltip:AddLine(cat.label or "currencies", 1, 1, 1)
-            for _, tLine in ipairs(tooltipLines) do
-                local name = tLine.name or ResolveCurrencyOrItemName(tLine.itemConfig)
-                local icon = tLine.itemConfig and tLine.itemConfig.icon
-                local iconPrefix = (icon and icon ~= 0 and icon ~= "") and string.format("|T%s:14:14:0:0|t ", tostring(icon)) or ""
-                local cData = tLine.cData
-                local val = tLine.count or 0
-                local maxQty = tLine.displayMaxQuantity or 0
-                local earned = tLine.earned or val
-
-                if tLine.itemConfig and tLine.itemConfig.isSparkDust then
-                    GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
-                        string.format("%d in bags", val), 1, 1, 1, 1, 1, 1)
-                    if maxQty > 0 then
-                        local statusColor = earned >= maxQty and "|cff00ff88" or
-                        (earned > 0 and "|cffffaa00" or "|cffff4444")
-                        GameTooltip:AddDoubleLine("season earned / cap:",
-                            string.format("%s%d / %d|r", statusColor, earned, maxQty), 1, 1, 1, 1, 1, 1)
-                    end
-                elseif cData and type(cData) == "table" then
-                    if tLine.hasWeeklyLimit and tLine.weeklyMax > 0 then
-                        GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
-                            string.format("%d (weekly: %d / %d)", val, tLine.weeklyEarned or 0, tLine.weeklyMax), 1, 1, 1, 1, 1, 1)
-                    elseif maxQty > 0 then
-                        if cData.useTotalEarned then
-                            GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
-                                string.format("%d (season: %d / %d)", val, earned, maxQty), 1, 1, 1, 1, 1, 1)
-                        else
-                            GameTooltip:AddDoubleLine(iconPrefix .. name .. ":",
-                                string.format("%d (holding cap: %d / %d)", val, val, maxQty), 1, 1, 1, 1, 1, 1)
-                        end
-                    else
-                        GameTooltip:AddDoubleLine(iconPrefix .. name .. ":", tostring(val), 1, 1, 1, 1, 1, 1)
-                    end
-                    if tLine.isCapped then
-                        local capMsg = tLine.hasWeeklyLimit and "weekly cap reached!" or
-                            (cData.useTotalEarned and "season cap reached!" or "holding cap reached!")
-                        GameTooltip:AddLine(capMsg, 1, 0, 0)
-                    end
-                else
-                    GameTooltip:AddDoubleLine(iconPrefix .. name .. ":", tostring(val), 1, 1, 1, 1, 1, 1)
-                end
-            end
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        cell._cat = cat
+        cell._isGroup = isGroup
+        cell._tooltipLineCount = tlCount
+        cell._onEnter = StandardCurrency_OnEnter
+        cell._onLeave = nil
         return true
     elseif cat.type == "quests_grid" then
         local minLevel = (_G.GetMaxPlayerLevel and _G.GetMaxPlayerLevel() - 10) or 70
@@ -1863,24 +2202,14 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 if cell["qCount" .. bIdx] then cell["qCount" .. bIdx]:Hide() end
             end
             cell:EnableMouse(false)
-            cell:SetScript("OnEnter", nil)
-            cell:SetScript("OnLeave", nil)
+            cell._onEnter = nil
+            cell._onLeave = nil
         else
             text:Hide()
             local q           = altData.quests
 
             -- Block definitions sourced from sfui.season.WEEKLY_QUESTS
             local BLOCKS      = sfui.season.WEEKLY_QUESTS
-            -- Colours: completed / inProgress / available — per group
-            local CORE_DONE   = { 0.40, 0.00, 1.00, 0.85 } -- #6600ff vivid purple
-            local CORE_PROG   = { 0.18, 0.00, 0.45, 0.85 } -- dark purple
-            local BONUS_DONE  = { 0.90, 0.52, 0.00, 0.85 } -- #e68500 amber/gold
-            local BONUS_PROG  = { 0.40, 0.22, 0.00, 0.85 } -- dark amber
-            local AVAIL_COLOR = { 0.06, 0.06, 0.07, 0.60 } -- near-black
-
-            local CORE_TEXT   = "|cffaa66ff"               -- light purple for tooltip
-            local BONUS_TEXT  = "|cffffaa44"               -- light amber for tooltip
-
             local numBlocks   = #BLOCKS
             local GAP         = 6 -- px gap between core and bonus group
             local totalW      = cfg.columnWidth - 10
@@ -1897,23 +2226,23 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
                 local status   = q and q[block.key]
                 local isDone   = status and status.completed
                 local isActive = status and
-                (status.active or (status.progress and status.progress > 0) or (status.done and status.done > 0 and not isDone))
+                    (status.active or (status.progress and status.progress > 0) or (status.done and status.done > 0 and not isDone))
 
                 if block.group == "core" then
                     if isDone then
-                        rect:SetColorTexture(unpack(CORE_DONE))
+                        rect:SetColorTexture(unpack(QUESTS_CORE_DONE))
                     elseif isActive then
-                        rect:SetColorTexture(unpack(CORE_PROG))
+                        rect:SetColorTexture(unpack(QUESTS_CORE_PROG))
                     else
-                        rect:SetColorTexture(unpack(AVAIL_COLOR))
+                        rect:SetColorTexture(unpack(QUESTS_AVAIL_COLOR))
                     end
                 else -- bonus
                     if isDone then
-                        rect:SetColorTexture(unpack(BONUS_DONE))
+                        rect:SetColorTexture(unpack(QUESTS_BONUS_DONE))
                     elseif isActive then
-                        rect:SetColorTexture(unpack(BONUS_PROG))
+                        rect:SetColorTexture(unpack(QUESTS_BONUS_PROG))
                     else
-                        rect:SetColorTexture(unpack(AVAIL_COLOR))
+                        rect:SetColorTexture(unpack(QUESTS_AVAIL_COLOR))
                     end
                 end
 
@@ -1948,88 +2277,24 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             end
 
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText("weekly quests (champion+ gear)")
-
-                -- Core group header
-                GameTooltip:AddLine("|cffaa66ffpinnacle caches (champion track)|r", 1, 1, 1)
-                for _, block in ipairs(BLOCKS) do
-                    if block.group == "core" then
-                        local status = q and q[block.key]
-                        local color  = "|cff555555"
-                        local valStr = "not started"
-                        if status then
-                            if status.completed then
-                                color  = CORE_TEXT
-                                valStr = "completed"
-                            elseif status.progressText then
-                                color  = "|cff886699"
-                                valStr = status.progressText
-                            elseif status.progress and status.progress > 0 then
-                                color  = "|cff886699"
-                                valStr = status.progress .. "%"
-                            elseif status.active then
-                                color  = "|cff886699"
-                                valStr = "in progress"
-                            end
-                        end
-                        GameTooltip:AddDoubleLine(block.label, color .. valStr .. "|r", 1, 1, 1, 1, 1, 1)
-                    end
-                end
-
-                -- Bonus group header
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("|cffffaa44delves, prey & event caches (champion / hero)|r", 1, 1, 1)
-                for _, block in ipairs(BLOCKS) do
-                    if block.group == "bonus" then
-                        local status = q and q[block.key]
-                        local color  = "|cff555555"
-                        local valStr = "not started"
-                        if block.key == "twRaid" and not (status and (status.completed or status.active)) then
-                            valStr = "no tw event active"
-                        elseif block.key == "bonusEvent" and not (status and (status.completed or status.active)) then
-                            valStr = "no event quest taken"
-                        end
-                        if status then
-                            if status.completed then
-                                color  = BONUS_TEXT
-                                valStr = "completed"
-                            elseif block.isCount and status.done and status.done > 0 then
-                                color  = "|cffcc8833"
-                                valStr = string.format("%d / %d", status.done, status.total or 4)
-                            elseif status.progressText then
-                                color  = "|cffcc8833"
-                                valStr = status.progressText
-                            elseif status.active or (status.progress and status.progress > 0) then
-                                color  = "|cffcc8833"
-                                valStr = "in progress"
-                            end
-                        end
-                        GameTooltip:AddDoubleLine(block.label, color .. valStr .. "|r", 1, 1, 1, 1, 1, 1)
-                    end
-                end
-
-                if q and q.gildedStash and not q.gildedStash.active and not q.gildedStash.completed then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cff888888stash updates near silvermoon delve hub|r")
-                end
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._q = q
+            cell._blocks = BLOCKS
+            cell._onEnter = StandardQuestsGrid_OnEnter
+            cell._onLeave = nil
         end
         return true
     elseif cat.type == "prof_slot" then
         local pData
-        local profs = {}
+        local profs = _standardTempProfs
+        wipe(profs)
         if altData.profKP then
-            for skillLine, data in pairs(altData.profKP) do
+            for _, data in pairs(altData.profKP) do
                 if type(data) == "table" then
                     table.insert(profs, data)
                 end
             end
         end
-        table.sort(profs, function(a, b) return (a.name or "") < (b.name or "") end)
+        table.sort(profs, CompareStandardProfs)
         pData = profs[cat.slot]
 
         if pData then
@@ -2071,32 +2336,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             end
 
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(((pData.name or "profession") .. " knowledge"):lower())
-                GameTooltip:AddDoubleLine("skill level:", string.format("%d", pData.skill or 0), 1, 1, 1, 1, 1, 1)
-                if pData.catchUp and pData.catchUp > 0 then
-                    GameTooltip:AddDoubleLine("catch-up available:", pData.catchUp, 1, 0.82, 0, 1, 0.82, 0)
-                end
-
-                if pData.total and pData.total > 0 then
-                    GameTooltip:AddLine("weekly progress", 1, 1, 1)
-                    local tStr = (pData.details and pData.details.treatise) and "|cff00ff00Done|r" or
-                    "|cffff0000Missing|r"
-                    GameTooltip:AddDoubleLine("treatise:", tStr, 1, 1, 1, 1, 1, 1)
-                    local qStr = (pData.details and pData.details.quest) and "|cff00ff00Done|r" or "|cffff0000Missing|r"
-                    GameTooltip:AddDoubleLine("weekly quest/patron:", qStr, 1, 1, 1, 1, 1, 1)
-                    if pData.details and pData.details.treasuresMax and pData.details.treasuresMax > 0 then
-                        local gColor = (pData.details.treasures or 0) >= pData.details.treasuresMax and "|cff00ff00" or
-                            "|cffff0000"
-                        GameTooltip:AddDoubleLine("treasures/drops:",
-                            string.format("%s%d / %d|r", gColor, pData.details.treasures or 0,
-                                pData.details.treasuresMax), 1, 1, 1, 1, 1, 1)
-                    end
-                end
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._profData = pData
+            cell._onEnter = StandardProfSlot_OnEnter
+            cell._onLeave = nil
         else
             text:ClearAllPoints()
             text:SetPoint("CENTER", cell, "CENTER", 0, 0)
@@ -2105,8 +2347,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetText("-")
             text:SetTextColor(0.5, 0.5, 0.5)
             if cell.rightText then cell.rightText:Hide() end
-            cell:SetScript("OnEnter", nil)
-            cell:SetScript("OnLeave", nil)
+            cell._onEnter = nil
+            cell._onLeave = nil
         end
         return true
     elseif cat.type == "vault_row" then
@@ -2152,145 +2394,42 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText("great vault: " .. (cat.label or group))
-            local vGroup = altData.vault and altData.vault[group]
-
-            if altData.vault and altData.vault.hasReward then
-                GameTooltip:AddLine("✨ reward ready to claim!", 1, 0.82, 0)
-                GameTooltip:AddLine(" ")
-            end
-
-            for idx = 1, 3 do
-                local v = vGroup and vGroup[idx]
-                if group == "world" and idx == 2 and v and (v.id == 229 or v.threshold == 3) then
-                    v.id = 208
-                    v.threshold = 4
-                    if not v.level or v.level == 0 then
-                        local s3 = vGroup[3]
-                        local s1 = vGroup[1]
-                        if s3 and s3.level and s3.level > 0 then
-                            v.level = s3.level
-                            v.itemLevel = v.itemLevel or s3.itemLevel
-                        elseif s1 and s1.level and s1.level > 0 then
-                            v.level = s1.level
-                            v.itemLevel = v.itemLevel or s1.itemLevel
-                        end
-                    end
-                end
-
-                if v and v.threshold and v.threshold > 0 then
-                    local isUnlocked = (v.progress or 0) >= v.threshold
-                    local statusStr = isUnlocked and "|cff00ff00Unlocked|r" or
-                        string.format("%d/%d", v.progress or 0, v.threshold)
-
-                    local detailParts = {}
-                    if v.level and v.level > 0 then
-                        local diffName
-                        if group == "raid" then
-                            diffName = GetDifficultyName(v.level)
-                        elseif group == "dungeon" then
-                            diffName = (v.level >= 2 and string.format("+%d", v.level)) or "M0"
-                        else
-                            diffName = string.format("Tier %d", v.level)
-                        end
-                        table.insert(detailParts, diffName)
-                    end
-
-                    local ilvl = GetVaultItemLevel(group, v.level, v)
-                    local track = GetVaultTrack(group, v.level, ilvl)
-                    if ilvl and (isUnlocked or (v.level and v.level > 0)) then
-                        if track then
-                            table.insert(detailParts, string.format("|cffffd100%d ilvl|r (%s)", ilvl, track))
-                        else
-                            table.insert(detailParts, string.format("|cffffd100%d ilvl|r", ilvl))
-                        end
-                    end
-
-                    local extraStr = ""
-                    if #detailParts > 0 then
-                        extraStr = " (" .. table.concat(detailParts, " — ") .. ")"
-                    end
-
-                    GameTooltip:AddDoubleLine("slot " .. idx .. ":", statusStr .. extraStr, 1, 1, 1, 1, 1, 1)
-                end
-            end
-
-            -- Dungeon Great Vault: list the 10 runs that populate the vault with 1, 4, 10 highlighted
-            if group == "dungeon" then
-                local runs = altData.vault and altData.vault.dungeonRuns
-                local isPlayer = (altGuid and altGuid == UnitGUID("player")) or
-                (altGuid and altGuid == GetCurrentCharacterGUID())
-                if (not runs or #runs == 0) and isPlayer and C_MythicPlus and C_MythicPlus.GetRunHistory then
-                    local weeklyRuns = C_MythicPlus.GetRunHistory(false, true)
-                    if weeklyRuns and #weeklyRuns > 0 then
-                        runs = {}
-                        for _, r in ipairs(weeklyRuns) do
-                            local dName = (C_ChallengeMode and C_ChallengeMode.GetMapUIInfo and C_ChallengeMode.GetMapUIInfo(r.mapChallengeModeID)) or
-                            ("Map " .. tostring(r.mapChallengeModeID))
-                            table.insert(runs, {
-                                mapID = r.mapChallengeModeID,
-                                level = r.level,
-                                name = dName,
-                                completed = r.completed,
-                                durationSec = r.durationSec or 0,
-                            })
-                        end
-                        table.sort(runs, function(a, b)
-                            if a.level ~= b.level then return a.level > b.level end
-                            return (a.durationSec or 0) < (b.durationSec or 0)
-                        end)
-                    end
-                end
-
-                if runs and #runs > 0 then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("weekly runs (top 10):", 1, 0.82, 0)
-                    for rIdx = 1, math.min(10, #runs) do
-                        local r = runs[rIdx]
-                        local isMilestone = (rIdx == 1 or rIdx == 4 or rIdx == 10)
-                        local prefix = string.format("%2d. ", rIdx)
-                        local dName = r.name or "Dungeon"
-                        local lvlStr = string.format("+%d", r.level or 0)
-                        if r.completed == false then
-                            lvlStr = lvlStr .. " |cffff5555(Depleted)|r"
-                        end
-
-                        if isMilestone then
-                            local slotTag = (rIdx == 1 and "  [Slot 1]") or (rIdx == 4 and "  [Slot 2]") or "  [Slot 3]"
-                            GameTooltip:AddDoubleLine(
-                                string.format("|cff00ffff%s%s%s|r", prefix, dName, slotTag),
-                                string.format("|cff00ffff%s|r", lvlStr),
-                                0, 1, 1, 0, 1, 1
-                            )
-                        else
-                            GameTooltip:AddDoubleLine(
-                                string.format("|cffbbbbbb%s%s|r", prefix, dName),
-                                string.format("|cffffffff%s|r", lvlStr),
-                                0.7, 0.7, 0.7, 1, 1, 1
-                            )
-                        end
-                    end
-                else
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("no mythic+ runs recorded this week.", 0.5, 0.5, 0.5)
-                end
-            end
-
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        cell._cat = cat
+        cell._group = group
+        cell._altData = altData
+        cell._guid = altGuid
+        cell._onEnter = StandardVaultRow_OnEnter
+        cell._onLeave = nil
         return true
     elseif cat.type == "m0_grid" then
         text:Hide()
         local m0Data = altData.m0
         local instanceCache = GetEJInstanceCache()
-        local ejInstances = {}
-        for name, id in pairs(instanceCache) do
-            table.insert(ejInstances, { id = id, name = name })
+        local ejInstances = cell._ejInstances
+        if not ejInstances then
+            ejInstances = {}
+            cell._ejInstances = ejInstances
+        else
+            wipe(ejInstances)
         end
-        table.sort(ejInstances, function(a, b) return a.id < b.id end)
+        local ejNodes = cell._ejInstanceNodes
+        if not ejNodes then
+            ejNodes = {}
+            cell._ejInstanceNodes = ejNodes
+        end
+        local ejCount = 0
+        for name, id in pairs(instanceCache) do
+            ejCount = ejCount + 1
+            local instNode = ejNodes[ejCount]
+            if not instNode then
+                instNode = {}
+                ejNodes[ejCount] = instNode
+            end
+            instNode.id = id
+            instNode.name = name
+            ejInstances[ejCount] = instNode
+        end
+        table.sort(ejInstances, CompareEJInstances)
 
         local numDungeons = #ejInstances > 0 and #ejInstances or 8
         local squareSize = (cfg.columnWidth - 10) / numDungeons
@@ -2315,17 +2454,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText("mythic 0 lockouts")
-            for _, inst in ipairs(ejInstances) do
-                local isLocked = m0Data and m0Data[inst.id]
-                local status = isLocked and "|cff00ffffCompleted|r" or "|cff888888Available|r"
-                GameTooltip:AddDoubleLine(inst.name, status, 1, 1, 1, 1, 1, 1)
-            end
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        cell._m0Data = m0Data
+        cell._onEnter = StandardM0Grid_OnEnter
+        cell._onLeave = nil
         return true
     elseif cat.type == "raid_grid" then
         text:Hide()
@@ -2359,20 +2490,12 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            local diffName = (difficulty == 16 and "Mythic") or (difficulty == 15 and "Heroic") or "Normal"
-            GameTooltip:SetText(cat.label or (diffName .. " Raid"))
-            local killed = 0
-            if bossData then
-                for bIdx = 1, numBosses do
-                    if bossData[bIdx] then killed = killed + 1 end
-                end
-            end
-            GameTooltip:AddDoubleLine("progress:", string.format("%d / %d bosses", killed, numBosses), 1, 1, 1, 1, 1, 1)
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        cell._cat = cat
+        cell._difficulty = difficulty
+        cell._bossData = bossData
+        cell._val = numBosses
+        cell._onEnter = StandardRaidGrid_OnEnter
+        cell._onLeave = nil
         return true
     end
 

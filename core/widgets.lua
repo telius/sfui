@@ -13,6 +13,18 @@ local CreateFrame = _G.CreateFrame
 local UIParent    = _G.UIParent
 local unpack      = _G.unpack or table.unpack
 
+-- shared, read-only backdrop tables (BackdropTemplateMixin stores them by reference)
+local FLAT_BACKDROP = {
+    bgFile   = "Interface\\Buttons\\WHITE8x8",
+    edgeFile = "Interface\\Buttons\\WHITE8x8",
+    edgeSize = 1,
+}
+local BG_ONLY_BACKDROP = {
+    bgFile = "Interface\\Buttons\\WHITE8x8",
+}
+sfui.widgets.FLAT_BACKDROP = FLAT_BACKDROP
+sfui.widgets.BG_ONLY_BACKDROP = BG_ONLY_BACKDROP
+
 -- Native hardware pixel snapping (Retail 12.1.5+ SetRoundLayoutToNearestPixel / PixelUtil)
 function sfui.common.set_pixel_snapping(frame, recursive)
     if not frame then return end
@@ -28,11 +40,7 @@ function sfui.widgets.create_panel(parent, width, height)
     local panel = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     sfui.common.set_pixel_snapping(panel)
     panel:SetSize(width, height)
-    panel:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
+    panel:SetBackdrop(FLAT_BACKDROP)
     panel:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
     panel:SetBackdropBorderColor(0, 0, 0, 1)
     return panel
@@ -468,7 +476,7 @@ function sfui.widgets.create_flat_button(parent, text, width, height, onClick)
     btn:SetText(text or "")
     local fs = btn:GetFontString()
     if fs then
-        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        local fontFile = sfui.common.get_font_file()
         fs:SetFont(fontFile, 11, "")
         fs:SetTextColor(1, 1, 1, 1)
     end
@@ -615,7 +623,7 @@ function sfui.widgets.create_submenu_button(parent, text, width, height)
     btn:RegisterForClicks("AnyUp")
     local fs = btn:GetFontString()
     if fs then
-        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        local fontFile = sfui.common.get_font_file()
         fs:SetFont(fontFile, 10, "")
     end
     return btn
@@ -647,7 +655,7 @@ function sfui.widgets.create_close_button(parent, onClickFunc, size)
     btn:SetFrameLevel((parent:GetFrameLevel() or 1) + 20)
     local fs = btn:GetFontString()
     if fs then
-        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        local fontFile = sfui.common.get_font_file()
         fs:SetFont(fontFile, math.max(10, math.floor(size * 0.5)), "")
         fs:SetTextColor(1, 1, 1, 1)
     end
@@ -680,7 +688,7 @@ function sfui.widgets.create_remove_button(parent, onClickFunc, width, height, t
     local btn = sfui.widgets.create_flat_button(parent, "X", width or 20, height or 20)
     local fs = btn:GetFontString()
     if fs then
-        local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        local fontFile = sfui.common.get_font_file()
         fs:SetFont(fontFile, math.max(9, math.floor((height or 20) * 0.5)), "")
         fs:SetTextColor(1, 1, 1, 1)
     end
@@ -715,12 +723,7 @@ function sfui.widgets.create_checkbox(parent, label, dbKeyOrGetter, onClickFunc,
     local cb = CreateFrame("CheckButton", nil, parent, "BackdropTemplate")
     cb:SetSize(20, 20)
 
-    cb:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
+    cb:SetBackdrop(FLAT_BACKDROP)
     local app = sfui.config.appearance
     cb:SetBackdropColor(app.widgetBackdropColor[1], app.widgetBackdropColor[2], app.widgetBackdropColor[3], app.widgetBackdropColor[4])
     cb:SetBackdropBorderColor(0, 0, 0, 1)
@@ -793,12 +796,7 @@ sfui.common.create_cvar_checkbox = sfui.widgets.create_cvar_checkbox
 function sfui.widgets.create_color_swatch(parent, initialColor, onSetFunc)
     local swatch = CreateFrame("Button", nil, parent, "BackdropTemplate")
     swatch:SetSize(16, 16)
-    swatch:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
+    swatch:SetBackdrop(FLAT_BACKDROP)
     swatch:SetBackdropBorderColor(0, 0, 0, 1)
 
     local app = sfui.config.appearance
@@ -872,12 +870,7 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
     slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
 
-    slider:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
+    slider:SetBackdrop(FLAT_BACKDROP)
     local app = sfui.config.appearance
     slider:SetBackdropColor(app.sliderBackdropColor[1], app.sliderBackdropColor[2], app.sliderBackdropColor[3], app.sliderBackdropColor[4])
     slider:SetBackdropBorderColor(0, 0, 0, 1)
@@ -893,12 +886,7 @@ function sfui.widgets.create_slider_input(parent, label, dbKeyOrGetter, minVal, 
     editbox:SetAutoFocus(false)
     editbox:SetFontObject("GameFontHighlightSmall")
     editbox:SetJustifyH("CENTER")
-    editbox:SetBackdrop({
-        bgFile = "Interface/Buttons/WHITE8X8",
-        edgeFile = "Interface/Buttons/WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
-    })
+    editbox:SetBackdrop(FLAT_BACKDROP)
     editbox:SetBackdropColor(app.editBoxColor[1], app.editBoxColor[2], app.editBoxColor[3], app.editBoxColor[4])
     editbox:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -1053,7 +1041,7 @@ function sfui.widgets.style_scrollbar(scrollBar)
         Mixin(scrollBar, BackdropTemplateMixin)
     end
     if scrollBar.SetBackdrop then
-        scrollBar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+        scrollBar:SetBackdrop(BG_ONLY_BACKDROP)
         scrollBar:SetBackdropColor(0, 0, 0, 0.3)
     end
     if not thumb and scrollBar.CreateTexture and scrollBar.SetThumbTexture then
@@ -1174,7 +1162,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     btn:SetNormalFontObject("GameFontHighlightSmall")
     btn:SetText(initialText)
 
-    local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
     local fs = btn:GetFontString()
     if fs then
         fs:SetFont(fontFile, (width and width <= 24) and 12 or 11, "")
@@ -1282,30 +1270,34 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     local ROW_HEIGHT = 20
     local PADDING = 4
 
-    menu:SetScript("OnEvent", function(self, event, mouseButton)
-        if event == "GLOBAL_MOUSE_DOWN" and (mouseButton == "LeftButton" or mouseButton == "RightButton") then
-            if not self:IsShown() then return end
-            if self:IsMouseOver() then return end
+    local mouseDownRegistered = false
+    local function onGlobalMouseDown(_, mouseButton)
+        if mouseButton == "LeftButton" or mouseButton == "RightButton" then
+            if not menu:IsShown() then return end
+            if menu:IsMouseOver() then return end
             if btn and btn:IsShown() and btn:IsMouseOver() then return end
             if DoesAncestryIncludeAny and GetMouseFoci then
                 local foci = GetMouseFoci()
-                if DoesAncestryIncludeAny(self, foci) then return end
+                if DoesAncestryIncludeAny(menu, foci) then return end
                 if btn and DoesAncestryIncludeAny(btn, foci) then return end
             elseif GetMouseFocus and not GetMouseFoci then
                 local focus = GetMouseFocus()
-                if focus and (focus == self or focus == btn or (focus.IsDescendantOf and (focus:IsDescendantOf(self) or focus:IsDescendantOf(btn)))) then
+                if focus and (focus == menu or focus == btn or (focus.IsDescendantOf and (focus:IsDescendantOf(menu) or focus:IsDescendantOf(btn)))) then
                     return
                 end
             end
-            self:Hide()
-            if activeDropdown == self then
+            menu:Hide()
+            if activeDropdown == menu then
                 activeDropdown = nil
             end
         end
-    end)
+    end
 
     menu:SetScript("OnShow", function(self)
-        self:RegisterEvent("GLOBAL_MOUSE_DOWN")
+        if not mouseDownRegistered and sfui.events and sfui.events.RegisterEvent then
+            mouseDownRegistered = true
+            sfui.events.RegisterEvent("GLOBAL_MOUSE_DOWN", onGlobalMouseDown)
+        end
         if sfui.theme and sfui.theme.ApplyDropdownStyle then
             sfui.theme.ApplyDropdownStyle(btn)
         end
@@ -1320,7 +1312,10 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
     end)
 
     menu:SetScript("OnHide", function(self)
-        self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
+        if mouseDownRegistered and sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("GLOBAL_MOUSE_DOWN", onGlobalMouseDown)
+        end
+        mouseDownRegistered = false
         if activeDropdown == self then
             activeDropdown = nil
         end
@@ -1364,7 +1359,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
             for _, opt in ipairs(curOptions) do
                 local txt = opt.text or opt.label
                 if txt then
-                    local clean = txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+                    local clean = sfui.common.strip_colors(txt)
                     local textWidth = #clean * 7 + 28
                     if opt.hasDelete then textWidth = textWidth + 24 end
                     if opt.isToggle or opt.checked ~= nil then textWidth = textWidth + 28 end
@@ -1465,11 +1460,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         delBtn:SetText("|cffff4444x|r")
         local delFs = delBtn:GetFontString()
         if delFs then delFs:SetFont(fontFile, 10, "") end
-        delBtn:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        delBtn:SetBackdrop(FLAT_BACKDROP)
         delBtn:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
         delBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
         delBtn:SetScript("OnEnter", function(self)
@@ -1497,11 +1488,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
         tglBtn:SetNormalFontObject("GameFontHighlightSmall")
         local tglFs = tglBtn:GetFontString()
         if tglFs then tglFs:SetFont(fontFile, 10, "") end
-        tglBtn:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8x8",
-            edgeFile = "Interface\\Buttons\\WHITE8x8",
-            edgeSize = 1,
-        })
+        tglBtn:SetBackdrop(FLAT_BACKDROP)
         tglBtn:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
         tglBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
         tglBtn:SetScript("OnEnter", function(self)
@@ -1704,7 +1691,7 @@ function sfui.widgets.create_dropdown(parent, width, options, onSelectFunc, init
                 bar:SetWidth(4)
                 bar:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -2, -PADDING)
                 bar:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -2, PADDING)
-                bar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+                bar:SetBackdrop(BG_ONLY_BACKDROP)
                 bar:SetBackdropColor(0.2, 0.2, 0.2, 0.5)
 
                 local thumb = bar:CreateTexture(nil, "OVERLAY")
@@ -1912,11 +1899,7 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     btn.HandlesGlobalMouseEvent = HandlesGlobalMouseEvent
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:SetSize(width, 22)
-    btn:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
+    btn:SetBackdrop(FLAT_BACKDROP)
     btn:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
     btn:SetBackdropBorderColor(0, 0, 0, 1)
 
@@ -1991,34 +1974,34 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     menu:SetFrameLevel(250)
     menu:SetClampedToScreen(true)
     menu:EnableMouse(true)
-    menu:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
+    menu:SetBackdrop(FLAT_BACKDROP)
     menu:SetBackdropColor(0.10, 0.10, 0.10, 0.98)
     menu:SetBackdropBorderColor(0, 0, 0, 1)
     menu:Hide()
 
-    menu:SetScript("OnEvent", function(self, event, mouseButton)
-        if event == "GLOBAL_MOUSE_DOWN" and (mouseButton == "LeftButton" or mouseButton == "RightButton") then
-            if not self:IsShown() then return end
-            if self:IsMouseOver() then return end
+    local texMouseDownRegistered = false
+    local function onTexGlobalMouseDown(_, mouseButton)
+        if mouseButton == "LeftButton" or mouseButton == "RightButton" then
+            if not menu:IsShown() then return end
+            if menu:IsMouseOver() then return end
             if btn and btn:IsShown() and btn:IsMouseOver() then return end
             if DoesAncestryIncludeAny and GetMouseFoci then
                 local foci = GetMouseFoci()
-                if DoesAncestryIncludeAny(self, foci) then return end
+                if DoesAncestryIncludeAny(menu, foci) then return end
                 if btn and DoesAncestryIncludeAny(btn, foci) then return end
             end
-            self:Hide()
-            if activeTextureMenu == self then
+            menu:Hide()
+            if activeTextureMenu == menu then
                 activeTextureMenu = nil
             end
         end
-    end)
+    end
 
-    menu:SetScript("OnShow", function(self)
-        self:RegisterEvent("GLOBAL_MOUSE_DOWN")
+    menu:SetScript("OnShow", function()
+        if not texMouseDownRegistered and sfui.events and sfui.events.RegisterEvent then
+            texMouseDownRegistered = true
+            sfui.events.RegisterEvent("GLOBAL_MOUSE_DOWN", onTexGlobalMouseDown)
+        end
     end)
 
     menu.scrollOffset = 0
@@ -2030,11 +2013,7 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
     scrollbar:SetWidth(SCROLL_WIDTH)
     scrollbar:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -3, -PADDING)
     scrollbar:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -3, PADDING)
-    scrollbar:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
+    scrollbar:SetBackdrop(FLAT_BACKDROP)
     scrollbar:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
     scrollbar:SetBackdropBorderColor(0, 0, 0, 1)
     scrollbar:EnableMouse(true)
@@ -2233,7 +2212,10 @@ function sfui.widgets.create_texture_dropdown(parent, width, onSelectFunc, initi
 
     menu:SetScript("OnHide", function(self)
         self:SetScript("OnUpdate", nil)
-        self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
+        if texMouseDownRegistered and sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("GLOBAL_MOUSE_DOWN", onTexGlobalMouseDown)
+        end
+        texMouseDownRegistered = false
         if activeTextureMenu == self then
             activeTextureMenu = nil
         end
@@ -2310,16 +2292,8 @@ sfui.common.create_texture_dropdown = sfui.widgets.create_texture_dropdown
 
 
 --------------------------------------------------------------------------------
--- Flat backdrop (1px WHITE8x8 bg + edge) — replaces inline SetBackdrop literals
+-- Flat backdrop (1px WHITE8x8 bg + edge) helper (FLAT_BACKDROP hoisted above)
 --------------------------------------------------------------------------------
--- shared, read-only backdrop table (BackdropTemplateMixin stores it by reference)
-local FLAT_BACKDROP = {
-    bgFile   = "Interface\\Buttons\\WHITE8x8",
-    edgeFile = "Interface\\Buttons\\WHITE8x8",
-    edgeSize = 1,
-}
-sfui.widgets.FLAT_BACKDROP = FLAT_BACKDROP
-
 -- bg / border are optional { r, g, b, a } tables; nil leaves the colour untouched
 function sfui.widgets.apply_flat_backdrop(frame, bg, border)
     if not frame or not frame.SetBackdrop then return frame end
@@ -2400,68 +2374,9 @@ end
 sfui.common.attach_tooltip = sfui.widgets.attach_tooltip
 
 --------------------------------------------------------------------------------
--- Generic object pool (methods.md §3.6) — frames, textures or tables
+-- Generic object pool (methods.md §3.6) — consolidated in core/pool.lua
 --------------------------------------------------------------------------------
--- factory(...) -> new object; reset(obj) runs on release (default: obj:Hide())
--- pool:acquire(...) -> obj, isNew
--- pool:release(obj) / pool:release_all()
--- pool:active() -> iterator over active objects; pool:num_active()
-local pool_methods = {}
-pool_methods.__index = pool_methods
-
-function pool_methods:acquire(...)
-    local free = self._free
-    local n = #free
-    local obj, isNew
-    if n > 0 then
-        obj = free[n]
-        free[n] = nil
-    else
-        obj = self._factory(...)
-        isNew = true
-    end
-    self._active[obj] = true
-    self._count = self._count + 1
-    return obj, isNew
-end
-
-function pool_methods:release(obj)
-    if not obj or not self._active[obj] then return end
-    self._active[obj] = nil
-    self._count = self._count - 1
-    local reset = self._reset
-    if reset then
-        reset(obj)
-    elseif type(obj) == "table" and obj.Hide then
-        obj:Hide()
-    end
-    self._free[#self._free + 1] = obj
-end
-
-function pool_methods:release_all()
-    -- clearing existing keys during pairs() traversal is allowed in lua
-    for obj in pairs(self._active) do
-        self:release(obj)
-    end
-end
-
-function pool_methods:active()
-    return pairs(self._active)
-end
-
-function pool_methods:num_active()
-    return self._count
-end
-
-function sfui.widgets.create_pool(factory, reset)
-    return setmetatable({
-        _factory = factory,
-        _reset   = reset,
-        _active  = {},
-        _free    = {},
-        _count   = 0,
-    }, pool_methods)
-end
+sfui.widgets.create_pool = (sfui.pool and sfui.pool.create_object_pool) or sfui.common.create_pool
 sfui.common.create_pool = sfui.widgets.create_pool
 
 --------------------------------------------------------------------------------

@@ -198,9 +198,8 @@ local function get_or_create_location_frame()
     f:EnableMouse(true)
 
     local text = f:CreateFontString(nil, "OVERLAY")
-    local fontPath = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
-        or (sfui.config and sfui.config.fonts and sfui.config.fonts.normal)
-        or "Fonts\\FRIZQT__.TTF"
+    local fontPath = (sfui.config and sfui.config.fonts and sfui.config.fonts.normal)
+        or sfui.common.get_font_file()
     text:SetFont(fontPath, 12, "OUTLINE")
     text:SetShadowOffset(1, -1)
     text:SetShadowColor(0, 0, 0, 1)

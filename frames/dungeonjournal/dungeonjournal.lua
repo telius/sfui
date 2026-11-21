@@ -74,7 +74,7 @@ local cachedDataRef                 = nil
 local dungeonByID                   = nil
 local dungeonTabByID                = nil
 
-local EXTERNAL_TAB_ORDER = { "upgrades", "recipes", "fishing" }
+local EXTERNAL_TAB_ORDER = { "upgrades", "sets", "recipes", "fishing" }
 local EXTERNAL_TAB_DEFS = {
     upgrades = {
         label      = "upgrades",
@@ -84,6 +84,16 @@ local EXTERNAL_TAB_DEFS = {
         getModule  = function() return sfui.upgrades end,
         onRebuild  = function(mod)
             if mod.MarkDirty then mod.MarkDirty() end
+        end,
+    },
+    sets = {
+        label      = "sets",
+        width      = 62,
+        btnField   = "setsTabBtn",
+        panelField = "setsPanel",
+        getModule  = function() return sfui.sets end,
+        onRebuild  = function(mod)
+            if mod.OnPanelShown then mod.OnPanelShown() end
         end,
     },
     recipes = {
@@ -576,11 +586,10 @@ local function ResolveItemLink(btn, fallbackItemID)
 
     if not (itemLink and type(itemLink) == "string" and itemLink:find("|Hitem:")) and itemID then
         local rawName = (btn and btn.nameText and btn.nameText.GetText and btn.nameText:GetText()) or ("item #" .. itemID)
-        local cleanName = rawName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        local cleanName = sfui.common.strip_colors(rawName)
         local quality = common.get_item_quality(itemID) or 1
         local r, g, b = GetQualityColor(quality)
-        local hex = "ff" .. ((sfui.colors and sfui.colors.rgb_to_hex) and sfui.colors.rgb_to_hex(r, g, b)
-            or string_format("%02x%02x%02x", math_floor((r or 1) * 255 + 0.5), math_floor((g or 1) * 255 + 0.5), math_floor((b or 1) * 255 + 0.5)))
+        local hex = "ff" .. sfui.colors.rgb_to_hex(r, g, b)
         itemLink = string_format("|c%s|Hitem:%d:0:0:0:0:0:0:0:0:0:0:0:0|h[%s]|h|r", hex, itemID, cleanName)
         if btn then
             btn.link = itemLink
@@ -2030,19 +2039,6 @@ function sfui.dungeonjournal.CreateFrame()
         if sfui.map and sfui.map.SetUserWaypoint then
             sfui.map.SetUserWaypoint(dungeon.entrance.mapID, dungeon.entrance.x,
                 dungeon.entrance.y, dungeonName)
-        elseif C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
-            pcall(function()
-                C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(dungeon.entrance.mapID, dungeon.entrance.x,
-                    dungeon.entrance.y))
-            end)
-            if sfui.map and sfui.map.SetSuperTrackedUserWaypoint then
-                sfui.map.SetSuperTrackedUserWaypoint(true)
-            elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
-            end
-            if common and common.print then
-                common.print("waypoint set for " .. dungeonName)
-            end
         end
     end)
 

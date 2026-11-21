@@ -61,19 +61,72 @@ local function SortSectionsComparator(a, b)
 end
 
 -- ─── Throttled Update Loop ──────────────────────────────────────────────────
+local _activeTrackerErrorMod = nil
 local _activeTrackerErrorLabel = "ExecuteLayout"
 local function _tracker_err_handler(err)
     local stack = debugstack and debugstack(2) or ""
     if _G.sfuibug and _G.sfuibug.RecordError then
+        local label = _activeTrackerErrorMod
+            and ("BuildBlocks:" .. tostring(_activeTrackerErrorMod.name or "module"))
+            or _activeTrackerErrorLabel
         _G.sfuibug.RecordError({
             module = "quests",
             file = "frames/quests/engine/q_tracker.lua",
-            label = _activeTrackerErrorLabel,
+            label = label,
         }, err, stack)
     elseif _G.geterrorhandler then
         _G.geterrorhandler()(err)
     end
     return err
+end
+
+local function _ExecuteSingleModBuild()
+    return _activeTrackerErrorMod:BuildBlocks(container)
+end
+
+local function _ExecuteAllModulesLayout()
+    -- Collect sections from all enabled modules and merge sections with the same ID
+    local allSections = allSectionsCache
+    local sectionMap = sectionMapCache
+    wipe(allSections)
+    wipe(sectionMap)
+    for _, mod in ipairs(Tracker.modules or {}) do
+        if mod:IsEnabled() and mod.BuildBlocks then
+            _activeTrackerErrorMod = mod
+            local modOk, modSections = xpcall(_ExecuteSingleModBuild, _tracker_err_handler)
+            _activeTrackerErrorMod = nil
+            if modOk and modSections then
+                for _, s in ipairs(modSections) do
+                    if s.id and sectionMap[s.id] then
+                        local existing = sectionMap[s.id]
+                        if s.blocks then
+                            for _, b in ipairs(s.blocks) do
+                                table_insert(existing.blocks, b)
+                            end
+                        end
+                        if s.count then
+                            existing.count = (existing.count or #existing.blocks) + s.count
+                        end
+                    else
+                        table_insert(allSections, s)
+                        if s.id then
+                            sectionMap[s.id] = s
+                        end
+                    end
+                end
+            end
+            mod:ClearDirty()
+        end
+    end
+
+    -- In Retail, sort sections by canonical hierarchy (scenario -> events -> important -> campaign -> meta -> world -> activities -> zone -> etc.)
+    local isCamelot = sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
+    if not isCamelot then
+        table_sort(allSections, SortSectionsComparator)
+    end
+
+    -- Run vertical stack layout
+    Layout.BuildLayout(container, allSections)
 end
 
 local function ExecuteLayout()
@@ -91,53 +144,10 @@ local function ExecuteLayout()
     if isRefreshing then return end
     isRefreshing = true
 
+    _activeTrackerErrorMod = nil
     _activeTrackerErrorLabel = "ExecuteLayout"
-    xpcall(function()
-        -- Collect sections from all enabled modules and merge sections with the same ID
-        local allSections = allSectionsCache
-        local sectionMap = sectionMapCache
-        wipe(allSections)
-        wipe(sectionMap)
-        for _, mod in ipairs(Tracker.modules or {}) do
-            if mod:IsEnabled() and mod.BuildBlocks then
-                _activeTrackerErrorLabel = "BuildBlocks:" .. tostring(mod.name or "module")
-                local modOk, modSections = xpcall(function()
-                    return mod:BuildBlocks(container)
-                end, _tracker_err_handler)
-                _activeTrackerErrorLabel = "ExecuteLayout"
-                if modOk and modSections then
-                    for _, s in ipairs(modSections) do
-                        if s.id and sectionMap[s.id] then
-                            local existing = sectionMap[s.id]
-                            if s.blocks then
-                                for _, b in ipairs(s.blocks) do
-                                    table_insert(existing.blocks, b)
-                                end
-                            end
-                            if s.count then
-                                existing.count = (existing.count or #existing.blocks) + s.count
-                            end
-                        else
-                            table_insert(allSections, s)
-                            if s.id then
-                                sectionMap[s.id] = s
-                            end
-                        end
-                    end
-                end
-                mod:ClearDirty()
-            end
-        end
-
-        -- In Retail, sort sections by canonical hierarchy (scenario -> events -> important -> campaign -> meta -> world -> activities -> zone -> etc.)
-        local isCamelot = sfui.isCamelot or (sfui.compat and (sfui.compat.is_camelot or sfui.compat.is_classic_era or sfui.compat.is_classic))
-        if not isCamelot then
-            table_sort(allSections, SortSectionsComparator)
-        end
-
-        -- Run vertical stack layout
-        Layout.BuildLayout(container, allSections)
-    end, _tracker_err_handler)
+    xpcall(_ExecuteAllModulesLayout, _tracker_err_handler)
+    _activeTrackerErrorMod = nil
 
     isRefreshing = false
 end
@@ -597,21 +607,6 @@ local function SetupEventRouting()
             SuppressBlizzardTrackers()
             Tracker.RequestRefresh(0.1)
         end)
-    end)
-    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
-        SuppressBlizzardTrackers()
-    end)
-    sfui.events.RegisterEvent("QUEST_WATCH_LIST_CHANGED", function()
-        SuppressBlizzardTrackers()
-    end)
-    sfui.events.RegisterEvent("QUEST_WATCH_UPDATE", function()
-        SuppressBlizzardTrackers()
-    end)
-    sfui.events.RegisterEvent("QUEST_LOG_CRITERIA_UPDATE", function()
-        SuppressBlizzardTrackers()
-    end)
-    sfui.events.RegisterEvent("QUEST_CRITERIA_UPDATE", function()
-        SuppressBlizzardTrackers()
     end)
 
     sfui.events.RegisterEvent("ADDON_LOADED", function(event, loadedAddon)

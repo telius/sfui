@@ -12,16 +12,14 @@ local repModule = sfui.experience.reputation
 -- ══════════════════════════════════════════════════════════════════════════════
 
 local _G = _G
-local CreateFrame = _G.CreateFrame
-local math_floor = math.floor
 local string_format = string.format
 local IsShiftKeyDown = _G.IsShiftKeyDown
 local InCombatLockdown = _G.InCombatLockdown
 
+local base = sfui.experience.base
+local repBarObj = nil
 local repContainer = nil
 local repBar = nil
-local tickFrame = nil
-local ticks = {}
 local textLeft = nil
 local textCenter = nil
 local textRight = nil
@@ -30,7 +28,7 @@ local textRight = nil
 --- Set status bar texture directly
 --- @param tex string|nil
 function repModule.SetBarTexture(tex)
-    if repBar then repBar:SetStatusBarTexture(sfui.common.get_bar_texture(tex)) end
+    base.SetBarTexture(repBarObj, tex)
 end
 
 --- Get reputation container frame
@@ -90,140 +88,37 @@ function repModule.ToggleMode()
     repModule.UpdateValues()
 end
 
-local repUnlockOverlay = nil
+local REP_UNLOCK_OPTS = {
+    bgColor         = { 0.0, 0.8, 0.5, 0.45 },
+    borderColor     = { 0.2, 1, 0.6, 1 },
+    label           = "|cff00ff88reputation bar|r |cffaaaaaa(drag to move)|r",
+    dragMovesExpBar = true,
+    onLockUpdate    = function()
+        repModule.UpdateValues()
+    end,
+}
 
 --- Set unlocked dragging state and toggle visual mover overlay for reputation
 --- @param unlocked boolean
 function repModule.SetUnlocked(unlocked)
-    if not repContainer then return end
-    repContainer._isUnlocked = unlocked
-
-    if unlocked then
-        if not repUnlockOverlay then
-            repUnlockOverlay = CreateFrame("Frame", nil, repContainer, "BackdropTemplate")
-            repUnlockOverlay:SetAllPoints(repContainer)
-            repUnlockOverlay:SetFrameLevel(repContainer:GetFrameLevel() + 30)
-            repUnlockOverlay:EnableMouse(true)
-            repUnlockOverlay:RegisterForDrag("LeftButton")
-
-            local bg = repUnlockOverlay:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints()
-            bg:SetColorTexture(0.0, 0.8, 0.5, 0.45)
-            repUnlockOverlay.bg = bg
-
-            if sfui.widgets and sfui.widgets.create_border then
-                sfui.widgets.create_border(repUnlockOverlay, 1, { 0.2, 1, 0.6, 1 })
-            end
-
-            local lbl = repUnlockOverlay:CreateFontString(nil, "OVERLAY", sfui.config and sfui.config.font_small or "GameFontNormalSmall")
-            lbl:SetPoint("CENTER", repUnlockOverlay, "CENTER", 0, 0)
-            lbl:SetText("|cff00ff88reputation bar|r |cffaaaaaa(drag to move)|r")
-            repUnlockOverlay.lbl = lbl
-
-            repUnlockOverlay:SetScript("OnDragStart", function()
-                local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-                local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
-                if isExpShown then
-                    expBar:StartMoving()
-                else
-                    repContainer:StartMoving()
-                end
-            end)
-            repUnlockOverlay:SetScript("OnDragStop", function()
-                local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-                local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
-                local targetFrame = isExpShown and expBar or repContainer
-                targetFrame:StopMovingOrSizing()
-                local point, _, relPoint, x, y = targetFrame:GetPoint()
-                if sfui.db and sfui.db.Set then
-                    sfui.db.Set("experience", "pos", {
-                        point = point,
-                        relativePoint = relPoint,
-                        x = math_floor(x + 0.5),
-                        y = math_floor(y + 0.5),
-                    })
-                end
-            end)
-        end
-        repContainer:Show()
-        repContainer:SetAlpha(1.0)
-        repUnlockOverlay:Show()
-    else
-        if repUnlockOverlay then
-            repUnlockOverlay:Hide()
-        end
-        repModule.UpdateValues()
-    end
+    base.SetUnlocked(repBarObj, unlocked, REP_UNLOCK_OPTS)
 end
 
 --- Apply theme styling to the reputation bar
 function repModule.ApplyTheme()
-    if not repContainer then return end
-
-    if sfui.theme and sfui.theme.ApplyStatusBarStyle then
-        sfui.theme.ApplyStatusBarStyle(repContainer, "xp")
-    else
-        repContainer:SetBackdrop(sfui.widgets.FLAT_BACKDROP)
-        repContainer:SetBackdropColor(0.04, 0.04, 0.04, 0.85)
-        repContainer:SetBackdropBorderColor(0.0, 0.0, 0.0, 1.0)
-    end
-
-    repModule.SetBarTexture()
+    base.ApplyTheme(repBarObj, "xp")
 end
 
 --- Update 20-segment tick marks
 --- @param innerWidth number
 --- @param innerHeight number
 local function UpdateTicks(innerWidth, innerHeight)
-    if not tickFrame then return end
-
-    local cfg = sfui.config.experience or {}
-    local showTicks = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "showTicks", cfg.showTicks == true))
-    if showTicks == nil then showTicks = false end
-
-    if not showTicks or innerWidth <= 0 then
-        tickFrame:Hide()
-        return
-    end
-
-    tickFrame:Show()
-    tickFrame:ClearAllPoints()
-    tickFrame:SetPoint("TOPLEFT", repContainer, "TOPLEFT", 1, -1)
-    tickFrame:SetPoint("BOTTOMRIGHT", repContainer, "BOTTOMRIGHT", -1, 1)
-
-    local numSegments = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "tickCount", 20)) or 20
-    local numDividers = numSegments - 1
-
-    for i = 1, numDividers do
-        local tick = ticks[i]
-        if not tick then
-            tick = tickFrame:CreateTexture(nil, "OVERLAY")
-            tick:SetTexture("Interface\\Buttons\\WHITE8X8")
-            tick:SetVertexColor(0, 0, 0, 0.45)
-            ticks[i] = tick
-        end
-
-        local xPos = (innerWidth / numSegments) * i
-        tick:ClearAllPoints()
-        tick:SetPoint("TOPLEFT", tickFrame, "TOPLEFT", xPos - 0.5, 0)
-        tick:SetPoint("BOTTOMLEFT", tickFrame, "BOTTOMLEFT", xPos - 0.5, 0)
-        tick:SetWidth(1)
-        tick:Show()
-    end
-
-    for i = numDividers + 1, #ticks do
-        ticks[i]:Hide()
-    end
+    base.UpdateTicks(repBarObj, innerWidth, innerHeight)
 end
 
 --- Update text visibility based on hover state
 local function UpdateTextVisibility(isHovering)
-    if not textLeft or not textCenter or not textRight then return end
-    local data = sfui.experience.data
-    local alpha = data and data.GetTextAlpha and data.GetTextAlpha(isHovering) or (isHovering and 1.0 or 0.0)
-    textLeft:SetAlpha(alpha)
-    textCenter:SetAlpha(alpha)
-    textRight:SetAlpha(alpha)
+    base.UpdateTextVisibility(repBarObj, isHovering)
 end
 
 --- Update layout and docking position relative to experience bar
@@ -259,11 +154,7 @@ function repModule.UpdateLayout()
         repContainer:SetPoint(pos.point or "BOTTOM", _G.UIParent, pos.relativePoint or pos.point or "BOTTOM", pos.x or 0, pos.y or 4)
     end
 
-    if repBar then
-        repBar:ClearAllPoints()
-        repBar:SetPoint("TOPLEFT", repContainer, "TOPLEFT", 1, -1)
-        repBar:SetPoint("BOTTOMRIGHT", repContainer, "BOTTOMRIGHT", -1, 1)
-    end
+    base.AnchorSubBars(repBarObj)
 
     UpdateTicks(width - 2, repHeight - 2)
     repModule.ApplyTheme()
@@ -359,17 +250,7 @@ function repModule.UpdateValues()
         textLeft:SetText(string_format("%s (%s)", repData.name, repData.standingText))
 
         -- Center: Progress & Percentage
-        local curStr = data.FormatNumber(repData.current)
-        local maxStr = data.FormatNumber(repData.max)
-        if textFormat == "PERCENT_CURRENT" then
-            textCenter:SetText(string_format("%s / %s (%.1f%%)", curStr, maxStr, repData.percent))
-        elseif textFormat == "PERCENT" then
-            textCenter:SetText(string_format("%.1f%%", repData.percent))
-        elseif textFormat == "REMAINING" then
-            textCenter:SetText(string_format("-%s (%.1f%%)", data.FormatNumber(repData.remaining), repData.percent))
-        else
-            textCenter:SetText(string_format("%s / %s", curStr, maxStr))
-        end
+        textCenter:SetText(base.FormatProgressText(textFormat, repData.current, repData.max, repData.percent, nil, repData.remaining))
 
         -- Right: Remaining to next rank
         textRight:SetText(string_format("-%s", data.FormatNumber(repData.remaining)))
@@ -383,51 +264,21 @@ end
 function repModule.Create()
     if repContainer then return repContainer end
 
-    repContainer = CreateFrame("Button", "SfuiReputationBar", _G.UIParent, "BackdropTemplate")
-    repContainer:SetFrameStrata("HIGH")
-    repContainer:SetFrameLevel(20)
-    repContainer:SetClampedToScreen(true)
-    repContainer:EnableMouse(true)
-    repContainer:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    repBarObj = base.CreateTrackedBar({
+        globalName    = "SfuiReputationBar",
+        frameLevel    = 20,
+        numSubBars    = 1,
+        hasTicks      = true,
+        textInset     = 8,
+        styleKey      = "xp",
+        registerTheme = true,
+    })
 
-    -- Status bar fill
-    repBar = CreateFrame("StatusBar", nil, repContainer)
-    repBar:SetFrameLevel(repContainer:GetFrameLevel() + 1)
-    repBar:EnableMouse(false)
-
-    -- Tick marks frame
-    tickFrame = CreateFrame("Frame", nil, repContainer)
-    tickFrame:SetFrameLevel(repContainer:GetFrameLevel() + 2)
-    tickFrame:EnableMouse(false)
-
-    -- Text overlay frame
-    local textFrame = CreateFrame("Frame", nil, repContainer)
-    textFrame:SetFrameLevel(repContainer:GetFrameLevel() + 3)
-    textFrame:SetAllPoints(repContainer)
-    textFrame:EnableMouse(false)
-
-    local font = (sfui.config and sfui.config.font) or "GameFontHighlightSmall"
-
-    textLeft = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textLeft:SetPoint("LEFT", textFrame, "LEFT", 8, 0)
-    textLeft:SetJustifyH("LEFT")
-    textLeft:SetTextColor(0.92, 0.92, 0.92, 1.0)
-    textLeft:SetShadowOffset(1, -1)
-    textLeft:SetShadowColor(0, 0, 0, 1)
-
-    textCenter = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textCenter:SetPoint("CENTER", textFrame, "CENTER", 0, 0)
-    textCenter:SetJustifyH("CENTER")
-    textCenter:SetTextColor(1.0, 1.0, 1.0, 1.0)
-    textCenter:SetShadowOffset(1, -1)
-    textCenter:SetShadowColor(0, 0, 0, 1)
-
-    textRight = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textRight:SetPoint("RIGHT", textFrame, "RIGHT", -8, 0)
-    textRight:SetJustifyH("RIGHT")
-    textRight:SetTextColor(0.85, 0.85, 0.85, 1.0)
-    textRight:SetShadowOffset(1, -1)
-    textRight:SetShadowColor(0, 0, 0, 1)
+    repContainer = repBarObj.container
+    repBar = repBarObj.mainBar
+    textLeft = repBarObj.textLeft
+    textCenter = repBarObj.textCenter
+    textRight = repBarObj.textRight
 
     -- Mouse Interactions & Tooltip
     repContainer:SetScript("OnEnter", function(self)
@@ -438,14 +289,14 @@ function repModule.Create()
         end
     end)
 
-    repContainer:SetScript("OnLeave", function(self)
+    repContainer:SetScript("OnLeave", function()
         UpdateTextVisibility(false)
         if sfui.experience.tooltip and sfui.experience.tooltip.OnLeave then
             sfui.experience.tooltip.OnLeave()
         end
     end)
 
-    repContainer:SetScript("OnClick", function(self, button)
+    repContainer:SetScript("OnClick", function(_, button)
         if InCombatLockdown and InCombatLockdown() then return end
         local activeMode = (repModule.GetActiveMode and repModule.GetActiveMode()) or "REP"
         if IsShiftKeyDown() then
@@ -461,41 +312,7 @@ function repModule.Create()
         end
     end)
 
-    -- Dragging support when unlocked
-    repContainer:SetMovable(true)
-    repContainer:RegisterForDrag("LeftButton")
-    repContainer:SetScript("OnDragStart", function(self)
-        if repContainer._isUnlocked then
-            local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-            local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
-            if isExpShown then
-                expBar:StartMoving()
-            else
-                self:StartMoving()
-            end
-        end
-    end)
-    repContainer:SetScript("OnDragStop", function(self)
-        if repContainer._isUnlocked then
-            local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-            local isExpShown = expBar and expBar:IsShown() and expBar:GetAlpha() > 0
-            local targetFrame = isExpShown and expBar or self
-            targetFrame:StopMovingOrSizing()
-            local point, _, relPoint, x, y = targetFrame:GetPoint()
-            if sfui.db and sfui.db.Set then
-                sfui.db.Set("experience", "pos", {
-                    point = point,
-                    relativePoint = relPoint,
-                    x = math_floor(x + 0.5),
-                    y = math_floor(y + 0.5),
-                })
-            end
-        end
-    end)
-
-    if sfui.theme and sfui.theme.RegisterBar then
-        sfui.theme.RegisterBar(repContainer, "xp")
-    end
+    base.AttachDragHandlers(repBarObj, true)
 
     repContainer:HookScript("OnShow", function()
         if sfui.experience.challenges and sfui.experience.challenges.UpdateLayout then

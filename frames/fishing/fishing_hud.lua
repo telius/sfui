@@ -48,6 +48,7 @@ local GOAL_PRESETS = { 10, 20, 40, 60, 100 }
 local hudFrame = nil
 local isHudLocked = true
 local pendingCombatUpdate = false
+local QueueCombatUpdate
 local openingContainerUntil = 0
 local lastListTickTime = 0
 local activeZoneGoal = nil
@@ -78,27 +79,11 @@ local function GetHudConfig()
 end
 
 local function FormatDuration(seconds)
-    if not seconds or seconds <= 0 then return "0s" end
-    if common.format_timer_clock then
-        return common.format_timer_clock(seconds, false, "s")
-    end
-    local m, s = math_floor(seconds / 60), math_floor(seconds % 60)
-    return (m > 0) and string_format("%d:%02d", m, s) or string_format("%ds", s)
+    return sfui.common.format_duration(seconds, "clock_compact", "0s")
 end
 
 local function FormatDurationEta(seconds)
-    if not seconds or seconds <= 0 then return nil end
-    if seconds < 60 then return "<1m" end
-    if seconds < 3600 then
-        return string_format("%dm", math_floor((seconds / 60) + 0.5))
-    end
-    local h = math_floor(seconds / 3600)
-    local m = math_floor(((seconds % 3600) / 60) + 0.5)
-    if m >= 60 then
-        h = h + 1
-        m = 0
-    end
-    return string_format("%dh%02dm", h, m)
+    return sfui.common.format_duration(seconds, "eta", false)
 end
 
 local function SetTextIfChanged(fs, text, fieldKey)
@@ -130,7 +115,7 @@ end
 local function RestoreHudPosition()
     if not hudFrame then return end
     if InCombatLockdown and InCombatLockdown() then
-        pendingCombatUpdate = true
+        QueueCombatUpdate()
         return
     end
     local pos = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.hudPos
@@ -145,7 +130,7 @@ end
 local function ApplyHudSize(targetHeight)
     if not hudFrame then return end
     if InCombatLockdown and InCombatLockdown() then
-        pendingCombatUpdate = true
+        QueueCombatUpdate()
         return
     end
     local pt = hudFrame:GetPoint()
@@ -1085,7 +1070,7 @@ local function UpdateContainerButton()
     local containerBtn = hudFrame.containerBtn
     if not containerBtn then return end
     if InCombatLockdown and InCombatLockdown() then
-        pendingCombatUpdate = true
+        QueueCombatUpdate()
         return
     end
 
@@ -1190,7 +1175,7 @@ local function UpdateLure()
             lureBtn:SetAttribute("*item1", nil)
             lureBtn:SetAttribute("target-slot", nil)
         else
-            pendingCombatUpdate = true
+            QueueCombatUpdate()
         end
     elseif bestLure and bestLure.itemID then
         iconTex = common.get_item_instant_info and select(5, common.get_item_instant_info(bestLure.itemID))
@@ -1205,7 +1190,7 @@ local function UpdateLure()
             lureBtn:SetAttribute("*item1", "item:" .. bestLure.itemID)
             lureBtn:SetAttribute("target-slot", 16)
         else
-            pendingCombatUpdate = true
+            QueueCombatUpdate()
         end
     else
         if hasLure and expSec > 0 then
@@ -1219,7 +1204,7 @@ local function UpdateLure()
             lureBtn:SetAttribute("*item1", nil)
             lureBtn:SetAttribute("target-slot", nil)
         else
-            pendingCombatUpdate = true
+            QueueCombatUpdate()
         end
     end
 
@@ -1533,8 +1518,14 @@ UpdateSpeciesList = function()
     ApplyHudSize(HEADER_HEIGHT + COL_HEADER_HEIGHT + (showCount * ROW_HEIGHT) + extraFooter + BOTTOM_PAD)
 end
 
+local bagsDirty = false
+
 UpdateHud = function()
     if not hudFrame or not hudFrame:IsShown() then return end
+    if bagsDirty then
+        bagsDirty = false
+        RefreshBagCountsAndGoals()
+    end
     UpdateHeaderRightLayout()
     UpdateZone()
     UpdateBags()
@@ -1558,7 +1549,7 @@ local function CheckVisibility()
     local shouldShow = (isPole or isEditMode) and enabled
 
     if InCombatLockdown and InCombatLockdown() then
-        pendingCombatUpdate = true
+        QueueCombatUpdate()
         if hudFrame then
             hudFrame:SetAlpha(shouldShow and 1 or 0)
         end
@@ -1642,6 +1633,13 @@ local function OnLeaveCombat()
     end
 end
 
+QueueCombatUpdate = function()
+    pendingCombatUpdate = true
+    if InCombatLockdown and InCombatLockdown() and sfui.safety and sfui.safety.DeferOutOfCombat then
+        sfui.safety.DeferOutOfCombat("fishing_hud_combat", sfui.safety.OOC_P1, OnLeaveCombat)
+    end
+end
+
 local function OnZoneChanged()
     if hudFrame and hudFrame:IsShown() then
         UpdateZone()
@@ -1651,14 +1649,17 @@ local function OnZoneChanged()
 end
 
 local function OnBagsChanged()
-    RefreshBagCountsAndGoals()
-    if hudFrame and hudFrame:IsShown() then
-        UpdateBags()
-        UpdateContainerButton()
-        UpdateLure()
-        UpdateSpeciesList()
-        UpdateSession()
+    if not hudFrame or not hudFrame:IsShown() then
+        bagsDirty = true
+        return
     end
+    bagsDirty = false
+    RefreshBagCountsAndGoals()
+    UpdateBags()
+    UpdateContainerButton()
+    UpdateLure()
+    UpdateSpeciesList()
+    UpdateSession()
 end
 
 local function OnSkillChanged()
@@ -1717,7 +1718,6 @@ end
 
 events.RegisterEvent("PLAYER_LOGIN", OnPlayerLogin)
 events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", OnPoleEquipChanged)
-events.RegisterEvent("PLAYER_REGEN_ENABLED", OnLeaveCombat)
 events.RegisterEvent("ZONE_CHANGED_NEW_AREA", OnZoneChanged)
 events.RegisterEvent("ZONE_CHANGED", OnZoneChanged)
 events.RegisterEvent("ZONE_CHANGED_INDOORS", OnZoneChanged)

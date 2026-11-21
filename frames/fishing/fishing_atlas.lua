@@ -41,6 +41,8 @@ local watersContinentFilter = "all"
 local themeVer = 1
 local lastSelectedCard = nil
 local lastSelectedZoneRow = nil
+local ROW_STYLE_BG = { 0.1, 0.1, 0.12, 0.5 }
+local ROW_STYLE_BORDER = { 0.25, 0.25, 0.3, 0.5 }
 
 local function SetStyledCardState(card, styleIdx, fallbackBg, fallbackBorder)
     if card._cardStyleState == styleIdx and card._cardStyleThemeVer == themeVer then
@@ -839,7 +841,7 @@ local function UpdateZoneDetail(mapID)
             end
 
             row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(i - 1) * 32)
-            SetStyledCardState(row, 2, { 0.1, 0.1, 0.12, 0.5 }, { 0.25, 0.25, 0.3, 0.5 })
+            SetStyledCardState(row, 2, ROW_STYLE_BG, ROW_STYLE_BORDER)
 
             local itemID = entry[1]
             local share = entry[2]
@@ -1547,9 +1549,7 @@ local function OnFishingItemTooltip(tip, ctxOrData)
     local itemID = (ctxOrData and (ctxOrData.itemID or ctxOrData.id)) or nil
     if not itemID and tip.GetItem then
         local _, link = tip:GetItem()
-        if link and type(link) == "string" then
-            itemID = _G.tonumber(link:match("item:(%d+)"))
-        end
+        itemID = sfui.items.get_item_id(link)
     end
     if not itemID then return end
 

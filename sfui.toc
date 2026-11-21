@@ -138,6 +138,7 @@ frames/bars/totembar.lua [AllowLoadGameType camelot, classic]
 frames/bars/pet.lua [AllowLoadGameType camelot, classic]
 frames/bars/flighttimer.lua [AllowLoadGameType camelot, classic]
 frames/experience/data.lua
+frames/experience/bar_base.lua
 frames/experience/challenges.lua [AllowLoadGameType camelot]
 frames/experience/pet.lua [AllowLoadGameType camelot, classic]
 frames/experience/floating.lua
@@ -211,6 +212,8 @@ frames/dungeonjournal/dj_sidebar.lua [AllowLoadGameType camelot, classic]
 frames/dungeonjournal/dj_bosses.lua [AllowLoadGameType camelot, classic]
 frames/dungeonjournal/dj_quests.lua [AllowLoadGameType camelot, classic]
 frames/dungeonjournal/dj_tooltips.lua [AllowLoadGameType camelot, classic]
+data/sets_camelot.lua [AllowLoadGameType camelot, classic]
+frames/gear/sets.lua [AllowLoadGameType camelot, classic]
 frames/map/providers/pins_dungeonjournal.lua [AllowLoadGameType camelot, classic]
 
 # Camelot Recipes & Professions
@@ -253,7 +256,7 @@ frames/quests/helpers/q_items.lua
 frames/quests/helpers/q_findgroup.lua [AllowLoadGameType standard]
 frames/quests/helpers/q_tooltip.lua
 frames/quests/helpers/q_common.lua
-frames/quests/helpers/q_boons.lua
+frames/quests/helpers/q_boons.lua [AllowLoadGameType standard]
 
 # Tracker Content Modules
 frames/quests/modules/q_scenarios.lua [AllowLoadGameType standard, camelot]

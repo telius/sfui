@@ -66,6 +66,28 @@ local WAYPOINT_TEXTS = {
 
 local wipe = sfui.common.wipe
 local mapArtCache = {}
+local _qLookup = {}
+local _spreadPins = {}
+
+local DUNGEON_MAPS_ADDON = "sfui_dungeon_maps"
+local dungeonMapsPackTried = false
+
+local function EnsureDungeonMapsLoaded()
+    if sfui.dungeon_maps_pack then return true end
+    if dungeonMapsPackTried then return false end
+    dungeonMapsPackTried = true
+    if sfui.common and sfui.common.ensure_addon_loaded then
+        local loaded = sfui.common.ensure_addon_loaded(DUNGEON_MAPS_ADDON)
+        return loaded and sfui.dungeon_maps_pack ~= nil
+    end
+    local cAddOns = _G.C_AddOns
+    local loadFn = (cAddOns and cAddOns.LoadAddOn) or _G.LoadAddOn
+    if loadFn then
+        local ok, loaded = pcall(loadFn, DUNGEON_MAPS_ADDON)
+        return ok and loaded and sfui.dungeon_maps_pack ~= nil
+    end
+    return false
+end
 
 local function ApplyBackdrop(f, bgR, bgG, bgB, bgA, brR, brG, brB, brA)
     if not f.SetBackdrop then
@@ -109,16 +131,7 @@ local function IsQuestCompleted(questID)
     if not questID then return false end
     local dj = sfui.dungeonjournal
     if dj and dj.IsQuestCompleted then return dj.IsQuestCompleted(questID) end
-    local qs = sfui.queststate
-    if qs and qs.IsCompleted then return qs.IsCompleted(questID) end
-    if C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted) == "function" then
-        local res = SafePlain(C_QuestLog.IsQuestFlaggedCompleted(questID))
-        return res == true
-    elseif type(IsQuestFlaggedCompleted) == "function" then
-        local res = SafePlain(IsQuestFlaggedCompleted(questID))
-        return res == true
-    end
-    return false
+    return (sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(questID)) == true
 end
 
 local function IsQuestInLog(questID)
@@ -238,6 +251,106 @@ local function FindDungeonQuestEntry(dungeon, qPin)
     return nil
 end
 
+local function MatchesQuestField(questField, qid)
+    if not questField or not qid then return false end
+    if type(questField) == "table" then
+        for _, id in ipairs(questField) do
+            if id == qid then return true end
+        end
+        return false
+    end
+    return questField == qid
+end
+
+local function ResolveBossQuest(dungeon, questField)
+    if not questField then return nil, nil end
+    if type(questField) ~= "table" then
+        _qLookup.id = questField
+        return questField, FindDungeonQuestEntry(dungeon, _qLookup)
+    end
+    local playerFaction = type(_G.UnitFactionGroup) == "function" and SafePlain(_G.UnitFactionGroup("player")) or nil
+    local fallbackID, fallbackEntry
+    for _, qid in ipairs(questField) do
+        _qLookup.id = qid
+        local entry = FindDungeonQuestEntry(dungeon, _qLookup)
+        if not fallbackID or (not fallbackEntry and entry) then
+            fallbackID, fallbackEntry = qid, entry
+        end
+        local fac = entry and entry.faction
+        if fac and (fac == "Both" or (playerFaction and fac == playerFaction)) then
+            return qid, entry
+        end
+        if IsQuestInLog(qid) then
+            return qid, entry
+        end
+    end
+    return fallbackID, fallbackEntry
+end
+
+local function IsQuestFieldCompleted(questField, resolvedQID)
+    if resolvedQID and IsQuestCompleted(resolvedQID) then
+        return true
+    end
+    if type(questField) == "table" then
+        for _, qid in ipairs(questField) do
+            if IsQuestCompleted(qid) then return true end
+        end
+    end
+    return false
+end
+
+local function LayoutBossPins(ctrl, artW, artH)
+    local bUsed = ctrl._bossPinsUsed or 0
+    if bUsed <= 0 then return end
+    for i = 1, bUsed do
+        local pin = ctrl.bossPins[i]
+        if pin and pin.normX and pin.normY then
+            pin._sx = pin.normX * artW
+            pin._sy = pin.normY * artH
+        end
+    end
+    if ctrl._spreadPins and bUsed > 1 then
+        wipe(_spreadPins)
+        for i = 1, bUsed do
+            local pin = ctrl.bossPins[i]
+            if pin and pin:IsShown() and not (pin._b and pin._b.alt) and pin._sx then
+                _spreadPins[#_spreadPins + 1] = pin
+            end
+        end
+        local gap = (ctrl._bossPinSize or 28) * 1.32
+        local count = #_spreadPins
+        for _ = 1, 40 do
+            local moved = false
+            for i = 1, count - 1 do
+                local a = _spreadPins[i]
+                for j = i + 1, count do
+                    local b = _spreadPins[j]
+                    local dx = b._sx - a._sx
+                    local dy = b._sy - a._sy
+                    local d = math.sqrt(dx * dx + dy * dy)
+                    if d < gap - 0.5 then
+                        if d < 0.01 then dx, dy, d = 1, 0, 1 end
+                        local push = (gap - d) * 0.5
+                        local nx, ny = dx / d * push, dy / d * push
+                        a._sx, a._sy = a._sx - nx, a._sy - ny
+                        b._sx, b._sy = b._sx + nx, b._sy + ny
+                        moved = true
+                    end
+                end
+            end
+            if not moved then break end
+        end
+        wipe(_spreadPins)
+    end
+    for i = 1, bUsed do
+        local pin = ctrl.bossPins[i]
+        if pin and pin:IsShown() and pin._sx and pin._sy then
+            pin:ClearAllPoints()
+            pin:SetPoint("CENTER", ctrl.holder, "TOPLEFT", pin._sx, -pin._sy)
+        end
+    end
+end
+
 function dj_map.HasMap(dungeon)
     if not dungeon or not dungeon.id then return false end
     local maps = sfui.dj_camelot and sfui.dj_camelot.maps
@@ -283,7 +396,7 @@ function dj_map.FindQuestMapSpot(dungeon, questID, questName)
     local m = sfui.dj_camelot and sfui.dj_camelot.maps and sfui.dj_camelot.maps[dungeon.id]
     if m and qid then
         for _, b in ipairs(m.bosses or {}) do
-            if b.quest == qid then
+            if MatchesQuestField(b.quest, qid) then
                 return { floor = b.floor or 1, x = b.x, y = b.y, name = b.name }
             end
         end
@@ -293,30 +406,10 @@ end
 
 function dj_map.OpenWorldMapSpot(loc, title)
     if not loc or not loc.mapID or not loc.x or not loc.y then return end
-    if not InCombatLockdown or not InCombatLockdown() then
-        if C_Map and type(C_Map.OpenWorldMap) == "function" then
-            C_Map.OpenWorldMap(loc.mapID)
-        elseif WorldMapFrame then
-            ShowUIPanel(WorldMapFrame)
-            if WorldMapFrame.SetMapID then
-                WorldMapFrame:SetMapID(loc.mapID)
-            end
-        end
-    end
-    if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
-        local canSet = true
-        if C_Map.CanSetUserWaypointOnMap then
-            canSet = C_Map.CanSetUserWaypointOnMap(loc.mapID)
-        end
-        if canSet then
-            local pt = UiMapPoint.CreateFromCoordinates(loc.mapID, loc.x, loc.y)
-            if pt then
-                C_Map.SetUserWaypoint(pt)
-                if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                    C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-                end
-            end
-        end
+    local waypointSet = (sfui.map and sfui.map.SetUserWaypoint)
+        and sfui.map.SetUserWaypoint(loc.mapID, loc.x, loc.y) or false
+    if sfui.map and sfui.map.OpenWorldMap then
+        sfui.map.OpenWorldMap(loc.mapID, waypointSet)
     end
     local zoneInfo = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(loc.mapID)
     local zoneName = (zoneInfo and zoneInfo.name) and zoneInfo.name:lower() or ("map " .. tostring(loc.mapID))
@@ -506,7 +599,8 @@ function MapHandlers.BossEnter(s)
         GameTooltip:AddLine("level " .. tostring(lvl) .. " elite", 0.75, 0.75, 0.82)
     end
     if b.quest then
-        local qName = (questEntry and questEntry.name and questEntry.name:lower()) or ("#" .. tostring(b.quest))
+        local qID = s._questID or (type(b.quest) == "number" and b.quest)
+        local qName = (questEntry and questEntry.name and questEntry.name:lower()) or (qID and ("#" .. tostring(qID))) or "quest"
         GameTooltip:AddLine("quest target: " .. qName, 0.55, 0.85, 1.0)
     end
     if wishItems then
@@ -542,7 +636,7 @@ function MapHandlers.BossClick(s, button)
     local b = s._b
     if not b then return end
     if s._isQuestMobOnly then
-        local qID = (s._questEntry and s._questEntry.id) or b.quest
+        local qID = (s._questEntry and s._questEntry.id) or s._questID or (type(b.quest) == "number" and b.quest)
         if ctrl.isWorldMapOverlay then
             if sfui.dungeonjournal and sfui.dungeonjournal.SelectQuest then
                 sfui.dungeonjournal.SelectQuest(ctrl.dungeon.id, qID)
@@ -685,6 +779,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
         linkPins = {},
         entrancePins = {},
         markerPins = {},
+        patchTextures = {},
         stepRows = {},
     }
 
@@ -882,10 +977,20 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 local t = self.mapTiles[i]
                 if t and t:IsShown() then
                     local col, row = (i - 1) % g.cols, math.floor((i - 1) / g.cols)
-                    t:SetSize(g.tileW * sx, g.tileH * sy)
+                    local tw = math.min(g.tileW, g.layerW - col * g.tileW)
+                    local th = math.min(g.tileH, g.layerH - row * g.tileH)
+                    t:SetSize(tw * sx, th * sy)
+                    t:SetTexCoord(0, tw / g.tileW, 0, th / g.tileH)
                     t:ClearAllPoints()
                     t:SetPoint("TOPLEFT", self.holder, "TOPLEFT", col * g.tileW * sx, -row * g.tileH * sy)
                 end
+            end
+        end
+        for _, pt in ipairs(self.patchTextures) do
+            if pt:IsShown() and pt._x0 then
+                pt:ClearAllPoints()
+                pt:SetPoint("TOPLEFT", self.holder, "TOPLEFT", pt._x0 * artW, -(pt._y0 * artH))
+                pt:SetPoint("BOTTOMRIGHT", self.holder, "TOPLEFT", pt._x1 * artW, -(pt._y1 * artH))
             end
         end
 
@@ -908,12 +1013,7 @@ local function CreateMapController(parent, isWorldMapOverlay)
                 pin:SetPoint("CENTER", self.holder, "TOPLEFT", pin.normX * artW, -(pin.normY * artH))
             end
         end
-        for _, pin in ipairs(self.bossPins) do
-            if pin:IsShown() and pin.normX and pin.normY then
-                pin:ClearAllPoints()
-                pin:SetPoint("CENTER", self.holder, "TOPLEFT", pin.normX * artW, -(pin.normY * artH))
-            end
-        end
+        LayoutBossPins(self, artW, artH)
         for _, pin in ipairs(self.questPins) do
             if pin:IsShown() and pin.normX and pin.normY then
                 pin:ClearAllPoints()
@@ -1292,13 +1392,17 @@ local function CreateMapController(parent, isWorldMapOverlay)
             p:Hide()
         end
         for _, p in ipairs(self.bossPins) do p:Hide() end
+        self._bossPinsUsed = 0
+        self._spreadPins = false
         for _, p in ipairs(self.questPins) do p:Hide() end
         for _, p in ipairs(self.markerPins) do p:Hide() end
+        for _, pt in ipairs(self.patchTextures) do pt:Hide() end
 
         if not self.dungeon then return end
         local m = sfui.dj_camelot and sfui.dj_camelot.maps and sfui.dj_camelot.maps[self.dungeon.id]
         if not m or not m.floors or #m.floors == 0 then return end
 
+        EnsureDungeonMapsLoaded()
         local fIdx = math.max(1, math.min(#m.floors, self.floorIndex or 1))
         self.floorIndex = fIdx
         local fl = m.floors[fIdx]
@@ -1315,7 +1419,9 @@ local function CreateMapController(parent, isWorldMapOverlay)
         else
             self.mapTex:Hide()
             local apiLayer, apiTextures
-            if fl.uiMapID then
+            if type(fl.tiles) == "table" and #fl.tiles > 0 then
+                apiTextures = fl.tiles
+            elseif fl.uiMapID then
                 local cached = mapArtCache[fl.uiMapID]
                 if cached == nil then
                     if C_Map and type(C_Map.GetMapArtLayers) == "function" and type(C_Map.GetMapArtLayerTextures) == "function" then
@@ -1327,7 +1433,8 @@ local function CreateMapController(parent, isWorldMapOverlay)
                             end
                         end
                     end
-                    local wantFirst = fl.tiles and type(GetFileIDFromPath) == "function" and SafePlain(GetFileIDFromPath(fl.tiles .. "1"))
+                    local strPath = type(fl.tiles) == "string" and fl.tiles or nil
+                    local wantFirst = strPath and type(GetFileIDFromPath) == "function" and SafePlain(GetFileIDFromPath(strPath .. "1"))
                     if apiTextures and wantFirst and wantFirst > 0 and SafePlain(apiTextures[1]) ~= wantFirst then
                         apiLayer, apiTextures = nil, nil
                     end
@@ -1342,7 +1449,8 @@ local function CreateMapController(parent, isWorldMapOverlay)
             local tileW = (apiLayer and tonumber(SafePlain(apiLayer.tileWidth))) or 256
             local tileH = (apiLayer and tonumber(SafePlain(apiLayer.tileHeight))) or 256
             local cols = math.max(1, math.ceil(layerW / tileW))
-            local count = apiTextures and #apiTextures or (fl.tiles and 12 or 0)
+            local strPrefix = type(fl.tiles) == "string" and fl.tiles or nil
+            local count = apiTextures and #apiTextures or (strPrefix and 12 or 0)
             self.tileGrid = count > 0 and { layerW = layerW, layerH = layerH, tileW = tileW, tileH = tileH, cols = cols, count = count } or nil
             for i = 1, math.max(count, #self.mapTiles) do
                 local t = self.mapTiles[i]
@@ -1351,11 +1459,11 @@ local function CreateMapController(parent, isWorldMapOverlay)
                         t = self.holder:CreateTexture(nil, "BACKGROUND")
                         self.mapTiles[i] = t
                     end
-                    local texSrc = (apiTextures and SafePlain(apiTextures[i])) or (fl.tiles and (fl.tiles .. i))
+                    local texSrc = (apiTextures and SafePlain(apiTextures[i])) or (strPrefix and (strPrefix .. i))
                     if texSrc and t._loadedTex ~= texSrc then
                         local okTex = t:SetTexture(texSrc)
-                        if okTex == false and apiTextures and fl.tiles then
-                            local fallbackTex = fl.tiles .. i
+                        if okTex == false and apiTextures and strPrefix then
+                            local fallbackTex = strPrefix .. i
                             if t._loadedTex ~= fallbackTex then
                                 t:SetTexture(fallbackTex)
                             end
@@ -1364,10 +1472,30 @@ local function CreateMapController(parent, isWorldMapOverlay)
                             t._loadedTex = texSrc
                         end
                     end
-                    t:SetTexCoord(0, 1, 0, 1)
                     t:Show()
                 elseif t then
                     t:Hide()
+                end
+            end
+
+            local pack = sfui.dungeon_maps_pack
+            local patchList = pack and pack.patches and pack.patches[self.dungeon.id] and pack.patches[self.dungeon.id][fIdx]
+            if patchList and pack.patchBase then
+                for pi, pInfo in ipairs(patchList) do
+                    local pt = self.patchTextures[pi]
+                    if not pt then
+                        pt = self.holder:CreateTexture(nil, "ARTWORK", nil, 1)
+                        self.patchTextures[pi] = pt
+                    end
+                    local pTex = pack.patchBase .. pInfo[1]
+                    if pt._loadedTex ~= pTex then
+                        pt._loadedTex = pTex
+                        pt:SetTexture(pTex)
+                    end
+                    pt:SetTexCoord(0, 1, 0, 1)
+                    pt:SetAlpha(pInfo[6] or 1)
+                    pt._x0, pt._y0, pt._x1, pt._y1 = pInfo[2], pInfo[3], pInfo[4], pInfo[5]
+                    pt:Show()
                 end
             end
         end
@@ -1533,109 +1661,117 @@ local function CreateMapController(parent, isWorldMapOverlay)
         end
 
         -- 3. Boss & quest-target portrait pins
+        local showQuests = GetShowQuestPins()
         local bUsed = 0
         local bossScale = GetBossIconScale()
         local pinSize = math.max(22, math.floor(self.baseH * 0.082 * bossScale + 0.5))
         for _, b in ipairs(m.bosses or {}) do
             if (b.floor or 1) == fIdx then
-                bUsed = bUsed + 1
-                local pin = self.bossPins[bUsed]
-                if not pin then
-                    pin = CreateFrame("Button", nil, self.holder)
-                    pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-
-                    pin.bg = pin:CreateTexture(nil, "BACKGROUND")
-                    pin.bg:SetAllPoints()
-                    pin.bg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
-                    pin.bg:SetVertexColor(0.04, 0.04, 0.06, 0.92)
-
-                    pin.portrait = pin:CreateTexture(nil, "ARTWORK")
-                    pin.portrait:SetPoint("TOPLEFT", pin, "TOPLEFT", 2, -2)
-                    pin.portrait:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", -2, 2)
-
-                    pin.wishIcon = pin:CreateTexture(nil, "OVERLAY", nil, 2)
-                    pin.wishIcon:SetSize(14, 14)
-                    pin.wishIcon:SetPoint("TOPRIGHT", pin, "TOPRIGHT", 3, 3)
-                    pin.wishIcon:SetTexture(WISHLIST_TEX)
-                    pin.wishIcon:SetTexCoord(0, 1, 0, 1)
-
-                    pin.questBadge = pin:CreateTexture(nil, "OVERLAY", nil, 3)
-                    pin.questBadge:SetTexture("Interface\\TargetingFrame\\PortraitQuestBadge")
-
-                    pin.lvlBadge = pin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                    pin.lvlBadge:SetPoint("BOTTOM", pin, "BOTTOM", 0, -4)
-
-                    pin:SetScript("OnEnter", MapHandlers.BossEnter)
-                    pin:SetScript("OnLeave", MapHandlers.HideTooltip)
-                    pin:SetScript("OnClick", MapHandlers.BossClick)
-                    pin._ctrl = self
-                    self.bossPins[bUsed] = pin
-                end
-
-                pin:SetSize(pinSize, pinSize)
-                pin:SetAlpha(b.alt and 0.45 or 1.0)
-                pin:SetFrameLevel(self.holder:GetFrameLevel() + (b.alt and 14 or 18))
-
                 local sfuiBoss = FindSfuiBossData(self.dungeon, b)
-                local questEntry = b.quest and FindDungeonQuestEntry(self.dungeon, { id = b.quest }) or nil
                 local isQuestMobOnly = (sfuiBoss == nil) and (b.quest ~= nil)
+                if not b.quest or showQuests then
+                    bUsed = bUsed + 1
+                    local pin = self.bossPins[bUsed]
+                    if not pin then
+                        pin = CreateFrame("Button", nil, self.holder)
+                        pin:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-                local dispID = b.displayId or (sfuiBoss and sfuiBoss.displayId) or 0
-                local wantedDisp = (dispID > 0 and type(SetPortraitTextureFromCreatureDisplayID) == "function") and dispID or 0
-                if pin._lastDispID ~= wantedDisp then
-                    pin._lastDispID = wantedDisp
-                    if wantedDisp > 0 then
-                        SetPortraitTextureFromCreatureDisplayID(pin.portrait, wantedDisp)
-                        pin.portrait:SetTexCoord(0, 1, 0, 1)
+                        pin.bg = pin:CreateTexture(nil, "BACKGROUND")
+                        pin.bg:SetAllPoints()
+                        pin.bg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+                        pin.bg:SetVertexColor(0.04, 0.04, 0.06, 0.92)
+
+                        pin.portrait = pin:CreateTexture(nil, "ARTWORK")
+                        pin.portrait:SetPoint("TOPLEFT", pin, "TOPLEFT", 2, -2)
+                        pin.portrait:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", -2, 2)
+
+                        pin.wishIcon = pin:CreateTexture(nil, "OVERLAY", nil, 2)
+                        pin.wishIcon:SetSize(14, 14)
+                        pin.wishIcon:SetPoint("TOPRIGHT", pin, "TOPRIGHT", 3, 3)
+                        pin.wishIcon:SetTexture(WISHLIST_TEX)
+                        pin.wishIcon:SetTexCoord(0, 1, 0, 1)
+
+                        pin.questBadge = pin:CreateTexture(nil, "OVERLAY", nil, 3)
+                        pin.questBadge:SetTexture("Interface\\TargetingFrame\\PortraitQuestBadge")
+
+                        pin.lvlBadge = pin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                        pin.lvlBadge:SetPoint("BOTTOM", pin, "BOTTOM", 0, -4)
+
+                        pin:SetScript("OnEnter", MapHandlers.BossEnter)
+                        pin:SetScript("OnLeave", MapHandlers.HideTooltip)
+                        pin:SetScript("OnClick", MapHandlers.BossClick)
+                        pin._ctrl = self
+                        self.bossPins[bUsed] = pin
+                    end
+
+                    pin:SetSize(pinSize, pinSize)
+                    pin:SetAlpha(b.alt and 0.45 or 1.0)
+                    pin:SetFrameLevel(self.holder:GetFrameLevel() + (b.alt and 14 or 18))
+
+                    local resolvedQID, questEntry
+                    if b.quest then
+                        resolvedQID, questEntry = ResolveBossQuest(self.dungeon, b.quest)
+                    end
+
+                    local dispID = b.displayId or (sfuiBoss and sfuiBoss.displayId) or 0
+                    local wantedDisp = (dispID > 0 and type(SetPortraitTextureFromCreatureDisplayID) == "function") and dispID or 0
+                    if pin._lastDispID ~= wantedDisp then
+                        pin._lastDispID = wantedDisp
+                        if wantedDisp > 0 then
+                            SetPortraitTextureFromCreatureDisplayID(pin.portrait, wantedDisp)
+                            pin.portrait:SetTexCoord(0, 1, 0, 1)
+                        else
+                            pin.portrait:SetTexture("Interface\\EncounterJournal\\UI-EJ-Boss-Default")
+                        end
+                    end
+
+                    if b.quest and not b.alt then
+                        local qbSize = math.max(18, math.floor(pinSize * 0.78))
+                        pin.questBadge:SetSize(qbSize, qbSize)
+                        pin.questBadge:ClearAllPoints()
+                        pin.questBadge:SetPoint("CENTER", pin, "TOPRIGHT", -2, -2)
+                        if pin.questBadge.SetDesaturated then
+                            pin.questBadge:SetDesaturated(IsQuestFieldCompleted(b.quest, resolvedQID))
+                        end
+                        pin.questBadge:Show()
                     else
-                        pin.portrait:SetTexture("Interface\\EncounterJournal\\UI-EJ-Boss-Default")
+                        pin.questBadge:Hide()
                     end
-                end
 
-                if b.quest and not b.alt then
-                    local qbSize = math.max(18, math.floor(pinSize * 0.78))
-                    pin.questBadge:SetSize(qbSize, qbSize)
-                    pin.questBadge:ClearAllPoints()
-                    pin.questBadge:SetPoint("CENTER", pin, "TOPRIGHT", -2, -2)
-                    if pin.questBadge.SetDesaturated then
-                        pin.questBadge:SetDesaturated(IsQuestCompleted(b.quest))
+                    local wishItems = (not b.alt) and GetBossWishlistItems(sfuiBoss) or nil
+                    if wishItems then
+                        pin.wishIcon:Show()
+                    else
+                        pin.wishIcon:Hide()
                     end
-                    pin.questBadge:Show()
-                else
-                    pin.questBadge:Hide()
+
+                    local lvl = b.level or (sfuiBoss and sfuiBoss.level)
+                    if lvl and not b.alt and bossScale >= 0.75 then
+                        pin.lvlBadge:SetText("|cffffd100" .. tostring(lvl) .. "|r")
+                        pin.lvlBadge:Show()
+                    else
+                        pin.lvlBadge:Hide()
+                    end
+
+                    pin.normX, pin.normY = b.x, b.y
+                    pin._b = b
+                    pin._lvl = lvl
+                    pin._questID = resolvedQID
+                    pin._questEntry = questEntry
+                    pin._wishItems = wishItems
+                    pin._isQuestMobOnly = isQuestMobOnly
+                    pin._sfuiBoss = sfuiBoss
+                    pin:Show()
                 end
-
-                local wishItems = (not b.alt) and GetBossWishlistItems(sfuiBoss) or nil
-                if wishItems then
-                    pin.wishIcon:Show()
-                else
-                    pin.wishIcon:Hide()
-                end
-
-                local lvl = b.level or (sfuiBoss and sfuiBoss.level)
-                if lvl and not b.alt and bossScale >= 0.75 then
-                    pin.lvlBadge:SetText("|cffffd100" .. tostring(lvl) .. "|r")
-                    pin.lvlBadge:Show()
-                else
-                    pin.lvlBadge:Hide()
-                end
-
-                pin.normX, pin.normY = b.x, b.y
-                pin:ClearAllPoints()
-                pin:SetPoint("CENTER", self.holder, "TOPLEFT", b.x * artW, -(b.y * artH))
-
-                pin._b = b
-                pin._lvl = lvl
-                pin._questEntry = questEntry
-                pin._wishItems = wishItems
-                pin._isQuestMobOnly = isQuestMobOnly
-                pin._sfuiBoss = sfuiBoss
-                pin:Show()
             end
         end
+        self._bossPinsUsed = bUsed
+        self._bossPinSize = pinSize
+        self._spreadPins = (m.spreadPins == true)
+        LayoutBossPins(self, artW, artH)
 
         -- 4. In-dungeon quest & object pins
-        if GetShowQuestPins() then
+        if showQuests then
             local qList = sfui.dj_camelot and sfui.dj_camelot.mapQuestPins and sfui.dj_camelot.mapQuestPins[self.dungeon.id] or {}
             local qUsed = 0
             local qSize = math.max(20, math.floor(self.baseH * 0.066))
@@ -2084,11 +2220,8 @@ function MapHandlers.WaypointClick(s, button)
         dj_map.ClearRouteOnWorldMap()
     elseif wp and wp.mapID and wp.mapID ~= s._currentMapID then
         GameTooltip:Hide()
-        if InCombatLockdown and InCombatLockdown() then return end
-        if C_Map and type(C_Map.OpenWorldMap) == "function" then
-            C_Map.OpenWorldMap(wp.mapID)
-        elseif WorldMapFrame and WorldMapFrame.SetMapID then
-            WorldMapFrame:SetMapID(wp.mapID)
+        if sfui.map and sfui.map.OpenWorldMap then
+            sfui.map.OpenWorldMap(wp.mapID)
         end
     end
 end
@@ -2239,17 +2372,10 @@ end
 function dj_map.ShowRouteOnWorldMap(routeMap)
     if not routeMap or not routeMap.mapID or not routeMap.points then return end
     activeRouteMap = routeMap
-    if not InCombatLockdown or not InCombatLockdown() then
-        if C_Map and type(C_Map.OpenWorldMap) == "function" then
-            C_Map.OpenWorldMap(routeMap.mapID)
-        elseif WorldMapFrame then
-            ShowUIPanel(WorldMapFrame)
-            if WorldMapFrame.SetMapID then
-                WorldMapFrame:SetMapID(routeMap.mapID)
-            end
-        end
-    end
     RenderRouteOnWorldMap()
+    if sfui.map and sfui.map.OpenWorldMap then
+        sfui.map.OpenWorldMap(routeMap.mapID, false, RenderRouteOnWorldMap)
+    end
     if sfui.common and sfui.common.print then
         sfui.common.print("travel route drawn on world map (right-click a route waypoint to clear).")
     end

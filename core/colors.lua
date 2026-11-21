@@ -14,6 +14,8 @@ local issecretvalue     = (sfui.safety and sfui.safety.issecretvalue) or _G.isse
 local GetSpecializationInfoByID = (_G.C_SpecializationInfo and _G.C_SpecializationInfo.GetSpecializationInfoByID) or _G.GetSpecializationInfoByID
 local select, tonumber, type = _G.select, _G.tonumber, _G.type
 local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
 local string_format = string.format
 
 --- Normalizes and unpacks color from either array { r, g, b, a } or dictionary { r = ..., g = ..., b = ..., a = ... }
@@ -27,13 +29,30 @@ function sfui.colors.unpack_color(color, defaultR, defaultG, defaultB, defaultA)
 end
 sfui.common.unpack_color = sfui.colors.unpack_color
 
---- Convert RGB(A) floats (0-1) to 6 or 8 character hex string without alpha prefix
+--- Convert RGB(A) floats (0-1) or a color table ({ r, g, b } / { r=..., g=..., b=... }) to hex string.
+--- Accepts (r, g, b[, a]) or (colorTable[, defaultR_or_fallbackHex, defaultG, defaultB]).
 function sfui.colors.rgb_to_hex(r, g, b, a)
-    r = math_floor((r or 1) * 255 + 0.5)
-    g = math_floor((g or 1) * 255 + 0.5)
-    b = math_floor((b or 1) * 255 + 0.5)
+    if type(r) == "table" then
+        local col = r
+        if col[1] == nil and col.r == nil and type(g) == "string" then
+            return g
+        end
+        local dr = type(g) == "number" and g or 1
+        local dg = type(b) == "number" and b or 1
+        local db = type(a) == "number" and a or 1
+        local rr, gg, bb = sfui.colors.unpack_color(col, dr, dg, db)
+        local cr = math_floor(math_max(0, math_min(1, tonumber(rr) or dr)) * 255 + 0.5)
+        local cg = math_floor(math_max(0, math_min(1, tonumber(gg) or dg)) * 255 + 0.5)
+        local cb = math_floor(math_max(0, math_min(1, tonumber(bb) or db)) * 255 + 0.5)
+        return string_format("%02x%02x%02x", cr, cg, cb)
+    elseif r == nil and type(g) == "string" then
+        return g
+    end
+    r = math_floor((tonumber(r) or 1) * 255 + 0.5)
+    g = math_floor((tonumber(g) or 1) * 255 + 0.5)
+    b = math_floor((tonumber(b) or 1) * 255 + 0.5)
     if a then
-        a = math_floor(a * 255 + 0.5)
+        a = math_floor((tonumber(a) or 1) * 255 + 0.5)
         return string_format("%02x%02x%02x%02x", a, r, g, b)
     end
     return string_format("%02x%02x%02x", r, g, b)

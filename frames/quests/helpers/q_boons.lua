@@ -30,12 +30,12 @@ local DEFAULT_WIDTH = 280
 local boonsFrame = nil
 local rowPool = {}
 local activeRows = {}
-local scanTooltip = nil
 local currentAuraInstanceID = nil
 local currentSpellID = nil
 local pendingUpdate = false
 local updateTimer = nil
 local needsUpdateAfterCombat = false
+local DeferBoonsUpdate
 
 local function issecretvalue(val)
     if sfui.common and sfui.common.issecretvalue then
@@ -49,14 +49,7 @@ end
 
 -- ─── Tooltip Scanner Fallback ────────────────────────────────────────────────
 local function GetOrCreateScanner()
-    if sfui.common and sfui.common.get_scan_tooltip then
-        return sfui.common.get_scan_tooltip()
-    end
-    if not scanTooltip then
-        scanTooltip = CreateFrame("GameTooltip", "SfuiBoonsScanTooltip", UIParent, "GameTooltipTemplate")
-        scanTooltip:SetOwner(WorldFrame or UIParent, "ANCHOR_NONE")
-    end
-    return scanTooltip
+    return sfui.common.get_scan_tooltip()
 end
 
 local function AreAurasSecret()
@@ -124,8 +117,12 @@ local function IsSpellIDLine(line)
     return false
 end
 
+local _boonsRawLines = {}
+local _boonsStats = {}
+
 local function GetBoonsLines(aura)
-    local rawLines = {}
+    table_wipe(_boonsRawLines)
+    local rawLines = _boonsRawLines
     if not aura or AreAurasSecret() then return rawLines end
     local hasPlainInstanceID = aura.auraInstanceID and not issecretvalue(aura.auraInstanceID)
 
@@ -370,7 +367,7 @@ Boons.EnsureDelveHUDHooked = EnsureDelveHUDHooked
 -- ─── Anchor Update ───────────────────────────────────────────────────────────
 function Boons.UpdateAnchor()
     if InCombatLockdown() then
-        needsUpdateAfterCombat = true
+        DeferBoonsUpdate()
         return
     end
     if not boonsFrame or not boonsFrame:IsShown() then return end
@@ -425,15 +422,19 @@ function Boons.UpdateAnchor()
     boonsFrame:SetBackdropBorderColor(bCol[1] or 0, bCol[2] or 0, bCol[3] or 0, bCol[4] or 0.9)
 end
 
+local _auraEventRegistered = false
+local UpdateAuraSubscription
+
 -- ─── Core Content Update ─────────────────────────────────────────────────────
 function Boons.Update()
     if InCombatLockdown() or AreAurasSecret() then
-        needsUpdateAfterCombat = true
+        DeferBoonsUpdate()
         return
     end
 
     if SfuiDB and SfuiDB.showBoonsDetails == false then
         if boonsFrame then boonsFrame:Hide() end
+        if UpdateAuraSubscription then UpdateAuraSubscription() end
         return
     end
 
@@ -442,6 +443,7 @@ function Boons.Update()
         currentAuraInstanceID = nil
         currentSpellID = nil
         if boonsFrame then boonsFrame:Hide() end
+        if UpdateAuraSubscription then UpdateAuraSubscription() end
         return
     end
 
@@ -455,7 +457,8 @@ function Boons.Update()
 
     -- Extract Lines
     local rawLines = GetBoonsLines(aura)
-    local stats = {}
+    local stats = _boonsStats
+    local numStats = 0
     local customTitle = "boons"
 
     for idx, line in ipairs(rawLines) do
@@ -471,16 +474,24 @@ function Boons.Update()
                     -- Skip spell ID / aura ID lines
                 else
                     val = val:gsub("%.$", "")
-                    table_insert(stats, {
-                        label = stat:lower() .. ":",
-                        value = val:lower(),
-                    })
+                    numStats = numStats + 1
+                    local entry = stats[numStats]
+                    if not entry then
+                        entry = {}
+                        stats[numStats] = entry
+                    end
+                    entry.label = stat:lower() .. ":"
+                    entry.value = val:lower()
                 end
             else
-                table_insert(stats, {
-                    label = line:lower(),
-                    value = "",
-                })
+                numStats = numStats + 1
+                local entry = stats[numStats]
+                if not entry then
+                    entry = {}
+                    stats[numStats] = entry
+                end
+                entry.label = line:lower()
+                entry.value = ""
             end
         end
     end
@@ -491,8 +502,8 @@ function Boons.Update()
     local appCount = aura.applications or (aura.charges and aura.charges > 0 and aura.charges) or 0
     if appCount > 1 then
         f.countText:SetFormattedText("%d stacks", appCount)
-    elseif #stats > 0 then
-        f.countText:SetFormattedText("%d powers", #stats)
+    elseif numStats > 0 then
+        f.countText:SetFormattedText("%d powers", numStats)
     else
         f.countText:SetText("")
     end
@@ -502,12 +513,13 @@ function Boons.Update()
     local isCollapsed = (SfuiDB and SfuiDB.boonsPanelCollapsed == true)
     local totalHeight = 32
 
-    if isCollapsed or #stats == 0 then
+    if isCollapsed or numStats == 0 then
         f.divider:Hide()
     else
         f.divider:Show()
         local yOffset = -34
-        for _, sData in ipairs(stats) do
+        for i = 1, numStats do
+            local sData = stats[i]
             local row = AcquireRow(f)
             row:ClearAllPoints()
             row:SetPoint("TOPLEFT", f, "TOPLEFT", 0, yOffset)
@@ -529,13 +541,14 @@ function Boons.Update()
     f:SetHeight(totalHeight)
     f:Show()
     Boons.UpdateAnchor()
+    if UpdateAuraSubscription then UpdateAuraSubscription() end
 end
 
 local function _execute_scheduled_boons_update()
     pendingUpdate = false
     updateTimer = nil
     if InCombatLockdown() then
-        needsUpdateAfterCombat = true
+        DeferBoonsUpdate()
         return
     end
     Boons.Update()
@@ -543,7 +556,7 @@ end
 
 function Boons.RequestUpdate(delay)
     if InCombatLockdown() then
-        needsUpdateAfterCombat = true
+        DeferBoonsUpdate()
         return
     end
     if pendingUpdate then
@@ -562,7 +575,7 @@ local function on_regen_disabled()
         updateTimer = nil
         pendingUpdate = false
         -- the cancelled refresh still has to happen once combat ends
-        needsUpdateAfterCombat = true
+        DeferBoonsUpdate()
     end
 end
 
@@ -573,12 +586,37 @@ local function on_regen_enabled()
     end
 end
 
+DeferBoonsUpdate = function()
+    needsUpdateAfterCombat = true
+    if InCombatLockdown() and sfui.safety and sfui.safety.DeferOutOfCombat then
+        sfui.safety.DeferOutOfCombat("q_boons_update", sfui.safety.OOC_P1, on_regen_enabled)
+    end
+end
+
+local on_aura_or_zone
+UpdateAuraSubscription = function()
+    local events = sfui.events
+    if not (events and events.RegisterUnitEvent and events.UnregisterUnitEvent) then return end
+    local inScenario = _G.C_Scenario and _G.C_Scenario.IsInScenario and _G.C_Scenario.IsInScenario()
+    local isShown = boonsFrame and boonsFrame:IsShown()
+    local want = (inScenario or isShown) and true or false
+    if want and not _auraEventRegistered then
+        _auraEventRegistered = true
+        events.RegisterUnitEvent("UNIT_AURA", "player", on_aura_or_zone)
+    elseif not want and _auraEventRegistered then
+        _auraEventRegistered = false
+        events.UnregisterUnitEvent("UNIT_AURA", "player", on_aura_or_zone)
+    end
+end
+
 local function on_entering_world()
+    UpdateAuraSubscription()
     C_Timer.After(0.5, Boons.Update)
     C_Timer.After(1.0, Boons.UpdateAnchor)
 end
 
-local function on_aura_or_zone(event)
+on_aura_or_zone = function(event)
+    UpdateAuraSubscription()
     if event == "UNIT_AURA" then
         local isShown = boonsFrame and boonsFrame:IsShown()
         if not isShown and not FindBoonsAura() then
@@ -593,12 +631,11 @@ end
 local events = sfui.events
 events.RegisterEvent("PLAYER_ENTERING_WORLD", on_entering_world)
 events.RegisterEvent("PLAYER_REGEN_DISABLED", on_regen_disabled)
-events.RegisterEvent("PLAYER_REGEN_ENABLED", on_regen_enabled)
-events.RegisterUnitEvent("UNIT_AURA", "player", on_aura_or_zone)
 events.RegisterEvent("SCENARIO_UPDATE", on_aura_or_zone)
 events.RegisterEvent("SCENARIO_CRITERIA_UPDATE", on_aura_or_zone)
 events.RegisterEvent("ZONE_CHANGED_NEW_AREA", on_aura_or_zone)
 events.RegisterEvent("ZONE_CHANGED", on_aura_or_zone)
+UpdateAuraSubscription()
 
 -- Safe Theme Registration
 if sfui.theme and sfui.theme.RegisterThemeCallback then

@@ -21,16 +21,7 @@ sfui.tracker           = sfui.tracker or {}
 sfui.questlog          = sfui.questlog or {}
 
 -- Guard: Classic / Camelot only (Exclude Retail)
-local isRetail         = sfui.isRetail
-if isRetail == nil then
-    local projectID = _G.WOW_PROJECT_ID or 1
-    local _, _, _, tocVersionNum = _G.GetBuildInfo()
-    tocVersionNum = tonumber(tocVersionNum) or 0
-    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
-    isRetail = (projectID == 1) and not isCamelot
-end
-
-if isRetail then
+if sfui.isRetail then
     return
 end
 
@@ -314,6 +305,32 @@ local function OnQuestBlockClick(block, mouseButton, questID, questLogIndex, que
     end
 end
 
+local function CamelotQuestBlock_OnClick(block, btn)
+    local b = block and block._bData
+    if not b then return end
+    OnQuestBlockClick(block, btn, b.questID, b.questLogIndex, b.rawTitle, false, b.isExpanded, b.canClickToComplete)
+end
+
+-- Camelot sorting: Dungeons -> Professions -> Current Zone -> Other Zones (alphabetical)
+local CAMELOT_SECTION_RANKS = {
+    dungeons    = 1,
+    professions = 2,
+}
+
+local function CompareCamelotSections(a, b)
+    local rA = CAMELOT_SECTION_RANKS[a.id] or 99
+    local rB = CAMELOT_SECTION_RANKS[b.id] or 99
+    if rA ~= rB then
+        return rA < rB
+    end
+    local aIsCur = a.isCurrentZone or (a.title and a.title:find("%[Zone%]") ~= nil)
+    local bIsCur = b.isCurrentZone or (b.title and b.title:find("%[Zone%]") ~= nil)
+    if aIsCur ~= bIsCur then
+        return aIsCur
+    end
+    return (a.title or "") < (b.title or "")
+end
+
 -- ─────────────────────────────────────────────────────────
 --  SCANNER IMPLEMENTATION
 -- ─────────────────────────────────────────────────────────
@@ -346,6 +363,9 @@ end
 
 function CamelotQuestsModule:OnEvent(event, ...)
     local arg1, arg2 = ...
+    if event == "UNIT_QUEST_LOG_CHANGED" and arg1 ~= "player" then
+        return
+    end
     local questID = tonumber(arg1)
     local added = arg2
     if not questID and tonumber(arg2) then
@@ -372,8 +392,6 @@ function CamelotQuestsModule:OnEvent(event, ...)
                 pendingChangedQuests[questID] = true
             end
         end
-    elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_AUTOCOMPLETE" then
-        sfui.tracker.RequestRefresh(0.05)
     elseif event == "QUEST_WATCH_LIST_CHANGED" then
         if questID and questID > 0 then
             if not added then
@@ -403,7 +421,7 @@ function CamelotQuestsModule:OnEvent(event, ...)
         end
     end
 
-    if event == "QUEST_WATCH_LIST_CHANGED" or event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_CRITERIA_UPDATE" or event == "QUEST_ACCEPTED" then
+    if event == "QUEST_WATCH_LIST_CHANGED" or event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_CRITERIA_UPDATE" or event == "QUEST_CRITERIA_UPDATE" or event == "QUEST_ACCEPTED" or event == "QUEST_AUTOCOMPLETE" then
         self:MarkDirty(0.01)
     else
         self:MarkDirty()
@@ -784,9 +802,7 @@ function CamelotQuestsModule:BuildBlocks(container)
                     isExpanded         = isExpanded,
                     lines              = lines,
                     progressBar        = progressBar,
-                    OnClick            = function(block, btn)
-                        OnQuestBlockClick(block, btn, questID, i, title, false, isExpanded, canClickToComplete)
-                    end,
+                    OnClick            = CamelotQuestBlock_OnClick,
                 })
             end
         end
@@ -794,23 +810,7 @@ function CamelotQuestsModule:BuildBlocks(container)
 
     -- Camelot sorting: Dungeons -> Professions -> Current Zone -> Other Zones (alphabetical)
     local _, _, capBadge = GetQuestCapacityInfo()
-    local sectionRanks = {
-        dungeons    = 1,
-        professions = 2,
-    }
-    table_sort(sectionOrder, function(a, b)
-        local rA = sectionRanks[a.id] or 99
-        local rB = sectionRanks[b.id] or 99
-        if rA ~= rB then
-            return rA < rB
-        end
-        local aIsCur = a.isCurrentZone or (a.title and a.title:find("%[Zone%]") ~= nil)
-        local bIsCur = b.isCurrentZone or (b.title and b.title:find("%[Zone%]") ~= nil)
-        if aIsCur ~= bIsCur then
-            return aIsCur
-        end
-        return (a.title or "") < (b.title or "")
-    end)
+    table_sort(sectionOrder, CompareCamelotSections)
 
     if #sectionOrder > 0 and capBadge then
         local targetSec = nil

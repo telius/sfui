@@ -31,12 +31,116 @@ Blocks.ICONS                     = {
 
 -- ─── Helpers ────────────────────────────────────────────────────────────────
 local function GetFont(size, flags)
-    local f = (sfui.config and sfui.config.fontFile)
-        or (sfui.config and sfui.config.fonts and sfui.config.fonts.regular)
-        or (_G.STANDARD_TEXT_FONT and _G.STANDARD_TEXT_FONT ~= "" and _G.STANDARD_TEXT_FONT)
-        or (_G.GameFontNormal and _G.GameFontNormal.GetFont and _G.GameFontNormal:GetFont())
-        or "Fonts\\FRIZQT__.TTF"
+    local f = (sfui.config and sfui.config.fonts and sfui.config.fonts.regular)
+        or sfui.common.get_font_file()
     return f, size or 12, flags or ""
+end
+
+local function Tracker_OnMouseWheel(self, delta)
+    sfui.tracker.OnMouseWheel(self, delta)
+end
+
+local function Header_OnEnter(self)
+    if not self.isCamelotHeader then
+        self:SetBackdropColor(0.08, 0.08, 0.08, 0.65)
+    end
+    local tip = sfui.common.get_tooltip()
+    if not tip then return end
+    tip:SetOwner(self, "ANCHOR_RIGHT")
+    tip:ClearLines()
+    local col = self.defColor or { 1, 1, 1 }
+    tip:AddLine(self.defLabel or (self.title and self.title:GetText()) or "Section", col[1] or 1, col[2] or 1,
+        col[3] or 1)
+    if self.capFormatted then
+        tip:AddLine("quest log: " .. self.capFormatted, 1, 1, 1)
+    end
+    tip:AddLine("|cff888888left-click: collapse/expand section|r", 1, 1, 1)
+    local secID = self.secID
+    local itemWord = "items"
+    if secID == "challenges" or secID == "camelot_challenges" then
+        itemWord = "challenges"
+    elseif secID == "achievements" then
+        itemWord = "achievements"
+    elseif secID == "recipes" then
+        itemWord = "recipes"
+    elseif secID == "activities" then
+        itemWord = "activities"
+    elseif secID == "collectables" then
+        itemWord = "collectables"
+    elseif secID == "skills" then
+        itemWord = "skills"
+    elseif secID == "world" or secID == "worldquests" then
+        itemWord = "world quests"
+    elseif secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or secID == "class" or secID == "dungeons" or secID == "professions" or (type(secID) == "string" and secID:find("^zone")) then
+        itemWord = "quests"
+    end
+    if secID == "challenges" or secID == "camelot_challenges" then
+        tip:AddLine("|cff888888right-click: open legacy challenges|r", 1, 1, 1)
+    elseif secID == "achievements" then
+        tip:AddLine("|cff888888right-click: open achievements|r", 1, 1, 1)
+    end
+    tip:AddLine("|cff888888shift-click: untrack all " .. itemWord .. " in category|r", 1, 1, 1)
+    tip:Show()
+end
+
+local function Header_OnLeave(self)
+    if not self.isCamelotHeader then
+        self:SetBackdropColor(0, 0, 0, 0.50)
+    end
+    local tip = sfui.common.get_tooltip()
+    if tip then tip:Hide() end
+end
+
+local function Header_OnClick(self, button)
+    if InCombatLockdown and InCombatLockdown() then return end
+    local secID = self.secID
+    local currentSec = self._sec
+    if not secID or not currentSec then return end
+
+    if button == "RightButton" then
+        if secID == "challenges" or secID == "camelot_challenges" then
+            if _G.ToggleLegacyChallenges then
+                _G.ToggleLegacyChallenges()
+            elseif _G.LegacySystemFrame_LoadUI then
+                pcall(_G.LegacySystemFrame_LoadUI)
+                if _G.LegacySystemFrame then
+                    _G.LegacySystemFrame:Show()
+                end
+            end
+            return
+        elseif secID == "achievements" then
+            if _G.ToggleAchievementFrame then
+                _G.ToggleAchievementFrame()
+            end
+            return
+        end
+    end
+
+    local IsShiftKeyDown = _G.IsShiftKeyDown
+    if IsShiftKeyDown and IsShiftKeyDown() then
+        local layout = sfui.tracker and sfui.tracker.layout
+        if layout and layout.UntrackSection then
+            layout.UntrackSection(currentSec)
+        end
+        for _, mod in ipairs(sfui.tracker.modules or {}) do
+            if mod.MarkDirty then mod:MarkDirty() end
+        end
+        sfui.tracker.RequestRefresh(0.01)
+        return
+    end
+    SfuiDB.questlogSectionsCollapsed = SfuiDB.questlogSectionsCollapsed or {}
+    local curCollapsed
+    if self._isZoneSec then
+        if currentSec.isCurrentZone then
+            curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
+        else
+            curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] ~= false)
+        end
+    else
+        curCollapsed = (SfuiDB.questlogSectionsCollapsed[secID] == true)
+    end
+    SfuiDB.questlogSectionsCollapsed[secID] = not curCollapsed
+    sfui.tracker.RequestRefresh(0.01)
 end
 
 -- ─── Section Header Factory & Pool ──────────────────────────────────────────
@@ -84,61 +188,11 @@ local function CreateHeader(parent)
 
     sfui.theme.ApplyQuestHeaderStyle(h)
 
-    h:SetScript("OnEnter", function(self)
-        if not self.isCamelotHeader then
-            self:SetBackdropColor(0.08, 0.08, 0.08, 0.65)
-        end
-        local tip = sfui.common.get_tooltip()
-        if not tip then return end
-        tip:SetOwner(self, "ANCHOR_RIGHT")
-        tip:ClearLines()
-        local col = self.defColor or { 1, 1, 1 }
-        tip:AddLine(self.defLabel or (self.title and self.title:GetText()) or "Section", col[1] or 1, col[2] or 1,
-            col[3] or 1)
-        if self.capFormatted then
-            tip:AddLine("quest log: " .. self.capFormatted, 1, 1, 1)
-        end
-        tip:AddLine("|cff888888left-click: collapse/expand section|r", 1, 1, 1)
-        local secID = self.secID
-        local itemWord = "items"
-        if secID == "challenges" or secID == "camelot_challenges" then
-            itemWord = "challenges"
-        elseif secID == "achievements" then
-            itemWord = "achievements"
-        elseif secID == "recipes" then
-            itemWord = "recipes"
-        elseif secID == "activities" then
-            itemWord = "activities"
-        elseif secID == "collectables" then
-            itemWord = "collectables"
-        elseif secID == "skills" then
-            itemWord = "skills"
-        elseif secID == "world" or secID == "worldquests" then
-            itemWord = "world quests"
-        elseif secID == "campaign" or secID == "important" or secID == "meta" or secID == "zone" or secID == "quests" or secID == "class" or secID == "dungeons" or secID == "professions" or (type(secID) == "string" and secID:find("^zone")) then
-            itemWord = "quests"
-        end
-        if secID == "challenges" or secID == "camelot_challenges" then
-            tip:AddLine("|cff888888right-click: open legacy challenges|r", 1, 1, 1)
-        elseif secID == "achievements" then
-            tip:AddLine("|cff888888right-click: open achievements|r", 1, 1, 1)
-        end
-        tip:AddLine("|cff888888shift-click: untrack all " .. itemWord .. " in category|r", 1, 1, 1)
-        tip:Show()
-    end)
-
-    h:SetScript("OnLeave", function(self)
-        if not self.isCamelotHeader then
-            self:SetBackdropColor(0, 0, 0, 0.50)
-        end
-        local tip = sfui.common.get_tooltip()
-        if tip then tip:Hide() end
-    end)
-
+    h:SetScript("OnEnter", Header_OnEnter)
+    h:SetScript("OnLeave", Header_OnLeave)
+    h:SetScript("OnClick", Header_OnClick)
     h:EnableMouseWheel(true)
-    h:SetScript("OnMouseWheel", function(self, delta)
-        sfui.tracker.OnMouseWheel(self, delta)
-    end)
+    h:SetScript("OnMouseWheel", Tracker_OnMouseWheel)
 
     return h
 end
@@ -151,11 +205,56 @@ function Blocks.AcquireHeader(parent)
         h:SetParent(parent)
         h:ClearAllPoints()
         h.secID = nil
+        h._sec = nil
+        h._isZoneSec = nil
         sfui.theme.ApplyQuestHeaderStyle(h)
     end
     h:Show()
     table_insert(activeHeaders, h)
     return h
+end
+
+local function Block_OnClick(self, btn)
+    if InCombatLockdown and InCombatLockdown() then return end
+    local bData = self._bData
+    if bData and bData.OnClick then
+        bData.OnClick(self, btn)
+    end
+end
+
+local function Block_OnEnter(self)
+    if self.hl then self.hl:SetColorTexture(1, 1, 1, 0.05) end
+    local bData = self._bData
+    if bData then
+        local tooltipHelper = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+        if tooltipHelper and tooltipHelper.ShowBlockTooltip then
+            tooltipHelper.ShowBlockTooltip(self, bData)
+        end
+        if bData.OnEnter then
+            bData.OnEnter(self)
+        end
+    elseif self._onEnter then
+        self._onEnter(self)
+    end
+end
+
+local function Block_OnLeave(self)
+    if self.hl then self.hl:SetColorTexture(1, 1, 1, 0) end
+    local bData = self._bData
+    if bData then
+        local tooltipHelper = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+        if tooltipHelper and tooltipHelper.HideBlockTooltip then
+            tooltipHelper.HideBlockTooltip(self, bData)
+        else
+            local tip = sfui.common.get_tooltip()
+            if tip then tip:Hide() end
+        end
+        if bData.OnLeave then
+            bData.OnLeave(self)
+        end
+    elseif self._onLeave then
+        self._onLeave(self)
+    end
 end
 
 -- ─── Block Factory & Pool (Entity Card) ─────────────────────────────────────
@@ -204,23 +303,16 @@ local function CreateBlock(parent)
     title:SetWordWrap(false)
     b.title = title
 
-    b:SetScript("OnEnter", function(self)
-        if self.hl then self.hl:SetColorTexture(1, 1, 1, 0.04) end
-        if self._onEnter then self._onEnter(self) end
-    end)
-    b:SetScript("OnLeave", function(self)
-        if self.hl then self.hl:SetColorTexture(1, 1, 1, 0) end
-        if self._onLeave then self._onLeave(self) end
-    end)
+    b:SetScript("OnClick", Block_OnClick)
+    b:SetScript("OnEnter", Block_OnEnter)
+    b:SetScript("OnLeave", Block_OnLeave)
 
     -- Sub-element container arrays
     b.lines = {}
     b.bars = {}
 
     b:EnableMouseWheel(true)
-    b:SetScript("OnMouseWheel", function(self, delta)
-        sfui.tracker.OnMouseWheel(self, delta)
-    end)
+    b:SetScript("OnMouseWheel", Tracker_OnMouseWheel)
 
     return b
 end
@@ -242,15 +334,48 @@ function Blocks.AcquireBlock(parent)
         b.title:SetText("")
         b.title:SetTextColor(1, 1, 1, 1)
     end
+    b._bData = nil
     b._onEnter = nil
     b._onLeave = nil
     b.itemButton = nil
     b.timerBarFrame = nil
     b.findGroupBtn = nil
-    b:SetScript("OnClick", nil)
     b:Show()
     table_insert(activeBlocks, b)
     return b
+end
+
+local function ChildBlock_OnEnter(self)
+    local block = self._block
+    local bData = self._bData
+    if block and block.hl then block.hl:SetColorTexture(1, 1, 1, 0.05) end
+    if block and bData then
+        local tooltipHelper = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+        if tooltipHelper and tooltipHelper.ShowBlockTooltip then
+            tooltipHelper.ShowBlockTooltip(block, bData)
+        end
+    end
+end
+
+local function ChildBlock_OnLeave(self)
+    local block = self._block
+    local bData = self._bData
+    if block and block.hl then block.hl:SetColorTexture(1, 1, 1, 0) end
+    local tooltipHelper = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.tooltip
+    if block and bData and tooltipHelper and tooltipHelper.HideBlockTooltip then
+        tooltipHelper.HideBlockTooltip(block, bData)
+    else
+        local tip = sfui.common.get_tooltip()
+        if tip then tip:Hide() end
+    end
+end
+
+local function Line_OnMouseUp(self, btn)
+    if InCombatLockdown and InCombatLockdown() then return end
+    local bData = self._bData
+    if bData and bData.OnClick then
+        bData.OnClick(self._block, btn)
+    end
 end
 
 -- ─── Objective Line Factory & Pool ──────────────────────────────────────────
@@ -275,9 +400,10 @@ local function CreateLine(parent)
     l.text = text
 
     l:EnableMouseWheel(true)
-    l:SetScript("OnMouseWheel", function(self, delta)
-        sfui.tracker.OnMouseWheel(self, delta)
-    end)
+    l:SetScript("OnMouseWheel", Tracker_OnMouseWheel)
+    l:SetScript("OnEnter", ChildBlock_OnEnter)
+    l:SetScript("OnLeave", ChildBlock_OnLeave)
+    l:SetScript("OnMouseUp", Line_OnMouseUp)
 
     return l
 end
@@ -294,13 +420,20 @@ function Blocks.AcquireLine(parent)
         l.text:SetText("")
         l.text:SetTextColor(0.85, 0.85, 0.85, 1)
     end
+    l._block = nil
+    l._bData = nil
     l:EnableMouse(false)
-    l:SetScript("OnEnter", nil)
-    l:SetScript("OnLeave", nil)
-    l:SetScript("OnMouseUp", nil)
     l:Show()
     table_insert(activeLines, l)
     return l
+end
+
+local function Bar_OnMouseUp(self, btn)
+    if InCombatLockdown and InCombatLockdown() then return end
+    local bData = self._bData
+    if bData and bData.OnClick then
+        bData.OnClick(self._block, btn, self._barData)
+    end
 end
 
 local GetBarTexture = sfui.widgets.get_bar_texture
@@ -358,9 +491,10 @@ local function CreateBar(parent)
     bar.text = text
 
     bar:EnableMouseWheel(true)
-    bar:SetScript("OnMouseWheel", function(self, delta)
-        sfui.tracker.OnMouseWheel(self, delta)
-    end)
+    bar:SetScript("OnMouseWheel", Tracker_OnMouseWheel)
+    bar:SetScript("OnEnter", ChildBlock_OnEnter)
+    bar:SetScript("OnLeave", ChildBlock_OnLeave)
+    bar:SetScript("OnMouseUp", Bar_OnMouseUp)
 
     return bar
 end
@@ -379,10 +513,10 @@ function Blocks.AcquireBar(parent)
     bar:SetStatusBarColor(0.40, 0.00, 1.00, 0.90)
     bar.text:SetShadowOffset(0, 0)
     bar.text:SetShadowColor(0, 0, 0, 0)
+    bar._block = nil
+    bar._bData = nil
+    bar._barData = nil
     bar:EnableMouse(false)
-    bar:SetScript("OnEnter", nil)
-    bar:SetScript("OnLeave", nil)
-    bar:SetScript("OnMouseUp", nil)
     bar:Show()
     table_insert(activeBars, bar)
     return bar
@@ -402,6 +536,8 @@ end
 function Blocks.ResetAll()
     for i = #activeHeaders, 1, -1 do
         local h = table_remove(activeHeaders, i)
+        h._sec = nil
+        h._isZoneSec = nil
         h:Hide()
         h:ClearAllPoints()
         table_insert(headerPool, h)
@@ -409,6 +545,7 @@ function Blocks.ResetAll()
 
     for i = #activeBlocks, 1, -1 do
         local b = table_remove(activeBlocks, i)
+        b._bData = nil
         b:Hide()
         b:ClearAllPoints()
         if b.itemButton then
@@ -443,6 +580,8 @@ function Blocks.ResetAll()
 
     for i = #activeLines, 1, -1 do
         local l = table_remove(activeLines, i)
+        l._block = nil
+        l._bData = nil
         l:Hide()
         l:ClearAllPoints()
         table_insert(linePool, l)
@@ -450,6 +589,9 @@ function Blocks.ResetAll()
 
     for i = #activeBars, 1, -1 do
         local bar = table_remove(activeBars, i)
+        bar._block = nil
+        bar._bData = nil
+        bar._barData = nil
         bar:Hide()
         bar:ClearAllPoints()
         table_insert(barPool, bar)

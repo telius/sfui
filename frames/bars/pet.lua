@@ -81,7 +81,7 @@ local function get_bar_texture()
 end
 
 local function get_font_path()
-    return (common and common.get_font_file and common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    return sfui.common.get_font_file()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -370,6 +370,14 @@ local function init_pet_frame()
 
     local function find_edible_pet_food()
         local C_PetInfo = _G.C_PetInfo
+        if not (C_PetInfo and C_PetInfo.CanPetEatItem) then return nil, nil, nil end
+        if sfui.inventory and sfui.inventory.ForEachBagItem then
+            return sfui.inventory.ForEachBagItem(function(bag, slot, entry)
+                if entry and entry.itemID and C_PetInfo.CanPetEatItem(entry.itemID) then
+                    return bag, slot, entry.itemID
+                end
+            end)
+        end
         local C_Container = _G.C_Container
         local numBags = _G.NUM_BAG_SLOTS or 4
         for bag = 0, numBags do
@@ -378,7 +386,7 @@ local function init_pet_frame()
             for slot = 1, numSlots do
                 local itemID = (C_Container and C_Container.GetContainerItemID and C_Container.GetContainerItemID(bag, slot))
                                or (_G.GetContainerItemID and _G.GetContainerItemID(bag, slot))
-                if itemID and C_PetInfo and C_PetInfo.CanPetEatItem and C_PetInfo.CanPetEatItem(itemID) then
+                if itemID and C_PetInfo.CanPetEatItem(itemID) then
                     return bag, slot, itemID
                 end
             end

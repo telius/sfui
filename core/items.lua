@@ -18,6 +18,7 @@ local C_Item_GetItemQualityByID       = C_Item.GetItemQualityByID
 local C_Item_RequestLoadItemDataByID  = C_Item.RequestLoadItemDataByID
 local C_Item_GetItemCount             = C_Item.GetItemCount or _G.GetItemCount
 local C_Item_GetItemSpecInfo          = C_Item.GetItemSpecInfo
+local strip_colors                    = sfui.safety.strip_colors
 
 -- Dedicated Addon Tooltip Frame (Zero global GameTooltip taint, zero UIWidgetManager registration)
 local sfuiTooltip = CreateFrame("GameTooltip", "SfuiGameTooltip", UIParent, "GameTooltipTemplate")
@@ -430,8 +431,8 @@ end
 
 function sfui.items.parse_tooltip_stat_line(lineText, stats)
     if not lineText or type(lineText) ~= "string" or not stats then return false end
-    local clean = lineText:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
-    if not clean or clean == "" then return false end
+    local clean = strip_colors(lineText, true)
+    if clean == "" then return false end
 
     if (_G.ITEM_RANDOM_ENCHANT and _G.ITEM_RANDOM_ENCHANT ~= "" and clean:find(_G.ITEM_RANDOM_ENCHANT, 1, true))
         or clean:lower():find("random enchantment", 1, true)
@@ -808,8 +809,8 @@ local function parse_tooltip_resist_texts(link, baseOut, equipOut)
             for _, line in ipairs(tData.lines) do
                 local left = line.leftText
                 if left and not issecretvalue(left) and type(left) == "string" then
-                    local clean = left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
-                    if clean and clean ~= "" and clean:lower():find("resist", 1, true) then
+                    local clean = strip_colors(left, true)
+                    if clean ~= "" and clean:lower():find("resist", 1, true) then
                         local clr = line.leftColor
                         local isGreen = clr and clr.r and clr.g and clr.b
                             and (clr.r < 0.25 and clr.g > 0.85 and clr.b < 0.25) or false
@@ -835,8 +836,8 @@ local function parse_tooltip_resist_texts(link, baseOut, equipOut)
                 if fsL then
                     local txt = fsL:GetText()
                     if txt and not issecretvalue(txt) and type(txt) == "string" then
-                        local clean = txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
-                        if clean and clean ~= "" and clean:lower():find("resist", 1, true) then
+                        local clean = strip_colors(txt, true)
+                        if clean ~= "" and clean:lower():find("resist", 1, true) then
                             local r, g, b
                             if fsL.GetTextColor then
                                 r, g, b = fsL:GetTextColor()
@@ -967,7 +968,7 @@ function sfui.items.get_weapon_stats(itemLink)
                 local left = line.leftText
                 local right = line.rightText
                 if left and type(left) == "string" then
-                    local cleanLeft = left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                    local cleanLeft = strip_colors(left, true)
                     if dps == 0 then
                         local m = dpsPat and cleanLeft:match(dpsPat)
                         if not m then
@@ -1003,7 +1004,7 @@ function sfui.items.get_weapon_stats(itemLink)
                     end
                 end
                 if right and type(right) == "string" and speed == 0 then
-                    local cleanRight = right:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                    local cleanRight = strip_colors(right, true)
                     local spdVal = cleanRight:match("([%d]+[%.%d]*)")
                     if spdVal and (cleanRight:lower():find("speed") or cleanRight:find("%d+%.%d%d")) then
                         speed = tonumber((spdVal:gsub(",", "."))) or 0
@@ -1030,7 +1031,7 @@ function sfui.items.get_weapon_stats(itemLink)
                 local left = leftObj and leftObj:GetText()
                 local right = rightObj and rightObj:GetText()
                 if left and type(left) == "string" then
-                    local cleanLeft = left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                    local cleanLeft = strip_colors(left, true)
                     if dps == 0 then
                         local m = dpsPat and cleanLeft:match(dpsPat)
                         if not m then
@@ -1055,7 +1056,7 @@ function sfui.items.get_weapon_stats(itemLink)
                     end
                 end
                     if right and type(right) == "string" and speed == 0 then
-                        local cleanRight = right:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                        local cleanRight = strip_colors(right, true)
                         local spdVal = cleanRight:match("([%d]+[%.%d]*)")
                         if spdVal and (cleanRight:lower():find("speed") or cleanRight:find("%d+%.%d%d")) then
                             speed = tonumber((spdVal:gsub(",", "."))) or 0
@@ -1100,8 +1101,8 @@ function sfui.items.get_shield_stats(itemLink)
             for _, line in ipairs(tData.lines) do
                 local left = line.leftText
                 if left and type(left) == "string" then
-                    local clean = left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
-                    if clean and clean ~= "" then
+                    local clean = strip_colors(left, true)
+                    if clean ~= "" then
                         if armor == 0 then
                             local a = clean:match("^(%d+)%s+[Aa]rmor")
                                 or clean:match("%+(%d+)%s+[Aa]rmor")
@@ -1134,8 +1135,8 @@ function sfui.items.get_shield_stats(itemLink)
                 if fsL then
                     local txt = fsL:GetText()
                     if txt and type(txt) == "string" then
-                        local clean = txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
-                        if clean and clean ~= "" then
+                        local clean = strip_colors(txt, true)
+                        if clean ~= "" then
                             if armor == 0 then
                                 local a = clean:match("^(%d+)%s+[Aa]rmor")
                                     or clean:match("%+(%d+)%s+[Aa]rmor")
@@ -1167,7 +1168,7 @@ sfui.common.get_shield_stats = sfui.items.get_shield_stats
 
 function sfui.items.get_item_quality(item)
     if not item then return 1 end
-    local itemID = type(item) == "number" and item or tonumber(type(item) == "string" and item:match("item:(%d+)"))
+    local itemID = sfui.items.get_item_id(item)
     if itemID and C_Item_GetItemQualityByID then
         local q = C_Item_GetItemQualityByID(itemID)
         if q then return q end
@@ -1369,10 +1370,25 @@ sfui.common.is_trinket_valid_for_spec = sfui.items.is_trinket_valid_for_spec
 -- ─────────────────────────────────────────────────────────────────────────────
 
 local foodDrinkInfoCache = {}
+local foodDrinkCacheCount = 0
+local MAX_FOOD_DRINK_CACHE = 1000
+local NO_FOOD_DRINK = { isFood = false, isDrink = false, hasWellFed = false }
+
+local function SetFoodDrinkCache(id, entry)
+    if foodDrinkInfoCache[id] == nil then
+        if foodDrinkCacheCount >= MAX_FOOD_DRINK_CACHE then
+            _G.wipe(foodDrinkInfoCache)
+            foodDrinkCacheCount = 0
+        end
+        foodDrinkCacheCount = foodDrinkCacheCount + 1
+    end
+    foodDrinkInfoCache[id] = entry
+end
 
 --- Clears the cached food and drink info table (e.g. on inventory / scan refreshes)
 function sfui.items.clear_food_drink_cache()
     _G.wipe(foodDrinkInfoCache)
+    foodDrinkCacheCount = 0
 end
 sfui.common.clear_food_drink_cache = sfui.items.clear_food_drink_cache
 
@@ -1503,7 +1519,7 @@ function sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
 
     local isConsumableClass = (classID == 0) or (_G.Enum and _G.Enum.ItemClass and classID == _G.Enum.ItemClass.Consumable)
     if classID ~= nil and not isConsumableClass then
-        foodDrinkInfoCache[itemID] = { isFood = false, isDrink = false, hasWellFed = false }
+        SetFoodDrinkCache(itemID, NO_FOOD_DRINK)
         return false, false, false
     end
 
@@ -1632,8 +1648,11 @@ function sfui.items.get_food_drink_info(bag, slot, itemID, itemLink)
         isFood = true
     end
 
-    local res = { isFood = isFood, isDrink = isDrink, hasWellFed = hasWellFed }
-    foodDrinkInfoCache[itemID] = res
+    if not isFood and not isDrink and not hasWellFed then
+        SetFoodDrinkCache(itemID, NO_FOOD_DRINK)
+    else
+        SetFoodDrinkCache(itemID, { isFood = isFood, isDrink = isDrink, hasWellFed = hasWellFed })
+    end
     return isFood, isDrink, hasWellFed
 end
 sfui.common.get_food_drink_info = sfui.items.get_food_drink_info

@@ -674,6 +674,8 @@ local function UpdateLayoutAnchors(force)
 end
 
 -- ─── Aura Row Refresh ────────────────────────────────────────────────────────
+local _hasColdTargetAura = false
+
 local function PreloadColdTargetAuraSpells(filter, maxCount)
     local reqLoad = _G.C_Spell and _G.C_Spell.RequestLoadSpellData
     local getAura = _G.C_UnitAuras and _G.C_UnitAuras.GetAuraDataByIndex
@@ -690,6 +692,7 @@ local function PreloadColdTargetAuraSpells(filter, maxCount)
         local aura = getAura("target", idx, filter)
         if not aura then break end
         if not IsValidTexture(aura.icon) then
+            _hasColdTargetAura = true
             local spellId = aura.spellId
             if not (issecretvalue and issecretvalue(spellId)) and type(spellId) == "number" and spellId > 0 then
                 if not isCached or not isCached(spellId) then
@@ -701,6 +704,7 @@ local function PreloadColdTargetAuraSpells(filter, maxCount)
 end
 
 local function UpdateAuras()
+    _hasColdTargetAura = false
     if buffContainer then
         buffContainer:UpdateAllAuras()
     end
@@ -723,7 +727,7 @@ local function RefreshTargetAuraIcons()
 end
 
 local function RequestTargetAuraIconRefresh()
-    if _pendingAuraIconRefresh then return end
+    if _pendingAuraIconRefresh or not _hasColdTargetAura then return end
     if not targetContainer or not targetContainer:IsShown() or not UnitExists("target") then
         return
     end
@@ -960,8 +964,7 @@ local function IsTargetQuestObjective()
     end
 
     if not scanTooltip then
-        scanTooltip = (common and common.get_scan_tooltip and common.get_scan_tooltip())
-            or CreateFrame("GameTooltip", "SfuiTargetScanTooltip", nil, "GameTooltipTemplate")
+        scanTooltip = common.get_scan_tooltip()
         scanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
     end
     scanTooltip:ClearLines()
@@ -1221,6 +1224,19 @@ local function ResetRangeSpellCache()
     cachedHelpSpell = nil
 end
 
+local function IsCandidateSpellKnown(spell)
+    if type(spell) == "number" then
+        if _G.C_SpellBook and _G.C_SpellBook.IsSpellKnown then
+            return _G.C_SpellBook.IsSpellKnown(spell) == true
+        elseif _G.IsPlayerSpell then
+            return _G.IsPlayerSpell(spell) == true
+        elseif _G.IsSpellKnown then
+            return _G.IsSpellKnown(spell) == true
+        end
+    end
+    return nil
+end
+
 local function IsTargetInRange()
     if not UnitExists("target") then return true end
     if sfui.safety and sfui.safety.SafeUnitIsUnit then
@@ -1240,7 +1256,10 @@ local function IsTargetInRange()
 
     if isFriend then
         -- Friendly Range Check
-        if cachedHelpSpell then
+        if cachedHelpSpell ~= nil then
+            if cachedHelpSpell == false then
+                return true
+            end
             local inRange = sfui.common.is_spell_in_range(cachedHelpSpell, "target")
             if inRange ~= nil then
                 return inRange
@@ -1250,21 +1269,34 @@ local function IsTargetInRange()
 
         local helpList = cachedPlayerClass and HELP_SPELLS_BY_CLASS[cachedPlayerClass]
         if helpList then
+            local hasKnown = false
             for i = 1, #helpList do
                 local spell = helpList[i]
-                local inRange = sfui.common.is_spell_in_range(spell, "target")
-                if inRange ~= nil then
-                    cachedHelpSpell = spell
-                    return inRange
+                local known = IsCandidateSpellKnown(spell)
+                if known == true or known == nil then
+                    if known == true then hasKnown = true end
+                    local inRange = sfui.common.is_spell_in_range(spell, "target")
+                    if inRange ~= nil then
+                        cachedHelpSpell = spell
+                        return inRange
+                    end
                 end
             end
+            if #helpList == 0 or not hasKnown then
+                cachedHelpSpell = false
+            end
+        else
+            cachedHelpSpell = false
         end
 
         -- If class has no friendly check spell or friendly target is not healable/buffable (e.g. NPC), default to in-range (no dim)
         return true
     else
         -- Hostile / Neutral Range Check
-        if cachedHarmSpell then
+        if cachedHarmSpell ~= nil then
+            if cachedHarmSpell == false then
+                return true
+            end
             local inRange = sfui.common.is_spell_in_range(cachedHarmSpell, "target")
             if inRange ~= nil then
                 return inRange
@@ -1274,14 +1306,24 @@ local function IsTargetInRange()
 
         local harmList = cachedPlayerClass and HARM_SPELLS_BY_CLASS[cachedPlayerClass]
         if harmList then
+            local hasKnown = false
             for i = 1, #harmList do
                 local spell = harmList[i]
-                local inRange = sfui.common.is_spell_in_range(spell, "target")
-                if inRange ~= nil then
-                    cachedHarmSpell = spell
-                    return inRange
+                local known = IsCandidateSpellKnown(spell)
+                if known == true or known == nil then
+                    if known == true then hasKnown = true end
+                    local inRange = sfui.common.is_spell_in_range(spell, "target")
+                    if inRange ~= nil then
+                        cachedHarmSpell = spell
+                        return inRange
+                    end
                 end
             end
+            if #harmList == 0 or not hasKnown then
+                cachedHarmSpell = false
+            end
+        else
+            cachedHarmSpell = false
         end
 
         -- If no hostile spell known or available, default to in-range (no dim)
@@ -2000,15 +2042,23 @@ local function Initialize()
         OnPlayerEnteringWorld()
     end)
     sfui.events.RegisterEvent("RAID_TARGET_UPDATE", UpdateRaidTargetMarker)
-    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", function()
+    local function onQuestStateChanged()
         ResetQuestGuidCache()
-        UpdateQuestIndicator()
-    end)
+        if targetContainer and targetContainer:IsShown() and not (SfuiDB and SfuiDB.enableTargetBar == false) then
+            UpdateQuestIndicator()
+        end
+    end
+    if sfui.queststate and sfui.events.RegisterMessage then
+        sfui.events.RegisterMessage("SFUI_QUEST_STATE_UPDATED", onQuestStateChanged)
+    else
+        sfui.events.RegisterEvent("QUEST_LOG_UPDATE", onQuestStateChanged)
+    end
     sfui.events.RegisterEvent("SPELLS_CHANGED", ResetRangeSpellCache)
     sfui.events.RegisterEvent("LEARNED_SPELL_IN_TAB", ResetRangeSpellCache)
+    sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", ResetRangeSpellCache)
+    sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", ResetRangeSpellCache)
     sfui.events.RegisterEvent("SPELL_UPDATE_ICON", RequestTargetAuraIconRefresh)
     sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", RequestTargetAuraIconRefresh)
-    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", RequestTargetAuraIconRefresh)
 
     if UnitExists("target") and not (SfuiDB and SfuiDB.enableTargetBar == false) then
         UpdateAll(true)

@@ -8,16 +8,7 @@ sfui.common = sfui.common or {}
 --  Classic Forever / Camelot Specialization & Dominant Talent Tree Solver
 -- ══════════════════════════════════════════════════════════════════════════════
 
-local isRetail = sfui.isRetail
-if isRetail == nil then
-    local projectID = _G.WOW_PROJECT_ID or 1
-    local _, _, _, tocVersionNum = _G.GetBuildInfo()
-    tocVersionNum = tonumber(tocVersionNum) or 0
-    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
-    isRetail = (projectID == 1) and not isCamelot
-end
-
-if isRetail then
+if sfui.isRetail then
     return
 end
 
@@ -157,31 +148,8 @@ local function CheckFlyoutSlot(flyoutID, targetSpellID)
     if sfui.common and sfui.common.check_flyout_slot then
         return sfui.common.check_flyout_slot(flyoutID, targetSpellID)
     end
-    if not flyoutID then return false end
-    local getInfo = _G.GetFlyoutInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutInfo)
-    local getSlot = _G.GetFlyoutSlotInfo or (_G.C_SpellBook and _G.C_SpellBook.GetFlyoutSlotInfo)
-    if not getInfo or not getSlot then return false end
-    local info1, _, info3 = getInfo(flyoutID)
-    local numSlots = (type(info1) == "table" and info1.numSlots) or info3 or 0
-    for i = 1, numSlots do
-        local r1, r2, r3 = getSlot(flyoutID, i)
-        local sID, isKnown
-        if type(r1) == "table" then
-            sID = r1.spellID or r1.overrideSpellID
-            isKnown = r1.isKnown
-        else
-            sID = r1
-            local overrideID = r2
-            isKnown = r3
-            if overrideID == targetSpellID then sID = overrideID end
-        end
-        if sID == targetSpellID and isKnown then
-            return true
-        end
-    end
     return false
 end
-sfui.common.check_flyout_slot = CheckFlyoutSlot
 
 -- 4. Talent Known Resolver (Classic / Camelot spells)
 local function CamelotTalentKnownResolver(targetSpellID)

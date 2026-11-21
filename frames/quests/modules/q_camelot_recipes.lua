@@ -14,16 +14,7 @@ sfui.questlog = sfui.questlog or {}
 sfui.recipes = sfui.recipes or {}
 
 -- Guard: Classic / Camelot only (Exclude Retail)
-local isRetail = sfui.isRetail
-if isRetail == nil then
-    local projectID = _G.WOW_PROJECT_ID or 1
-    local _, _, _, tocVersionNum = _G.GetBuildInfo()
-    tocVersionNum = tonumber(tocVersionNum) or 0
-    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
-    isRetail = (projectID == 1) and not isCamelot
-end
-
-if isRetail then
+if sfui.isRetail then
     return
 end
 
@@ -189,8 +180,7 @@ local function CleanPeerKey(name)
     if sfui.sync and sfui.sync.multibox and sfui.sync.multibox.CleanKey then
         return sfui.sync.multibox.CleanKey(name)
     end
-    local short = string_match(name, "^([^%-]+)") or name
-    return string_lower(short)
+    return string_lower(sfui.common.short_name(name))
 end
 
 local function FormatColoredName(name, classToken)
@@ -198,16 +188,11 @@ local function FormatColoredName(name, classToken)
     if sfui.sync and sfui.sync.CommandName then
         raw = sfui.sync.CommandName(raw) or raw
     else
-        raw = string_match(raw, "^([^%-]+)") or raw
+        raw = sfui.common.short_name(raw)
     end
     local clean = string_lower(raw)
-    if classToken and sfui.common and sfui.common.class_color_name then
-        return sfui.common.class_color_name(clean, classToken)
-    end
-    if classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken] then
-        local c = _G.RAID_CLASS_COLORS[classToken]
-        local hex = c.colorStr or ("ff" .. sfui.colors.rgb_to_hex(c.r, c.g, c.b))
-        return "|c" .. hex .. clean .. "|r"
+    if classToken and sfui.colors and sfui.colors.class_color_name then
+        return sfui.colors.class_color_name(clean, classToken)
     end
     return clean
 end
@@ -691,17 +676,94 @@ function CamelotRecipesModule:OnEvent(event, ...)
         end
     elseif event == "GROUP_ROSTER_UPDATE" then
         ScheduleRecipesSyncBroadcast(true, true)
-    elseif event == "BAG_UPDATE_DELAYED" or event == "TRACKED_RECIPE_UPDATE" then
+    elseif event == "BAG_UPDATE_DELAYED" then
+        local hasAny = self._hadBlocks or next(CollectLocalTrackedMap()) or next(remotePeerRecipes)
+        if not hasAny then
+            return
+        end
+        ScheduleRecipesSyncBroadcast(false, false)
+    elseif event == "TRACKED_RECIPE_UPDATE" then
         ScheduleRecipesSyncBroadcast(false, false)
     end
 
     self:MarkDirty(0.05)
-    sfui.tracker.RequestRefresh(0.05)
     if event == "TRACKED_RECIPE_UPDATE" then
         if sfui.recipes.browser and sfui.recipes.browser.UpdateList then
             sfui.recipes.browser.UpdateList()
         end
     end
+end
+
+local function CompareCamelotRecipeEntries(a, b)
+    return (a._sortName or "") < (b._sortName or "")
+end
+
+local function CamelotRecipe_OnClick(block, btn)
+    local bData = block and block._bData
+    if not bData then return end
+    local entry = bData._recipeEntry
+    local spellID = bData.spellID
+    local isRecraft = bData.isRecraft
+    if btn == "RightButton" or (IsShiftKeyDown and IsShiftKeyDown()) then
+        if entry and entry.hasLocal then
+            if entry.isSfuiPinned then
+                sfui.recipes.TogglePinRecipe(spellID)
+            end
+            if entry.isBlizzTracked and C_TradeSkillUI and C_TradeSkillUI.SetRecipeTracked then
+                C_TradeSkillUI.SetRecipeTracked(spellID, false, isRecraft)
+            end
+        elseif entry and entry.primaryPeerKey then
+            RequestRemoteRecipeUnpin(entry.primaryPeerKey, spellID)
+        end
+        sfui.tracker.RequestRefresh(0.05)
+        return
+    end
+
+    if not (InCombatLockdown and InCombatLockdown()) then
+        if bData.isLearned and C_TradeSkillUI and C_TradeSkillUI.OpenRecipe then
+            C_TradeSkillUI.OpenRecipe(spellID)
+        elseif sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
+            sfui.recipes.OpenBrowserToRecipe(spellID)
+        end
+    end
+end
+
+local function CamelotRecipe_Tooltip(tip, owner, bData)
+    if not bData then return end
+    local titleColor = bData.titleColor or { 1.00, 0.72, 0.35, 1.0 }
+    local recipeName = bData.recipeName or ""
+    local r = bData._recipeData
+    local entry = bData._recipeEntry
+    local tooltipBreakdowns = bData._tooltipBreakdowns
+    tip:AddLine(string_lower(recipeName), titleColor[1], titleColor[2], titleColor[3])
+    local profName = (r and r.profession) or (r and r.skillID and sfui.recipes.GetProfessionName and sfui.recipes.GetProfessionName(r.skillID))
+    if profName then
+        local minSkill = r.minSkill or (r.colors and r.colors[1]) or 0
+        tip:AddLine(string_format("%s (rank %d)", string_lower(profName), minSkill), 0.70, 0.70, 0.70)
+    end
+    if entry and entry.owners and #entry.owners > 0 and (entry.hasRemote or #entry.owners > 1) then
+        tip:AddLine("pinned by: " .. table_concat(entry.owners, ", "), 0.80, 0.85, 0.95)
+    end
+    if bData.isComplete then
+        tip:AddLine("all required crafting materials collected", 0.20, 1.00, 0.35, true)
+    elseif bData.hasReagents then
+        tip:AddLine("crafting materials incomplete", 1.00, 0.72, 0.35, true)
+    end
+    if tooltipBreakdowns and #tooltipBreakdowns > 0 then
+        tip:AddLine(" ")
+        for _, bd in ipairs(tooltipBreakdowns) do
+            local rCol, gCol, bCol = 0.85, 0.85, 0.85
+            if bd.completed then rCol, gCol, bCol = 0.30, 0.90, 0.35 end
+            local rightTxt = string_format("%d / %d", bd.total, bd.req)
+            tip:AddDoubleLine("  • " .. bd.name, rightTxt, rCol, gCol, bCol, rCol, gCol, bCol)
+            if bd.holders then
+                tip:AddLine("      " .. bd.holders, 0.70, 0.78, 0.88, true)
+            end
+        end
+    end
+    tip:AddLine(" ")
+    tip:AddLine("|cff888888left-click: open recipe / catalogue|r", 1, 1, 1)
+    tip:AddLine("|cff888888shift-click or right-click: unpin recipe|r", 1, 1, 1)
 end
 
 function CamelotRecipesModule:BuildBlocks(container)
@@ -781,6 +843,12 @@ function CamelotRecipesModule:BuildBlocks(container)
     local recipeList = {}
     for numID, entry in pairs(trackedMap) do
         entry.recipeData = db and db[numID]
+        local sortName = (entry.recipeData and entry.recipeData.name) or entry.remoteName or ""
+        if sortName == "" and C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic then
+            local sch = C_TradeSkillUI.GetRecipeSchematic(entry.recipeID, entry.isRecraft or false)
+            sortName = (sch and sch.name) or ""
+        end
+        entry._sortName = string_lower(sortName)
         table_insert(recipeList, entry)
     end
 
@@ -788,19 +856,7 @@ function CamelotRecipesModule:BuildBlocks(container)
         return nil
     end
 
-    table_sort(recipeList, function(a, b)
-        local nameA = (a.recipeData and a.recipeData.name) or a.remoteName or ""
-        local nameB = (b.recipeData and b.recipeData.name) or b.remoteName or ""
-        if nameA == "" and C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic then
-            local schA = C_TradeSkillUI.GetRecipeSchematic(a.recipeID, a.isRecraft or false)
-            nameA = (schA and schA.name) or ""
-        end
-        if nameB == "" and C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic then
-            local schB = C_TradeSkillUI.GetRecipeSchematic(b.recipeID, b.isRecraft or false)
-            nameB = (schB and schB.name) or ""
-        end
-        return nameA:lower() < nameB:lower()
-    end)
+    table_sort(recipeList, CompareCamelotRecipeEntries)
 
     local blocks = {}
 
@@ -948,69 +1004,26 @@ function CamelotRecipesModule:BuildBlocks(container)
         local displayName = prefix .. recipeName:lower() .. ownerSuffix
 
         table_insert(blocks, {
-            id         = "rec_" .. tostring(spellID) .. (isRecraft and "_r" or ""),
-            title      = displayName,
-            titleColor = titleColor,
-            lines      = lines,
-            OnClick    = function(block, btn)
-                if btn == "RightButton" or (IsShiftKeyDown and IsShiftKeyDown()) then
-                    if entry.hasLocal then
-                        if entry.isSfuiPinned then
-                            sfui.recipes.TogglePinRecipe(spellID)
-                        end
-                        if entry.isBlizzTracked and C_TradeSkillUI and C_TradeSkillUI.SetRecipeTracked then
-                            C_TradeSkillUI.SetRecipeTracked(spellID, false, isRecraft)
-                        end
-                    elseif entry.primaryPeerKey then
-                        RequestRemoteRecipeUnpin(entry.primaryPeerKey, spellID)
-                    end
-                    sfui.tracker.RequestRefresh(0.05)
-                    return
-                end
-
-                if not (InCombatLockdown and InCombatLockdown()) then
-                    if isLearned and C_TradeSkillUI and C_TradeSkillUI.OpenRecipe then
-                        C_TradeSkillUI.OpenRecipe(spellID)
-                    elseif sfui.recipes and sfui.recipes.OpenBrowserToRecipe then
-                        sfui.recipes.OpenBrowserToRecipe(spellID)
-                    end
-                end
-            end,
-            tooltip    = function(tip, owner, bData)
-                tip:AddLine(recipeName:lower(), titleColor[1], titleColor[2], titleColor[3])
-                local profName = (r and r.profession) or (r and r.skillID and sfui.recipes.GetProfessionName and sfui.recipes.GetProfessionName(r.skillID))
-                if profName then
-                    local minSkill = r.minSkill or (r.colors and r.colors[1]) or 0
-                    tip:AddLine(string_format("%s (rank %d)", profName:lower(), minSkill), 0.70, 0.70, 0.70)
-                end
-                if entry.owners and #entry.owners > 0 and (entry.hasRemote or #entry.owners > 1) then
-                    tip:AddLine("pinned by: " .. table_concat(entry.owners, ", "), 0.80, 0.85, 0.95)
-                end
-                if isComplete then
-                    tip:AddLine("all required crafting materials collected", 0.20, 1.00, 0.35, true)
-                elseif hasReagents then
-                    tip:AddLine("crafting materials incomplete", 1.00, 0.72, 0.35, true)
-                end
-                if #tooltipBreakdowns > 0 then
-                    tip:AddLine(" ")
-                    for _, bd in ipairs(tooltipBreakdowns) do
-                        local rCol, gCol, bCol = 0.85, 0.85, 0.85
-                        if bd.completed then rCol, gCol, bCol = 0.30, 0.90, 0.35 end
-                        local rightTxt = string_format("%d / %d", bd.total, bd.req)
-                        tip:AddDoubleLine("  • " .. bd.name, rightTxt, rCol, gCol, bCol, rCol, gCol, bCol)
-                        if bd.holders then
-                            tip:AddLine("      " .. bd.holders, 0.70, 0.78, 0.88, true)
-                        end
-                    end
-                end
-                tip:AddLine(" ")
-                tip:AddLine("|cff888888left-click: open recipe / catalogue|r", 1, 1, 1)
-                tip:AddLine("|cff888888shift-click or right-click: unpin recipe|r", 1, 1, 1)
-            end,
+            id                 = "rec_" .. tostring(spellID) .. (isRecraft and "_r" or ""),
+            title              = displayName,
+            titleColor         = titleColor,
+            lines              = lines,
+            spellID            = spellID,
+            isRecraft          = isRecraft,
+            recipeName         = recipeName,
+            isLearned          = isLearned,
+            isComplete         = isComplete,
+            hasReagents        = hasReagents,
+            _recipeEntry       = entry,
+            _recipeData        = r,
+            _tooltipBreakdowns = tooltipBreakdowns,
+            OnClick            = CamelotRecipe_OnClick,
+            tooltip            = CamelotRecipe_Tooltip,
         })
     end
 
     if #blocks > 0 then
+        self._hadBlocks = true
         return {
             {
                 id     = "camelot_recipes",
@@ -1020,6 +1033,7 @@ function CamelotRecipesModule:BuildBlocks(container)
             }
         }
     end
+    self._hadBlocks = false
 
     return nil
 end

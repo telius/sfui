@@ -283,12 +283,15 @@ local function ScanAllEquipment()
     end
 end
 
+local _preTotals = {}
+
 local function FlushDirtyBags(broadcast)
     wipe(_changedItems)
     wipe(_touchedItems)
+    wipe(_preTotals)
 
     -- Capture pre-scan totals for dirty bags so multi-bag stack moves compute exact net delta
-    local preTotals = {}
+    local preTotals = _preTotals
     if _dirtyAllBags then
         for id, cnt in pairs(countsByItemID) do
             preTotals[id] = cnt
@@ -405,6 +408,26 @@ end
 function INV.GetAllBagCounts()
     EnsureInitialized()
     return countsByItemID
+end
+
+--- Iterate over every non-empty cached bag slot entry `(bag, slot, entry)`.
+--- Returning a non-nil value from `cb` halts iteration early and returns those values.
+--- @param cb function(bagID, slotID, entry)
+function INV.ForEachBagItem(cb)
+    if type(cb) ~= "function" then return end
+    EnsureInitialized()
+    for bagID = 0, MAX_BAG_ID do
+        local entries = _bagEntries[bagID]
+        if entries then
+            for i = 1, #entries do
+                local e = entries[i]
+                local r1, r2, r3 = cb(e.bag, e.slot, e)
+                if r1 ~= nil then
+                    return r1, r2, r3
+                end
+            end
+        end
+    end
 end
 
 function INV.GetRevision()

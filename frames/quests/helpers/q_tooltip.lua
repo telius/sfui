@@ -9,7 +9,6 @@ sfui.tracker.helpers.tooltip = Tooltip
 
 local _G = _G
 local UIParent = _G.UIParent
-local CreateFrame = _G.CreateFrame
 local C_Timer = _G.C_Timer
 local type = type
 local tostring = tostring
@@ -50,73 +49,79 @@ end
 Tooltip.PickAnchor = PickAnchor
 
 local MAX_REWARD_REFRESHES = 4
-local rewardLoadFrame = nil
+local REWARD_WATCH_EVENTS = {
+    "ITEM_DATA_LOAD_RESULT",
+    "GET_ITEM_INFO_RECEIVED",
+    "QUEST_DATA_LOAD_RESULT",
+    "QUEST_LOG_UPDATE",
+}
+local rewardWatchRegistered = false
 local activeHoverOwner = nil
 local activeHoverData = nil
 local hoverRefreshCount = 0
 local refreshTimerPending = false
 local isInternalRefresh = false
 
+local OnPendingRewardEvent
+
 local function StopPendingRewardWatch()
     activeHoverOwner = nil
     activeHoverData = nil
     refreshTimerPending = false
-    if rewardLoadFrame then
-        rewardLoadFrame:UnregisterAllEvents()
-    end
-end
-
-local function RegisterEventIfValid(frame, eventName)
-    if _G.C_EventUtils and _G.C_EventUtils.IsEventValid and not _G.C_EventUtils.IsEventValid(eventName) then
-        return
-    end
-    frame:RegisterEvent(eventName)
-end
-
-local function EnsureRewardLoadFrame()
-    if rewardLoadFrame or not CreateFrame then return rewardLoadFrame end
-    rewardLoadFrame = CreateFrame("Frame")
-    rewardLoadFrame:SetScript("OnEvent", function()
-        if not activeHoverOwner or not activeHoverData or refreshTimerPending then return end
-        refreshTimerPending = true
-        if C_Timer and C_Timer.After then
-            C_Timer.After(0.05, function()
-                refreshTimerPending = false
-                local owner = activeHoverOwner
-                local data = activeHoverData
-                if not owner or not data then return end
-                if hoverRefreshCount >= MAX_REWARD_REFRESHES then
-                    StopPendingRewardWatch()
-                    return
-                end
-                local tip = sfui.common.get_tooltip()
-                if not tip or not tip:IsShown() or (tip.IsOwned and not tip:IsOwned(owner)) then
-                    StopPendingRewardWatch()
-                    return
-                end
-                hoverRefreshCount = hoverRefreshCount + 1
-                isInternalRefresh = true
-                Tooltip.ShowBlockTooltip(owner, data)
-                isInternalRefresh = false
-            end)
+    if rewardWatchRegistered and sfui.events and sfui.events.UnregisterEvent then
+        for _, eventName in ipairs(REWARD_WATCH_EVENTS) do
+            sfui.events.UnregisterEvent(eventName, OnPendingRewardEvent)
         end
-    end)
-    return rewardLoadFrame
+    end
+    rewardWatchRegistered = false
+end
+
+OnPendingRewardEvent = function()
+    if not activeHoverOwner or not activeHoverData or refreshTimerPending then return end
+    refreshTimerPending = true
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.05, function()
+            refreshTimerPending = false
+            local owner = activeHoverOwner
+            local data = activeHoverData
+            if not owner or not data then return end
+            if hoverRefreshCount >= MAX_REWARD_REFRESHES then
+                StopPendingRewardWatch()
+                return
+            end
+            local tip = sfui.common.get_tooltip()
+            if not tip or not tip:IsShown() or (tip.IsOwned and not tip:IsOwned(owner)) then
+                StopPendingRewardWatch()
+                return
+            end
+            hoverRefreshCount = hoverRefreshCount + 1
+            isInternalRefresh = true
+            Tooltip.ShowBlockTooltip(owner, data)
+            isInternalRefresh = false
+        end)
+    end
 end
 
 local function StartPendingRewardWatch(owner, bData)
     if not owner or not bData then return end
-    local f = EnsureRewardLoadFrame()
-    if not f then return end
     activeHoverOwner = owner
     activeHoverData = bData
-    RegisterEventIfValid(f, "ITEM_DATA_LOAD_RESULT")
-    RegisterEventIfValid(f, "GET_ITEM_INFO_RECEIVED")
-    RegisterEventIfValid(f, "QUEST_DATA_LOAD_RESULT")
-    RegisterEventIfValid(f, "QUEST_LOG_UPDATE")
+    if not rewardWatchRegistered and sfui.events and sfui.events.RegisterEvent then
+        rewardWatchRegistered = true
+        for _, eventName in ipairs(REWARD_WATCH_EVENTS) do
+            if not (_G.C_EventUtils and _G.C_EventUtils.IsEventValid and not _G.C_EventUtils.IsEventValid(eventName)) then
+                sfui.events.RegisterEvent(eventName, OnPendingRewardEvent)
+            end
+        end
+    end
 end
 
 local function ResolveQuestLogIndex(questID, hintIndex)
+    local qs = sfui.queststate
+    local entry = qs and qs.GetActive and qs.GetActive(questID)
+    if entry and type(entry.logIndex) == "number" and entry.logIndex > 0 then
+        return entry.logIndex
+    end
     if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
         local idx = _G.C_QuestLog.GetLogIndexForQuestID(questID)
         if IsSafeVal(idx) and type(idx) == "number" and idx > 0 then
@@ -426,11 +431,7 @@ Tooltip.CheckAndAppendAltID = check_and_append_alt_id
 local MAX_DOUBLE_LINE_CHARS = 56
 
 local function StripColorCodes(text)
-    if type(text) ~= "string" then return "" end
-    local clean = string_gsub(text, "|c%x%x%x%x%x%x%x%x", "")
-    clean = string_gsub(clean, "|r", "")
-    clean = string_gsub(clean, "|T.-|t", "")
-    return clean
+    return sfui.common.strip_colors(text, false, true)
 end
 
 local function AddCompactRow(tip, leftText, rightText, lr, lg, lb, rr, rg, rb)
@@ -838,13 +839,7 @@ local function SpecTableToHex(t)
     local g = t[2] or t.g
     local b = t[3] or t.b
     if not (r and g and b) then return nil end
-    if sfui.colors and sfui.colors.rgb_to_hex then
-        return "ff" .. sfui.colors.rgb_to_hex(r, g, b)
-    end
-    local ri = math_floor(r * 255 + 0.5)
-    local gi = math_floor(g * 255 + 0.5)
-    local bi = math_floor(b * 255 + 0.5)
-    return string_format("ff%02x%02x%02x", ri, gi, bi)
+    return "ff" .. sfui.colors.rgb_to_hex(r, g, b)
 end
 
 local PARTY_UNIT_TOKENS = { "player", "party1", "party2", "party3", "party4" }

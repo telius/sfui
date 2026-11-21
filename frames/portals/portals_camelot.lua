@@ -53,6 +53,10 @@ local ENGINEERING_ITEMS = {
 }
 
 local function get_rune_counts()
+    local inv = sfui.inventory
+    if inv and inv.GetCount then
+        return inv.GetCount(RUNE_TELEPORT) or 0, inv.GetCount(RUNE_PORTAL) or 0
+    end
     local tele = sfui.api.GetItemCount(RUNE_TELEPORT) or 0
     local port = sfui.api.GetItemCount(RUNE_PORTAL) or 0
     return tele, port
@@ -76,6 +80,7 @@ local function build_camelot_portals_frame()
     local runeFs = nil
     if isMage then
         runeFs = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        if p.track_dynamic then p.track_dynamic(frame, runeFs) end
         runeFs:SetPoint("TOPLEFT", 6, curY)
         runeFs:SetJustifyH("LEFT")
 
@@ -156,6 +161,7 @@ local function build_camelot_portals_frame()
         curY = curY - 8
     elseif isMage then
         local noSpellsFs = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        if p.track_dynamic then p.track_dynamic(frame, noSpellsFs) end
         noSpellsFs:SetPoint("TOPLEFT", 8, curY)
         noSpellsFs:SetText("no teleport spells learned yet.\ntrain at a mage trainer (lvl 20+).")
         curY = curY - 30
@@ -279,6 +285,7 @@ local function build_camelot_portals_frame()
 
     if #frame.refreshable == 0 and not isMage then
         local emptyFs = (frame.overlayFrame or frame):CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        if p.track_dynamic then p.track_dynamic(frame, emptyFs) end
         emptyFs:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, curY - 2)
         emptyFs:SetText("no travel items or spells available.")
         curY = curY - 20

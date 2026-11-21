@@ -24,6 +24,15 @@ end
 local _cdInfoCache = {}
 local _cdInfoCacheCount = 0
 local _configRev = 1
+local _hasAnyColdIcon = false
+
+function E.HasAnyColdIcon()
+    return _hasAnyColdIcon
+end
+
+function E.ClearAnyColdIcon()
+    _hasAnyColdIcon = false
+end
 
 function E.InvalidateCooldownInfoCache()
     wipe(_cdInfoCache)
@@ -230,8 +239,13 @@ function E.CompileDescriptor(icon, panelConfig, getIconValueFn, getIconTextureFn
             icon.texture:SetTexture(iconTexture)
             icon._currentTexture = iconTexture
         end
+    else
+        _hasAnyColdIcon = true
     end
     desc._iconCold = (isColdIcon == true)
+    if desc._iconCold then
+        _hasAnyColdIcon = true
+    end
 
     local auras = sfui.tracking.auras
     local isForeverSeal = false

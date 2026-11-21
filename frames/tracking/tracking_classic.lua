@@ -233,14 +233,7 @@ local DEFAULT_PANDEMIC_COLOR = { 1, 0, 1, 1 }
 local _emptyTable = {}
 
 local function format_bar_duration(remaining)
-    if not remaining or remaining <= 0 then return "" end
-    if remaining < 10 then
-        return string.format("%.1f", remaining)
-    elseif remaining < 60 then
-        return string.format("%d", math.ceil(remaining))
-    else
-        return string.format("%dm", math.ceil(remaining / 60))
-    end
+    return sfui.common.format_duration(remaining, "cooldown_bare", "")
 end
 
 local function resolve_classic_text_flags(config)

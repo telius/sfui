@@ -99,28 +99,41 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
     end
     local function current() return skinList[idx] end
 
-    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    frame:SetSize(TOY_ICON_SIZE, TOY_ICON_SIZE)
-    frame:SetPoint("TOPLEFT", x, y)
-    frame:EnableMouse(true)
-    frame:EnableMouseWheel(true)
-    frame:SetBackdrop(BACKDROP_ICON)
-    frame:SetBackdropBorderColor(unpack(cfg.colors.black))
-
-    local tex = frame:CreateTexture(nil, "ARTWORK")
-    tex:SetAllPoints()
-    sfui.common.set_square_icon_coords(tex)
-
-    local cd = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
-    cd:SetAllPoints()
-    cd:SetDrawSwipe(true)
-    cd:SetDrawEdge(true)
-    cd:SetHideCountdownNumbers(false)
-
-    local grey = frame:CreateTexture(nil, "OVERLAY")
-    grey:SetAllPoints()
-    grey:SetColorTexture(0, 0, 0, 0.5)
-    grey:Hide()
+    local frame = p.make_icon_tile(parent, {
+        size              = TOY_ICON_SIZE,
+        x                 = x,
+        y                 = y,
+        cropOnCreate      = true,
+        enableWheel       = true,
+        skipEmptyTexCheck = true,
+        updateIcon        = function(tex)
+            local toyID = current()
+            if toyID then
+                local iconID = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(toyID)
+                if iconID then tex:SetTexture(iconID) end
+            else
+                tex:SetTexture(134414)
+            end
+        end,
+        getRemaining      = function()
+            local toyID = current()
+            return toyID and p.item_cd_remaining(toyID) or 0
+        end,
+        getCooldown       = function()
+            local toyID = current()
+            if toyID then
+                return sfui.api.GetItemCooldown(toyID)
+            end
+            return 0, 0
+        end,
+        onEnterArm        = function(self)
+            local toyID = current()
+            if toyID then
+                p.arm_toy(toyID, self)
+                p.show_tooltip(self, nil, toyID, nil, nil, p.item_cd_remaining(toyID))
+            end
+        end,
+    })
 
     local dot = frame:CreateTexture(nil, "OVERLAY")
     dot:SetSize(4, 4)
@@ -128,65 +141,6 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
     dot:SetColorTexture(0.6, 0.6, 1.0, 0.8)
     dot:SetDrawLayer("OVERLAY", 7)
     if #skinList <= 1 then dot:Hide() end
-
-    local function update_display()
-        local toyID = current()
-        if toyID then
-            local iconID = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(toyID)
-            if iconID then tex:SetTexture(iconID) end
-        else
-            tex:SetTexture(134414)
-        end
-    end
-    update_display()
-
-    local function refresh()
-        local toyID = current()
-        local rem = toyID and p.toy_cd_remaining(toyID) or 0
-        local onCD = rem > 0
-        if onCD then
-            local start, dur = sfui.api.GetItemCooldown(toyID)
-            if start and start > 0 and dur and dur > 0 then
-                if frame._lastStart ~= start or frame._lastDur ~= dur then
-                    frame._lastStart = start
-                    frame._lastDur   = dur
-                    cd:SetCooldown(start, dur)
-                end
-            else
-                cd:Clear()
-                frame._lastStart = nil
-                frame._lastDur   = nil
-            end
-            if not frame._isOnCD then
-                frame._isOnCD = true
-                grey:Show()
-                if not frame._isHovered then
-                    frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-                end
-            end
-        else
-            if frame._isOnCD or frame._isOnCD == nil then
-                frame._isOnCD = false
-                cd:Clear()
-                frame._lastStart = nil
-                frame._lastDur   = nil
-                grey:Hide()
-                if not frame._isHovered then
-                    frame:SetBackdropBorderColor(unpack(cfg.colors.black))
-                end
-            end
-        end
-    end
-    frame.refresh = refresh
-    refresh()
-
-    local function reset_hover()
-        frame._isHovered = false
-        local toyID = current()
-        local rem = toyID and p.toy_cd_remaining(toyID) or 0
-        p.set_cd_border(frame, rem)
-    end
-    frame.resetHover = reset_hover
 
     frame:SetScript("OnMouseWheel", function(self, delta)
         if #skinList < 2 then return end
@@ -196,36 +150,15 @@ local function make_hearthstone_scroll_icon(parent, skinList, x, y)
             SfuiDB.hearthstone = SfuiDB.hearthstone or {}
             SfuiDB.hearthstone[charKey] = toyID
         end
-        update_display()
-        refresh()
+        frame.updateIcon(frame.tex)
+        frame.refresh()
         p.disarm()
         if toyID then
             p.arm_toy(toyID, self)
-            local rem = p.toy_cd_remaining(toyID)
-            p.show_tooltip(self, nil, toyID, nil, nil, rem)
+            p.show_tooltip(self, nil, toyID, nil, nil, p.item_cd_remaining(toyID))
             self._isHovered = true
             self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
         end
-    end)
-
-    frame:SetScript("OnEnter", function(self)
-        self._isHovered = true
-        self:SetBackdropBorderColor(unpack(cfg.colors.cyan))
-        local toyID = current()
-        if toyID then
-            p.arm_toy(toyID, self)
-            local rem = p.toy_cd_remaining(toyID)
-            p.show_tooltip(self, nil, toyID, nil, nil, rem)
-        end
-    end)
-    frame:SetScript("OnLeave", function(self)
-        if p.is_currently_clicking() then return end
-        if p.get_hover_frame and p.get_hover_frame() == self and p.actionBtn:IsShown() then
-            return
-        end
-        reset_hover()
-        p.disarm()
-        p.hide_tooltip()
     end)
 
     return frame
@@ -250,10 +183,12 @@ local function make_legacy_dropdown(parent, group, yPos)
     header:SetPoint("TOPLEFT", 5, yPos)
     parent.legacyHeaders = parent.legacyHeaders or {}
     tinsert(parent.legacyHeaders, header)
+    if p.track_dynamic then p.track_dynamic(parent, header) end
 
     local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     parent.legacyMenus = parent.legacyMenus or {}
     tinsert(parent.legacyMenus, menu)
+    if p.track_dynamic then p.track_dynamic(parent, menu) end
     menu.rows = {}
     menu:SetSize(menuWidth, 6 + #opts * 20)
     menu:SetFrameStrata("TOOLTIP")

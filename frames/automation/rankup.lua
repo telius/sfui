@@ -57,8 +57,8 @@ local petSlots      = {} -- petSpellID -> pet spellbook slotIndex
 local scanTimer     = nil
 local petDirty      = false
 local active        = false
-
-local events = _G.CreateFrame("Frame")
+local cursorRegistered = false
+local OnRankupEvent
 
 local function GetAccentPrefix()
     local cyan = (sfui.config and sfui.config.colors and sfui.config.colors.cyan) or { 0, 1, 1 }
@@ -374,25 +374,35 @@ local function ReportUpgrade(spellName, slot)
     end
 end
 
+local function UnregisterCursorWatch()
+    if cursorRegistered and sfui.events and sfui.events.UnregisterEvent then
+        sfui.events.UnregisterEvent("CURSOR_CHANGED", OnRankupEvent)
+    end
+    cursorRegistered = false
+end
+
 local function UpgradeBars()
     if not (next(pendingPlayer) or next(pendingPet)) then
-        events:UnregisterEvent("PLAYER_REGEN_ENABLED")
-        events:UnregisterEvent("CURSOR_CHANGED")
+        UnregisterCursorWatch()
         return
     end
 
     if InCombatLockdown and InCombatLockdown() then
-        events:RegisterEvent("PLAYER_REGEN_ENABLED")
+        if sfui.safety and sfui.safety.DeferOutOfCombat then
+            sfui.safety.DeferOutOfCombat("rankup_upgrade", sfui.safety.OOC_P1, UpgradeBars)
+        end
         return
     end
 
     if GetCursorInfo and GetCursorInfo() then
-        events:RegisterEvent("CURSOR_CHANGED")
+        if not cursorRegistered and sfui.events and sfui.events.RegisterEvent then
+            cursorRegistered = true
+            sfui.events.RegisterEvent("CURSOR_CHANGED", OnRankupEvent)
+        end
         return
     end
 
-    events:UnregisterEvent("PLAYER_REGEN_ENABLED")
-    events:UnregisterEvent("CURSOR_CHANGED")
+    UnregisterCursorWatch()
 
     local hasPet = (C_SpellBook and C_SpellBook.HasPetSpells and C_SpellBook.HasPetSpells())
         or (_G.HasPetSpells and _G.HasPetSpells())
@@ -465,12 +475,19 @@ local function SetActive(enable)
     if enable == active then return end
     active = enable
     if enable then
-        events:RegisterEvent("SPELLS_CHANGED")
-        events:RegisterEvent("UNIT_PET")
-        events:RegisterEvent("PET_BAR_UPDATE")
+        if sfui.events and sfui.events.RegisterEvent then
+            sfui.events.RegisterEvent("SPELLS_CHANGED", OnRankupEvent)
+            sfui.events.RegisterEvent("UNIT_PET", OnRankupEvent)
+            sfui.events.RegisterEvent("PET_BAR_UPDATE", OnRankupEvent)
+        end
         RequestScan(false)
     else
-        events:UnregisterAllEvents()
+        if sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("SPELLS_CHANGED", OnRankupEvent)
+            sfui.events.UnregisterEvent("UNIT_PET", OnRankupEvent)
+            sfui.events.UnregisterEvent("PET_BAR_UPDATE", OnRankupEvent)
+        end
+        UnregisterCursorWatch()
         if scanTimer then
             scanTimer:Cancel()
             scanTimer = nil
@@ -481,12 +498,12 @@ local function SetActive(enable)
     end
 end
 
-events:SetScript("OnEvent", function(_, event, arg1)
+OnRankupEvent = function(event, arg1)
     if event == "PLAYER_ENTERING_WORLD" then
         SetActive(not (_G.SfuiDB and _G.SfuiDB.autoRankUp == false))
         if active then RequestScan(false) end
         return
-    elseif event == "PLAYER_REGEN_ENABLED" or event == "CURSOR_CHANGED" then
+    elseif event == "CURSOR_CHANGED" then
         UpgradeBars()
         return
     elseif event == "UNIT_PET" then
@@ -501,8 +518,10 @@ events:SetScript("OnEvent", function(_, event, arg1)
     elseif event == "SPELLS_CHANGED" then
         RequestScan(false)
     end
-end)
-events:RegisterEvent("PLAYER_ENTERING_WORLD")
+end
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnRankupEvent)
+end
 
 sfui.rankup.OnInit = function()
     if _G.SfuiDB and _G.SfuiDB.autoRankUp == nil then

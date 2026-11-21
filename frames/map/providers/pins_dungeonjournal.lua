@@ -829,8 +829,6 @@ if sfui.events and sfui.events.RegisterMessage then
 end
 
 if sfui.events and sfui.events.RegisterEvent then
-    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", InvalidateDJPinCache)
-    sfui.events.RegisterEvent("QUEST_TURNED_IN", InvalidateDJPinCache)
     sfui.events.RegisterEvent("PLAYER_LEVEL_UP", InvalidateDJPinCache)
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", InvalidateDJPinCache)
 end

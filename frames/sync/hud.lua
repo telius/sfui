@@ -71,15 +71,7 @@ local function get_palette()
         or {}
 end
 
-local function rgb_to_hex(col, dr, dg, db)
-    if type(col) ~= "table" or not col[1] then
-        if type(dr) == "string" then return dr end
-    end
-    local r = math_max(0, math_min(1, tonumber(col and col[1]) or tonumber(dr) or 1))
-    local g = math_max(0, math_min(1, tonumber(col and col[2]) or tonumber(dg) or 1))
-    local b = math_max(0, math_min(1, tonumber(col and col[3]) or tonumber(db) or 1))
-    return sfui.colors.rgb_to_hex(r, g, b)
-end
+local rgb_to_hex = sfui.colors.rgb_to_hex
 
 local HEADER_TOOLTIP_LINES = {
     "|cff00ffffleft-click header:|r invite missing linked accounts",
@@ -93,17 +85,7 @@ local HEADER_TOOLTIP_LINES = {
     "|cff00ffffshift+left-click row:|r make multibox lead",
 }
 
-local function format_gold(copper)
-    copper = tonumber(copper) or 0
-    local g = math_floor(copper / 10000)
-    local s = math_floor((copper % 10000) / 100)
-    if g >= 1000 then
-        return string_format("|cffffd100%dg|r", g)
-    elseif g > 0 then
-        return string_format("|cffffd100%dg|r |cffc7c7cf%ds|r", g, s)
-    end
-    return string_format("|cffc7c7cf%ds|r", s)
-end
+local format_gold = sfui.common.format_money_colored
 
 local function compute_local_durability()
     local lowest = 100

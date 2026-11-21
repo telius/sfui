@@ -25,6 +25,7 @@ local tonumber = _G.tonumber
 local string = _G.string
 local ipairs = _G.ipairs
 local pairs = _G.pairs
+local select = _G.select
 local type = _G.type
 local GameTooltip = sfui.common.get_tooltip()
 local RAID_CLASS_COLORS = _G.RAID_CLASS_COLORS
@@ -81,6 +82,49 @@ local function ReleaseColumn(f)
     columnPool[#columnPool + 1] = f
 end
 
+local function Cell_OnEnter(self)
+    if self._onEnter then
+        return self._onEnter(self)
+    end
+end
+
+local function Cell_OnLeave(self)
+    if self._onLeave then
+        return self._onLeave(self)
+    end
+    if self._onEnter then
+        GameTooltip:Hide()
+    end
+end
+
+local function Cell_OnMouseUp(self, button)
+    if self._onMouseUp then
+        return self._onMouseUp(self, button)
+    end
+end
+
+local function HideExtraRegionsImpl(f, ...)
+    local n = select("#", ...)
+    for i = 1, n do
+        local r = select(i, ...)
+        if r and r ~= f.text and r ~= f.rightText then
+            if r:IsObjectType("Texture") or r:IsObjectType("FontString") then
+                r:Hide()
+            end
+        end
+    end
+end
+
+local function HideChildrenImpl(...)
+    local n = select("#", ...)
+    for i = 1, n do
+        local c = select(i, ...)
+        if c then
+            c:Hide()
+        end
+    end
+end
+
 local function AcquireCell(parent)
     local f = table.remove(cellPool)
     if not f then
@@ -89,9 +133,15 @@ local function AcquireCell(parent)
         f.text:SetPoint("CENTER")
         f.text:SetJustifyH("CENTER")
         f.text:SetWidth(0)
+        f:SetScript("OnEnter", Cell_OnEnter)
+        f:SetScript("OnLeave", Cell_OnLeave)
+        f:SetScript("OnMouseUp", Cell_OnMouseUp)
     else
         f:SetParent(parent)
         f:Show()
+        f._onEnter = nil
+        f._onLeave = nil
+        f._onMouseUp = nil
         if f.text then
             f.text:Show()
             f.text:ClearAllPoints()
@@ -110,20 +160,54 @@ local function AcquireCell(parent)
             f.rightText:SetJustifyH("RIGHT")
             f.rightText:SetWidth(0)
         end
-        local regions = { f:GetRegions() }
-        for _, r in ipairs(regions) do
-            if r ~= f.text and r ~= f.rightText then
-                if r:IsObjectType("Texture") or r:IsObjectType("FontString") then
-                    r:Hide()
-                end
-            end
-        end
-        local children = { f:GetChildren() }
-        for _, c in ipairs(children) do
-            c:Hide()
-        end
+        HideExtraRegionsImpl(f, f:GetRegions())
+        HideChildrenImpl(f:GetChildren())
     end
     return f
+end
+
+local function ClearCellPayload(f)
+    f._onEnter = nil
+    f._onLeave = nil
+    f._onMouseUp = nil
+    f._catName = nil
+    f._guid = nil
+    f._altData = nil
+    f._isLivePlayer = nil
+    f._cat = nil
+    f._val = nil
+    f._extra = nil
+    f._ksSnap = nil
+    f._mapID = nil
+    f._best = nil
+    f._isKnown = nil
+    f._tooltipLines = nil
+    f._isGroup = nil
+    f._q = nil
+    f._blocks = nil
+    f._coreText = nil
+    f._bonusText = nil
+    f._profData = nil
+    f._group = nil
+    f._ejInstances = nil
+    f._m0Data = nil
+    f._difficulty = nil
+    f._bossData = nil
+    f._lvl = nil
+    f._xp = nil
+    f._validXpMax = nil
+    f._pct = nil
+    f._pvp = nil
+    f._now = nil
+    f._marks = nil
+    f._lockouts = nil
+    f._isHorde = nil
+    f._unlocked = nil
+    f._inProgress = nil
+    f._cDef = nil
+    f._iconStr = nil
+    f._name = nil
+    f._maxQty = nil
 end
 
 local function ReleaseCell(f)
@@ -131,9 +215,7 @@ local function ReleaseCell(f)
     f:SetParent(UIParent)
     f:ClearAllPoints()
     f:EnableMouse(false)
-    f:SetScript("OnEnter", nil)
-    f:SetScript("OnLeave", nil)
-    f:SetScript("OnMouseUp", nil)
+    ClearCellPayload(f)
     if f.text then
         f.text:ClearAllPoints()
         f.text:SetWidth(0)
@@ -152,6 +234,27 @@ local function ReleaseCell(f)
     cellPool[#cellPool + 1] = f
 end
 
+local function ReleaseChildCells(...)
+    local n = select("#", ...)
+    for i = 1, n do
+        local c = select(i, ...)
+        if c then
+            ReleaseCell(c)
+        end
+    end
+end
+
+local function ReleaseChildColumns(...)
+    local n = select("#", ...)
+    for i = 1, n do
+        local col = select(i, ...)
+        if col then
+            ReleaseChildCells(col:GetChildren())
+            ReleaseColumn(col)
+        end
+    end
+end
+
 -- Expose pooling utilities to providers
 sfui.alts.AcquireTable = AcquireTable
 sfui.alts.ReleaseTable = ReleaseTable
@@ -167,29 +270,8 @@ local function IsCamelotNameSystem()
         or (_G.NameUtil and _G.NameUtil.FormatUnitNameForDisplay ~= nil)
 end
 
-local function NormalizeRealmToken(s)
-    if type(s) ~= "string" or s == "" then return "" end
-    return s:gsub("[%s%-']", ""):lower()
-end
-
-local function IsServerRealmName(s)
-    if type(s) ~= "string" or s == "" then return false end
-    local norm = NormalizeRealmToken(s)
-    if norm == "" then return false end
-    if norm:find("^camwow") or norm:find("realm") or norm:find("%d") then
-        return true
-    end
-    local r1 = _G.GetRealmName and _G.GetRealmName()
-    if r1 and NormalizeRealmToken(r1) == norm then return true end
-    local r2 = _G.GetNormalizedRealmName and _G.GetNormalizedRealmName()
-    if r2 and NormalizeRealmToken(r2) == norm then return true end
-    local r3 = _G.GetCVar and _G.GetCVar("realmName")
-    if r3 and NormalizeRealmToken(r3) == norm then return true end
-    if norm == "forever" or norm == "camelot" or norm == "global" then
-        return true
-    end
-    return false
-end
+local NormalizeRealmToken = sfui.common.normalize_realm
+local IsServerRealmName = sfui.common.is_server_realm_name
 sfui.alts.IsServerRealmName = IsServerRealmName
 
 local function GetSurnameSeparator()
@@ -832,7 +914,79 @@ local function updateSettingsPosition()
 end
 sfui.alts.UpdateSettingsPosition = updateSettingsPosition
 
-local function RefreshSettingsPanel()
+local RefreshSettingsPanel
+local _settingsChars = {}
+local _settingsCharNodes = {}
+
+local function CompareSettingsChars(a, b)
+    local nA = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(a.data, a.guid)) or a.data.name or ""
+    local nB = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(b.data, b.guid)) or b.data.name or ""
+    return nA < nB
+end
+
+local function SectionCheckbox_OnClick(self)
+    local checked = self:GetChecked()
+    if self._isM0Toggle then
+        SfuiDB.showM0Dungeons = checked
+        sfui.alts.RefreshDynamicCategories(true)
+        sfui.alts.UpdateUI(true)
+    elseif self._secCatName then
+        SfuiDB.altsHiddenSections = SfuiDB.altsHiddenSections or {}
+        SfuiDB.altsHiddenSections[self._secCatName] = not checked
+        sfui.alts.UpdateUI(true)
+    end
+end
+
+local function AcquireSectionCheckbox(secIdx, secY, label, isChecked, catName, isM0Toggle)
+    local cb = sectionCheckboxes[secIdx]
+    if not cb then
+        cb = sfui.common.create_checkbox(settingsPanel.sectionsContainer, label, nil, nil)
+        cb:SetScript("OnClick", SectionCheckbox_OnClick)
+        sectionCheckboxes[secIdx] = cb
+    end
+    cb:ClearAllPoints()
+    cb:SetPoint("TOPLEFT", 0, -secY)
+    if cb.text then cb.text:SetText(label) end
+    cb._secCatName = catName
+    cb._isM0Toggle = isM0Toggle
+    cb:SetChecked(isChecked)
+    cb:Show()
+end
+
+local function SettingsRowRuleset_OnClick(self)
+    if self._isLivePlayer or not self._altData or not self._guid then return end
+    local cur = GetAltRuleset(self._altData, self._guid) or "normal"
+    local nextRs = "normal"
+    for idx, key in ipairs(RULESET_ORDER) do
+        if key == cur then
+            nextRs = RULESET_ORDER[(idx % #RULESET_ORDER) + 1]
+            break
+        end
+    end
+    self._altData.ruleset = nextRs
+    sfui.alts.UpdateUI(true)
+    RefreshSettingsPanel()
+end
+
+local function SettingsRowCheckbox_OnClick(self)
+    if not self._altData then return end
+    self._altData.isHidden = not self:GetChecked()
+    sfui.alts.UpdateUI(true)
+end
+
+local function SettingsRowDelete_OnClick(self)
+    local guid = self._guid
+    if not guid then return end
+    if StaticPopup_Show then
+        StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", self._charName, nil, { guid = guid })
+    else
+        sfui.alts.PurgeCharacter(guid)
+        sfui.alts.UpdateUI(true)
+        RefreshSettingsPanel()
+    end
+end
+
+RefreshSettingsPanel = function()
     if not settingsPanel or not settingsPanel:IsShown() then return end
 
     -- 1. Refresh Sort button highlights
@@ -853,43 +1007,20 @@ local function RefreshSettingsPanel()
     local secY = 0
     local secIdx = 1
 
-    local function setupSecCb(label, isChecked, onToggle)
-        local cb = sectionCheckboxes[secIdx]
-        if not cb then
-            cb = sfui.common.create_checkbox(settingsPanel.sectionsContainer, label, nil, nil)
-            sectionCheckboxes[secIdx] = cb
-        end
-        cb:ClearAllPoints()
-        cb:SetPoint("TOPLEFT", 0, -secY)
-        if cb.text then cb.text:SetText(label) end
-        cb:SetChecked(isChecked)
-        cb:SetScript("OnClick", function(self)
-            onToggle(self:GetChecked())
-        end)
-        cb:Show()
-        secY = secY + 22
-        secIdx = secIdx + 1
-    end
-
     for _, cat in ipairs(cats) do
         if cat.type == "header" and cat.name ~= "GENERAL" then
             local isHidden = SfuiDB.altsHiddenSections and (SfuiDB.altsHiddenSections[cat.name] == true)
-            local catName = cat.name
-            setupSecCb(cat.label, not isHidden, function(checked)
-                SfuiDB.altsHiddenSections = SfuiDB.altsHiddenSections or {}
-                SfuiDB.altsHiddenSections[catName] = not checked
-                sfui.alts.UpdateUI(true)
-            end)
+            AcquireSectionCheckbox(secIdx, secY, cat.label, not isHidden, cat.name, false)
+            secY = secY + 22
+            secIdx = secIdx + 1
         end
     end
 
     if sfui.alts.provider and sfui.alts.provider.name == "standard" then
         local isM0Hidden = (SfuiDB.showM0Dungeons == false)
-        setupSecCb("m0 dungeons", not isM0Hidden, function(checked)
-            SfuiDB.showM0Dungeons = checked
-            sfui.alts.RefreshDynamicCategories(true)
-            sfui.alts.UpdateUI(true)
-        end)
+        AcquireSectionCheckbox(secIdx, secY, "m0 dungeons", not isM0Hidden, nil, true)
+        secY = secY + 22
+        secIdx = secIdx + 1
     end
 
     for i = secIdx, #sectionCheckboxes do
@@ -910,17 +1041,23 @@ local function RefreshSettingsPanel()
     settingsPanel.charScroll:SetPoint("BOTTOMRIGHT", -10, 10)
 
     local myGuid = GetCurrentCharacterGUID()
-    local chars = {}
+    local chars = _settingsChars
+    wipe(chars)
+    local charCount = 0
     for guid, data in pairs(SfuiDB.alts or {}) do
         if type(data) == "table" then
-            chars[#chars + 1] = { guid = guid, data = data }
+            charCount = charCount + 1
+            local node = _settingsCharNodes[charCount]
+            if not node then
+                node = {}
+                _settingsCharNodes[charCount] = node
+            end
+            node.guid = guid
+            node.data = data
+            chars[charCount] = node
         end
     end
-    table.sort(chars, function(a, b)
-        local nA = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(a.data, a.guid)) or a.data.name or ""
-        local nB = (sfui.alts.GetDisplayName and sfui.alts.GetDisplayName(b.data, b.guid)) or b.data.name or ""
-        return nA < nB
-    end)
+    table.sort(chars, CompareSettingsChars)
 
     local charY = 0
     for i, cInfo in ipairs(chars) do
@@ -934,10 +1071,12 @@ local function RefreshSettingsPanel()
             local delFs = del:GetFontString()
             if delFs then delFs:SetTextColor(1, 0.3, 0.3, 1) end
             del.tooltip = "remove character"
+            del:SetScript("OnClick", SettingsRowDelete_OnClick)
             row.del = del
 
             local rsBtn = sfui.common.create_flat_button(row, "normal", 46, 16)
             rsBtn:SetPoint("RIGHT", del, "LEFT", -3, 0)
+            rsBtn:SetScript("OnClick", SettingsRowRuleset_OnClick)
             row.rsBtn = rsBtn
 
             local cb = sfui.common.create_checkbox(row, "", nil, nil)
@@ -947,6 +1086,7 @@ local function RefreshSettingsPanel()
                 cb.text:SetWordWrap(false)
                 cb.text:SetJustifyH("LEFT")
             end
+            cb:SetScript("OnClick", SettingsRowCheckbox_OnClick)
             row.cb = cb
 
             charRows[i] = row
@@ -970,31 +1110,25 @@ local function RefreshSettingsPanel()
                 rsFs:SetTextColor(rgb[1], rgb[2], rgb[3], 1)
             end
             local isLivePlayer = (myGuid and cInfo.guid == myGuid)
+            row.rsBtn._guid = cInfo.guid
+            row.rsBtn._altData = d
+            row.rsBtn._isLivePlayer = isLivePlayer
             if isLivePlayer then
                 row.rsBtn.tooltip = "active character ruleset (detected from server)"
-                row.rsBtn:SetScript("OnClick", nil)
             else
                 row.rsBtn.tooltip = "click to cycle character ruleset (normal / pvp / rp / rppvp)"
-                row.rsBtn:SetScript("OnClick", function()
-                    local cur = GetAltRuleset(d, cInfo.guid) or "normal"
-                    local nextRs = "normal"
-                    for idx, key in ipairs(RULESET_ORDER) do
-                        if key == cur then
-                            nextRs = RULESET_ORDER[(idx % #RULESET_ORDER) + 1]
-                            break
-                        end
-                    end
-                    d.ruleset = nextRs
-                    sfui.alts.UpdateUI(true)
-                    RefreshSettingsPanel()
-                end)
             end
             row.rsBtn:Show()
             if row.cb.text then
                 row.cb.text:SetPoint("RIGHT", row.rsBtn, "LEFT", -4, 0)
             end
         else
-            if row.rsBtn then row.rsBtn:Hide() end
+            if row.rsBtn then
+                row.rsBtn._guid = nil
+                row.rsBtn._altData = nil
+                row.rsBtn._isLivePlayer = nil
+                row.rsBtn:Hide()
+            end
             if row.cb.text then
                 row.cb.text:SetPoint("RIGHT", row.del, "LEFT", -4, 0)
             end
@@ -1003,23 +1137,11 @@ local function RefreshSettingsPanel()
         if row.cb.text then
             row.cb.text:SetText(string.format("|c%s%s|r", colorStr, name))
         end
+        row.cb._altData = d
         row.cb:SetChecked(not d.isHidden)
-        row.cb:SetScript("OnClick", function(self)
-            d.isHidden = not self:GetChecked()
-            sfui.alts.UpdateUI(true)
-        end)
 
-        local capturedGuid = cInfo.guid
-        local capturedName = name
-        row.del:SetScript("OnClick", function()
-            if StaticPopup_Show then
-                StaticPopup_Show("SFUI_ALTS_REMOVE_CHARACTER", capturedName, nil, { guid = capturedGuid })
-            else
-                sfui.alts.PurgeCharacter(capturedGuid)
-                sfui.alts.UpdateUI(true)
-                RefreshSettingsPanel()
-            end
-        end)
+        row.del._guid = cInfo.guid
+        row.del._charName = name
 
         row:Show()
         charY = charY + 22
@@ -1549,6 +1671,113 @@ end
 local altsList = {}
 local visibleCats = {}
 
+local function SidebarHeader_OnMouseUp(self)
+    local catName = self._catName
+    if not catName then return end
+    SfuiDB.altsCollapsed[catName] = not SfuiDB.altsCollapsed[catName]
+    sfui.alts.UpdateUI(true)
+end
+
+local function SidebarGeneral_OnEnter(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    local curRsFilter = IsCamelotNameSystem() and sfui.alts.GetRulesetFilter() or nil
+    if curRsFilter then
+        GameTooltip:AddLine(string.format("all characters (%s)", curRsFilter), 1, 0.82, 0)
+    else
+        GameTooltip:AddLine("all characters", 1, 0.82, 0)
+    end
+    GameTooltip:AddLine(" ")
+
+    local totalGold = 0
+    local totalPlayed = 0
+    for _, entry in ipairs(altsList) do
+        totalGold = totalGold + (entry.data.money or 0)
+        totalPlayed = totalPlayed + (entry.data.timeplayed or 0)
+    end
+
+    if totalGold > 0 then
+        GameTooltip:AddDoubleLine("total gold:", _G.GetMoneyString(totalGold, true),
+            NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 0.82, 0)
+    end
+    if totalPlayed > 0 and (not sfui.alts.provider or sfui.alts.provider.showTimePlayedTooltip ~= false) then
+        local hours = math.floor(totalPlayed / 3600)
+        GameTooltip:AddDoubleLine("total time played:", string.format("%d hours", hours),
+            NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 1, 1)
+    end
+
+    GameTooltip:Show()
+end
+
+local function HeaderCell_OnMouseUp(self, button)
+    if button ~= "RightButton" or self._isLivePlayer then return end
+    local d = self._altData
+    local guid = self._guid
+    if not d or not guid or not IsCamelotNameSystem() then return end
+    local cur = GetAltRuleset(d, guid) or "normal"
+    local nextRs = "normal"
+    for idx, key in ipairs(RULESET_ORDER) do
+        if key == cur then
+            nextRs = RULESET_ORDER[(idx % #RULESET_ORDER) + 1]
+            break
+        end
+    end
+    d.ruleset = nextRs
+    sfui.alts.UpdateUI(true)
+    if sfui.alts.RefreshSettingsPanel then
+        sfui.alts.RefreshSettingsPanel()
+    end
+end
+
+local function HeaderCell_OnEnter(self)
+    local d = self._altData
+    local guid = self._guid
+    if not d or not guid then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    local cc = RAID_CLASS_COLORS[d.class] or NORMAL_FONT_COLOR
+    GameTooltip:AddLine(string.format("|c%s%s|r", cc.colorStr or "ffffffff", sfui.alts.GetDisplayName(d, guid)), 1, 1, 1)
+    if IsCamelotNameSystem() then
+        local altRs = GetAltRuleset(d, guid) or "normal"
+        local rgb = RULESET_RGB[altRs] or RULESET_RGB.normal
+        GameTooltip:AddDoubleLine("ruleset:", altRs, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, rgb[1], rgb[2], rgb[3])
+    elseif d.realm and d.realm ~= "" then
+        GameTooltip:AddLine(d.realm, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
+    end
+    if d.guild then
+        GameTooltip:AddLine(string.format("<%s>", d.guild), 0.2, 1.0, 0.4)
+    end
+    if d.money and d.money > 0 then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(_G.GetMoneyString(d.money, true), 1, 0.82, 0)
+    end
+    if d.inboxCount and d.inboxCount > 0 then
+        GameTooltip:AddLine(" ")
+        local days = d.inboxDaysLeft or 30
+        local daysStr = string.format("%.1f days left", days)
+        local r, g, b = 0.5, 0.8, 1.0
+        if days < 3 then
+            r, g, b = 1.0, 0.2, 0.2
+            daysStr = daysStr .. " (expiring soon!)"
+        elseif days < 7 then
+            r, g, b = 1.0, 0.7, 0.0
+        end
+        GameTooltip:AddDoubleLine("inbox mail:", string.format("%d letter(s) (%s)", d.inboxCount, daysStr),
+            NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, r, g, b)
+        if d.inboxMoney and d.inboxMoney > 0 then
+            GameTooltip:AddDoubleLine("inbox gold:", _G.GetMoneyString(d.inboxMoney, true),
+                NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 0.82, 0)
+        end
+    end
+    if sfui.alts.provider and sfui.alts.provider.showTimePlayedTooltip ~= false and d.timeplayed and d.timeplayed > 0 then
+        local hours = math.floor(d.timeplayed / 3600)
+        GameTooltip:AddLine(string.format("time played: %d hours", hours), 0.7, 0.7, 0.7)
+    end
+    if IsCamelotNameSystem() and not self._isLivePlayer then
+        GameTooltip:AddLine("right-click to cycle ruleset", 0.65, 0.65, 0.68)
+    end
+
+    GameTooltip:Show()
+end
+
 local function SortAlts(a, b)
     local sortKey = SfuiDB.altsSort or "name"
     if sfui.alts.provider and sfui.alts.provider.SortAlts then
@@ -1609,10 +1838,7 @@ function sfui.alts.UpdateUI(force)
 
     -- Update Sidebar
     if frame.sidebar then
-        local children = { frame.sidebar:GetChildren() }
-        for _, cell in ipairs(children) do
-            ReleaseCell(cell)
-        end
+        ReleaseChildCells(frame.sidebar:GetChildren())
         local visY = 0
         for _, cat in ipairs(visibleCats) do
             local row = AcquireCell(frame.sidebar)
@@ -1630,54 +1856,23 @@ function sfui.alts.UpdateUI(force)
                 text:SetText(cat.label)
 
                 row:EnableMouse(true)
-                row:SetScript("OnMouseUp", function()
-                    SfuiDB.altsCollapsed[cat.name] = not SfuiDB.altsCollapsed[cat.name]
-                    sfui.alts.UpdateUI(true)
-                end)
-
+                row._catName = cat.name
+                row._onMouseUp = SidebarHeader_OnMouseUp
+                row._onLeave = nil
                 if cat.name == "GENERAL" then
-                    row:SetScript("OnEnter", function(self)
-                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                        local curRsFilter = IsCamelotNameSystem() and sfui.alts.GetRulesetFilter() or nil
-                        if curRsFilter then
-                            GameTooltip:AddLine(string.format("all characters (%s)", curRsFilter), 1, 0.82, 0)
-                        else
-                            GameTooltip:AddLine("all characters", 1, 0.82, 0)
-                        end
-                        GameTooltip:AddLine(" ")
-
-                        local totalGold = 0
-                        local totalPlayed = 0
-                        for _, entry in ipairs(altsList) do
-                            totalGold = totalGold + (entry.data.money or 0)
-                            totalPlayed = totalPlayed + (entry.data.timeplayed or 0)
-                        end
-
-                        if totalGold > 0 then
-                            GameTooltip:AddDoubleLine("total gold:", _G.GetMoneyString(totalGold, true),
-                                NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 0.82, 0)
-                        end
-                        if totalPlayed > 0 and (not sfui.alts.provider or sfui.alts.provider.showTimePlayedTooltip ~= false) then
-                            local hours = math.floor(totalPlayed / 3600)
-                            GameTooltip:AddDoubleLine("total time played:", string.format("%d hours", hours),
-                                NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 1, 1)
-                        end
-
-                        GameTooltip:Show()
-                    end)
-                    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                    row._onEnter = SidebarGeneral_OnEnter
                 else
-                    row:SetScript("OnEnter", nil)
-                    row:SetScript("OnLeave", nil)
+                    row._onEnter = nil
                 end
             else
                 text:SetFontObject("GameFontHighlightSmall")
                 text:SetTextColor(unpack(sfui.config.colors.white))
                 text:SetText(cat.label)
                 row:EnableMouse(false)
-                row:SetScript("OnMouseUp", nil)
-                row:SetScript("OnEnter", nil)
-                row:SetScript("OnLeave", nil)
+                row._catName = nil
+                row._onMouseUp = nil
+                row._onEnter = nil
+                row._onLeave = nil
 
                 if sfui.alts.provider and sfui.alts.provider.OnSidebarRow then
                     sfui.alts.provider.OnSidebarRow(row, cat)
@@ -1689,14 +1884,7 @@ function sfui.alts.UpdateUI(force)
 
     -- Release existing columns
     if not frame.content then return end
-    local columns = { frame.content:GetChildren() }
-    for _, col in ipairs(columns) do
-        local cells = { col:GetChildren() }
-        for _, cell in ipairs(cells) do
-            ReleaseCell(cell)
-        end
-        ReleaseColumn(col)
-    end
+    ReleaseChildColumns(frame.content:GetChildren())
 
     for i = #altsList, 1, -1 do
         local entry = table.remove(altsList, i)
@@ -1779,80 +1967,15 @@ function sfui.alts.UpdateUI(force)
                         text:SetText(string.format("%s%s%s", sfui.alts.GetDisplayName(alt.data, alt.guid), rsTag, mailTag))
                         text:SetTextColor(classColor.r, classColor.g, classColor.b)
 
-                        local altSnap = alt
                         local myGuid = GetCurrentCharacterGUID()
-                        local isLivePlayer = (myGuid and altSnap.guid == myGuid)
+                        local isLivePlayer = (myGuid and alt.guid == myGuid)
                         cell:EnableMouse(true)
-                        if isCamelot and not isLivePlayer then
-                            cell:SetScript("OnMouseUp", function(_, button)
-                                if button ~= "RightButton" then return end
-                                local cur = GetAltRuleset(altSnap.data, altSnap.guid) or "normal"
-                                local nextRs = "normal"
-                                for idx, key in ipairs(RULESET_ORDER) do
-                                    if key == cur then
-                                        nextRs = RULESET_ORDER[(idx % #RULESET_ORDER) + 1]
-                                        break
-                                    end
-                                end
-                                altSnap.data.ruleset = nextRs
-                                sfui.alts.UpdateUI(true)
-                                if sfui.alts.RefreshSettingsPanel then
-                                    sfui.alts.RefreshSettingsPanel()
-                                end
-                            end)
-                        else
-                            cell:SetScript("OnMouseUp", nil)
-                        end
-                        cell:SetScript("OnEnter", function(self)
-                            local d = altSnap.data
-                            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                            local cc = RAID_CLASS_COLORS[d.class] or NORMAL_FONT_COLOR
-                            GameTooltip:AddLine(string.format("|c%s%s|r", cc.colorStr or "ffffffff", sfui.alts.GetDisplayName(d, altSnap.guid)), 1, 1, 1)
-                            if IsCamelotNameSystem() then
-                                local altRs = GetAltRuleset(d, altSnap.guid) or "normal"
-                                local rgb = RULESET_RGB[altRs] or RULESET_RGB.normal
-                                GameTooltip:AddDoubleLine("ruleset:", altRs, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, rgb[1], rgb[2], rgb[3])
-                            elseif d.realm and d.realm ~= "" then
-                                GameTooltip:AddLine(d.realm, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
-                            end
-                            if d.guild then
-                                GameTooltip:AddLine(string.format("<%s>", d.guild), 0.2, 1.0, 0.4)
-                            end
-                            if d.money and d.money > 0 then
-                                GameTooltip:AddLine(" ")
-                                GameTooltip:AddLine(_G.GetMoneyString(d.money, true), 1, 0.82, 0)
-                            end
-                            if d.inboxCount and d.inboxCount > 0 then
-                                GameTooltip:AddLine(" ")
-                                local days = d.inboxDaysLeft or 30
-                                local daysStr = string.format("%.1f days left", days)
-                                local r, g, b = 0.5, 0.8, 1.0
-                                if days < 3 then
-                                    r, g, b = 1.0, 0.2, 0.2
-                                    daysStr = daysStr .. " (expiring soon!)"
-                                elseif days < 7 then
-                                    r, g, b = 1.0, 0.7, 0.0
-                                end
-                                GameTooltip:AddDoubleLine("inbox mail:", string.format("%d letter(s) (%s)", d.inboxCount, daysStr),
-                                    NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, r, g, b)
-                                if d.inboxMoney and d.inboxMoney > 0 then
-                                    GameTooltip:AddDoubleLine("inbox gold:", _G.GetMoneyString(d.inboxMoney, true),
-                                        NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 1, 0.82, 0)
-                                end
-                            end
-                            if sfui.alts.provider and sfui.alts.provider.showTimePlayedTooltip ~= false and d.timeplayed and d.timeplayed > 0 then
-                                local hours = math.floor(d.timeplayed / 3600)
-                                GameTooltip:AddLine(string.format("time played: %d hours", hours), 0.7, 0.7, 0.7)
-                            end
-                            if isCamelot and not isLivePlayer then
-                                GameTooltip:AddLine("right-click to cycle ruleset", 0.65, 0.65, 0.68)
-                            end
-
-                            GameTooltip:Show()
-                        end)
-                        cell:SetScript("OnLeave", function()
-                            GameTooltip:Hide()
-                        end)
+                        cell._altData = alt.data
+                        cell._guid = alt.guid
+                        cell._isLivePlayer = isLivePlayer
+                        cell._onMouseUp = (isCamelot and not isLivePlayer) and HeaderCell_OnMouseUp or nil
+                        cell._onEnter = HeaderCell_OnEnter
+                        cell._onLeave = nil
 
                     else
                         text:Hide()
@@ -2089,7 +2212,7 @@ function sfui.alts.initialize()
                 elseif info ~= nil and _G.GetContainerItemLink then
                     local _, cnt = _G.GetContainerItemInfo(bagID, slot)
                     local lnk = _G.GetContainerItemLink(bagID, slot)
-                    local id = lnk and tonumber(lnk:match("item:(%d+)"))
+                    local id = sfui.items.get_item_id(lnk)
                     if id and type(cnt) == "number" and cnt > 0 then
                         bankCounts[id] = (bankCounts[id] or 0) + cnt
                     end
@@ -2120,6 +2243,11 @@ function sfui.alts.initialize()
     if sfui.alts.provider and sfui.alts.provider.RegisterEvents then
         sfui.alts.provider.RegisterEvents()
     end
+end
+
+local function CompareAltItemSummaries(a, b)
+    if a.total ~= b.total then return a.total > b.total end
+    return (a.name or "") < (b.name or "")
 end
 
 function sfui.alts.GetAccountItemSummary(itemID, excludeCurrent)
@@ -2166,10 +2294,7 @@ function sfui.alts.GetAccountItemSummary(itemID, excludeCurrent)
     end
 
     if #list == 0 then return nil end
-    table.sort(list, function(a, b)
-        if a.total ~= b.total then return a.total > b.total end
-        return (a.name or "") < (b.name or "")
-    end)
+    table.sort(list, CompareAltItemSummaries)
     return {
         total     = totalAll,
         totalAlts = totalAlts,

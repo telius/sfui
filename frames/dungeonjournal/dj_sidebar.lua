@@ -384,6 +384,9 @@ local function InvalidateUpgradeCache()
     for k in pairs(upgradeQueuedSet) do
         upgradeQueuedSet[k] = nil
     end
+    for k in pairs(requestedItemLoads) do
+        requestedItemLoads[k] = nil
+    end
 end
 
 local function ApplyButtonUpgradeDisplay(btn, upgCount)
@@ -1270,10 +1273,14 @@ if sfui.events and sfui.events.RegisterEvent then
             end
         end
     end
-    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)
-    sfui.events.RegisterEvent("QUEST_ACCEPTED",   OnQuestLogChanged)
-    sfui.events.RegisterEvent("QUEST_REMOVED",    OnQuestLogChanged)
-    sfui.events.RegisterEvent("QUEST_TURNED_IN",  OnQuestLogChanged)
+    if sfui.events.RegisterMessage and sfui.queststate then
+        sfui.events.RegisterMessage("SFUI_QUEST_STATE_UPDATED", OnQuestLogChanged)
+    else
+        sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)
+        sfui.events.RegisterEvent("QUEST_ACCEPTED",   OnQuestLogChanged)
+        sfui.events.RegisterEvent("QUEST_REMOVED",    OnQuestLogChanged)
+        sfui.events.RegisterEvent("QUEST_TURNED_IN",  OnQuestLogChanged)
+    end
     sfui.events.RegisterEvent("PLAYER_LEVEL_UP",  function()
         InvalidateQuestProgressCache()
         InvalidateUpgradeCache()

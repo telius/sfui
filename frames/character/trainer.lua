@@ -2900,7 +2900,7 @@ local function CreateSpellBookTrainerTab(sbf)
     end
 
     local badge = tabBtn:CreateFontString(nil, "OVERLAY")
-    local fontFile = (common and common.get_font_file and common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
     badge:SetFont(fontFile, 10, "OUTLINE")
     badge:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -2, 2)
     badge:SetTextColor(COLORS.READY[1], COLORS.READY[2], COLORS.READY[3], 1.0)
@@ -3451,7 +3451,7 @@ local function CreateSquareHeaderButton(name, parent, tooltipContext)
     btn:SetBackdropBorderColor(0, 0, 0, 1)
 
     local badge = btn:CreateFontString(nil, "OVERLAY")
-    local fontFile = (common and common.get_font_file and common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
     badge:SetFont(fontFile, 9, "OUTLINE")
     badge:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 1, -1)
     badge:SetTextColor(COLORS.READY[1], COLORS.READY[2], COLORS.READY[3], 1.0)

@@ -31,32 +31,14 @@ local table_insert            = table.insert
 
 --- Short text format for money (e.g. 1g 20s, 45s, 80c)
 local function FormatMoneyShort(copper)
-    if common and common.format_money_short then
-        return common.format_money_short(copper, { nil_on_zero = true })
-    end
-    if not copper or type(copper) ~= "number" or copper <= 0 then return nil end
-    local g = math_floor(copper / 10000)
-    local s = math_floor(copper / 100) % 100
-    local c = copper % 100
-    if g > 0 then
-        return s > 0 and string.format("%dg %ds", g, s) or string.format("%dg", g)
-    elseif s > 0 then
-        return c > 0 and string.format("%ds %dc", s, c) or string.format("%ds", s)
-    end
-    return string.format("%dc", c)
+    return common.format_money_short(copper, { nil_on_zero = true })
 end
 sfui.recipes.FormatMoneyShort = FormatMoneyShort
 
 --- Format copper amount to coin icons or text
 local function FormatMoney(copper)
     if not copper or type(copper) ~= "number" or copper <= 0 then return nil end
-    if common and common.SafeGetCoinTextureString then
-        return common.SafeGetCoinTextureString(copper)
-    end
-    if GetCoinTextureString then
-        return GetCoinTextureString(copper)
-    end
-    return FormatMoneyShort(copper)
+    return common.SafeGetCoinTextureString(copper)
 end
 sfui.recipes.FormatMoney = FormatMoney
 
@@ -1461,23 +1443,6 @@ function sfui.recipes.SetWaypoint(s)
 
     if sfui.map and sfui.map.SetUserWaypoint then
         return sfui.map.SetUserWaypoint(s.mapID, s.x, s.y, label)
-    end
-
-    if not (C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
-        return false
-    end
-
-    local point = UiMapPoint.CreateFromCoordinates(s.mapID, s.x, s.y)
-    local ok = pcall(C_Map.SetUserWaypoint, point)
-    if ok then
-        if sfui.map and sfui.map.SetSuperTrackedUserWaypoint then
-            sfui.map.SetSuperTrackedUserWaypoint(true)
-        elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-            pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
-        end
-        local printFn = (common and common.print) or print
-        printFn("waypoint set for " .. label)
-        return true
     end
     return false
 end

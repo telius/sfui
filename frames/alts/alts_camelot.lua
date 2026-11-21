@@ -4,16 +4,7 @@ sfui = sfui or {}
 sfui.alts = sfui.alts or {}
 
 -- Guard: Classic / Camelot only (Exclude Retail)
-local isRetail = sfui.version and sfui.version.retail
-if isRetail == nil then
-    local projectID = _G.WOW_PROJECT_ID or 1
-    local _, _, _, tocVersionNum = _G.GetBuildInfo()
-    tocVersionNum = tonumber(tocVersionNum) or 0
-    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
-    isRetail = (projectID == 1) and not isCamelot
-end
-
-if isRetail then
+if sfui.isRetail then
     return
 end
 
@@ -59,6 +50,13 @@ local C_MajorFactions = _G.C_MajorFactions
 local C_SeasonInfo = _G.C_SeasonInfo
 local BreakUpLargeNumbers = _G.BreakUpLargeNumbers or tostring
 local IsModifiedClick = _G.IsModifiedClick
+
+local _camelotTempProfs = {}
+local _camelotTempSeen = {}
+
+local function ComparePrimaryProfs(a, b)
+    return (a.name or "") < (b.name or "")
+end
 
 
 -- Classic / Vanilla XP required per level (Levels 1 to 59)
@@ -213,19 +211,7 @@ local CATEGORIES = {
 }
 
 local function FormatTimeLeft(seconds)
-    if not seconds or seconds <= 0 then return "-" end
-    local d = math_floor(seconds / 86400)
-    local h = math_floor((seconds % 86400) / 3600)
-    local m = math_floor((seconds % 3600) / 60)
-    if d > 0 then
-        return string.format("%dd %dh", d, h)
-    elseif h > 0 then
-        return string.format("%dh %dm", h, m)
-    elseif m > 0 then
-        return string.format("%dm", m)
-    else
-        return "< 1m"
-    end
+    return sfui.common.format_duration(seconds, "compact", "-")
 end
 
 local function GetPVPRankName(rankNum, isHorde, gender)
@@ -516,24 +502,25 @@ local function PerformSync(data, isLogout)
     local dalaranDone = false
     local dalaranInProgress = false
     local isOnQuest = C_QuestLog and C_QuestLog.IsOnQuest
-    if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
+    local isDone = sfui.common and sfui.common.is_quest_completed
+    if isDone then
         if not isHorde then
-            onyDone = C_QuestLog.IsQuestFlaggedCompleted(6502) or C_QuestLog.IsQuestFlaggedCompleted(4974)
-            dalaranDone = C_QuestLog.IsQuestFlaggedCompleted(92459)
-                or C_QuestLog.IsQuestFlaggedCompleted(92458)
-                or C_QuestLog.IsQuestFlaggedCompleted(92432)
+            onyDone = isDone(6502) or isDone(4974)
+            dalaranDone = isDone(92459)
+                or isDone(92458)
+                or isDone(92432)
                 or (isOnQuest and isOnQuest(92458))
         else
-            onyDone = C_QuestLog.IsQuestFlaggedCompleted(6602) or C_QuestLog.IsQuestFlaggedCompleted(6584) or C_QuestLog.IsQuestFlaggedCompleted(4875)
-            dalaranDone = C_QuestLog.IsQuestFlaggedCompleted(93689)
-                or C_QuestLog.IsQuestFlaggedCompleted(97287)
-                or C_QuestLog.IsQuestFlaggedCompleted(96984)
-                or C_QuestLog.IsQuestFlaggedCompleted(92434)
+            onyDone = isDone(6602) or isDone(6584) or isDone(4875)
+            dalaranDone = isDone(93689)
+                or isDone(97287)
+                or isDone(96984)
+                or isDone(92434)
                 or (isOnQuest and isOnQuest(96984))
             if not dalaranDone then
-                dalaranInProgress = C_QuestLog.IsQuestFlaggedCompleted(544)
-                    or C_QuestLog.IsQuestFlaggedCompleted(93680)
-                    or C_QuestLog.IsQuestFlaggedCompleted(545)
+                dalaranInProgress = isDone(544)
+                    or isDone(93680)
+                    or isDone(545)
             end
         end
     end
@@ -683,7 +670,7 @@ local function PerformSync(data, isLogout)
 
     -- Commit scan results safely to prevent data loss on character swap or early login
     if foundCount > 0 then
-        table.sort(scanned.primaries, function(a, b) return (a.name or "") < (b.name or "") end)
+        table.sort(scanned.primaries, ComparePrimaryProfs)
         data.professions = scanned
     elseif not isLogout and not (sfui.alts and sfui.alts.leavingWorld) then
         -- Only clear existing data during active gameplay if skills system is verified ready
@@ -732,6 +719,231 @@ local function PerformSync(data, isLogout)
     sfui.recipes.InvalidateCache()
 end
 
+local function CamelotMaxLevel_OnEnter(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(string.format("level %d (max level)", self._lvl or 60), 1, 0.82, 0)
+    GameTooltip:Show()
+end
+
+local function CamelotRestedXP_OnEnter(self)
+    local altData = self._altData
+    local altGuid = self._guid
+    local lvl = self._lvl
+    local xp = self._extra
+    local validXpMax = self._val
+    local pct = self._pct
+    if not altData then return end
+
+    local curRested, curPct, curBars, curMaxed, curTimeToMax, curIsResting, curOfflineGained, curIsCurrent = GetRestedXPInfo(altData, altGuid)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(string.format("level %d progress", lvl), 1, 1, 1)
+    GameTooltip:AddDoubleLine("current xp:", string.format("%d / %d (%d%%)", xp, validXpMax, pct), 1, 1, 1, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine("remaining xp:", string.format("%d", math_max(0, validXpMax - xp)), 1, 1, 1, 1, 1, 1)
+
+    if curRested > 0 then
+        GameTooltip:AddDoubleLine("rested xp:", string.format("%d (%.1f bars / %d%%)", math_floor(curRested), curBars, curPct), 1, 1, 1, 0, 1, 1)
+        if curMaxed then
+            GameTooltip:AddDoubleLine("rested status:", "|cff00ff00Fully Rested (Max 150% / 30 bars)|r", 1, 1, 1)
+        elseif curTimeToMax > 0 then
+            GameTooltip:AddDoubleLine("time until max:", string.format("|cffffffff%s|r", FormatTimeLeft(curTimeToMax)), 1, 1, 1)
+        end
+    else
+        GameTooltip:AddDoubleLine("rested xp:", "none", 1, 1, 1, 0.6, 0.6, 0.6)
+        if curTimeToMax > 0 then
+            GameTooltip:AddDoubleLine("time until max:", string.format("|cffffffff%s|r", FormatTimeLeft(curTimeToMax)), 1, 1, 1)
+        end
+    end
+
+    if not curIsCurrent and curOfflineGained and curOfflineGained > 0 then
+        local gainedBars = (curOfflineGained / validXpMax) * 20
+        GameTooltip:AddDoubleLine("offline gained:", string.format("+%d xp (+%.1f bars)", math_floor(curOfflineGained), gainedBars), 1, 1, 1, 0.4, 0.8, 1)
+    end
+
+    if curIsResting then
+        GameTooltip:AddLine("resting in inn/city (full speed: 1 bar / 8h)", 0.2, 1.0, 0.4)
+    else
+        GameTooltip:AddLine("logged off in wilderness (slow speed: 1 bar / 32h)", 1.0, 0.6, 0.2)
+    end
+    GameTooltip:Show()
+end
+
+local function CamelotPvpRank_OnEnter(self)
+    local pvp = self._pvp
+    local rankNum = self._val
+    local rankTitle = self._extra
+    local progress = self._pct
+    local now = self._now
+    if not pvp or not rankNum then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(string.format("rank %d: %s", rankNum, tostring(rankTitle):lower()), 1, 1, 1)
+    if pvp.rankPoints and pvp.rankThreshold and pvp.rankThreshold > 0 then
+        GameTooltip:AddDoubleLine("rank progress:", string.format("%s / %s (%d%%)", BreakUpLargeNumbers(pvp.rankPoints), BreakUpLargeNumbers(pvp.rankThreshold), progress), 1, 1, 1, 1, 0.82, 0)
+    else
+        GameTooltip:AddDoubleLine("rank progress:", string.format("%d%% to rank %d", progress, rankNum + 1), 1, 1, 1, 1, 0.82, 0)
+    end
+    if pvp.currentWeekMax and pvp.currentWeekMax > 0 then
+        GameTooltip:AddDoubleLine("weekly cap:", string.format("rank %d", pvp.currentWeekMax), 1, 1, 1, 0.8, 0.8, 1)
+    end
+    if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
+        local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
+        if sLeft > 0 then
+            GameTooltip:AddDoubleLine("weekly reset in:", FormatTimeLeft(sLeft), 1, 1, 1, 1, 0.82, 0)
+        end
+    end
+    if pvp.lifetimeHK then
+        GameTooltip:AddDoubleLine("lifetime hks:", BreakUpLargeNumbers(pvp.lifetimeHK), 1, 1, 1, 1, 1, 1)
+    end
+    if pvp.highestRank and pvp.highestRank > 0 then
+        GameTooltip:AddDoubleLine("highest rank attained:", "rank " .. pvp.highestRank, 1, 1, 1, 0.8, 0.8, 0.8)
+    end
+    GameTooltip:Show()
+end
+
+local function CamelotPvpHonor_OnEnter(self)
+    local pvp = self._pvp
+    local todayHonor = self._val
+    local todayHK = self._extra
+    local thisWeekHonor = self._lvl
+    local thisWeekHK = self._pct
+    local now = self._now
+    if not pvp then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("pvp & honor overview", 1, 1, 1)
+    GameTooltip:AddDoubleLine("today:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(todayHonor), todayHK), 0.8, 0.8, 0.8, 1, 1, 1)
+    if pvp.yesterdayHonor or pvp.yesterdayHK then
+        GameTooltip:AddDoubleLine("yesterday:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(pvp.yesterdayHonor or 0), pvp.yesterdayHK or 0), 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
+    end
+    GameTooltip:AddDoubleLine("this week:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(thisWeekHonor), thisWeekHK), 1, 1, 1, 1, 0.82, 0)
+    if pvp.lastWeekHonor or pvp.lastWeekHK then
+        local rankStr = pvp.lastWeekRank and (" (rank " .. pvp.lastWeekRank .. ")") or ""
+        GameTooltip:AddDoubleLine("last week:", string.format("%s honor (%d hk)%s", BreakUpLargeNumbers(pvp.lastWeekHonor or 0), pvp.lastWeekHK or 0, rankStr), 0.8, 0.8, 0.8, 0.7, 0.7, 0.7)
+    end
+    if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
+        local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
+        if sLeft > 0 then
+            GameTooltip:AddDoubleLine("weekly reset in:", FormatTimeLeft(sLeft), 1, 1, 1, 1, 0.82, 0)
+        end
+    end
+    GameTooltip:Show()
+end
+
+local function CamelotPvpMarks_OnEnter(self)
+    local marks = self._marks
+    if not marks then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("battleground marks of honor", 1, 1, 1)
+    GameTooltip:AddDoubleLine("|cff33ff33warsong gulch:|r", tostring(marks.wsg or 0), 1, 1, 1, 1, 1, 1)
+    GameTooltip:AddDoubleLine("|cffffaa00arathi basin:|r", tostring(marks.ab or 0), 1, 1, 1, 1, 1, 1)
+    GameTooltip:AddDoubleLine("|cff00aaffalterac valley:|r", tostring(marks.av or 0), 1, 1, 1, 1, 1, 1)
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("counts items across bags and bank.", 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+end
+
+local function CamelotLockouts_OnEnter(self)
+    local lockouts = self._lockouts
+    local now = self._now
+    if not lockouts then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("raid lockouts", 1, 1, 1)
+    for _, rDef in ipairs(CLASSIC_RAIDS) do
+        local lock = lockouts[rDef.key]
+        local isLocked = lock and lock.resetTime and (lock.resetTime > now)
+        if isLocked then
+            local timeLeft = FormatTimeLeft(lock.resetTime - now)
+            GameTooltip:AddDoubleLine(rDef.label, string.format("|cffff4444locked (%s)|r", timeLeft), 1, 1, 1, 1, 1, 1)
+        else
+            GameTooltip:AddDoubleLine(rDef.label, "|cff00ff00available|r", 1, 1, 1, 1, 1, 1)
+        end
+    end
+    GameTooltip:Show()
+end
+
+local function CamelotOnyxiaAttune_OnEnter(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("onyxia's lair attunement", 1, 1, 1)
+    local status = self._unlocked and "|cff00ff00attuned (drakefire amulet)|r" or "|cffff4444not attuned|r"
+    GameTooltip:AddDoubleLine("status:", status, 1, 1, 1, 1, 1, 1)
+    GameTooltip:Show()
+end
+
+local function CamelotDalaranAttune_OnEnter(self)
+    local unlocked = self._unlocked
+    local inProgress = self._inProgress
+    local isHorde = self._isHorde
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("city of dalaran attunement", 1, 1, 1)
+    local status
+    if unlocked then
+        status = isHorde and "|cff00ff00attuned (dalaran sewer key)|r" or "|cff00ff00attuned|r"
+    elseif inProgress then
+        status = "|cffffd100in progress|r"
+    else
+        status = "|cffff4444not attuned|r"
+    end
+    GameTooltip:AddDoubleLine("status:", status, 1, 1, 1, 1, 1, 1)
+    if isHorde then
+        GameTooltip:AddDoubleLine("questline:", "key to the city & prison break-in", 0.7, 0.7, 0.7, 1, 0.82, 0)
+        GameTooltip:AddDoubleLine("starts at:", "magus wordeen voidglare, tarren mill", 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
+    else
+        GameTooltip:AddDoubleLine("questline:", "an alarming request", 0.7, 0.7, 0.7, 1, 0.82, 0)
+        GameTooltip:AddDoubleLine("starts at:", "emissary jacques, southshore", 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
+    end
+    GameTooltip:Show()
+end
+
+local function CamelotProf_OnEnter(self)
+    local p = self._profData
+    if not p then return end
+    local title = p.name or (self._cat and self._cat.label) or ""
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(title:lower(), 1, 0.82, 0)
+    local rankStr = string.format("%d / %d", p.rank, p.maxRank or 300)
+    if p.modifier and p.modifier > 0 then
+        rankStr = string.format("%d (+%d) / %d", p.rank, p.modifier, p.maxRank or 300)
+    end
+    GameTooltip:AddDoubleLine("skill level:", rankStr, 1, 1, 1, 1, 1, 1)
+    GameTooltip:Show()
+end
+
+local function CamelotCurrency_OnEnter(self)
+    local cat = self._cat
+    local cDef = self._cDef
+    if not cat or not cDef then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(string.format("%s %s", self._iconStr or "", self._name or ""), 1, 0.82, 0)
+    local val = self._val or 0
+    local maxQty = self._maxQty
+    if maxQty and maxQty > 0 then
+        GameTooltip:AddDoubleLine("total:", string.format("%d / %d", val, maxQty), 1, 1, 1, 1, 1, 1)
+    else
+        GameTooltip:AddDoubleLine("total:", tostring(val), 1, 1, 1, 1, 1, 1)
+    end
+
+    local desc = (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyDescription and C_CurrencyInfo.GetCurrencyDescription(cat.id))
+    if not desc or desc == "" then
+        desc = cDef.desc
+    end
+    if desc and desc ~= "" then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(desc, 0.9, 0.9, 0.9, true)
+    end
+    GameTooltip:Show()
+end
+
+local function CamelotCurrency_OnMouseUp(self, button)
+    local cat = self._cat
+    if not cat then return end
+    if button == "LeftButton" and IsModifiedClick and IsModifiedClick("CHATLINK") then
+        local link = (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink and C_CurrencyInfo.GetCurrencyLink(cat.id, self._val or 0))
+        if link then
+            sfui.common.insert_link_to_chat(link)
+        end
+    end
+end
+
 local function RenderCell(cell, cat, altData, classColor, col, altGuid)
     local text = cell.text
     if not text then return false end
@@ -744,12 +956,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetText(tostring(lvl))
             text:SetTextColor(1, 0.82, 0) -- Gold
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(string.format("level %d (max level)", lvl), 1, 0.82, 0)
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._lvl = lvl
+            cell._onEnter = CamelotMaxLevel_OnEnter
+            cell._onLeave = nil
         else
             local isCurrent = IsCurrentCharacter(altData, altGuid)
             local xpMax = (altData.xpMax and altData.xpMax > 0) and altData.xpMax or (CLASSIC_XP_PER_LEVEL[lvl] or 1000)
@@ -775,40 +984,14 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetTextColor(unpack(sfui.config.colors.white))
 
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                local curRested, curPct, curBars, curMaxed, curTimeToMax, curIsResting, curOfflineGained, curIsCurrent = GetRestedXPInfo(altData, altGuid)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(string.format("level %d progress", lvl), 1, 1, 1)
-                GameTooltip:AddDoubleLine("current xp:", string.format("%d / %d (%d%%)", xp, validXpMax, pct), 1, 1, 1, 1, 0.82, 0)
-                GameTooltip:AddDoubleLine("remaining xp:", string.format("%d", math_max(0, validXpMax - xp)), 1, 1, 1, 1, 1, 1)
-
-                if curRested > 0 then
-                    GameTooltip:AddDoubleLine("rested xp:", string.format("%d (%.1f bars / %d%%)", math_floor(curRested), curBars, curPct), 1, 1, 1, 0, 1, 1)
-                    if curMaxed then
-                        GameTooltip:AddDoubleLine("rested status:", "|cff00ff00Fully Rested (Max 150% / 30 bars)|r", 1, 1, 1)
-                    elseif curTimeToMax > 0 then
-                        GameTooltip:AddDoubleLine("time until max:", string.format("|cffffffff%s|r", FormatTimeLeft(curTimeToMax)), 1, 1, 1)
-                    end
-                else
-                    GameTooltip:AddDoubleLine("rested xp:", "none", 1, 1, 1, 0.6, 0.6, 0.6)
-                    if curTimeToMax > 0 then
-                        GameTooltip:AddDoubleLine("time until max:", string.format("|cffffffff%s|r", FormatTimeLeft(curTimeToMax)), 1, 1, 1)
-                    end
-                end
-
-                if not curIsCurrent and curOfflineGained and curOfflineGained > 0 then
-                    local gainedBars = (curOfflineGained / validXpMax) * 20
-                    GameTooltip:AddDoubleLine("offline gained:", string.format("+%d xp (+%.1f bars)", math_floor(curOfflineGained), gainedBars), 1, 1, 1, 0.4, 0.8, 1)
-                end
-
-                if curIsResting then
-                    GameTooltip:AddLine("resting in inn/city (full speed: 1 bar / 8h)", 0.2, 1.0, 0.4)
-                else
-                    GameTooltip:AddLine("logged off in wilderness (slow speed: 1 bar / 32h)", 1.0, 0.6, 0.2)
-                end
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._altData = altData
+            cell._guid = altGuid
+            cell._lvl = lvl
+            cell._extra = xp
+            cell._val = validXpMax
+            cell._pct = pct
+            cell._onEnter = CamelotRestedXP_OnEnter
+            cell._onLeave = nil
         end
         return true
 
@@ -832,37 +1015,18 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetText(string.format("r%d (%d%%)", rankNum, progress))
 
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(string.format("rank %d: %s", rankNum, tostring(rankTitle):lower()), 1, 1, 1)
-                if pvp.rankPoints and pvp.rankThreshold and pvp.rankThreshold > 0 then
-                    GameTooltip:AddDoubleLine("rank progress:", string.format("%s / %s (%d%%)", BreakUpLargeNumbers(pvp.rankPoints), BreakUpLargeNumbers(pvp.rankThreshold), progress), 1, 1, 1, 1, 0.82, 0)
-                else
-                    GameTooltip:AddDoubleLine("rank progress:", string.format("%d%% to rank %d", progress, rankNum + 1), 1, 1, 1, 1, 0.82, 0)
-                end
-                if pvp.currentWeekMax and pvp.currentWeekMax > 0 then
-                    GameTooltip:AddDoubleLine("weekly cap:", string.format("rank %d", pvp.currentWeekMax), 1, 1, 1, 0.8, 0.8, 1)
-                end
-                if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
-                    local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
-                    if sLeft > 0 then
-                        GameTooltip:AddDoubleLine("weekly reset in:", FormatTimeLeft(sLeft), 1, 1, 1, 1, 0.82, 0)
-                    end
-                end
-                if pvp.lifetimeHK then
-                    GameTooltip:AddDoubleLine("lifetime hks:", BreakUpLargeNumbers(pvp.lifetimeHK), 1, 1, 1, 1, 1, 1)
-                end
-                if pvp.highestRank and pvp.highestRank > 0 then
-                    GameTooltip:AddDoubleLine("highest rank attained:", "rank " .. pvp.highestRank, 1, 1, 1, 0.8, 0.8, 0.8)
-                end
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._pvp = pvp
+            cell._val = rankNum
+            cell._extra = rankTitle
+            cell._pct = progress
+            cell._now = now
+            cell._onEnter = CamelotPvpRank_OnEnter
+            cell._onLeave = nil
         else
             text:SetText("unranked")
             text:SetTextColor(0.5, 0.5, 0.5)
-            cell:SetScript("OnEnter", nil)
-            cell:SetScript("OnLeave", nil)
+            cell._onEnter = nil
+            cell._onLeave = nil
         end
         return true
 
@@ -882,32 +1046,19 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetTextColor(unpack(sfui.config.colors.white))
 
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine("pvp & honor overview", 1, 1, 1)
-                GameTooltip:AddDoubleLine("today:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(todayHonor), todayHK), 0.8, 0.8, 0.8, 1, 1, 1)
-                if pvp.yesterdayHonor or pvp.yesterdayHK then
-                    GameTooltip:AddDoubleLine("yesterday:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(pvp.yesterdayHonor or 0), pvp.yesterdayHK or 0), 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
-                end
-                GameTooltip:AddDoubleLine("this week:", string.format("%s honor (%d hk)", BreakUpLargeNumbers(thisWeekHonor), thisWeekHK), 1, 1, 1, 1, 0.82, 0)
-                if pvp.lastWeekHonor or pvp.lastWeekHK then
-                    local rankStr = pvp.lastWeekRank and (" (rank " .. pvp.lastWeekRank .. ")") or ""
-                    GameTooltip:AddDoubleLine("last week:", string.format("%s honor (%d hk)%s", BreakUpLargeNumbers(pvp.lastWeekHonor or 0), pvp.lastWeekHK or 0, rankStr), 0.8, 0.8, 0.8, 0.7, 0.7, 0.7)
-                end
-                if pvp.seasonTimeLeft and pvp.seasonTimeUpdated then
-                    local sLeft = math_max(0, pvp.seasonTimeLeft - (now - pvp.seasonTimeUpdated))
-                    if sLeft > 0 then
-                        GameTooltip:AddDoubleLine("weekly reset in:", FormatTimeLeft(sLeft), 1, 1, 1, 1, 0.82, 0)
-                    end
-                end
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._pvp = pvp
+            cell._val = todayHonor
+            cell._extra = todayHK
+            cell._lvl = thisWeekHonor
+            cell._pct = thisWeekHK
+            cell._now = now
+            cell._onEnter = CamelotPvpHonor_OnEnter
+            cell._onLeave = nil
         else
             text:SetText("-")
             text:SetTextColor(0.5, 0.5, 0.5)
-            cell:SetScript("OnEnter", nil)
-            cell:SetScript("OnLeave", nil)
+            cell._onEnter = nil
+            cell._onLeave = nil
         end
         return true
 
@@ -921,22 +1072,14 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetTextColor(unpack(sfui.config.colors.white))
 
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine("battleground marks of honor", 1, 1, 1)
-                GameTooltip:AddDoubleLine("|cff33ff33warsong gulch:|r", tostring(wsg), 1, 1, 1, 1, 1, 1)
-                GameTooltip:AddDoubleLine("|cffffaa00arathi basin:|r", tostring(ab), 1, 1, 1, 1, 1, 1)
-                GameTooltip:AddDoubleLine("|cff00aaffalterac valley:|r", tostring(av), 1, 1, 1, 1, 1, 1)
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("counts items across bags and bank.", 0.6, 0.6, 0.6)
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._marks = marks
+            cell._onEnter = CamelotPvpMarks_OnEnter
+            cell._onLeave = nil
         else
             text:SetText("-")
             text:SetTextColor(0.5, 0.5, 0.5)
-            cell:SetScript("OnEnter", nil)
-            cell:SetScript("OnLeave", nil)
+            cell._onEnter = nil
+            cell._onLeave = nil
         end
         return true
 
@@ -964,22 +1107,10 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("raid lockouts", 1, 1, 1)
-            for _, rDef in ipairs(CLASSIC_RAIDS) do
-                local lock = lockouts[rDef.key]
-                local isLocked = lock and lock.resetTime and (lock.resetTime > now)
-                if isLocked then
-                    local timeLeft = FormatTimeLeft(lock.resetTime - now)
-                    GameTooltip:AddDoubleLine(rDef.label, string.format("|cffff4444locked (%s)|r", timeLeft), 1, 1, 1, 1, 1, 1)
-                else
-                    GameTooltip:AddDoubleLine(rDef.label, "|cff00ff00available|r", 1, 1, 1, 1, 1, 1)
-                end
-            end
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        cell._lockouts = lockouts
+        cell._now = now
+        cell._onEnter = CamelotLockouts_OnEnter
+        cell._onLeave = nil
         return true
 
     elseif cat.type == "classic_onyxia_attune" then
@@ -994,14 +1125,9 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("onyxia's lair attunement", 1, 1, 1)
-            local status = unlocked and "|cff00ff00attuned (drakefire amulet)|r" or "|cffff4444not attuned|r"
-            GameTooltip:AddDoubleLine("status:", status, 1, 1, 1, 1, 1, 1)
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        cell._unlocked = unlocked
+        cell._onEnter = CamelotOnyxiaAttune_OnEnter
+        cell._onLeave = nil
         return true
 
     elseif cat.type == "classic_dalaran_attune" then
@@ -1021,28 +1147,11 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("city of dalaran attunement", 1, 1, 1)
-            local status
-            if unlocked then
-                status = isHorde and "|cff00ff00attuned (dalaran sewer key)|r" or "|cff00ff00attuned|r"
-            elseif inProgress then
-                status = "|cffffd100in progress|r"
-            else
-                status = "|cffff4444not attuned|r"
-            end
-            GameTooltip:AddDoubleLine("status:", status, 1, 1, 1, 1, 1, 1)
-            if isHorde then
-                GameTooltip:AddDoubleLine("questline:", "key to the city & prison break-in", 0.7, 0.7, 0.7, 1, 0.82, 0)
-                GameTooltip:AddDoubleLine("starts at:", "magus wordeen voidglare, tarren mill", 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
-            else
-                GameTooltip:AddDoubleLine("questline:", "an alarming request", 0.7, 0.7, 0.7, 1, 0.82, 0)
-                GameTooltip:AddDoubleLine("starts at:", "emissary jacques, southshore", 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
-            end
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        cell._unlocked = unlocked
+        cell._inProgress = inProgress
+        cell._isHorde = isHorde
+        cell._onEnter = CamelotDalaranAttune_OnEnter
+        cell._onLeave = nil
         return true
 
     elseif cat.type == "classic_prof" then
@@ -1050,15 +1159,17 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         if altData.professions and altData.professions.primaries then
             p = altData.professions.primaries[cat.slot]
         elseif altData.professions then
-            local profs = {}
-            local seen = {}
+            local profs = _camelotTempProfs
+            local seen = _camelotTempSeen
+            wipe(profs)
+            wipe(seen)
             for _, entry in pairs(altData.professions) do
                 if type(entry) == "table" and entry.isPrimary and entry.name and not seen[entry.name] then
                     seen[entry.name] = true
                     table.insert(profs, entry)
                 end
             end
-            table.sort(profs, function(a, b) return (a.name or "") < (b.name or "") end)
+            table.sort(profs, ComparePrimaryProfs)
             p = profs[cat.slot]
         end
 
@@ -1075,17 +1186,10 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetTextColor(unpack(sfui.config.colors.white))
 
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(p.name:lower(), 1, 0.82, 0)
-                local rankStr = string.format("%d / %d", p.rank, p.maxRank or 300)
-                if p.modifier and p.modifier > 0 then
-                    rankStr = string.format("%d (+%d) / %d", p.rank, p.modifier, p.maxRank or 300)
-                end
-                GameTooltip:AddDoubleLine("skill level:", rankStr, 1, 1, 1, 1, 1, 1)
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._profData = p
+            cell._cat = nil
+            cell._onEnter = CamelotProf_OnEnter
+            cell._onLeave = nil
         else
             text:ClearAllPoints()
             text:SetPoint("CENTER", cell, "CENTER", 0, 0)
@@ -1093,8 +1197,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetWidth(0)
             text:SetText("-")
             text:SetTextColor(0.5, 0.5, 0.5)
-            cell:SetScript("OnEnter", nil)
-            cell:SetScript("OnLeave", nil)
+            cell._onEnter = nil
+            cell._onLeave = nil
         end
         return true
 
@@ -1123,17 +1227,10 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetTextColor(unpack(sfui.config.colors.white))
 
             cell:EnableMouse(true)
-            cell:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine((p.name or cat.label):lower(), 1, 0.82, 0)
-                local rankStr = string.format("%d / %d", p.rank, p.maxRank or 300)
-                if p.modifier and p.modifier > 0 then
-                    rankStr = string.format("%d (+%d) / %d", p.rank, p.modifier, p.maxRank or 300)
-                end
-                GameTooltip:AddDoubleLine("skill level:", rankStr, 1, 1, 1, 1, 1, 1)
-                GameTooltip:Show()
-            end)
-            cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            cell._profData = p
+            cell._cat = cat
+            cell._onEnter = CamelotProf_OnEnter
+            cell._onLeave = nil
         else
             text:ClearAllPoints()
             text:SetPoint("CENTER", cell, "CENTER", 0, 0)
@@ -1141,8 +1238,8 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
             text:SetWidth(0)
             text:SetText("-")
             text:SetTextColor(0.5, 0.5, 0.5)
-            cell:SetScript("OnEnter", nil)
-            cell:SetScript("OnLeave", nil)
+            cell._onEnter = nil
+            cell._onLeave = nil
         end
         return true
 
@@ -1198,35 +1295,15 @@ local function RenderCell(cell, cat, altData, classColor, col, altGuid)
         end
 
         cell:EnableMouse(true)
-        cell:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine(string.format("%s %s", iconStr, name), 1, 0.82, 0)
-            if maxQty and maxQty > 0 then
-                GameTooltip:AddDoubleLine("total:", string.format("%d / %d", val, maxQty), 1, 1, 1, 1, 1, 1)
-            else
-                GameTooltip:AddDoubleLine("total:", tostring(val), 1, 1, 1, 1, 1, 1)
-            end
-
-            local desc = (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyDescription and C_CurrencyInfo.GetCurrencyDescription(cat.id))
-            if not desc or desc == "" then
-                desc = cDef.desc
-            end
-            if desc and desc ~= "" then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine(desc, 0.9, 0.9, 0.9, true)
-            end
-            GameTooltip:Show()
-        end)
-        cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-        cell:SetScript("OnMouseUp", function(self, button)
-            if button == "LeftButton" and IsModifiedClick and IsModifiedClick("CHATLINK") then
-                local link = (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink and C_CurrencyInfo.GetCurrencyLink(cat.id, val))
-                if link then
-                    sfui.common.insert_link_to_chat(link)
-                end
-            end
-        end)
+        cell._iconStr = iconStr
+        cell._name = name
+        cell._val = val
+        cell._maxQty = maxQty
+        cell._cat = cat
+        cell._cDef = cDef
+        cell._onEnter = CamelotCurrency_OnEnter
+        cell._onLeave = nil
+        cell._onMouseUp = CamelotCurrency_OnMouseUp
         return true
     end
 

@@ -91,7 +91,7 @@ local activeMinimapPins   = {}     -- currently visible Button frames on minimap
 
 local isPinsDirty         = true
 local isMinimapPinsDirty  = true
-local updateTicker        = nil
+local tickerActive        = false
 
 local lastMapID           = nil
 local lastCanvasW         = nil
@@ -108,63 +108,19 @@ local lastMinimapRadius   = nil
 local lastMinimapRotated  = nil
 local lastMinimapMapID    = nil
 
--- ─── Centralized Quest & Bag Status Cache ─────────────────────────────────────
-local activeQuestCache    = {}
-local isQuestCacheValid   = false
-
-local function InvalidateQuestCache()
-    isQuestCacheValid = false
-    wipe(activeQuestCache)
-end
-pins.InvalidateQuestCache = InvalidateQuestCache
-
-local function RebuildActiveQuestCache()
-    if isQuestCacheValid then return end
-    wipe(activeQuestCache)
-    local numEntries = 0
-    if _G.C_QuestLog and _G.C_QuestLog.GetNumQuestLogEntries then
-        local ok, n = pcall(_G.C_QuestLog.GetNumQuestLogEntries)
-        if ok and n then numEntries = n end
-    elseif _G.GetNumQuestLogEntries then
-        local ok, n = pcall(_G.GetNumQuestLogEntries)
-        if ok and n then numEntries = n end
-    end
-    for i = 1, numEntries do
-        local qID = nil
-        if _G.C_QuestLog and _G.C_QuestLog.GetInfo then
-            local info = _G.C_QuestLog.GetInfo(i)
-            if info and info.questID and info.questID > 0 then qID = info.questID end
-        end
-        if not qID and _G.GetQuestLogTitle then
-            local _, _, _, isHeader, _, _, _, id = _G.GetQuestLogTitle(i)
-            if not isHeader and id and id > 0 then qID = id end
-        end
-        if qID then
-            activeQuestCache[qID] = true
-        end
-    end
-    isQuestCacheValid = true
+-- ─── Centralized Quest & Bag Status Lookup ────────────────────────────────────
+function pins.InvalidateQuestCache()
 end
 
 function pins.IsQuestCompleted(questID)
     if not questID then return false end
-    local qs = sfui.queststate
-    if qs and qs.IsCompleted then
-        return qs.IsCompleted(questID) == true
-    end
-    return sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(questID) or false
+    return (sfui.common and sfui.common.is_quest_completed and sfui.common.is_quest_completed(questID)) == true
 end
 
 function pins.IsQuestActive(questID)
     if not questID then return false end
     local qs = sfui.queststate
-    if qs and qs.IsActive then
-        return qs.IsActive(questID) == true
-    end
-    if not isQuestCacheValid then
-        RebuildActiveQuestCache()
-    end
-    return activeQuestCache[questID] == true
+    return (qs and qs.IsActive and qs.IsActive(questID)) == true
 end
 
 function pins.GetItemCountInBags(itemID)
@@ -308,20 +264,6 @@ local function SetWaypoint(mapID, x, y, label)
     if sfui.map and sfui.map.SetUserWaypoint then
         return sfui.map.SetUserWaypoint(mapID, x, y, label)
     end
-    if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
-        pcall(function()
-            C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x, y))
-        end)
-        if sfui.map and sfui.map.SetSuperTrackedUserWaypoint then
-            sfui.map.SetSuperTrackedUserWaypoint(true)
-        elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-            pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
-        end
-        if label and common and common.print then
-            common.print("waypoint set for " .. label)
-        end
-        return true
-    end
     return false
 end
 pins.SetWaypoint = SetWaypoint
@@ -368,9 +310,7 @@ local function AcquirePin(parent, defaultSize)
     end
 
     local countText = pin:CreateFontString(nil, "OVERLAY")
-    local fontPath = (sfui.config and sfui.config.fontFile)
-        or (_G.STANDARD_TEXT_FONT and _G.STANDARD_TEXT_FONT ~= "" and _G.STANDARD_TEXT_FONT)
-        or "Fonts\\FRIZQT__.TTF"
+    local fontPath = sfui.common.get_font_file()
     countText:SetFont(fontPath, 9, "OUTLINE")
     countText:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", 2, -2)
     countText:SetTextColor(1, 1, 1, 1)
@@ -911,9 +851,7 @@ local function AcquireMinimapPin(parent, defaultSize)
     end
 
     local countText = pin:CreateFontString(nil, "OVERLAY")
-    local fontPath = (sfui.config and sfui.config.fontFile)
-        or (_G.STANDARD_TEXT_FONT and _G.STANDARD_TEXT_FONT ~= "" and _G.STANDARD_TEXT_FONT)
-        or "Fonts\\FRIZQT__.TTF"
+    local fontPath = sfui.common.get_font_file()
     countText:SetFont(fontPath, 8, "OUTLINE")
     countText:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", 2, -2)
     countText:SetTextColor(1, 1, 1, 1)
@@ -993,6 +931,12 @@ end
 
 local minimapPosCacheX = {}
 local minimapPosCacheY = {}
+local cachedRotateMinimap = nil
+local cachedMMW = nil
+local cachedMMH = nil
+local minimapSizeHooked = false
+local overlayDrivingMinimapPins = false
+local minimapUpdateRegistered = false
 
 local function RenderMinimapPins(force, extMapID, extFacing, extRadius, extRotated)
     local mm = _G.Minimap
@@ -1019,7 +963,11 @@ local function RenderMinimapPins(force, extMapID, extFacing, extRadius, extRotat
         return
     end
 
-    local mmW, mmH = mm:GetSize()
+    local mmW, mmH = cachedMMW, cachedMMH
+    if not mmW or mmW <= 0 or not mmH or mmH <= 0 then
+        mmW, mmH = mm:GetSize()
+        cachedMMW, cachedMMH = mmW, mmH
+    end
     if not mmW or mmW <= 0 or not mmH or mmH <= 0 then
         ReleaseMinimapPins()
         return
@@ -1037,7 +985,10 @@ local function RenderMinimapPins(force, extMapID, extFacing, extRadius, extRotat
     if extRotated ~= nil then
         isRotated = extRotated and true or false
     else
-        isRotated = (_G.GetCVarBool and _G.GetCVarBool("rotateMinimap")) and true or false
+        if cachedRotateMinimap == nil then
+            cachedRotateMinimap = (_G.GetCVarBool and _G.GetCVarBool("rotateMinimap")) and true or false
+        end
+        isRotated = cachedRotateMinimap
     end
     local facing
     if extFacing ~= nil then
@@ -1229,6 +1180,36 @@ local function RenderMinimapPins(force, extMapID, extFacing, extRadius, extRotat
 end
 pins.UpdateMinimapPins = RenderMinimapPins
 
+local function OnMinimapPinsTick()
+    if not minimapContainer or not minimapContainer:IsShown() then return end
+    if #providerOrder == 0 and not next(staticPinBatches) then return end
+    if not GetMinimapShowPins() then return end
+    RenderMinimapPins(false)
+end
+
+local function SyncMinimapPinTicker()
+    if not sfui.events then return end
+    local wantTick = (minimapContainer ~= nil) and (not overlayDrivingMinimapPins)
+    if wantTick == minimapUpdateRegistered then return end
+    minimapUpdateRegistered = wantTick
+    if wantTick then
+        if sfui.events.RegisterUpdate then
+            sfui.events.RegisterUpdate("SfuiMinimapPins", 0.1, OnMinimapPinsTick)
+        end
+    else
+        if sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiMinimapPins")
+        end
+    end
+end
+
+function pins.SetOverlayDriving(enabled)
+    local nextDriving = enabled and true or false
+    if overlayDrivingMinimapPins == nextDriving then return end
+    overlayDrivingMinimapPins = nextDriving
+    SyncMinimapPinTicker()
+end
+
 local function GetMinimapContainer()
     if minimapContainer then return minimapContainer end
     local mm = _G.Minimap
@@ -1240,12 +1221,18 @@ local function GetMinimapContainer()
     minimapContainer:SetFrameLevel(mm:GetFrameLevel() + 5)
     minimapContainer:EnableMouse(false)
 
-    sfui.events.RegisterUpdate("SfuiMinimapPins", 0.1, function()
-        if not minimapContainer or not minimapContainer:IsShown() then return end
-        if #providerOrder == 0 and not next(staticPinBatches) then return end
-        if not GetMinimapShowPins() then return end
-        RenderMinimapPins(false)
-    end)
+    if not minimapSizeHooked and mm.HookScript then
+        minimapSizeHooked = true
+        mm:HookScript("OnSizeChanged", function(_, w, h)
+            if (issecretvalue and (issecretvalue(w) or issecretvalue(h))) then return end
+            cachedMMW = w
+            cachedMMH = h
+            lastMinimapRadius = nil
+        end)
+    end
+    cachedMMW, cachedMMH = mm:GetSize()
+
+    SyncMinimapPinTicker()
 
     minimapContainer:HookScript("OnHide", function()
         ReleaseMinimapPins()
@@ -1291,30 +1278,33 @@ function pins.RequestRefresh(delay)
 end
 
 -- ─── Lifecycle & Map Ticker Integration ───────────────────────────────────────
-local function StartTicker()
-    if InCombatLockdown and InCombatLockdown() then return end
-    if updateTicker then return end
-    updateTicker = C_Timer.NewTicker(0.5, function()
-        if InCombatLockdown and InCombatLockdown() then return end
-        local wmf = _G.WorldMapFrame
-        if wmf and wmf:IsShown() then
-            RenderPins(false)
-        else
-            if updateTicker then
-                updateTicker:Cancel()
-                updateTicker = nil
-            end
-            ReleasePins()
-        end
-    end)
-end
-
 local function StopTicker()
-    if updateTicker then
-        updateTicker:Cancel()
-        updateTicker = nil
+    if tickerActive then
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiWorldMapPins")
+        end
+        tickerActive = false
     end
     ReleasePins()
+end
+
+local function OnMapPinTick()
+    if InCombatLockdown and InCombatLockdown() then return end
+    local wmf = _G.WorldMapFrame
+    if wmf and wmf:IsShown() then
+        RenderPins(false)
+    else
+        StopTicker()
+    end
+end
+
+local function StartTicker()
+    if InCombatLockdown and InCombatLockdown() then return end
+    if tickerActive then return end
+    if sfui.events and sfui.events.RegisterUpdate then
+        tickerActive = true
+        sfui.events.RegisterUpdate("SfuiWorldMapPins", 0.5, OnMapPinTick)
+    end
 end
 
 local function InitPinEngine()
@@ -1365,7 +1355,6 @@ local function InitPinEngine()
         end
 
         local function OnQuestStateChanged()
-            InvalidateQuestCache()
             InvalidateMinimapPins()
             pins.RequestRefresh(0.15)
         end
@@ -1374,10 +1363,14 @@ local function InitPinEngine()
         sfui.events.RegisterEvent("ZONE_CHANGED_NEW_AREA", OnStateChanged)
         sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnStateChanged)
         sfui.events.RegisterEvent("BAG_UPDATE_DELAYED", OnStateChanged)
-        sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestStateChanged)
-        sfui.events.RegisterEvent("QUEST_ACCEPTED", OnQuestStateChanged)
-        sfui.events.RegisterEvent("QUEST_REMOVED", OnQuestStateChanged)
-        sfui.events.RegisterEvent("QUEST_TURNED_IN", OnQuestStateChanged)
+        if sfui.events.RegisterMessage and sfui.queststate then
+            sfui.events.RegisterMessage("SFUI_QUEST_STATE_UPDATED", OnQuestStateChanged)
+        else
+            sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestStateChanged)
+            sfui.events.RegisterEvent("QUEST_ACCEPTED", OnQuestStateChanged)
+            sfui.events.RegisterEvent("QUEST_REMOVED", OnQuestStateChanged)
+            sfui.events.RegisterEvent("QUEST_TURNED_IN", OnQuestStateChanged)
+        end
         sfui.events.RegisterEvent("PLAYER_LEVEL_UP", OnQuestStateChanged)
         sfui.events.RegisterEvent("SKILL_LINES_CHANGED", OnStateChanged)
         sfui.events.RegisterEvent("CHAT_MSG_SKILL", OnStateChanged)
@@ -1386,6 +1379,7 @@ local function InitPinEngine()
         end)
         sfui.events.RegisterEvent("CVAR_UPDATE", function(_, cvarName)
             if cvarName == "rotateMinimap" then
+                cachedRotateMinimap = (_G.GetCVarBool and _G.GetCVarBool("rotateMinimap")) and true or false
                 pins.RequestMinimapRefresh(0)
             end
         end)

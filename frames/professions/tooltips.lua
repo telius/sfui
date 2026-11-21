@@ -38,7 +38,7 @@ local function OnItemTooltip(tooltip, ctxOrData)
     if not itemID and tooltip.GetItem then
         local _, link = tooltip:GetItem()
         if link then
-            itemID = tonumber(link:match("item:(%d+)"))
+            itemID = sfui.items.get_item_id(link)
         end
     end
 
@@ -112,26 +112,9 @@ local function ClearTooltip(tooltip)
     end
 end
 
--- ── Tooltip Registration (Unified Pipeline & Fallbacks) ──────────────────────
-if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
-    sfui.tooltips.RegisterItemProvider("professions", 40, OnItemTooltip)
-    sfui.tooltips.RegisterClearCallback("professions_tooltips", ClearTooltip)
-elseif TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType and Enum.TooltipDataType.Item then
-    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tt, data)
-        OnItemTooltip(tt, data)
-    end)
-    if GameTooltip then GameTooltip:HookScript("OnTooltipCleared", ClearTooltip) end
-    if ItemRefTooltip then ItemRefTooltip:HookScript("OnTooltipCleared", ClearTooltip) end
-else
-    if GameTooltip then
-        GameTooltip:HookScript("OnTooltipSetItem", function(tt) OnItemTooltip(tt) end)
-        GameTooltip:HookScript("OnTooltipCleared", ClearTooltip)
-    end
-    if ItemRefTooltip then
-        ItemRefTooltip:HookScript("OnTooltipSetItem", function(tt) OnItemTooltip(tt) end)
-        ItemRefTooltip:HookScript("OnTooltipCleared", ClearTooltip)
-    end
-end
+-- ── Tooltip Registration (Unified Pipeline) ──────────────────────────────────
+sfui.tooltips.RegisterItemProvider("professions", 40, OnItemTooltip)
+sfui.tooltips.RegisterClearCallback("professions_tooltips", ClearTooltip)
 
 local function OnSchematicSourceEnter(btn)
     local res = btn._res

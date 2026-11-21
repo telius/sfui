@@ -111,8 +111,7 @@ end
 
 local function CleanTooltipText(val)
     if not IsPublicValue(val) or type(val) ~= "string" then return nil end
-    return (val:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-        :gsub("|T.-|t", ""):gsub("|A.-|a", ""):gsub("^%s+", ""):gsub("%s+$", ""))
+    return sfui.common.strip_colors(val:gsub("|A.-|a", ""), true, true)
 end
 
 local function GetCurrentSeasonID()
@@ -1955,7 +1954,7 @@ sfui.events.RegisterEvent("BONUS_ROLL_RESULT", function(_, rewardType, rewardLin
     if type(rewardLink) ~= "string" or not rewardLink:find("item:", 1, true) then
         if rewardType ~= "item" or not rewardLink then return end
     end
-    local itemID = sfui.common.get_item_id(rewardLink) or tonumber(type(rewardLink) == "string" and rewardLink:match("item:(%d+)"))
+    local itemID = sfui.common.get_item_id(rewardLink)
     if itemID then
         sfui.bonusroll.OnBonusRoll(itemID, rewardLink, serverSpecID)
     end

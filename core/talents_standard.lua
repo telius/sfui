@@ -7,16 +7,7 @@ sfui.talents = sfui.talents or {}
 --  Retail Specialization, Talent Tree & Trait Inspection Engine
 -- ══════════════════════════════════════════════════════════════════════════════
 
-local isRetail = sfui.isRetail
-if isRetail == nil then
-    local projectID = _G.WOW_PROJECT_ID or 1
-    local _, _, _, tocVersionNum = _G.GetBuildInfo()
-    tocVersionNum = tonumber(tocVersionNum) or 0
-    local isCamelot = (tocVersionNum >= 16000 and tocVersionNum < 20000) or (projectID == 18)
-    isRetail = (projectID == 1) and not isCamelot
-end
-
-if not isRetail then
+if not sfui.isRetail then
     return
 end
 

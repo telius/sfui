@@ -374,14 +374,25 @@ local function InstallReputationHooks()
 end
 
 --- Initialize event listeners using central sfui.events dispatcher
+local registeredUnitCallbacks = {}
+
 function events.Initialize()
     InstallReputationHooks()
 
-    if #registeredCallbacks > 0 then return end
+    if #registeredCallbacks > 0 or #registeredUnitCallbacks > 0 then return end
 
     local function reg(eventName, callback)
         sfui.events.RegisterEvent(eventName, callback)
         registeredCallbacks[#registeredCallbacks + 1] = { event = eventName, callback = callback }
+    end
+
+    local function regUnit(eventName, unit, callback)
+        if sfui.events.RegisterUnitEvent then
+            sfui.events.RegisterUnitEvent(eventName, unit, callback)
+            registeredUnitCallbacks[#registeredUnitCallbacks + 1] = { event = eventName, unit = unit, callback = callback }
+        else
+            reg(eventName, callback)
+        end
     end
 
     local function regThrottled(eventName, interval, callback)
@@ -393,7 +404,11 @@ function events.Initialize()
     reg("PLAYER_XP_UPDATE", OnPlayerXPUpdate)
     reg("UPDATE_EXHAUSTION", OnExhaustionOrLevelUp)
     reg("PLAYER_LEVEL_UP", OnExhaustionOrLevelUp)
-    regThrottled("QUEST_LOG_UPDATE", 0.1, OnQuestOrFactionUpdate)
+    if sfui.events.RegisterMessage and sfui.queststate then
+        sfui.events.RegisterMessage("SFUI_QUEST_STATE_UPDATED", OnQuestOrFactionUpdate)
+    else
+        regThrottled("QUEST_LOG_UPDATE", 0.1, OnQuestOrFactionUpdate)
+    end
     regThrottled("QUEST_WATCH_LIST_CHANGED", 0.1, OnQuestOrFactionUpdate)
     regThrottled("UPDATE_FACTION", 0.1, OnQuestOrFactionUpdate)
     regThrottled("MAJOR_FACTION_RENOWN_LEVEL_CHANGED", 0.1, OnQuestOrFactionUpdate)
@@ -406,12 +421,13 @@ function events.Initialize()
     reg("PLAYER_REGEN_DISABLED", OnCombatStateChanged)
     reg("PLAYER_REGEN_ENABLED", OnCombatStateChanged)
     reg("CHAT_MSG_COMBAT_FACTION_CHANGE", OnChatMsgCombatFactionChange)
-    reg("UNIT_PET_EXPERIENCE", RequestDebouncedUpdate)
-    reg("UNIT_PET", RequestDebouncedUpdate)
+    regUnit("UNIT_PET_EXPERIENCE", "pet", RequestDebouncedUpdate)
+    regUnit("UNIT_PET", "player", RequestDebouncedUpdate)
     reg("PET_UI_UPDATE", RequestDebouncedUpdate)
-    reg("UNIT_HAPPINESS", RequestDebouncedUpdate)
+    regUnit("UNIT_HAPPINESS", "pet", RequestDebouncedUpdate)
     reg("UNIT_PET_TRAINING_POINTS", RequestDebouncedUpdate)
-    reg("UNIT_LEVEL", RequestDebouncedUpdate)
+    regUnit("UNIT_LEVEL", "player", RequestDebouncedUpdate)
+    regUnit("UNIT_LEVEL", "pet", RequestDebouncedUpdate)
     reg("EDIT_MODE_LAYOUTS_UPDATED", events.SuppressBlizzardBar)
 
     if _G.EventRegistry and _G.EventRegistry.RegisterCallback then
@@ -421,6 +437,9 @@ end
 
 --- Disable and unregister event listeners
 function events.Disable()
+    if sfui.events.UnregisterMessage then
+        sfui.events.UnregisterMessage("SFUI_QUEST_STATE_UPDATED", OnQuestOrFactionUpdate)
+    end
     if _G.EventRegistry and _G.EventRegistry.UnregisterCallback then
         pcall(_G.EventRegistry.UnregisterCallback, _G.EventRegistry, "Legacy.UpdateCurrencyInfo", events)
     end
@@ -430,4 +449,12 @@ function events.Disable()
         sfui.events.UnregisterEvent(item.event, item.callback)
     end
     registeredCallbacks = {}
+
+    if sfui.events.UnregisterUnitEvent then
+        for i = 1, #registeredUnitCallbacks do
+            local item = registeredUnitCallbacks[i]
+            sfui.events.UnregisterUnitEvent(item.event, item.unit, item.callback)
+        end
+    end
+    registeredUnitCallbacks = {}
 end

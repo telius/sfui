@@ -146,6 +146,15 @@ local function CreateCastBar(configName, unit)
     bar.backdrop:SetPoint("BOTTOM", UIParent, "BOTTOM", posX, posY)
     bar.backdrop:Hide()
 
+    bar._cachedWidth = bar:GetWidth() or 0
+    if bar.HookScript then
+        bar:HookScript("OnSizeChanged", function(self, w)
+            if w and not (issecretvalue and issecretvalue(w)) and w > 0 then
+                self._cachedWidth = w
+            end
+        end)
+    end
+
     return bar
 end
 
@@ -234,7 +243,7 @@ local function CreateStageDividers(bar, numStages)
     end
 
     if numStages and numStages > 0 then
-        local width = bar:GetWidth()
+        local width = (bar._cachedWidth and bar._cachedWidth > 0) and bar._cachedWidth or bar:GetWidth()
         local step = width / numStages
         local barHeight = bar:GetHeight()
 
@@ -275,7 +284,7 @@ local function Player_OnUpdate(self, elapsed)
         self.throttle = 0
     end
 
-    local barWidth = self:GetWidth()
+    local barWidth = (self._cachedWidth and self._cachedWidth > 0) and self._cachedWidth or self:GetWidth()
 
     if self.casting then
         local val = self.value + elapsed

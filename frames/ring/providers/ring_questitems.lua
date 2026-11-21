@@ -508,7 +508,7 @@ sfui.ring.register_provider("questitems", {
                 end
             end
         else
-            local maxBags = (sfui.isRetail or (select(4, _G.GetBuildInfo()) >= 100000)) and 5 or 4
+            local maxBags = sfui.isRetail and 5 or 4
             if C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemID then
                 for bag = 0, maxBags do
                     local numSlots = C_Container.GetContainerNumSlots(bag) or 0
@@ -544,7 +544,7 @@ sfui.ring.register_provider("questitems", {
                 if not isHeader then
                     local link, icon, charges, showWhenComplete = GetQuestLogSpecialItemInfo(i)
                     if link and (showWhenComplete or not isComplete) then
-                        local itemID = tonumber(link:match("item:(%d+)"))
+                        local itemID = sfui.items.get_item_id(link)
                         local rawName = link:match("%[(.-)%]") or ("quest item " .. tostring(itemID))
                         if itemID and not seen[itemID] and not EXCLUDED_ITEMS[itemID] and not is_key_or_charm(itemID, rawName) then
                             seen[itemID] = true

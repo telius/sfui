@@ -400,8 +400,7 @@ end
 local function GetUnitShortNameLower(unit)
     local rawName = UnitName and UnitName(unit)
     local unitName = (IsSafeValue(rawName) and rawName) or unit
-    local shortName = unitName:match("^([^%-]+)") or unitName
-    return shortName:lower()
+    return sfui.common.short_name(unitName):lower()
 end
 
 local function ReleasePartyUnitAuras()

@@ -18,7 +18,6 @@ sfui.gatherskill = sfui.gatherskill or {}
 if sfui.isRetail then return end
 
 local _G           = _G
-local CreateFrame  = _G.CreateFrame
 local C_Item       = _G.C_Item
 local C_Spell      = _G.C_Spell
 local Enum         = _G.Enum
@@ -101,7 +100,9 @@ local missing = {}
 local hooked = false
 local memo, memoCount = {}, 0
 local cachedSkill = {}
-local events = CreateFrame("Frame")
+local skillEventsRegistered = false
+local itemLoadRegistered = false
+local OnGatherEvent
 
 local function Forget()
     if table_wipe then
@@ -144,8 +145,9 @@ local function BuildNodes()
             end
         end
     end
-    if next(missing) then
-        events:RegisterEvent("ITEM_DATA_LOAD_RESULT")
+    if next(missing) and not itemLoadRegistered and sfui.events and sfui.events.RegisterEvent then
+        itemLoadRegistered = true
+        sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnGatherEvent)
     end
 end
 
@@ -211,7 +213,7 @@ local function RewriteMinimapLine(text)
     local out, changed = {}, false
     for part in (text .. "\n"):gmatch("(.-)\n") do
         local formatted = part
-        local name = part:gsub("|T.-|t", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+        local name = sfui.common.strip_colors(part, true, true)
         local node = nodes[name] or (name and nodesLower[string_lower(name)])
         if node then
             local skill = GetSkill(node[1])
@@ -282,9 +284,11 @@ local function OnObjectTooltip(tooltip, data)
     end
 end
 
-events:SetScript("OnEvent", function(self, event, itemID, success)
+OnGatherEvent = function(event, itemID, success)
     if event == "PLAYER_LOGIN" then
-        self:UnregisterEvent("PLAYER_LOGIN")
+        if sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("PLAYER_LOGIN", OnGatherEvent)
+        end
         sfui.gatherskill.Refresh()
         return
     elseif event == "SKILL_LINES_CHANGED" or event == "SPELLS_CHANGED" or event == "PLAYER_EQUIPMENT_CHANGED" then
@@ -294,31 +298,45 @@ events:SetScript("OnEvent", function(self, event, itemID, success)
         if success and nodes then AddHerb(itemID) end
         missing[itemID] = nil
         Forget()
-        if not next(missing) then
-            self:UnregisterEvent("ITEM_DATA_LOAD_RESULT")
+        if not next(missing) and itemLoadRegistered then
+            if sfui.events and sfui.events.UnregisterEvent then
+                sfui.events.UnregisterEvent("ITEM_DATA_LOAD_RESULT", OnGatherEvent)
+            end
+            itemLoadRegistered = false
         end
     end
-end)
-events:RegisterEvent("PLAYER_LOGIN")
+end
+if sfui.events and sfui.events.RegisterEvent then
+    sfui.events.RegisterEvent("PLAYER_LOGIN", OnGatherEvent)
+end
 
 function sfui.gatherskill.Refresh()
     Forget()
     if not IsEnabled() then
-        events:UnregisterEvent("SKILL_LINES_CHANGED")
-        events:UnregisterEvent("SPELLS_CHANGED")
-        events:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED")
+        if skillEventsRegistered and sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("SKILL_LINES_CHANGED", OnGatherEvent)
+            sfui.events.UnregisterEvent("SPELLS_CHANGED", OnGatherEvent)
+            sfui.events.UnregisterEvent("PLAYER_EQUIPMENT_CHANGED", OnGatherEvent)
+        end
+        skillEventsRegistered = false
         return
     end
 
-    events:RegisterEvent("SKILL_LINES_CHANGED")
-    events:RegisterEvent("SPELLS_CHANGED")
-    events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+    if not skillEventsRegistered and sfui.events and sfui.events.RegisterEvent then
+        skillEventsRegistered = true
+        sfui.events.RegisterEvent("SKILL_LINES_CHANGED", OnGatherEvent)
+        sfui.events.RegisterEvent("SPELLS_CHANGED", OnGatherEvent)
+        sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", OnGatherEvent)
+    end
 
     if nodes and next(missing) then
         for itemID in pairs(missing) do
             if AddHerb(itemID) then missing[itemID] = nil end
         end
-        if next(missing) then events:RegisterEvent("ITEM_DATA_LOAD_RESULT") end
+        if next(missing) and not itemLoadRegistered and sfui.events and sfui.events.RegisterEvent then
+            itemLoadRegistered = true
+            sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnGatherEvent)
+        end
     end
 
     if hooked then return end

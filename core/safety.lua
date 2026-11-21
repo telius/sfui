@@ -59,6 +59,27 @@ function sfui.safety.IsAttackSpeedValid(speed)
 end
 sfui.common.IsAttackSpeedValid = sfui.safety.IsAttackSpeedValid
 
+-- Safe typed secret-value validators (never compare/inspect secret values)
+function sfui.safety.IsPlainNumber(val)
+    return val ~= nil and not issecretvalue(val) and type(val) == "number"
+end
+sfui.common.IsPlainNumber = sfui.safety.IsPlainNumber
+
+function sfui.safety.IsPlainPositiveNumber(val)
+    return val ~= nil and not issecretvalue(val) and type(val) == "number" and val > 0
+end
+sfui.common.IsPlainPositiveNumber = sfui.safety.IsPlainPositiveNumber
+
+function sfui.safety.IsPlainNonEmptyString(val)
+    return val ~= nil and not issecretvalue(val) and type(val) == "string" and val ~= ""
+end
+sfui.common.IsPlainNonEmptyString = sfui.safety.IsPlainNonEmptyString
+
+function sfui.safety.IsPlainTable(val)
+    return val ~= nil and not issecretvalue(val) and type(val) == "table"
+end
+sfui.common.IsPlainTable = sfui.safety.IsPlainTable
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- Pre-computed String Lookup Tables (Zero-Allocation Hot Path)
 -- ────────────────────────────────────────────────────────────────────────────
@@ -82,6 +103,7 @@ local FMT_PATTERNS = {
 --- Falls back to tostring for larger values and handles secret values safely.
 function sfui.safety.get_cached_int_string(val)
     if val == nil then return "" end
+    if issecretvalue(val) then return val end
     local t = type(val)
     if t == "number" then
         local floorVal = math.floor(val)
@@ -89,7 +111,6 @@ function sfui.safety.get_cached_int_string(val)
     elseif t == "string" then
         return val
     end
-    if issecretvalue(val) then return val end
     return tostring(val)
 end
 sfui.common.get_cached_int_string = sfui.safety.get_cached_int_string
@@ -780,6 +801,282 @@ sfui.common.register_unit_watch = sfui.safety.register_unit_watch
 sfui.common.unregister_unit_watch = sfui.safety.unregister_unit_watch
 sfui.common.register_state_driver = sfui.safety.register_state_driver
 sfui.common.unregister_state_driver = sfui.safety.unregister_state_driver
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Centralized Duration, Money, Text & Realm Formatting Helpers
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local DURATION_DEFAULT_FALLBACK = {
+    compact       = "-",
+    timer         = "now",
+    long          = "n/a",
+    ago           = "never",
+    clock_ms      = "0:00",
+    clock_compact = "0s",
+}
+
+--- Shared duration formatter supporting multiple UI display styles.
+--- @param seconds number|nil
+--- @param style string|nil "compact"|"short"|"timer"|"long"|"cooldown"|"cooldown_bare"|"cooldown_hm"|"eta"|"ago"|"clock"|"clock_ms"|"clock_compact"
+--- @param fallback string|boolean|nil explicit fallback (pass false to receive nil on <=0/invalid)
+--- @return string|nil
+function sfui.safety.format_duration(seconds, style, fallback)
+    local st = style or "compact"
+    if st == "clock" then
+        return sfui.safety.format_timer_clock(seconds, (fallback == false) and "" or fallback)
+    end
+
+    local fb
+    if fallback == false then
+        fb = nil
+    elseif fallback ~= nil then
+        fb = fallback
+    else
+        fb = DURATION_DEFAULT_FALLBACK[st] or ""
+    end
+
+    if seconds == nil or issecretvalue(seconds) or type(seconds) ~= "number" then
+        return fb
+    end
+    if st == "clock_ms" then
+        local sec = math.max(0, math.floor(seconds + 0.5))
+        return string.format("%d:%02d", math.floor(sec / 60), sec % 60)
+    end
+    if seconds <= 0 then
+        return fb
+    end
+
+    if st == "compact" then
+        local d = math.floor(seconds / 86400)
+        local h = math.floor((seconds % 86400) / 3600)
+        local m = math.floor((seconds % 3600) / 60)
+        if d > 0 then
+            return string.format("%dd %dh", d, h)
+        elseif h > 0 then
+            return string.format("%dh %dm", h, m)
+        elseif m > 0 then
+            return string.format("%dm", m)
+        end
+        return "< 1m"
+    elseif st == "short" then
+        if seconds >= 86400 then
+            return string.format("%dd", math.floor(seconds / 86400))
+        elseif seconds >= 3600 then
+            return string.format("%dh", math.floor(seconds / 3600))
+        elseif seconds >= 60 then
+            return string.format("%dm", math.ceil(seconds / 60))
+        end
+        return string.format("%ds", math.max(1, math.floor(seconds)))
+    elseif st == "timer" then
+        local sec = math.floor(seconds)
+        if sec <= 0 then return fb end
+        if sec >= 3600 then
+            local h = math.floor(sec / 3600)
+            local m = math.floor((sec % 3600) / 60)
+            return (m > 0) and string.format("%dh %dm", h, m) or string.format("%dh", h)
+        elseif sec >= 60 then
+            return string.format("%dm", math.floor(sec / 60))
+        end
+        return string.format("%ds", sec)
+    elseif st == "long" then
+        local s = math.floor(seconds)
+        if s <= 0 then return fb end
+        local h = math.floor(s / 3600)
+        local m = math.floor((s % 3600) / 60)
+        local sec = s % 60
+        if h > 0 then
+            return string.format("%dh %02dm", h, m)
+        elseif m > 0 then
+            return string.format("%dm %02ds", m, sec)
+        end
+        return string.format("%ds", sec)
+    elseif st == "cooldown" then
+        if seconds > 86400 then
+            return string.format("%dd", math.ceil(seconds / 86400))
+        elseif seconds > 3600 then
+            return string.format("%dh", math.ceil(seconds / 3600))
+        elseif seconds > 90 then
+            return string.format("%dm", math.ceil(seconds / 60))
+        elseif seconds >= 10 then
+            return string.format("%ds", math.ceil(seconds))
+        end
+        return string.format("%.1fs", seconds)
+    elseif st == "cooldown_bare" then
+        if seconds < 10 then
+            return string.format("%.1f", seconds)
+        elseif seconds < 60 then
+            return string.format("%d", math.ceil(seconds))
+        end
+        return string.format("%dm", math.ceil(seconds / 60))
+    elseif st == "cooldown_hm" then
+        if seconds > 3600 then
+            return string.format("%.1fh", seconds / 3600)
+        elseif seconds > 60 then
+            return string.format("%dm", math.floor(seconds / 60))
+        end
+        return string.format("%ds", math.floor(seconds))
+    elseif st == "eta" then
+        if seconds < 60 then
+            return "<1m"
+        end
+        local totalMin = math.floor((seconds / 60) + 0.5)
+        if totalMin < 60 then
+            return string.format("%dm", math.max(1, totalMin))
+        end
+        return string.format("%dh%02dm", math.floor(totalMin / 60), totalMin % 60)
+    elseif st == "ago" then
+        if seconds < 5 then return "just now" end
+        if seconds < 60 then return string.format("%ds ago", math.floor(seconds)) end
+        if seconds < 3600 then return string.format("%dm ago", math.floor(seconds / 60)) end
+        if seconds < 86400 then return string.format("%dh ago", math.floor(seconds / 3600)) end
+        return string.format("%dd ago", math.floor(seconds / 86400))
+    elseif st == "clock_compact" then
+        local total = math.floor(seconds + 0.5)
+        local m = math.floor(total / 60)
+        local s = total % 60
+        return (m > 0) and string.format("%d:%02d", m, s) or string.format("%ds", s)
+    end
+
+    return sfui.safety.format_timer_clock(seconds, fb)
+end
+sfui.common.format_duration = sfui.safety.format_duration
+
+--- Format copper into colored gold/silver string (used by compact HUD badges).
+--- @param copper number|nil
+--- @return string
+function sfui.safety.format_money_colored(copper)
+    if copper == nil or issecretvalue(copper) or type(copper) ~= "number" or copper <= 0 then
+        return "|cffc7c7cf0s|r"
+    end
+    local total = math.floor(copper + 0.5)
+    local g = math.floor(total / 10000)
+    local s = math.floor((total % 10000) / 100)
+    if g >= 1000 then
+        return string.format("|cffffd100%dg|r", g)
+    elseif g > 0 then
+        return string.format("|cffffd100%dg|r |cffc7c7cf%ds|r", g, s)
+    end
+    return string.format("|cffc7c7cf%ds|r", s)
+end
+sfui.common.format_money_colored = sfui.safety.format_money_colored
+
+local COIN_TEX_GOLD   = "|TInterface\\MoneyFrame\\UI-GoldIcon:12:12:1:0|t"
+local COIN_TEX_SILVER = "|TInterface\\MoneyFrame\\UI-SilverIcon:12:12:1:0|t"
+local COIN_TEX_COPPER = "|TInterface\\MoneyFrame\\UI-CopperIcon:12:12:1:0|t"
+
+--- Format copper into abbreviated M/K gold, with optional inline coin textures.
+--- @param copper number|nil
+--- @param useIcons boolean|nil
+--- @return string
+function sfui.safety.format_money_abbreviated(copper, useIcons)
+    local gTag = useIcons and COIN_TEX_GOLD or "g"
+    local sTag = useIcons and COIN_TEX_SILVER or "s"
+    local cTag = useIcons and COIN_TEX_COPPER or "c"
+    if copper == nil or issecretvalue(copper) or type(copper) ~= "number" or copper <= 0 then
+        return "0" .. cTag
+    end
+    local total = math.floor(copper + 0.5)
+    local g = math.floor(total / 10000)
+    if g >= 1000000 then
+        return string.format("%.2fM", g / 1000000) .. gTag
+    elseif g >= 1000 then
+        return string.format("%.1fK", g / 1000) .. gTag
+    elseif g > 0 then
+        return tostring(g) .. gTag
+    end
+    local s = math.floor((total % 10000) / 100)
+    if s > 0 then
+        return tostring(s) .. sTag
+    end
+    return tostring(total % 100) .. cTag
+end
+sfui.common.format_money_abbreviated = sfui.safety.format_money_abbreviated
+
+--- Strip WoW color escape sequences (|c..., |cn...:, |r) and optionally trim whitespace or textures.
+--- @param str string|nil
+--- @param trim boolean|nil
+--- @param stripTextures boolean|nil
+--- @return string
+function sfui.safety.strip_colors(str, trim, stripTextures)
+    if str == nil or issecretvalue(str) or type(str) ~= "string" then
+        return ""
+    end
+    local clean = str:gsub("|cn[^:]+:", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    if stripTextures then
+        clean = clean:gsub("|T.-|t", "")
+    end
+    if trim then
+        clean = clean:match("^%s*(.-)%s*$") or ""
+    end
+    return clean
+end
+sfui.common.strip_colors = sfui.safety.strip_colors
+
+--- Escape all Lua pattern metacharacters in a literal string.
+--- @param str string|nil
+--- @return string
+function sfui.safety.escape_pattern(str)
+    if str == nil or issecretvalue(str) or type(str) ~= "string" then
+        return ""
+    end
+    return (str:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%1"))
+end
+sfui.common.escape_pattern = sfui.safety.escape_pattern
+
+--- Strip the "-Realm" suffix from a player/unit name (preserving multi-word Camelot surnames).
+--- @param fullName string|nil
+--- @return string
+function sfui.safety.short_name(fullName)
+    if fullName == nil or issecretvalue(fullName) or type(fullName) ~= "string" then
+        return ""
+    end
+    return (fullName:gsub("%-.+$", ""))
+end
+sfui.common.short_name = sfui.safety.short_name
+
+--- Normalize a realm token for case/space/hyphen/apostrophe-insensitive matching.
+--- @param realm string|nil
+--- @return string
+function sfui.safety.normalize_realm(realm)
+    local r = realm
+    if r == nil then
+        r = (_G.GetNormalizedRealmName and _G.GetNormalizedRealmName())
+            or (_G.GetRealmName and _G.GetRealmName())
+            or (_G.GetCVar and _G.GetCVar("realmName"))
+            or ""
+    end
+    if issecretvalue(r) or type(r) ~= "string" or r == "" then
+        return ""
+    end
+    return (r:gsub("[%s%-']", ""):lower())
+end
+sfui.common.normalize_realm = sfui.safety.normalize_realm
+
+--- Determine whether a string token represents a server/realm name rather than a Camelot surname.
+--- @param name string|nil
+--- @return boolean
+function sfui.safety.is_server_realm_name(name)
+    if name == nil or issecretvalue(name) or type(name) ~= "string" or name == "" then
+        return false
+    end
+    local norm = sfui.safety.normalize_realm(name)
+    if norm == "" then return false end
+    if norm:find("^camwow") or norm:find("realm") or norm:find("%d") then
+        return true
+    end
+    local r1 = _G.GetRealmName and _G.GetRealmName()
+    if r1 and sfui.safety.normalize_realm(r1) == norm then return true end
+    local r2 = _G.GetNormalizedRealmName and _G.GetNormalizedRealmName()
+    if r2 and sfui.safety.normalize_realm(r2) == norm then return true end
+    local r3 = _G.GetCVar and _G.GetCVar("realmName")
+    if r3 and sfui.safety.normalize_realm(r3) == norm then return true end
+    if norm == "forever" or norm == "camelot" or norm == "global" then
+        return true
+    end
+    return false
+end
+sfui.common.is_server_realm_name = sfui.safety.is_server_realm_name
+
 
 
 

@@ -65,48 +65,19 @@ local GetQualityColor    = dj.GetQualityColor
 local IsQuestCompleted   = dj.IsQuestCompleted
 local IsQuestInLog       = dj.IsQuestActive
 
-local function IsQuestShareable(questID, quest)
-    if quest and quest.shareable ~= nil then
-        return quest.shareable
-    end
-    if questID and _G.C_QuestLog and _G.C_QuestLog.IsPushableQuest then
-        local ok, val = pcall(_G.C_QuestLog.IsPushableQuest, questID)
-        if ok and val ~= nil then return val end
-    end
-    return nil
-end
-
 local function CanShareQuestNow(questID, quest)
     if not IsQuestInLog(questID) then return false end
-    if not (_G.IsInGroup and _G.IsInGroup()) then return false end
-    local shareable = IsQuestShareable(questID, quest)
-    return shareable ~= false
+    if sfui.api and sfui.api.IsQuestPushable then
+        local ok = sfui.api.IsQuestPushable(questID)
+        if quest and quest.shareable == false then return false end
+        return ok
+    end
+    return false
 end
 
 local function ShareQuest(questID)
-    if not questID then return end
-    if sfui.api and sfui.api.ShareQuest then
+    if questID and sfui.api and sfui.api.ShareQuest then
         sfui.api.ShareQuest(questID)
-        return
-    end
-    if _G.C_QuestLog and _G.C_QuestLog.SetSelectedQuest then
-        pcall(_G.C_QuestLog.SetSelectedQuest, questID)
-    end
-    local logIndex = nil
-    if _G.C_QuestLog and _G.C_QuestLog.GetLogIndexForQuestID then
-        local ok, idx = pcall(_G.C_QuestLog.GetLogIndexForQuestID, questID)
-        if ok and type(idx) == "number" and idx > 0 then logIndex = idx end
-    elseif _G.GetQuestLogIndexByID then
-        local ok, idx = pcall(_G.GetQuestLogIndexByID, questID)
-        if ok and type(idx) == "number" and idx > 0 then logIndex = idx end
-    end
-    if logIndex and _G.SelectQuestLogEntry then
-        pcall(_G.SelectQuestLogEntry, logIndex)
-    end
-    if _G.QuestLogPushQuest then
-        pcall(_G.QuestLogPushQuest)
-    elseif _G.QuestFramePushQuestButton and _G.QuestFramePushQuestButton.Click then
-        pcall(_G.QuestFramePushQuestButton.Click, _G.QuestFramePushQuestButton)
     end
 end
 
@@ -114,8 +85,8 @@ local reusedObjectiveLines = {}
 local function GetLiveQuestObjectives(questID)
     if not questID then return nil end
     if _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives then
-        local ok, objectives = pcall(_G.C_QuestLog.GetQuestObjectives, questID)
-        if ok and type(objectives) == "table" and #objectives > 0 then
+        local objectives = _G.C_QuestLog.GetQuestObjectives(questID)
+        if type(objectives) == "table" and #objectives > 0 then
             wipe(reusedObjectiveLines)
             for _, obj in ipairs(objectives) do
                 if type(obj) == "table" and obj.text and obj.text ~= "" then
@@ -699,32 +670,8 @@ RenderQuestDetail = function(quest, dungeon, peerSnapshot)
             if not mapID then return end
 
             local waypointSet = false
-            if x and y then
-                if sfui.map and sfui.map.SetUserWaypoint then
-                    waypointSet = sfui.map.SetUserWaypoint(mapID, x, y)
-                elseif C_Map and UiMapPoint and UiMapPoint.CreateFromCoordinates then
-                    local canSet = true
-                    if C_Map.CanSetUserWaypointOnMap then
-                        local ok, allowed = pcall(C_Map.CanSetUserWaypointOnMap, mapID)
-                        if ok and allowed == false then
-                            canSet = false
-                        end
-                    end
-                    if canSet and C_Map.SetUserWaypoint then
-                        local ok, pt = pcall(UiMapPoint.CreateFromCoordinates, mapID, x, y)
-                        if ok and pt then
-                            local okSet = pcall(C_Map.SetUserWaypoint, pt)
-                            if okSet then
-                                waypointSet = true
-                                if sfui.map and sfui.map.SetSuperTrackedUserWaypoint then
-                                    sfui.map.SetSuperTrackedUserWaypoint(true)
-                                elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                                    pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
-                                end
-                            end
-                        end
-                    end
-                end
+            if x and y and sfui.map and sfui.map.SetUserWaypoint then
+                waypointSet = sfui.map.SetUserWaypoint(mapID, x, y)
             end
 
             -- TomTom integration if present
@@ -752,7 +699,7 @@ RenderQuestDetail = function(quest, dungeon, peerSnapshot)
                     djFrame:Show()
                 end
                 if djFrame.Raise then
-                    pcall(djFrame.Raise, djFrame)
+                    djFrame:Raise()
                 end
             end
         end)
@@ -1155,7 +1102,7 @@ RenderQuestDetail = function(quest, dungeon, peerSnapshot)
                 if common and common.request_item_load then
                     common.request_item_load(itemID)
                 elseif _G.C_Item and _G.C_Item.RequestLoadItemDataByID then
-                    pcall(_G.C_Item.RequestLoadItemDataByID, itemID)
+                    _G.C_Item.RequestLoadItemDataByID(itemID)
                 end
             end
 
@@ -1613,8 +1560,12 @@ if sfui.events and sfui.events.RegisterEvent then
             common.debounce("dj_quests_log", 0.15, DebouncedRefresh)
         end
     end
-    sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)
-    sfui.events.RegisterEvent("QUEST_TURNED_IN", OnQuestLogChanged)
+    if sfui.events.RegisterMessage and sfui.queststate then
+        sfui.events.RegisterMessage("SFUI_QUEST_STATE_UPDATED", OnQuestLogChanged)
+    else
+        sfui.events.RegisterEvent("QUEST_LOG_UPDATE", OnQuestLogChanged)
+        sfui.events.RegisterEvent("QUEST_TURNED_IN", OnQuestLogChanged)
+    end
 end
 
 -- ─── Focus / Select Quest Programmatically ──────────────────────────────────

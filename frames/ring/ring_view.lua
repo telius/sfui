@@ -53,18 +53,7 @@ local function get_config()
 end
 
 local function format_cooldown_text(rem)
-    if not rem or rem <= 0 then return "" end
-    if rem > 86400 then
-        return math_ceil(rem / 86400) .. "d"
-    elseif rem > 3600 then
-        return math_ceil(rem / 3600) .. "h"
-    elseif rem > 90 then
-        return math_ceil(rem / 60) .. "m"
-    elseif rem >= 10 then
-        return math_ceil(rem) .. "s"
-    else
-        return string_format("%.1fs", rem)
-    end
+    return sfui.common.format_duration(rem, "cooldown", "")
 end
 
 local function resolve_item_id(data)

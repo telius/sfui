@@ -2,6 +2,11 @@ local addonName, addon = ...
 sfui = sfui or {}
 sfui.cursor = sfui.cursor or {}
 
+local _G = _G
+local CreateFrame = _G.CreateFrame
+local GetCursorPosition = _G.GetCursorPosition
+local math_floor = math.floor
+
 local f -- specific frame reference
 local BASE_SIZE = 48 -- reduced to 75% of original 64px
 local uiparent
@@ -26,8 +31,8 @@ local function update_cursor_pos()
     local x, y = GetCursorPosition()
     if not x or not y then return end
     if cachedScale <= 0 then update_scale_cache() end
-    local cx = math.floor(x / cachedScale + 0.5)
-    local cy = math.floor(y / cachedScale + 0.5)
+    local cx = math_floor(x / cachedScale + 0.5)
+    local cy = math_floor(y / cachedScale + 0.5)
     if cx ~= lastX or cy ~= lastY then
         lastX, lastY = cx, cy
         f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
@@ -71,8 +76,8 @@ function sfui.cursor.initialize()
     -- Immediately position at current cursor or off-screen
     local x, y = GetCursorPosition()
     if x and y then
-        local cx = math.floor(x / cachedScale + 0.5)
-        local cy = math.floor(y / cachedScale + 0.5)
+        local cx = math_floor(x / cachedScale + 0.5)
+        local cy = math_floor(y / cachedScale + 0.5)
         lastX, lastY = cx, cy
         f:SetPoint("CENTER", uiparent, "BOTTOMLEFT", cx, cy)
     else

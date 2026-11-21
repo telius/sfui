@@ -16,6 +16,11 @@ if not isRetail then return end
 -- Use the richer issecretvalue from common (includes C_Secrets.HasSecretRestrictions short-circuit)
 local common = sfui.common
 local issecretvalue = sfui.common.issecretvalue
+local GetTime = _G.GetTime
+local math_floor = math.floor
+local math_min = math.min
+local math_max = math.max
+local string_format = string.format
 
 -- Class Gate: Demon Hunter only
 local playerClass = sfui.common.get_player_class()
@@ -106,8 +111,25 @@ end
 -- HOLD state: held indefinitely only while engine restrictions actively hide auras
 local lastKnownStacks = 0
 
--- Init guard: prevents stacking RegisterUpdate/hooksecurefunc on every reload
+-- Init guard & event/ticker tracking
 local _initialized = false
+local metaTickerActive = false
+local unitEventsRegistered = false
+local cachedHasSoulGlutton = nil
+local cachedContainerW = 220
+local cachedContainerH = 14
+local _lastTickStateKey = nil
+local _lastBackdropStateKey = nil
+local _lastBarColorKey = nil
+local _lastBarMinMax = nil
+local _lastCountText = nil
+local _lastMetaMax = nil
+local _lastMetaColorKey = nil
+local _lastMetaText = nil
+local _lastMetaTimerTenths = nil
+local SyncVoidMetaTicker
+local SyncSoulFragmentEvents
+local onSoulFragmentsTick
 
 -- ------------------------------------------------------------
 -- Engine Auras Restriction & Template Detection
@@ -437,8 +459,8 @@ local function UpdateThresholdTick(specCfg, maxCap, currentStacks)
     end
 
     local activeThreshold = hasMoC and 10 or reapThreshold
-    local width  = container:GetWidth()
-    local height = container:GetHeight()
+    local width  = (cachedContainerW and cachedContainerW > 0) and cachedContainerW or container:GetWidth()
+    local height = (cachedContainerH and cachedContainerH > 0) and cachedContainerH or container:GetHeight()
     if width  <= 0 then width  = 220 end
     if height <= 0 then height = 14  end
 
@@ -449,23 +471,32 @@ local function UpdateThresholdTick(specCfg, maxCap, currentStacks)
     local cellWidth = innerW / maxCap
 
     if activeThreshold and activeThreshold <= maxCap then
-        thresholdTick:ClearAllPoints()
-        thresholdTick:SetPoint("LEFT", container, "LEFT", pad + activeThreshold * cellWidth, 0)
-        thresholdTick:SetHeight(innerH)
+        local isPlain = (not issecretvalue(currentStacks)) and type(currentStacks) == "number"
+        local isPrimed = (not hasMoC) and isPlain and (currentStacks >= activeThreshold)
+        local colorState = hasMoC and 1 or (isPrimed and 2 or 3)
+        local stateKey = activeThreshold .. ":" .. maxCap .. ":" .. width .. ":" .. height .. ":" .. colorState
 
-        if hasMoC then
-            thresholdTick:SetColorTexture(1.0, 0.85, 0.2, 1.0) -- Gold for 10-soul MoC
-        else
-            local n = (type(currentStacks) == "number" and currentStacks) or 0
-            if n >= activeThreshold then
+        if _lastTickStateKey ~= stateKey then
+            _lastTickStateKey = stateKey
+            thresholdTick:ClearAllPoints()
+            thresholdTick:SetPoint("LEFT", container, "LEFT", pad + activeThreshold * cellWidth, 0)
+            thresholdTick:SetHeight(innerH)
+
+            if colorState == 1 then
+                thresholdTick:SetColorTexture(1.0, 0.85, 0.2, 1.0) -- Gold for 10-soul MoC
+            elseif colorState == 2 then
                 thresholdTick:SetColorTexture(0.2, 1.0, 0.85, 0.95) -- Primed (bright emerald/cyan accent)
             else
                 thresholdTick:SetColorTexture(0.925, 0.878, 0.800, 0.6) -- Muted cream
             end
         end
-        thresholdTick:Show()
+        if not thresholdTick:IsShown() then
+            thresholdTick:Show()
+        end
     else
-        thresholdTick:Hide()
+        if thresholdTick:IsShown() then
+            thresholdTick:Hide()
+        end
     end
 end
 
@@ -660,38 +691,68 @@ local function UpdateVoidMetaDisplay(shouldShow)
     local metaExpiration = 0
     if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
         local aura = C_UnitAuras.GetPlayerAuraBySpellID(VOID_META_ID)
-        if aura then
+        if aura and not issecretvalue(aura) then
             inVoidMeta = true
-            metaExpiration = aura.expirationTime or 0
+            local rawExp = aura.expirationTime
+            if rawExp ~= nil and not issecretvalue(rawExp) and type(rawExp) == "number" and rawExp > 0 then
+                metaExpiration = rawExp
+            end
         end
     end
 
-    local width = metaContainer:GetWidth()
-    if width <= 0 then width = 220 end
+    if SyncVoidMetaTicker then
+        SyncVoidMetaTicker(inVoidMeta and shouldShow)
+    end
 
     if inVoidMeta then
         -- In Void Metamorphosis: Collapsing Star build (0 to 30) - ReapMeter Form Violet (#735abf)
-        local starStacks = 0
+        local rawStarStacks = 0
         if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
             local aura = C_UnitAuras.GetPlayerAuraBySpellID(SILENCE_WHISPERS_ID)
-            if aura and aura.applications then
-                starStacks = aura.applications
+            if aura and not issecretvalue(aura) and aura.applications ~= nil then
+                rawStarStacks = aura.applications
             end
         end
 
         local maxStar = 30
-        metaBar:SetMinMaxValues(0, maxStar)
-        metaBar:SetValue(math.min(starStacks, maxStar))
-        metaBar:SetStatusBarColor(0.0, 0.40, 1.0, 1.0) -- Cosmic Blue (#0066ff)
+        if _lastMetaMax ~= maxStar then
+            _lastMetaMax = maxStar
+            metaBar:SetMinMaxValues(0, maxStar)
+        end
+        if _lastMetaColorKey ~= "meta" then
+            _lastMetaColorKey = "meta"
+            metaBar:SetStatusBarColor(0.0, 0.40, 1.0, 1.0) -- Cosmic Blue (#0066ff)
+        end
 
-        metaText:SetText(starStacks > 0 and (starStacks .. " / " .. maxStar) or "META")
+        if issecretvalue(rawStarStacks) then
+            metaBar:SetValue(rawStarStacks)
+            if _lastMetaText ~= "META" then
+                _lastMetaText = "META"
+                metaText:SetText("META")
+            end
+            metaHasText = true
+        else
+            local starStacks = (type(rawStarStacks) == "number" and rawStarStacks) or 0
+            metaBar:SetValue(math_min(starStacks, maxStar))
+            local txt = starStacks > 0 and (starStacks .. " / " .. maxStar) or "META"
+            if _lastMetaText ~= txt then
+                _lastMetaText = txt
+                metaText:SetText(txt)
+            end
+            metaHasText = true
+        end
 
-        if metaExpiration and metaExpiration > 0 then
-            local rem = math.max(0, metaExpiration - GetTime())
-            metaTimerText:SetText(string.format("%.1fs", rem))
+        if metaExpiration > 0 then
+            local rem = math_max(0, metaExpiration - GetTime())
+            local tenths = math_floor(rem * 10 + 0.5)
+            if _lastMetaTimerTenths ~= tenths then
+                _lastMetaTimerTenths = tenths
+                metaTimerText:SetFormattedText("%.1fs", tenths * 0.1)
+            end
             metaHasTimerText = true
         else
             if metaHasTimerText then
+                _lastMetaTimerTenths = nil
                 metaTimerText:SetText("")
                 metaHasTimerText = false
             end
@@ -702,37 +763,75 @@ local function UpdateVoidMetaDisplay(shouldShow)
         end
     else
         -- Out of Void Metamorphosis: Dark Heart build (0 to 50, or 35 with Soul Glutton)
-        local darkHeartStacks = 0
+        local rawDarkHeart = 0
         if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
             local aura = C_UnitAuras.GetPlayerAuraBySpellID(DARK_HEART_ID)
-            if aura and aura.applications then
-                darkHeartStacks = aura.applications
+            if aura and not issecretvalue(aura) and aura.applications ~= nil then
+                rawDarkHeart = aura.applications
             end
         end
 
-        local hasSG = IsTalentKnown(SOUL_GLUTTON_ID)
-        local maxStacks = hasSG and 35 or 50
+        if cachedHasSoulGlutton == nil then
+            cachedHasSoulGlutton = IsTalentKnown(SOUL_GLUTTON_ID)
+        end
+        local maxStacks = cachedHasSoulGlutton and 35 or 50
 
-        metaBar:SetMinMaxValues(0, maxStacks)
-        metaBar:SetValue(math.min(darkHeartStacks, maxStacks))
+        if _lastMetaMax ~= maxStacks then
+            _lastMetaMax = maxStacks
+            metaBar:SetMinMaxValues(0, maxStacks)
+        end
 
-        if darkHeartStacks >= maxStacks then
-            metaText:SetText("|cffedcd4emeta ready|r")
-            metaBar:SetStatusBarColor(0.929, 0.804, 0.306, 1.0) -- ReapMeter GOLD
-            metaHasText = true
-        elseif darkHeartStacks > 0 then
-            metaText:SetText(darkHeartStacks .. " / " .. maxStacks)
-            metaBar:SetStatusBarColor(0.000, 0.553, 0.745, 1.0) -- ReapMeter Devourer Build Azure (#008dbe)
-            metaHasText = true
-        else
+        if issecretvalue(rawDarkHeart) then
+            metaBar:SetValue(rawDarkHeart)
+            if _lastMetaColorKey ~= "azure" then
+                _lastMetaColorKey = "azure"
+                metaBar:SetStatusBarColor(0.000, 0.553, 0.745, 1.0)
+            end
             if metaHasText then
+                _lastMetaText = ""
                 metaText:SetText("")
                 metaHasText = false
             end
-            metaBar:SetStatusBarColor(0.000, 0.553, 0.745, 1.0)
+        else
+            local darkHeartStacks = (type(rawDarkHeart) == "number" and rawDarkHeart) or 0
+            metaBar:SetValue(math_min(darkHeartStacks, maxStacks))
+
+            if darkHeartStacks >= maxStacks then
+                if _lastMetaText ~= "|cffedcd4emeta ready|r" then
+                    _lastMetaText = "|cffedcd4emeta ready|r"
+                    metaText:SetText("|cffedcd4emeta ready|r")
+                end
+                if _lastMetaColorKey ~= "gold" then
+                    _lastMetaColorKey = "gold"
+                    metaBar:SetStatusBarColor(0.929, 0.804, 0.306, 1.0) -- ReapMeter GOLD
+                end
+                metaHasText = true
+            elseif darkHeartStacks > 0 then
+                local txt = darkHeartStacks .. " / " .. maxStacks
+                if _lastMetaText ~= txt then
+                    _lastMetaText = txt
+                    metaText:SetText(txt)
+                end
+                if _lastMetaColorKey ~= "azure" then
+                    _lastMetaColorKey = "azure"
+                    metaBar:SetStatusBarColor(0.000, 0.553, 0.745, 1.0) -- ReapMeter Devourer Build Azure (#008dbe)
+                end
+                metaHasText = true
+            else
+                if metaHasText then
+                    _lastMetaText = ""
+                    metaText:SetText("")
+                    metaHasText = false
+                end
+                if _lastMetaColorKey ~= "azure" then
+                    _lastMetaColorKey = "azure"
+                    metaBar:SetStatusBarColor(0.000, 0.553, 0.745, 1.0)
+                end
+            end
         end
 
         if metaHasTimerText then
+            _lastMetaTimerTenths = nil
             metaTimerText:SetText("")
             metaHasTimerText = false
         end
@@ -819,37 +918,43 @@ local function UpdateDisplay()
         if aura then inMeta = true end
     end
 
-    local currentCount = (type(lastKnownStacks) == "number" and lastKnownStacks) or 0
+    local currentCount = (not issecretvalue(lastKnownStacks) and type(lastKnownStacks) == "number" and lastKnownStacks) or 0
     local isOvercapping = (currentCount >= cap)
     local tbCfg = sfui.config.trackedBars
     local defBg = (tbCfg and tbCfg.backdrop and tbCfg.backdrop.color) or { 0.051, 0.059, 0.090, 0.9 }
 
-    if isOvercapping then
-        container:SetBackdropColor(0.28, 0.08, 0.05, 0.95) -- Alert amber-red backdrop
-    elseif inMeta then
-        if spec == SPEC_DEVOURER then
-            container:SetBackdropColor(0.18, 0.05, 0.32, 0.95) -- Ethereal void purple backdrop
-        elseif spec == SPEC_VENGEANCE then
-            container:SetBackdropColor(0.15, 0.0, 0.28, 0.95) -- Cosmic purple backdrop
+    local bgKey = isOvercapping and "overcap" or (inMeta and ("meta_" .. tostring(spec)) or "default")
+    if _lastBackdropStateKey ~= bgKey then
+        _lastBackdropStateKey = bgKey
+        if isOvercapping then
+            container:SetBackdropColor(0.28, 0.08, 0.05, 0.95) -- Alert amber-red backdrop
+        elseif inMeta then
+            if spec == SPEC_DEVOURER then
+                container:SetBackdropColor(0.18, 0.05, 0.32, 0.95) -- Ethereal void purple backdrop
+            elseif spec == SPEC_VENGEANCE then
+                container:SetBackdropColor(0.15, 0.0, 0.28, 0.95) -- Cosmic purple backdrop
+            else
+                container:SetBackdropColor(0.0, 0.18, 0.10, 0.95) -- Fel green backdrop
+            end
         else
-            container:SetBackdropColor(0.0, 0.18, 0.10, 0.95) -- Fel green backdrop
+            container:SetBackdropColor(defBg[1], defBg[2], defBg[3], defBg[4] or 0.9)
         end
-    else
-        container:SetBackdropColor(defBg[1], defBg[2], defBg[3], defBg[4] or 0.9)
     end
 
     -- If C++ engine is not driving the bar via CustomAuraContainer, fallback to Lua update
     if not isBoundToEngine and bar then
         local stacks, maxCap = GetSoulFragmentStacks()
 
-        bar:SetMinMaxValues(0, maxCap)
+        if _lastBarMinMax ~= maxCap then
+            _lastBarMinMax = maxCap
+            bar:SetMinMaxValues(0, maxCap)
+        end
         local val = 0
+        local nextCountText = ""
         if stacks == nil then
             bar:SetValue(0)
-            if countText then countText:SetText("") end
         elseif issecretvalue(stacks) then
             bar:SetValue(stacks)
-            if countText then countText:SetText("") end
         else
             local num = type(stacks) == "number" and stacks or tonumber(stacks)
             if num and num == num and num >= -3.4e38 and num <= 3.4e38 then
@@ -859,15 +964,26 @@ local function UpdateDisplay()
                 bar:SetValue(0)
                 val = 0
             end
-            if countText then
-                countText:SetText(val > 0 and tostring(val) or "")
+            if val > 0 then
+                nextCountText = tostring(val)
             end
+        end
+        if countText and _lastCountText ~= nextCountText then
+            _lastCountText = nextCountText
+            countText:SetText(nextCountText)
         end
 
         local fillColor = cfg.color or (currentSpecConfig and currentSpecConfig.color) or { 0.4, 0.0, 1.0, 1.0 }
-        bar:SetStatusBarColor(fillColor[1], fillColor[2], fillColor[3], fillColor[4] or 1.0)
+        local colorKey = tostring(fillColor[1]) .. ":" .. tostring(fillColor[2]) .. ":" .. tostring(fillColor[3]) .. ":" .. tostring(fillColor[4] or 1.0)
+        if _lastBarColorKey ~= colorKey then
+            _lastBarColorKey = colorKey
+            bar:SetStatusBarColor(fillColor[1], fillColor[2], fillColor[3], fillColor[4] or 1.0)
+        end
     else
-        if countText then countText:SetText("") end
+        if countText and _lastCountText ~= "" then
+            _lastCountText = ""
+            countText:SetText("")
+        end
     end
 
     UpdateVoidMetaDisplay(shouldShow)
@@ -927,6 +1043,8 @@ function sfui.soulfragments:UpdatePosition()
             end
         end
 
+        cachedContainerW, cachedContainerH = width, height
+        _lastTickStateKey = nil
         container:SetSize(width, height)
         container:ClearAllPoints()
         if metaContainer then
@@ -940,6 +1058,8 @@ function sfui.soulfragments:UpdatePosition()
         if metaContainer then
             metaContainer:Hide()
         end
+        cachedContainerW, cachedContainerH = width, height
+        _lastTickStateKey = nil
         container:SetSize(width, height)
         container:ClearAllPoints()
         if customPos and customPos.point and customPos.x and customPos.y then
@@ -966,14 +1086,56 @@ end
 -- Frame creation is idempotent (container guard). Everything that
 -- must only run ONCE (RegisterUpdate, hooks) is guarded by _initialized.
 -- ------------------------------------------------------------
+local SOUL_FRAGMENT_UNIT_EVENTS = { "UNIT_AURA", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_POWER_UPDATE" }
+
+local function onUnitEvent()
+    if not currentSpecConfig then return end
+    if not container or not container:IsShown() then return end
+    UpdateDisplay()
+end
+
+onSoulFragmentsTick = function()
+    if not currentSpecConfig or not container or not container:IsShown() then
+        SyncVoidMetaTicker(false)
+        return
+    end
+    UpdateDisplay()
+end
+
+SyncVoidMetaTicker = function(active)
+    local want = (active and currentSpecConfig ~= nil and container ~= nil and container:IsShown()) and true or false
+    if want == metaTickerActive then return end
+    metaTickerActive = want
+    if want then
+        sfui.events.RegisterUpdate("SoulFragments", 0.05, onSoulFragmentsTick)
+    else
+        sfui.events.UnregisterUpdate("SoulFragments")
+    end
+end
+
+SyncSoulFragmentEvents = function(active)
+    local want = active and true or false
+    if want == unitEventsRegistered then return end
+    unitEventsRegistered = want
+    if want then
+        sfui.events.RegisterUnitEvents(SOUL_FRAGMENT_UNIT_EVENTS, "player", onUnitEvent)
+    else
+        if sfui.events.UnregisterUnitEvents then
+            sfui.events.UnregisterUnitEvents(SOUL_FRAGMENT_UNIT_EVENTS, "player", onUnitEvent)
+        end
+        SyncVoidMetaTicker(false)
+    end
+end
+
 function sfui.soulfragments:Initialize()
     local spec = common.get_current_spec_id()
     currentSpecConfig = SPEC_CONFIGS[spec]
+    cachedHasSoulGlutton = nil
 
     if not currentSpecConfig then
         if container then container:Hide() end
         if metaContainer then metaContainer:Hide() end
-        sfui.events.UnregisterUpdate("SoulFragments")
+        SyncSoulFragmentEvents(false)
         return
     end
 
@@ -984,32 +1146,13 @@ function sfui.soulfragments:Initialize()
 
     self:UpdatePosition()
     BuildAuraContainer(currentSpecConfig.cap)
+    SyncSoulFragmentEvents(true)
 
     if _initialized then
         UpdateDisplay()
         return
     end
     _initialized = true
-
-    -- Unit events: player-only via the central unit-event frame.
-    local function onUnitEvent()
-        if not currentSpecConfig then return end
-        if not container or not container:IsShown() then return end
-        UpdateDisplay()
-    end
-    sfui.events.RegisterUnitEvents(
-        {"UNIT_AURA", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_POWER_UPDATE"},
-        "player", onUnitEvent
-    )
-
-    -- 20 FPS update loop — registered once via the shared dispatcher.
-    -- Skips execution when container is not shown to eliminate background churn.
-    local function onSoulFragmentsTick()
-        if not currentSpecConfig then return end
-        if not container or not container:IsShown() then return end
-        UpdateDisplay()
-    end
-    sfui.events.RegisterUpdate("SoulFragments", 0.05, onSoulFragmentsTick)
 
     UpdateDisplay()
 end
@@ -1024,6 +1167,12 @@ end
 local function onSpecChanged()
     local sp = common.get_current_spec_id and common.get_current_spec_id() or 0
     currentSpecConfig = SPEC_CONFIGS[sp]
+    cachedHasSoulGlutton = nil
+    _lastTickStateKey = nil
+    _lastBackdropStateKey = nil
+    _lastBarColorKey = nil
+    _lastMetaMax = nil
+    _lastMetaColorKey = nil
     if currentSpecConfig then
         CreateSoulFragmentsFrame()
         if sp == SPEC_DEVOURER then CreateVoidMetaFrame() end
@@ -1031,17 +1180,24 @@ local function onSpecChanged()
             BuildAuraContainer(currentSpecConfig.cap)
         end
         if container then sfui.soulfragments:UpdatePosition() end
+        SyncSoulFragmentEvents(true)
     else
         DropAuraContainer()
         if container then container:Hide() end
         if metaContainer then metaContainer:Hide() end
-        sfui.events.UnregisterUpdate("SoulFragments")
+        SyncSoulFragmentEvents(false)
         sfui.trackedbars.ForceLayoutUpdate()
     end
     UpdateDisplay()
 end
 
 local function onCombatOrTarget()
+    if not currentSpecConfig then return end
+    UpdateDisplay()
+end
+
+local function onTalentsChanged()
+    cachedHasSoulGlutton = nil
     if not currentSpecConfig then return end
     UpdateDisplay()
 end
@@ -1070,6 +1226,11 @@ sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", onSpecChanged)
 sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", onCombatOrTarget)
 sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED",  onCombatOrTarget)
 sfui.events.RegisterEvent("PLAYER_TARGET_CHANGED", onCombatOrTarget)
+sfui.events.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", onCombatOrTarget)
+sfui.events.RegisterEvent("PLAYER_CAN_GLIDE_CHANGED", onCombatOrTarget)
+sfui.events.RegisterUnitEvents({ "UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE" }, "player", onCombatOrTarget)
+sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", onTalentsChanged)
+sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", onTalentsChanged)
 
 sfui.events.RegisterEvent("ENCOUNTER_START", onEncounterBoundary)
 sfui.events.RegisterEvent("ENCOUNTER_END",   onEncounterBoundary)

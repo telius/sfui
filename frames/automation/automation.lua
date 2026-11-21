@@ -319,7 +319,7 @@ if _G.StaticPopupDialogs then
     }
 end
 
-local repairWatcher, repairWatchLast, repairWatchOut
+local repairWatcherActive, repairWatchLast, repairWatchOut = false, 0, 0
 local repairWatchGen = 0
 local repairWatchSweep
 
@@ -357,21 +357,21 @@ local function ReleaseJunkSweep()
 end
 
 local TOPUP_WINDOW = 8
-local repairTopUp, repairTopUpGen = nil, 0
+local repairTopUpPoll, repairTopUpGen = nil, 0
 
 local function CancelRepairTopUp()
     repairTopUpGen = repairTopUpGen + 1
-    if repairTopUp then
-        repairTopUp:UnregisterAllEvents()
-        repairTopUp:SetScript("OnEvent", nil)
+    if repairTopUpPoll then
+        if sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("PLAYER_MONEY", repairTopUpPoll)
+            sfui.events.UnregisterEvent("MERCHANT_CLOSED", repairTopUpPoll)
+        end
+        repairTopUpPoll = nil
     end
 end
 
 local function StartRepairTopUp(remainCost)
     CancelRepairTopUp()
-    if not repairTopUp then
-        repairTopUp = CreateFrame("Frame")
-    end
     local gen = repairTopUpGen
     local settled = false
 
@@ -390,7 +390,7 @@ local function StartRepairTopUp(remainCost)
         ReportRepairOutcome(0, nowCost)
     end
 
-    local function Poll(_, event)
+    local function Poll(event)
         if settled or gen ~= repairTopUpGen then return end
         if event == "MERCHANT_CLOSED" or not _G.CanMerchantRepair() then
             return Finish(false)
@@ -402,9 +402,11 @@ local function StartRepairTopUp(remainCost)
 
     Poll()
     if settled then return end
-    repairTopUp:SetScript("OnEvent", Poll)
-    repairTopUp:RegisterEvent("PLAYER_MONEY")
-    repairTopUp:RegisterEvent("MERCHANT_CLOSED")
+    repairTopUpPoll = Poll
+    if sfui.events and sfui.events.RegisterEvent then
+        sfui.events.RegisterEvent("PLAYER_MONEY", Poll)
+        sfui.events.RegisterEvent("MERCHANT_CLOSED", Poll)
+    end
     C_Timer.After(TOPUP_WINDOW, function()
         if settled or gen ~= repairTopUpGen then return end
         Finish(false)
@@ -422,22 +424,23 @@ local function OnRepairWatchEvent()
 end
 
 local function StartRepairWatch(cost, moneyBefore, guildFunds, sweep)
-    if not repairWatcher then
-        repairWatcher = CreateFrame("Frame")
-    end
-    repairWatcher:SetScript("OnEvent", OnRepairWatchEvent)
-
     repairWatchGen = repairWatchGen + 1
     repairWatchLast = moneyBefore
     repairWatchOut = 0
     repairWatchSweep = sweep
     CancelRepairTopUp()
-    repairWatcher:RegisterEvent("PLAYER_MONEY")
+    if not repairWatcherActive and sfui.events and sfui.events.RegisterEvent then
+        repairWatcherActive = true
+        sfui.events.RegisterEvent("PLAYER_MONEY", OnRepairWatchEvent)
+    end
 
     local gen = repairWatchGen
     C_Timer.After(0.5, function()
         if gen ~= repairWatchGen then return end
-        repairWatcher:UnregisterAllEvents()
+        if repairWatcherActive and sfui.events and sfui.events.UnregisterEvent then
+            sfui.events.UnregisterEvent("PLAYER_MONEY", OnRepairWatchEvent)
+        end
+        repairWatcherActive = false
         local remainCost, stillNeed = _G.GetRepairAllCost()
         if not (stillNeed and remainCost > 0) then remainCost = 0 end
 
@@ -873,17 +876,12 @@ local function get_item_id_from_tooltip(tooltip, tooltipData)
     if tooltipData and tooltipData.guid then
         local cItem = _G.C_Item
         local link = cItem and cItem.GetItemLinkByGUID and cItem.GetItemLinkByGUID(tooltipData.guid)
-        if link and not (issecretvalue and issecretvalue(link)) then
-            local id = tonumber(link:match("item:(%d+)"))
-            if is_valid_id(id) then return id end
-        end
+        local id = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(link)
+        if is_valid_id(id) then return id end
     end
     if tooltipData and tooltipData.hyperlink then
-        local link = tooltipData.hyperlink
-        if link and not (issecretvalue and issecretvalue(link)) then
-            local id = tonumber(link:match("item:(%d+)"))
-            if is_valid_id(id) then return id end
-        end
+        local id = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(tooltipData.hyperlink)
+        if is_valid_id(id) then return id end
     end
     local toolUtil = _G.TooltipUtil
     if toolUtil and toolUtil.GetDisplayedItem then
@@ -892,10 +890,8 @@ local function get_item_id_from_tooltip(tooltip, tooltipData)
     end
     if tooltip.GetItem then
         local _, link = tooltip:GetItem()
-        if link and not (issecretvalue and issecretvalue(link)) then
-            local id = tonumber(link:match("item:(%d+)"))
-            if is_valid_id(id) then return id end
-        end
+        local id = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(link)
+        if is_valid_id(id) then return id end
     end
     return nil
 end
@@ -1067,39 +1063,12 @@ local function init_tooltip_automation()
     if _tooltip_automation_initialized then return end
     _tooltip_automation_initialized = true
 
-    local sfuiTip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or sfui.tooltip
+    sfui.tooltips.RegisterItemProvider("ids", 90, on_tooltip_set_item)
+    sfui.tooltips.RegisterSpellProvider("ids", 90, on_tooltip_set_spell)
+    sfui.tooltips.RegisterQuestProvider("ids", 90, on_tooltip_set_quest)
+    sfui.tooltips.RegisterClearCallback("automation_ids", on_tooltip_cleared)
 
-    if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
-        sfui.tooltips.RegisterItemProvider("ids", 90, on_tooltip_set_item)
-        sfui.tooltips.RegisterSpellProvider("ids", 90, on_tooltip_set_spell)
-        sfui.tooltips.RegisterQuestProvider("ids", 90, on_tooltip_set_quest)
-        sfui.tooltips.RegisterClearCallback("automation_ids", on_tooltip_cleared)
-    else
-        local dataProcessor = _G.TooltipDataProcessor
-        local enumType = _G.Enum and _G.Enum.TooltipDataType
-        if dataProcessor and dataProcessor.AddTooltipPostCall and enumType then
-            if enumType.Item then dataProcessor.AddTooltipPostCall(enumType.Item, on_tooltip_set_item) end
-            if enumType.Spell then dataProcessor.AddTooltipPostCall(enumType.Spell, on_tooltip_set_spell) end
-            if enumType.Quest then dataProcessor.AddTooltipPostCall(enumType.Quest, on_tooltip_set_quest) end
-        else
-            local hookedTips = {}
-            local function hook_legacy_tip(tip)
-                if not tip or hookedTips[tip] then return end
-                hookedTips[tip] = true
-                if tip.HookScript then
-                    tip:HookScript("OnTooltipSetItem", on_tooltip_set_item)
-                    tip:HookScript("OnTooltipSetSpell", on_tooltip_set_spell)
-                    tip:HookScript("OnTooltipCleared", on_tooltip_cleared)
-                    tip:HookScript("OnHide", on_tooltip_cleared)
-                end
-            end
-            hook_legacy_tip(_G.GameTooltip)
-            hook_legacy_tip(_G.ItemRefTooltip)
-            hook_legacy_tip(sfuiTip)
-            hook_legacy_tip(_G.ShoppingTooltip1)
-            hook_legacy_tip(_G.ShoppingTooltip2)
-        end
-    end
+    local sfuiTip = (sfui.common and sfui.common.get_tooltip and sfui.common.get_tooltip()) or sfui.tooltip
 
     local function hook_tip_hyperlink(tip)
         if not tip or not tip.SetHyperlink then return end

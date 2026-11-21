@@ -30,7 +30,6 @@ local UnitFactionGroup        = _G.UnitFactionGroup
 local C_TaxiMap               = _G.C_TaxiMap
 local C_Traits                = _G.C_Traits
 local C_DurationUtil          = _G.C_DurationUtil
-local C_Timer                 = _G.C_Timer
 local Enum                    = _G.Enum
 local hooksecurefunc          = _G.hooksecurefunc
 local ipairs                  = _G.ipairs
@@ -56,7 +55,8 @@ local PREVIEW_ROUTES = {
     Alliance = { 6, "ironforge", 74, "thorium point", 71, "morgan's vigil", 5, "lakeshire" },
 }
 
-local bar, ticker
+local bar
+local tickerActive = false
 local hooked = false
 local eventsRegistered = false
 local durationObj = nil
@@ -98,8 +98,7 @@ local function GetSpeedMultiplier()
 end
 
 local function FormatTime(sec)
-    sec = math_max(0, math_floor(sec + 0.5))
-    return string_format("%d:%02d", math_floor(sec / 60), sec % 60)
+    return sfui.common.format_duration(sec, "clock_ms", "0:00")
 end
 
 local function SupportsDurationBar(track)
@@ -486,9 +485,11 @@ local function EndFlight()
     flight = nil
     previewActive = false
     previewHoldUntil = 0
-    if ticker then
-        ticker:Cancel()
-        ticker = nil
+    if tickerActive then
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiFlightTimer")
+        end
+        tickerActive = false
     end
     if durationObj and durationObj.Reset then
         durationObj:Reset()
@@ -619,8 +620,9 @@ local function StartFlight(data)
     LayoutRoute(flight)
     bar:Show()
     UpdateText()
-    if not ticker then
-        ticker = C_Timer.NewTicker(1, UpdateText)
+    if not tickerActive and sfui.events and sfui.events.RegisterUpdate then
+        tickerActive = true
+        sfui.events.RegisterUpdate("SfuiFlightTimer", 1.0, UpdateText)
     end
 end
 
@@ -670,8 +672,9 @@ StartPreviewFlight = function()
     LayoutRoute(flight)
     bar:Show()
     UpdateText()
-    if not ticker then
-        ticker = C_Timer.NewTicker(1, UpdateText)
+    if not tickerActive and sfui.events and sfui.events.RegisterUpdate then
+        tickerActive = true
+        sfui.events.RegisterUpdate("SfuiFlightTimer", 1.0, UpdateText)
     end
 end
 

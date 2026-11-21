@@ -895,8 +895,15 @@ function sfui.actionbars.CreateVehicleLeaveButton()
         sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_vehicle_state_changed)
         sfui.events.RegisterEvent("UPDATE_BONUS_ACTIONBAR", on_vehicle_state_changed)
         sfui.events.RegisterEvent("UPDATE_MULTI_CAST_ACTIONBAR", on_vehicle_state_changed)
-        sfui.events.RegisterEvent("UNIT_ENTERED_VEHICLE", on_vehicle_state_changed)
-        sfui.events.RegisterEvent("UNIT_EXITED_VEHICLE", on_vehicle_state_changed)
+        if sfui.events.RegisterUnitEvents then
+            sfui.events.RegisterUnitEvents({ "UNIT_ENTERED_VEHICLE", "UNIT_EXITED_VEHICLE" }, "player", on_vehicle_state_changed)
+        elseif sfui.events.RegisterUnitEvent then
+            sfui.events.RegisterUnitEvent("UNIT_ENTERED_VEHICLE", "player", on_vehicle_state_changed)
+            sfui.events.RegisterUnitEvent("UNIT_EXITED_VEHICLE", "player", on_vehicle_state_changed)
+        else
+            sfui.events.RegisterEvent("UNIT_ENTERED_VEHICLE", on_vehicle_state_changed)
+            sfui.events.RegisterEvent("UNIT_EXITED_VEHICLE", on_vehicle_state_changed)
+        end
         sfui.events.RegisterEvent("VEHICLE_UPDATE", on_vehicle_state_changed)
         sfui.events.RegisterEvent("UPDATE_VEHICLE_ACTIONBAR", on_vehicle_state_changed)
     end
@@ -1375,8 +1382,13 @@ if sfui.events and sfui.events.RegisterEvent then
     end
     sfui.events.RegisterEvent("PET_BAR_UPDATE", on_pet_event)
     sfui.events.RegisterEvent("PET_UI_UPDATE", on_pet_event)
-    sfui.events.RegisterEvent("UNIT_PET", on_pet_event)
-    sfui.events.RegisterEvent("UNIT_FLAGS", on_pet_event)
+    if sfui.events.RegisterUnitEvent then
+        sfui.events.RegisterUnitEvent("UNIT_PET", "player", on_pet_event)
+        sfui.events.RegisterUnitEvent("UNIT_FLAGS", "pet", on_pet_event)
+    else
+        sfui.events.RegisterEvent("UNIT_PET", on_pet_event)
+        sfui.events.RegisterEvent("UNIT_FLAGS", on_pet_event)
+    end
     sfui.events.RegisterEvent("PET_BAR_UPDATE_COOLDOWN", on_pet_event)
     sfui.events.RegisterEvent("PET_BAR_UPDATE_USABLE", on_pet_event)
     sfui.events.RegisterEvent("PLAYER_CONTROL_LOST", on_pet_event)

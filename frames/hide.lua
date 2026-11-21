@@ -572,7 +572,7 @@ do
     local throttled       -- [messageType] = true
     local keepText        -- [messageText] = true
     local typeCount
-    local errFrame = CreateFrame("Frame")
+    local errEventsRegistered = false
 
     local COOLDOWN_ERR_NAMES = {
         "LE_GAME_ERR_SPELL_COOLDOWN",
@@ -739,7 +739,7 @@ do
         end
     end
 
-    errFrame:SetScript("OnEvent", function(_, event, messageType, message)
+    local function OnErrorMessageEvent(event, messageType, message)
         if issecretvalue(messageType) or issecretvalue(message) then return end
         if not roleOf or not keepText then return end
         if switched[messageType] then
@@ -752,7 +752,7 @@ do
             and SfuiDB and SfuiDB.hide_all_errors == true then
             SwitchOff(_G.UIErrorsFrame, messageType)
         end
-    end)
+    end
 
     function sfui.hide.ApplyErrorFilters()
         local uie = _G.UIErrorsFrame
@@ -768,10 +768,17 @@ do
                     SwitchOff(uie, msgType)
                 end
             end
-            errFrame:RegisterEvent("UI_ERROR_MESSAGE")
-            errFrame:RegisterEvent("UI_INFO_MESSAGE")
+            if not errEventsRegistered and sfui.events and sfui.events.RegisterEvent then
+                errEventsRegistered = true
+                sfui.events.RegisterEvent("UI_ERROR_MESSAGE", OnErrorMessageEvent)
+                sfui.events.RegisterEvent("UI_INFO_MESSAGE", OnErrorMessageEvent)
+            end
         else
-            errFrame:UnregisterAllEvents()
+            if errEventsRegistered and sfui.events and sfui.events.UnregisterEvent then
+                sfui.events.UnregisterEvent("UI_ERROR_MESSAGE", OnErrorMessageEvent)
+                sfui.events.UnregisterEvent("UI_INFO_MESSAGE", OnErrorMessageEvent)
+            end
+            errEventsRegistered = false
         end
 
         if cooldownOn then

@@ -636,14 +636,23 @@ sfui.options.RegisterTab({
             end
         end
 
+        local function on_item_asset_loaded()
+            if not p:IsVisible() then return end
+            if sfui.common and sfui.common.debounce then
+                sfui.common.debounce("tab_ring_item_load", 0.1, on_spec_or_spells_updated)
+            else
+                on_spec_or_spells_updated()
+            end
+        end
+
         sfui.events.RegisterEvent("SPELLS_CHANGED", on_spec_or_spells_updated)
         sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", on_spec_or_spells_updated)
         sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", on_spec_or_spells_updated)
         sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", on_spec_or_spells_updated)
         sfui.events.RegisterEvent("TOYS_UPDATED", on_spec_or_spells_updated)
         sfui.events.RegisterEvent("NEW_TOY_ADDED", on_spec_or_spells_updated)
-        sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_spec_or_spells_updated)
-        sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", on_spec_or_spells_updated)
+        sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_item_asset_loaded)
+        sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", on_item_asset_loaded)
         sfui.events.RegisterMessage("SFUI_SPEC_CHANGED", on_spec_or_spells_updated)
     end,
 })

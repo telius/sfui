@@ -398,7 +398,7 @@ do
         if sfui.isClassic then
             local fsrText = bar:CreateFontString(nil, "OVERLAY")
             local fontSize = (cfg.powerBar and cfg.powerBar.fontSize) or 10
-            fsrText:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "")
+            fsrText:SetFont(sfui.common.get_font_file(), fontSize, "")
             fsrText:SetShadowOffset(0, 0)
             fsrText:SetPoint("CENTER", bar, "CENTER", 0, 0)
             fsrText:SetTextColor(1, 1, 1, 0.9)
@@ -414,7 +414,7 @@ do
         if isClassicOrCamelot and pClass == "HUNTER" then
             local ammoText = bar:CreateFontString(nil, "OVERLAY")
             local fontSize = (cfg.powerBar and cfg.powerBar.fontSize) or 10
-            ammoText:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "")
+            ammoText:SetFont(sfui.common.get_font_file(), fontSize, "")
             ammoText:SetShadowOffset(0, 0)
             ammoText:SetPoint("LEFT", bar, "LEFT", 4, 0)
             ammoText:SetTextColor(1, 1, 1, 0.9)
@@ -1169,7 +1169,7 @@ do
             bar.backdrop:SetSize(cfg.width + pad * 2, targetH + pad * 2)
         end
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", cfg.fontSize or 18, "")
+        bar.TextValue:SetFont(sfui.common.get_font_file(), cfg.fontSize or 18, "")
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
         bar1 = bar
@@ -1285,7 +1285,7 @@ do
         frame.cooldown = cd
 
         local text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        text:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        text:SetFont(sfui.common.get_font_file(), 10, "OUTLINE")
         text:SetPoint("TOP", frame, "BOTTOM", 0, -2)
         frame.countText = text
 
@@ -1296,7 +1296,7 @@ do
         if vigor_bar then return vigor_bar end
         local bar = common.create_bar("vigorBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", cfg.secondaryPowerBar.fontSize, "")
+        bar.TextValue:SetFont(sfui.common.get_font_file(), cfg.secondaryPowerBar.fontSize, "")
         bar.TextValue:SetShadowOffset(1, -1); bar.TextValue:SetPoint("CENTER")
         local iconSize = 40
         bar.whirlingSurgeIcon = create_icon(bar, "sfui_WhirlingSurgeIcon", iconSize, 361584)
@@ -1371,7 +1371,7 @@ do
         if mount_speed_bar then return mount_speed_bar end
         local bar = common.create_bar("mountSpeedBar", "StatusBar", UIParent)
         bar.TextValue = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        bar.TextValue:SetFont("Fonts\\FRIZQT__.TTF", 12, "")
+        bar.TextValue:SetFont(sfui.common.get_font_file(), 12, "")
         bar.TextValue:SetShadowOffset(1, -1)
         bar.TextValue:SetPoint("CENTER")
         bar.lastSpeed = 0 -- Cache for change detection

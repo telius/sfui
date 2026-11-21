@@ -108,7 +108,7 @@ local function create_ghost(parent)
     end
 
     local fs = g:CreateFontString(nil, "OVERLAY")
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
     fs:SetFont(fontFile, 11, "")
     fs:SetWordWrap(false)
     fs:SetJustifyH("CENTER")

@@ -38,6 +38,7 @@ local DEFAULTS = {
     font_size           = 13,
     combatlog_font_size = 14,
     font_outline        = "OUTLINE",  -- "", "OUTLINE", "THICKOUTLINE", "MONOCHROMEOUTLINE"
+    frame_font_sizes    = nil,        -- optional per-window sizes set via Blizzard tab menu or slider ({ [id] = size } / { ["*"] = size })
     editbox_pos         = "bottom",   -- "bottom" | "top"
     ghost_tabs          = true,       -- clean flat ghost tabs over GeneralDockManager
     tab_autofade        = true,       -- fade chat tabs when not hovered, typing, or alerting
@@ -314,6 +315,23 @@ local function install_fcf_hooks()
             hooksecurefunc(fnName, FCF_WAKE_TAB_HOOKS[fnName] and on_fcf_tab_wake or on_fcf_change)
         end
     end
+
+    if _G.FCF_SetChatWindowFontSize then
+        hooksecurefunc("FCF_SetChatWindowFontSize", function(self, chatFrame, fontSize)
+            if not sfui.IsModuleEnabled("chat") then return end
+            if chat.OnFCFSetFontSize then
+                chat.OnFCFSetFontSize(self, chatFrame, fontSize)
+            end
+        end)
+    end
+    if _G.FCF_ResetChatWindows then
+        hooksecurefunc("FCF_ResetChatWindows", function()
+            if not sfui.IsModuleEnabled("chat") then return end
+            if chat.OnFCFResetChatWindows then
+                chat.OnFCFResetChatWindows()
+            end
+        end)
+    end
 end
 
 function chat:OnInit()
@@ -372,8 +390,8 @@ function chat:OnSettingsChanged(key, val)
 
     if key == "bg_alpha" or key == "border_alpha" or key == "use_theme" then
         chat.ApplyTheme()
-    elseif key == "font_override" or key == "font_size" or key == "combatlog_font_size" or key == "font_outline" then
-        if chat.ApplyFonts then chat.ApplyFonts() end
+    elseif key == "font_override" or key == "font_size" or key == "combatlog_font_size" or key == "font_outline" or key == "frame_font_sizes" then
+        if not chat._suppressFontApply and chat.ApplyFonts then chat.ApplyFonts() end
     elseif key == "editbox_pos" then
         if chat.ApplyEditBoxPositions then chat.ApplyEditBoxPositions() end
     elseif key == "ghost_tabs" then
@@ -409,6 +427,8 @@ function chat:GetDebugInfo()
         useTheme          = chat.Get("use_theme", true) and true or false,
         ghostTabs         = chat.Get("ghost_tabs", true) and true or false,
         tabAutofade       = chat.Get("tab_autofade", true) and true or false,
+        fontOverride      = chat.Get("font_override", false) and true or false,
+        fontSize          = chat.Get("font_size", 13),
         combatLogFontSize = chat.Get("combatlog_font_size", 14),
         idleFade          = chat.Get("idle_fade", false) and true or false,
         customPos         = chat.Get("position", nil) ~= nil,

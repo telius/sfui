@@ -97,7 +97,7 @@ local function extractItemContext(tooltip, data)
         if rawLink and not issecretvalue(rawLink) and type(rawLink) == "string" then
             link = rawLink
             if not itemID then
-                local parsed = tonumber(rawLink:match("item:(%d+)"))
+                local parsed = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(rawLink)
                 if isValidPositiveID(parsed) then
                     itemID = parsed
                 end
@@ -109,7 +109,7 @@ local function extractItemContext(tooltip, data)
             if guidLink and not issecretvalue(guidLink) and type(guidLink) == "string" then
                 link = link or guidLink
                 if not itemID then
-                    local parsed = tonumber(guidLink:match("item:(%d+)"))
+                    local parsed = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(guidLink)
                     if isValidPositiveID(parsed) then
                         itemID = parsed
                     end
@@ -134,7 +134,7 @@ local function extractItemContext(tooltip, data)
         if tipLink and not issecretvalue(tipLink) and type(tipLink) == "string" then
             link = link or tipLink
             if not itemID then
-                local parsed = tonumber(tipLink:match("item:(%d+)"))
+                local parsed = sfui.items and sfui.items.get_item_id and sfui.items.get_item_id(tipLink)
                 if isValidPositiveID(parsed) then
                     itemID = parsed
                 end
@@ -355,7 +355,7 @@ end
 
 tooltips.ClearStamp = onTooltipCleared
 
-local hookedClearTips = {}
+local hookedClearTips = setmetatable({}, { __mode = "k" })
 local function hookTooltipClear(tip)
     if not tip or hookedClearTips[tip] then return end
     hookedClearTips[tip] = true

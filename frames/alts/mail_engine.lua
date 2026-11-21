@@ -577,8 +577,7 @@ function mail.StartDispatch(onProgress, onComplete, targetGUID)
 
     -- Construct letters queue (max ATTACHMENTS_MAX_SEND items per letter)
     _dispatchQueue = {}
-    local myRealm = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) or ""
-    local myNormRealm = myRealm:gsub("%s+", ""):lower()
+    local myNormRealm = sfui.common.normalize_realm()
 
     for _, data in pairs(manifest) do
         local recipient = (sfui.alts and sfui.alts.GetMailRecipient and sfui.alts.GetMailRecipient(data))
@@ -588,7 +587,7 @@ function mail.StartDispatch(onProgress, onComplete, targetGUID)
                 recipient = string.format("%s %s", recipient, data.surname)
             end
             local targetRealm = (data.realm or ""):gsub("%s+", "")
-            if targetRealm ~= "" and targetRealm:lower() ~= myNormRealm then
+            if targetRealm ~= "" and sfui.common.normalize_realm(targetRealm) ~= myNormRealm then
                 recipient = string.format("%s-%s", recipient, targetRealm)
             end
         end

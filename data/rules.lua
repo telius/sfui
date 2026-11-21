@@ -2,6 +2,9 @@ local addonName, addon        = ...
 sfui                          = sfui or {}
 sfui.highest                  = sfui.highest or {}
 
+local _tocVer = (_G.GetBuildInfo and tonumber((select(4, _G.GetBuildInfo())))) or 0
+local _isRetailBuild = _tocVer >= 100000 and (_G.WOW_PROJECT_ID == nil or _G.WOW_PROJECT_ID == (_G.WOW_PROJECT_MAINLINE or 1))
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- SFUI Spec Equipment & Scoring Rules Database
 --
@@ -42,170 +45,183 @@ local WEAPONS_ROGUE_CLASSIC   = { [2] = true, [3] = true, [4] = true, [7] = true
 local WEAPONS_HUNTER_CLASSIC  = { [0] = true, [1] = true, [2] = true, [3] = true, [6] = true, [7] = true, [8] = true,
     [10] = true, [13] = true, [15] = true, [18] = true }
 
+local WEAPS_2H                = { ["2H"] = true }
+local WEAPS_1H_DUAL           = { ["1H_Dual"] = true }
+local WEAPS_1H_SHIELD         = { ["1H_Shield"] = true }
+local WEAPS_RANGED            = { ["Ranged"] = true }
+local WEAPS_2H_1H_DUAL        = { ["2H"] = true, ["1H_Dual"] = true }
+local WEAPS_2H_1H_SHIELD      = { ["2H"] = true, ["1H_Shield"] = true }
+local WEAPS_2H_1H_OFF         = { ["2H"] = true, ["1H_Off"] = true }
+local WEAPS_1H_DUAL_RANGED    = { ["1H_Dual"] = true, ["Ranged"] = true }
+local WEAPS_2H_1H_OFF_RANGED  = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }
+local WEAPS_2H_1H_SHIELD_OFF  = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }
+local WEAPS_RANGED_2H_1H_DUAL = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }
+local WEAPS_WARRIOR_CLASSIC   = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }
+
 sfui.highest.rules            = {
     -- Death Knight
-    [250] = { armor = 4, stat = 1, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_DK },
-    [251] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_DK },
-    [252] = { armor = 4, stat = 1, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_DK },
+    [250] = { armor = 4, stat = 1, weaps = WEAPS_2H, allowedWeapons = WEAPONS_DK },
+    [251] = { armor = 4, stat = 1, weaps = WEAPS_2H_1H_DUAL, allowedWeapons = WEAPONS_DK },
+    [252] = { armor = 4, stat = 1, weaps = WEAPS_2H, allowedWeapons = WEAPONS_DK },
     -- Demon Hunter
-    [577] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true }, allowedWeapons = WEAPONS_DH },           -- Havoc (Agility; NO Daggers)
-    [581] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true }, allowedWeapons = WEAPONS_DH },           -- Vengeance (Agility; NO Daggers)
-    [1480] = { armor = 2, stat = 4, weaps = { ["1H_Dual"] = true }, allowedWeapons = WEAPONS_DH_DEVOURER }, -- Devourer (Intellect; CAN use Daggers)
+    [577] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL, allowedWeapons = WEAPONS_DH },           -- Havoc (Agility; NO Daggers)
+    [581] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL, allowedWeapons = WEAPONS_DH },           -- Vengeance (Agility; NO Daggers)
+    [1480] = { armor = 2, stat = 4, weaps = WEAPS_1H_DUAL, allowedWeapons = WEAPONS_DH_DEVOURER }, -- Devourer (Intellect; CAN use Daggers)
     -- Druid
-    [102] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID },
-    [103] = { armor = 2, stat = 2, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_DRUID },
-    [104] = { armor = 2, stat = 2, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_DRUID },
-    [105] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID },
+    [102] = { armor = 2, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID },
+    [103] = { armor = 2, stat = 2, weaps = WEAPS_2H, allowedWeapons = WEAPONS_DRUID },
+    [104] = { armor = 2, stat = 2, weaps = WEAPS_2H, allowedWeapons = WEAPONS_DRUID },
+    [105] = { armor = 2, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID },
     -- Evoker
-    [1467] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_EVOKER },
-    [1468] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_EVOKER },
-    [1473] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_EVOKER },
+    [1467] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_EVOKER },
+    [1468] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_EVOKER },
+    [1473] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_EVOKER },
     -- Hunter
-    [253] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true }, allowedWeapons = WEAPONS_HUNTER_RANGED },
-    [254] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true }, allowedWeapons = WEAPONS_HUNTER_RANGED },
-    [255] = { armor = 3, stat = 2, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_HUNTER_MELEE },
+    [253] = { armor = 3, stat = 2, weaps = WEAPS_RANGED, allowedWeapons = WEAPONS_HUNTER_RANGED },
+    [254] = { armor = 3, stat = 2, weaps = WEAPS_RANGED, allowedWeapons = WEAPONS_HUNTER_RANGED },
+    [255] = { armor = 3, stat = 2, weaps = WEAPS_2H, allowedWeapons = WEAPONS_HUNTER_MELEE },
     -- Mage
-    [62] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_MAGE },
-    [63] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_MAGE },
-    [64] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_MAGE },
+    [62] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_MAGE },
+    [63] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_MAGE },
+    [64] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_MAGE },
     -- Monk
-    [268] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_MONK },
-    [269] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_MONK },
-    [270] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_MONK },
+    [268] = { armor = 2, stat = 2, weaps = WEAPS_2H_1H_DUAL, allowedWeapons = WEAPONS_MONK },
+    [269] = { armor = 2, stat = 2, weaps = WEAPS_2H_1H_DUAL, allowedWeapons = WEAPONS_MONK },
+    [270] = { armor = 2, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_MONK },
     -- Paladin
-    [65] = { armor = 4, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true }, allowedWeapons = WEAPONS_PALADIN },
-    [66] = { armor = 4, stat = 1, weaps = { ["1H_Shield"] = true }, allowedWeapons = WEAPONS_PALADIN },
-    [70] = { armor = 4, stat = 1, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_PALADIN },
+    [65] = { armor = 4, stat = 4, weaps = WEAPS_2H_1H_SHIELD, allowedWeapons = WEAPONS_PALADIN },
+    [66] = { armor = 4, stat = 1, weaps = WEAPS_1H_SHIELD, allowedWeapons = WEAPONS_PALADIN },
+    [70] = { armor = 4, stat = 1, weaps = WEAPS_2H, allowedWeapons = WEAPONS_PALADIN },
     -- Priest
-    [256] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PRIEST },
-    [257] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PRIEST },
-    [258] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PRIEST },
+    [256] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_PRIEST },
+    [257] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_PRIEST },
+    [258] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_PRIEST },
     -- Rogue
-    [259] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true }, allowedWeapons = WEAPONS_ROGUE_ASSASSIN },
-    [260] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true }, allowedWeapons = WEAPONS_ROGUE_ALL },
-    [261] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true }, allowedWeapons = WEAPONS_ROGUE_ALL },
+    [259] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL, allowedWeapons = WEAPONS_ROGUE_ASSASSIN },
+    [260] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL, allowedWeapons = WEAPONS_ROGUE_ALL },
+    [261] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL, allowedWeapons = WEAPONS_ROGUE_ALL },
     -- Shaman
-    [262] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER },
-    [263] = { armor = 3, stat = 2, weaps = { ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_SHAMAN_ENH },
-    [264] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER },
+    [262] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_SHIELD, allowedWeapons = WEAPONS_SHAMAN_CASTER },
+    [263] = { armor = 3, stat = 2, weaps = WEAPS_2H_1H_DUAL, allowedWeapons = WEAPONS_SHAMAN_ENH },
+    [264] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_SHIELD, allowedWeapons = WEAPONS_SHAMAN_CASTER },
     -- Warlock
-    [265] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_WARLOCK },
-    [266] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_WARLOCK },
-    [267] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_WARLOCK },
+    [265] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_WARLOCK },
+    [266] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_WARLOCK },
+    [267] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_WARLOCK },
     -- Warrior
-    [71] = { armor = 4, stat = 1, weaps = { ["2H"] = true }, allowedWeapons = WEAPONS_WARRIOR },
+    [71] = { armor = 4, stat = 1, weaps = WEAPS_2H, allowedWeapons = WEAPONS_WARRIOR },
     [72] = { armor = 4, stat = 1, weaps = { ["2H_Dual"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_WARRIOR },
-    [73] = { armor = 4, stat = 1, weaps = { ["1H_Shield"] = true }, allowedWeapons = WEAPONS_WARRIOR },
+    [73] = { armor = 4, stat = 1, weaps = WEAPS_1H_SHIELD, allowedWeapons = WEAPONS_WARRIOR },
     -- Classic Forever / Camelot Specs (1482–1491)
-    [1482] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE },                                   -- Mage
-    [1484] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID },                                                     -- Druid
-    [1485] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC },                        -- Hunter
-    [1486] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN },                             -- Paladin
-    [1487] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST },                                 -- Priest
-    [1488] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC },                                        -- Rogue
-    [1489] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CASTER },                       -- Shaman
-    [1490] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK },                                -- Warlock
-    [1491] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Warrior
+    [1482] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_MAGE },                     -- Mage
+    [1484] = { armor = 2, stat = 2, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID },                           -- Druid
+    [1485] = { armor = 3, stat = 2, weaps = WEAPS_RANGED_2H_1H_DUAL, allowedWeapons = WEAPONS_HUNTER_CLASSIC },          -- Hunter
+    [1486] = { armor = 4, stat = 1, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_PALADIN },                 -- Paladin
+    [1487] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_PRIEST },                   -- Priest
+    [1488] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL_RANGED, allowedWeapons = WEAPONS_ROGUE_CLASSIC },              -- Rogue
+    [1489] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_SHAMAN_CASTER },           -- Shaman
+    [1490] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_WARLOCK },                  -- Warlock
+    [1491] = { armor = 4, stat = 1, weaps = WEAPS_WARRIOR_CLASSIC, allowedWeapons = WEAPONS_WARRIOR_CLASSIC },           -- Warrior
 }
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Solution A: Authentic Classic Spec Rules Database (Tree Specs & Class Specs)
 -- ────────────────────────────────────────────────────────────────────────────
-sfui.highest.classic_rules    = {
+sfui.highest.classic_rules    = not _isRetailBuild and {
     -- Warrior (1491): Arms, Fury, Prot (all can equip Ranged weapons in Classic)
-    [71]   = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Arms
-    [72]   = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Fury
-    [73]   = { armor = 4, stat = 1, weaps = { ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC },                                    -- Protection
-    [1491] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Warrior
+    [71]   = { armor = 4, stat = 1, weaps = WEAPS_WARRIOR_CLASSIC, allowedWeapons = WEAPONS_WARRIOR_CLASSIC },                         -- Arms
+    [72]   = { armor = 4, stat = 1, weaps = WEAPS_WARRIOR_CLASSIC, allowedWeapons = WEAPONS_WARRIOR_CLASSIC },                         -- Fury
+    [73]   = { armor = 4, stat = 1, weaps = { ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC },   -- Protection
+    [1491] = { armor = 4, stat = 1, weaps = WEAPS_WARRIOR_CLASSIC, allowedWeapons = WEAPONS_WARRIOR_CLASSIC },                         -- Warrior
 
     -- Paladin (1486): Holy (Int), Prot (Tank/Str), Ret (Str)
-    [65]   = { armor = 4, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Holy
-    [66]   = { armor = 4, stat = 1, weaps = { ["1H_Shield"] = true }, allowedWeapons = WEAPONS_PALADIN },                                   -- Protection
-    [70]   = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Retribution
-    [1486] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Paladin
+    [65]   = { armor = 4, stat = 4, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_PALADIN }, -- Holy
+    [66]   = { armor = 4, stat = 1, weaps = WEAPS_1H_SHIELD, allowedWeapons = WEAPONS_PALADIN },        -- Protection
+    [70]   = { armor = 4, stat = 1, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_PALADIN }, -- Retribution
+    [1486] = { armor = 4, stat = 1, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_PALADIN }, -- Paladin
 
     -- Hunter (1485): BM, MM, Surv (Ranged Slot 18 + 2H/Dual Wield Melee)
-    [253]  = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Beast Mastery
-    [254]  = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Marksmanship
-    [255]  = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Survival
-    [1485] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Hunter
+    [253]  = { armor = 3, stat = 2, weaps = WEAPS_RANGED_2H_1H_DUAL, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Beast Mastery
+    [254]  = { armor = 3, stat = 2, weaps = WEAPS_RANGED_2H_1H_DUAL, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Marksmanship
+    [255]  = { armor = 3, stat = 2, weaps = WEAPS_RANGED_2H_1H_DUAL, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Survival
+    [1485] = { armor = 3, stat = 2, weaps = WEAPS_RANGED_2H_1H_DUAL, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Hunter
 
     -- Rogue (1488): Assassination, Combat, Subtlety (Dual Wield + Ranged Slot 18)
-    [259]  = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Assassination
-    [260]  = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Combat
-    [261]  = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Subtlety
-    [1488] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Rogue
+    [259]  = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL_RANGED, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Assassination
+    [260]  = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL_RANGED, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Combat
+    [261]  = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL_RANGED, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Subtlety
+    [1488] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL_RANGED, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Rogue
 
     -- Priest (1487): Discipline, Holy, Shadow (1H/OH/Staff + Wand Slot 18)
-    [256]  = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Discipline
-    [257]  = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Holy
-    [258]  = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Shadow
-    [1487] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Priest
+    [256]  = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_PRIEST }, -- Discipline
+    [257]  = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_PRIEST }, -- Holy
+    [258]  = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_PRIEST }, -- Shadow
+    [1487] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_PRIEST }, -- Priest
 
     -- Shaman (1489): Elemental, Enhancement, Restoration
-    [262]  = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Elemental
-    [263]  = { armor = 3, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Enhancement
-    [264]  = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Restoration
-    [1489] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Shaman
+    [262]  = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Elemental
+    [263]  = { armor = 3, stat = 1, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Enhancement
+    [264]  = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Restoration
+    [1489] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Shaman
 
     -- Mage (1482): Arcane, Fire, Frost (1H/OH/Staff + Wand Slot 18)
-    [62]   = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Arcane
-    [63]   = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Fire
-    [64]   = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Frost
-    [1482] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Mage
+    [62]   = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_MAGE }, -- Arcane
+    [63]   = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_MAGE }, -- Fire
+    [64]   = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_MAGE }, -- Frost
+    [1482] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_MAGE }, -- Mage
 
     -- Warlock (1490): Affliction, Demonology, Destruction (1H/OH/Staff + Wand Slot 18)
-    [265]  = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Affliction
-    [266]  = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Demonology
-    [267]  = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Destruction
-    [1490] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Warlock
+    [265]  = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_WARLOCK }, -- Affliction
+    [266]  = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_WARLOCK }, -- Demonology
+    [267]  = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_WARLOCK }, -- Destruction
+    [1490] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_WARLOCK }, -- Warlock
 
     -- Druid (1484): Balance, Feral, Resto
-    [102]  = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Balance (Caster)
-    [103]  = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Feral
-    [104]  = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Guardian
-    [105]  = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Restoration
-    [1484] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Druid
+    [102]  = { armor = 2, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Balance (Caster)
+    [103]  = { armor = 2, stat = 2, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Feral
+    [104]  = { armor = 2, stat = 2, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Guardian
+    [105]  = { armor = 2, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Restoration
+    [1484] = { armor = 2, stat = 2, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Druid
 
     -- ── Camelot per-tree spec IDs (classID * 10 + treeIndex, range 14821-14913) ──
     -- These are the primary keys Camelot resolves to; classic_rules must have them
     -- for correct per-tree weapon/armor scoring (Druid Resto≠Feral, Paladin Holy≠Ret, etc.)
     -- Mage (1482)
-    [14821] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Arcane
-    [14822] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Fire
-    [14823] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_MAGE }, -- Frost
+    [14821] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_MAGE }, -- Arcane
+    [14822] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_MAGE }, -- Fire
+    [14823] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_MAGE }, -- Frost
     -- Druid (1484)
-    [14841] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Balance (Caster: stat=4 Int)
-    [14842] = { armor = 2, stat = 2, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Feral Cat (stat=2 Agi)
-    [14843] = { armor = 2, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Restoration (stat=4 Int)
-    [14844] = { armor = 2, stat = 1, weaps = { ["2H"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_DRUID }, -- Guardian Bear (Tank: stat=1 Str/Armor)
+    [14841] = { armor = 2, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Balance (Caster: stat=4 Int)
+    [14842] = { armor = 2, stat = 2, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Feral Cat (stat=2 Agi)
+    [14843] = { armor = 2, stat = 4, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Restoration (stat=4 Int)
+    [14844] = { armor = 2, stat = 1, weaps = WEAPS_2H_1H_OFF, allowedWeapons = WEAPONS_DRUID }, -- Guardian Bear (Tank: stat=1 Str/Armor)
     -- Hunter (1485)
-    [14851] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Beast Mastery
-    [14852] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Marksmanship
-    [14853] = { armor = 3, stat = 2, weaps = { ["Ranged"] = true, ["2H"] = true, ["1H_Dual"] = true }, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Survival
+    [14851] = { armor = 3, stat = 2, weaps = WEAPS_RANGED_2H_1H_DUAL, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Beast Mastery
+    [14852] = { armor = 3, stat = 2, weaps = WEAPS_RANGED_2H_1H_DUAL, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Marksmanship
+    [14853] = { armor = 3, stat = 2, weaps = WEAPS_RANGED_2H_1H_DUAL, allowedWeapons = WEAPONS_HUNTER_CLASSIC }, -- Survival
     -- Paladin (1486)
-    [14861] = { armor = 4, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Holy (stat=4 Int)
-    [14862] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Protection (stat=1 Str)
-    [14863] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_PALADIN }, -- Retribution (stat=1 Str)
+    [14861] = { armor = 4, stat = 4, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_PALADIN }, -- Holy (stat=4 Int)
+    [14862] = { armor = 4, stat = 1, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_PALADIN }, -- Protection (stat=1 Str)
+    [14863] = { armor = 4, stat = 1, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_PALADIN }, -- Retribution (stat=1 Str)
     -- Priest (1487)
-    [14871] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Discipline
-    [14872] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Holy
-    [14873] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_PRIEST }, -- Shadow
+    [14871] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_PRIEST }, -- Discipline
+    [14872] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_PRIEST }, -- Holy
+    [14873] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_PRIEST }, -- Shadow
     -- Rogue (1488)
-    [14881] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Assassination
-    [14882] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Combat
-    [14883] = { armor = 2, stat = 2, weaps = { ["1H_Dual"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Subtlety
+    [14881] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL_RANGED, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Assassination
+    [14882] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL_RANGED, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Combat
+    [14883] = { armor = 2, stat = 2, weaps = WEAPS_1H_DUAL_RANGED, allowedWeapons = WEAPONS_ROGUE_CLASSIC }, -- Subtlety
     -- Shaman (1489)
-    [14891] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Elemental (stat=4 Int)
-    [14892] = { armor = 3, stat = 1, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Enhancement (stat=1 Str)
-    [14893] = { armor = 3, stat = 4, weaps = { ["2H"] = true, ["1H_Shield"] = true, ["1H_Off"] = true }, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Restoration (stat=4 Int)
+    [14891] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Elemental (stat=4 Int)
+    [14892] = { armor = 3, stat = 1, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Enhancement (stat=1 Str)
+    [14893] = { armor = 3, stat = 4, weaps = WEAPS_2H_1H_SHIELD_OFF, allowedWeapons = WEAPONS_SHAMAN_CLASSIC }, -- Restoration (stat=4 Int)
     -- Warlock (1490)
-    [14901] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Affliction
-    [14902] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Demonology
-    [14903] = { armor = 1, stat = 4, weaps = { ["2H"] = true, ["1H_Off"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARLOCK }, -- Destruction
+    [14901] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_WARLOCK }, -- Affliction
+    [14902] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_WARLOCK }, -- Demonology
+    [14903] = { armor = 1, stat = 4, weaps = WEAPS_2H_1H_OFF_RANGED, allowedWeapons = WEAPONS_WARLOCK }, -- Destruction
     -- Warrior (1491)
-    [14911] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Arms
-    [14912] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Fury
-    [14913] = { armor = 4, stat = 1, weaps = { ["2H"] = true, ["1H_Dual"] = true, ["1H_Shield"] = true, ["Ranged"] = true }, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Protection
-}
+    [14911] = { armor = 4, stat = 1, weaps = WEAPS_WARRIOR_CLASSIC, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Arms
+    [14912] = { armor = 4, stat = 1, weaps = WEAPS_WARRIOR_CLASSIC, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Fury
+    [14913] = { armor = 4, stat = 1, weaps = WEAPS_WARRIOR_CLASSIC, allowedWeapons = WEAPONS_WARRIOR_CLASSIC }, -- Protection
+} or {}
 

@@ -84,10 +84,7 @@ local function StrTrim(s)
 end
 
 -- Escape special regex characters in pattern strings
-local function EscapePattern(s)
-    if not s then return "" end
-    return s:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")
-end
+local EscapePattern = sfui.common.escape_pattern
 
 -- Build regex patterns for skill requirement extraction
 local minSkillPattern
@@ -137,6 +134,14 @@ local function GetCanonicalRealmForChar(altData, guid)
     return GetRealmName()
 end
 
+-- ── Fast Caching Tables & Scratch Buffers ─────────────────────────────────────
+local isRecipeCache          = {}  -- [itemID] = boolean (immutable item class)
+local recipeReqCache         = {}  -- [itemID] = { prof = string, rank = number } (immutable per recipe)
+local recipeStatusCache      = {}  -- [itemID] = status string (session cache, invalidated on changes)
+local formattedNameCache     = {}  -- [key] = string (memoized class-colored alt names)
+local recipeOutputCache      = {}  -- [recipeID] = outputItemID (memoized output item ID)
+local cacheCounts            = {}
+
 local function EnsurePlayerContext()
     SanitizeRecipeDB()
     if not myGUID then
@@ -159,6 +164,7 @@ local function EnsurePlayerContext()
             myName = resolved
             if formattedNameCache then
                 wipe(formattedNameCache)
+                cacheCounts[formattedNameCache] = 0
             end
         end
     end
@@ -180,12 +186,17 @@ local function IsAltInCurrentScope(guid, altData, realmKey)
     return true
 end
 
--- ── Fast Caching Tables & Scratch Buffers ─────────────────────────────────────
-local isRecipeCache          = {}  -- [itemID] = boolean (immutable item class)
-local recipeReqCache         = {}  -- [itemID] = { prof = string, rank = number } (immutable per recipe)
-local recipeStatusCache      = {}  -- [itemID] = status string (session cache, invalidated on changes)
-local formattedNameCache     = {}  -- [key] = string (memoized class-colored alt names)
-local recipeOutputCache      = {}  -- [recipeID] = outputItemID (memoized output item ID)
+local function CachePut(cacheTbl, key, val, maxEntries)
+    if cacheTbl[key] == nil then
+        local c = (cacheCounts[cacheTbl] or 0) + 1
+        if c > maxEntries then
+            wipe(cacheTbl)
+            c = 1
+        end
+        cacheCounts[cacheTbl] = c
+    end
+    cacheTbl[key] = val
+end
 
 -- Pre-allocated scratch tables for zero-allocation tooltip rendering
 local scratchCrafterList     = {}
@@ -196,7 +207,9 @@ local scratchLowSkillList    = {}
 
 local function InvalidateRecipeStatusCache()
     wipe(recipeStatusCache)
+    cacheCounts[recipeStatusCache] = 0
     wipe(formattedNameCache)
+    cacheCounts[formattedNameCache] = 0
     if sfui.recipes and sfui.recipes.browser and sfui.recipes.browser.ClearLearnedCache then
         sfui.recipes.browser.ClearLearnedCache()
     end
@@ -312,26 +325,41 @@ local function RecordKnownRecipeForChar(spellOrItemID, guid, realm)
 
     local db = sfui.recipes_camelot
     if db then
-        local r = db.recipes and db.recipes[spellOrItemID]
-        if not r and db.items and db.items[spellOrItemID] then
-            local sID = db.items[spellOrItemID]
-            r = sID and db.recipes and db.recipes[sID]
+        local rID, rItemID, outID
+        local rawTbl = type(db._raw) == "table" and db._raw or nil
+        if rawTbl then
+            local sid = rawTbl[spellOrItemID] and spellOrItemID or (db.items and db.items[spellOrItemID])
+            local raw = sid and rawTbl[sid]
+            if raw then
+                rID = sid
+                rItemID = raw[6] and raw[6] > 0 and raw[6] or nil
+                outID = raw[5] and raw[5] > 0 and raw[5] or nil
+            end
+        else
+            local r = db.recipes and db.recipes[spellOrItemID]
+            if not r and db.items and db.items[spellOrItemID] then
+                local sID = db.items[spellOrItemID]
+                r = sID and db.recipes and db.recipes[sID]
+            end
+            if r then
+                rID = r.id
+                rItemID = r.recipeItemID
+                outID = r.output
+            end
         end
-        if r then
-            if r.id then
-                markRecipeID(r.id)
+        if rID then
+            markRecipeID(rID)
+        end
+        if rItemID then
+            markRecipeID(rItemID)
+        end
+        if outID then
+            if type(SfuiDB.crafts[outID]) ~= "table" then
+                SfuiDB.crafts[outID] = {}
             end
-            if r.recipeItemID then
-                markRecipeID(r.recipeItemID)
-            end
-            if r.output then
-                if type(SfuiDB.crafts[r.output]) ~= "table" then
-                    SfuiDB.crafts[r.output] = {}
-                end
-                if not SfuiDB.crafts[r.output][guid] then
-                    SfuiDB.crafts[r.output][guid] = true
-                    changed = true
-                end
+            if not SfuiDB.crafts[outID][guid] then
+                SfuiDB.crafts[outID][guid] = true
+                changed = true
             end
         end
     end
@@ -355,7 +383,7 @@ local function IsRecipe(itemID)
         classID = select(6, C_Item_GetItemInfoInstant(itemID))
     end
     local result = (classID == ITEM_CLASS_RECIPE)
-    isRecipeCache[itemID] = result
+    CachePut(isRecipeCache, itemID, result, 1500)
     return result
 end
 
@@ -383,27 +411,18 @@ local function GetColoredCharacterName(name, className, realm, altData, guid)
         return cached
     end
 
-    local col
-    if C_ClassColor and C_ClassColor.GetClassColor and className then
-        col = C_ClassColor.GetClassColor(className)
-    elseif RAID_CLASS_COLORS and className and RAID_CLASS_COLORS[className] then
-        col = RAID_CLASS_COLORS[className]
-    end
-
-    local hex = (col and col.GenerateHexColor and col:GenerateHexColor()) or
-                (col and ("ff" .. sfui.colors.rgb_to_hex(col.r, col.g, col.b))) or
-                "ffffffff"
+    local _, _, _, hex = sfui.colors.get_class_color(className)
 
     if not isCamelotNames and realm and realm ~= "" and myRealm and myRealm ~= "" then
-        local normRealm = realm:gsub("[%s%-']", ""):lower()
-        local normMyRealm = myRealm:gsub("[%s%-']", ""):lower()
+        local normRealm = sfui.common.normalize_realm(realm)
+        local normMyRealm = sfui.common.normalize_realm(myRealm)
         if normRealm ~= "" and normMyRealm ~= "" and normRealm ~= normMyRealm then
             displayName = string.format("%s-%s", displayName, realm)
         end
     end
 
     local formatted = string.format("|c%s%s|r", hex, displayName)
-    formattedNameCache[cacheKey] = formatted
+    CachePut(formattedNameCache, cacheKey, formatted, 500)
     return formatted
 end
 
@@ -621,7 +640,7 @@ local function ExtractRecipeRequirement(itemID, itemLink, subclassID)
     end
 
     if reqProf or itemLink then
-        recipeReqCache[itemID] = { prof = reqProf, rank = reqRank }
+        CachePut(recipeReqCache, itemID, { prof = reqProf, rank = reqRank }, 1000)
     end
 
     return reqProf, reqRank
@@ -764,7 +783,7 @@ local function GetRecipeStatus(itemID)
         if myRealm and myGUID then
             RecordKnownRecipeForChar(itemID, myGUID, myRealm)
         end
-        recipeStatusCache[itemID] = "KNOWN_CURRENT"
+        CachePut(recipeStatusCache, itemID, "KNOWN_CURRENT", 1000)
         return "KNOWN_CURRENT", STATUS_COLORS.KNOWN_CURRENT
     end
 
@@ -782,7 +801,7 @@ local function GetRecipeStatus(itemID)
     end
 
     if isKnownAlt then
-        recipeStatusCache[itemID] = "KNOWN_ALT"
+        CachePut(recipeStatusCache, itemID, "KNOWN_ALT", 1000)
         return "KNOWN_ALT", STATUS_COLORS.KNOWN_ALT
     end
 
@@ -808,7 +827,7 @@ local function GetRecipeStatus(itemID)
     if SfuiDB.alts and myGUID and SfuiDB.alts[myGUID] then
         local hasProf, meetsRank = CheckAltEligibility(SfuiDB.alts[myGUID], reqProf, reqRank, subclassID, skillID)
         if hasProf and meetsRank then
-            recipeStatusCache[itemID] = "CAN_LEARN_CURRENT"
+            CachePut(recipeStatusCache, itemID, "CAN_LEARN_CURRENT", 1000)
             return "CAN_LEARN_CURRENT", STATUS_COLORS.CAN_LEARN_CURRENT
         end
     end
@@ -828,11 +847,11 @@ local function GetRecipeStatus(itemID)
     end
 
     if altCanLearn then
-        recipeStatusCache[itemID] = "CAN_LEARN_ALT"
+        CachePut(recipeStatusCache, itemID, "CAN_LEARN_ALT", 1000)
         return "CAN_LEARN_ALT", STATUS_COLORS.CAN_LEARN_ALT
     end
 
-    recipeStatusCache[itemID] = "UNLEARNABLE"
+    CachePut(recipeStatusCache, itemID, "UNLEARNABLE", 1000)
     return "UNLEARNABLE", STATUS_COLORS.UNLEARNABLE
 end
 
@@ -979,17 +998,17 @@ local function ScanCurrentTradeSkills(force)
                             local outData = C_TradeSkillUI.GetRecipeOutputItemData(recipeID)
                             outItemID = outData and outData.itemID
                             if not outItemID and outData and outData.hyperlink then
-                                outItemID = tonumber(outData.hyperlink:match("item:(%d+)"))
+                                outItemID = sfui.items.get_item_id(outData.hyperlink)
                             end
                         end
                         if not outItemID and C_TradeSkillUI.GetRecipeItemLink then
                             local link = C_TradeSkillUI.GetRecipeItemLink(recipeID)
                             if link then
-                                outItemID = tonumber(link:match("item:(%d+)"))
+                                outItemID = sfui.items.get_item_id(link)
                             end
                         end
                         if outItemID then
-                            recipeOutputCache[recipeID] = outItemID
+                            CachePut(recipeOutputCache, recipeID, outItemID, 1500)
                         end
                     end
                     if outItemID then
@@ -1038,7 +1057,7 @@ local function ScanCurrentTradeSkills(force)
 
                 local link = _G.GetTradeSkillItemLink(i)
                 if link then
-                    local itemID = tonumber(link:match("item:(%d+)"))
+                    local itemID = link:find("item:", 1, true) and sfui.items.get_item_id(link) or nil
                     if itemID then
                         SfuiDB.crafts[itemID] = SfuiDB.crafts[itemID] or {}
                         if not SfuiDB.crafts[itemID][myGUID] then
@@ -1081,7 +1100,7 @@ local function ScanCurrentTradeSkills(force)
                     if sID then
                         RecordKnownRecipe(sID)
                     end
-                    local itemID = tonumber(link:match("item:(%d+)"))
+                    local itemID = link:find("item:", 1, true) and sfui.items.get_item_id(link) or nil
                     if itemID then
                         SfuiDB.crafts[itemID] = SfuiDB.crafts[itemID] or {}
                         if not SfuiDB.crafts[itemID][myGUID] then
@@ -1503,7 +1522,7 @@ local function SetItemTooltip(tooltip, ctxOrData)
     if not itemID and tooltip.GetItem then
         local _, link = tooltip:GetItem()
         if link then
-            itemID = tonumber(link:match("item:(%d+)"))
+            itemID = sfui.items.get_item_id(link)
         end
     end
 
@@ -1525,22 +1544,8 @@ local function SetItemTooltip(tooltip, ctxOrData)
     end
 end
 
--- ── Tooltip Registration (Unified Pipeline & Legacy Fallback) ─────────────────
-if sfui.tooltips and sfui.tooltips.RegisterItemProvider then
-    sfui.tooltips.RegisterItemProvider("alt_inventory", 50, SetItemTooltip)
-elseif TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType and Enum.TooltipDataType.Item then
-    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, SetItemTooltip)
-else
-    if _G.GameTooltip then
-        _G.GameTooltip:HookScript("OnTooltipSetItem", SetItemTooltip)
-    end
-    if sfui.tooltip and sfui.tooltip ~= _G.GameTooltip then
-        sfui.tooltip:HookScript("OnTooltipSetItem", SetItemTooltip)
-    end
-    if ItemRefTooltip then
-        ItemRefTooltip:HookScript("OnTooltipSetItem", SetItemTooltip)
-    end
-end
+-- ── Tooltip Registration (Unified Pipeline) ──────────────────────────────────
+sfui.tooltips.RegisterItemProvider("alt_inventory", 50, SetItemTooltip)
 
 -- ── Bag & Merchant Icon Tinting ───────────────────────────────────────────────
 local function UpdateBagItemButton(button)
@@ -1554,9 +1559,7 @@ local function UpdateBagItemButton(button)
         itemID = C_Container.GetContainerItemID(bagID, slotID)
     else
         local link = _G.GetContainerItemLink and _G.GetContainerItemLink(bagID, slotID)
-        if link then
-            itemID = tonumber(link:match("item:(%d+)"))
-        end
+        itemID = sfui.items.get_item_id(link)
     end
 
     if not itemID then return end
@@ -1608,7 +1611,7 @@ local function HookContainerButtons()
                 if index <= numItems then
                     local link = _G.GetMerchantItemLink and _G.GetMerchantItemLink(index)
                     if link then
-                        local itemID = tonumber(link:match("item:(%d+)"))
+                        local itemID = link:find("item:", 1, true) and sfui.items.get_item_id(link) or nil
                         if IsRecipe(itemID) then
                             local _, color = GetRecipeStatus(itemID)
                             local btn = _G["MerchantItem" .. i .. "ItemButton"]

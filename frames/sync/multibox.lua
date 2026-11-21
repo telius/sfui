@@ -55,13 +55,7 @@ local issecretvalue = sfui.common.issecretvalue
 local GetSubZoneText = _G.GetSubZoneText
 local GetZoneText = _G.GetZoneText
 
-local function is_secret(v)
-    if v == nil then return false end
-    if issecretvalue and issecretvalue(v) then return true end
-    if _G.issecretvalue and _G.issecretvalue(v) then return true end
-    if sfui.common and sfui.common.issecretvalue and sfui.common.issecretvalue(v) then return true end
-    return false
-end
+local is_secret = sfui.safety.issecretvalue
 
 local function is_unit_identity_secret(u)
     if not u then return false end
@@ -513,7 +507,7 @@ end
 local isCurrentlyFollowing = false
 local lastFollowedName     = nil
 local followStartTimer     = nil
-local followBrokenTicker   = nil
+local followBrokenActive   = false
 local lastFollowLostSent   = 0
 local lastCombatEndTime    = 0
 local lastGraceTime        = 0
@@ -582,10 +576,12 @@ local function cancel_follow_timers()
         followStartTimer:Cancel()
     end
     followStartTimer = nil
-    if followBrokenTicker and followBrokenTicker.Cancel then
-        followBrokenTicker:Cancel()
+    if followBrokenActive then
+        if sfui.events and sfui.events.UnregisterUpdate then
+            sfui.events.UnregisterUpdate("SfuiMultiboxFollowBroken")
+        end
+        followBrokenActive = false
     end
-    followBrokenTicker = nil
 end
 
 local function ensure_follow_hook()
@@ -650,8 +646,11 @@ local function on_autofollow_end()
         return
     end
 
-    if C_Timer and C_Timer.NewTicker then
-        followBrokenTicker = C_Timer.NewTicker(1.0, function()
+    if sfui.events and sfui.events.RegisterUpdate then
+        local ticks = 0
+        followBrokenActive = true
+        sfui.events.RegisterUpdate("SfuiMultiboxFollowBroken", 1.0, function()
+            ticks = ticks + 1
             if isCurrentlyFollowing then
                 cancel_follow_timers()
                 return
@@ -661,16 +660,19 @@ local function on_autofollow_end()
                 cancel_follow_timers()
                 return
             end
-            if should_suppress_follow_alert(u, uName) then
-                return
+            if not should_suppress_follow_alert(u, uName) then
+                local outOfRange = (CheckInteractDistance and not CheckInteractDistance(u, 4))
+                    or (UnitIsVisible and not UnitIsVisible(u))
+                if outOfRange then
+                    cancel_follow_timers()
+                    send_follow_lost_alert("stopped", uName or lastFollowedName)
+                    return
+                end
             end
-            local outOfRange = (CheckInteractDistance and not CheckInteractDistance(u, 4))
-                or (UnitIsVisible and not UnitIsVisible(u))
-            if outOfRange then
+            if ticks >= 10 then
                 cancel_follow_timers()
-                send_follow_lost_alert("stopped", uName or lastFollowedName)
             end
-        end, 10)
+        end)
     end
 end
 
@@ -928,7 +930,7 @@ local function on_start_loot_roll(_, rollID)
     if sync.IsLead() then return end
 
     local link = _G.GetLootRollItemLink and _G.GetLootRollItemLink(rollID)
-    local itemID = link and tonumber(string_match(link, "item:(%d+)"))
+    local itemID = sfui.items.get_item_id(link)
     if itemID and sfui.dungeonjournal and sfui.dungeonjournal.IsWishlisted and sfui.dungeonjournal.IsWishlisted(itemID) then
         if sfui.common and sfui.common.print then
             sfui.common.print("sync: keeping loot roll open for wishlisted item " .. (link or ("#" .. itemID)) .. ".")
@@ -944,7 +946,7 @@ local pendingCorpseReminders = {} -- [itemName] = { char1, char2, ... }
 
 local function strip_objective_counts(text)
     if type(text) ~= "string" then return nil end
-    local clean = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    local clean = sfui.common.strip_colors(text)
     local have, need = clean:match("(%d+)%s*/%s*(%d+)")
     if not have or not need then return nil, nil, nil end
     local itemName = clean:gsub("%s*:?%s*%d+%s*/%s*%d+%s*", "", 1):gsub("^[%s%-]+", ""):gsub("%s+$", "")
@@ -992,7 +994,7 @@ local function scan_tooltip_lines_for_quest_item(lines, targetItemLower, byName,
         if is_secret(raw) or is_secret(ltype) then
             -- Safely ignore secret strings / secret line types from Blizzard engine
         elseif type(raw) == "string" then
-            local clean = raw:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", "")
+            local clean = sfui.common.strip_colors(raw, true)
             local cleanLower = string_lower(clean)
             local itemName, have, need = strip_objective_counts(clean)
             if LINE_TYPE and ltype == LINE_TYPE.QuestTitle then

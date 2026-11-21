@@ -61,6 +61,8 @@ local _staticActiveEntries = {}
 local _staticActiveIcons = {}
 local _watchlistScratch = {}
 local _activeGlowCount = 0
+local _activeGlowingIcons = {}
+local _inCombat = (InCombatLockdown and InCombatLockdown()) and true or false
 
 local _iconConfigCache = setmetatable({}, { __mode = "k" })
 function sfui.trackedicons.InvalidateConfigCache()
@@ -148,6 +150,7 @@ local function StopGlow(icon)
             _activeGlowCount = _activeGlowCount - 1
         end
     end
+    _activeGlowingIcons[icon] = nil
     sfui.glows.stop_glow(icon)
     icon._lastGlowCfg = nil
     icon._lastGlowType = nil
@@ -162,6 +165,7 @@ local function StartGlow(icon, cfg)
     if not icon._glowActive then
         return
     end
+    _activeGlowingIcons[icon] = true
     if not wasActive then
         _activeGlowCount = _activeGlowCount + 1
     end
@@ -219,6 +223,7 @@ end
 -- Helper to update icon state (visibility, aura override, cooldown, charges, visuals, glows)
 local function UpdateIconState(icon, panelConfig, event)
     if not icon.id or not icon.entry then return false end
+    icon._panelConfig = panelConfig
 
     local desc = entryHelper.CompileDescriptor(icon, panelConfig, GetIconValue, sfui.trackedicons.GetIconTexture)
     local entrySettings = desc.settings
@@ -237,7 +242,7 @@ local function UpdateIconState(icon, panelConfig, event)
 
     if not forceShow then
         local hideOOC = GetIconValue(nil, panelConfig, "hideOOC", false)
-        local inCombat = is_in_combat(event)
+        local inCombat = (event == "PLAYER_REGEN_DISABLED") or (event ~= "PLAYER_REGEN_ENABLED" and _inCombat)
         local isStealthPanelActive = (panelConfig and panelConfig.requiredForm == "stealth") and IsStealthed()
         if hideOOC and not inCombat and not isStealthPanelActive then
             if icon:IsShown() then icon:Hide() end
@@ -742,7 +747,7 @@ local function CheckPanelVisibility(panelConfig, event)
     end
 
     local isStealthed = IsStealthed()
-    local inCombat = is_in_combat(event)
+    local inCombat = (event == "PLAYER_REGEN_DISABLED") or (event ~= "PLAYER_REGEN_ENABLED" and _inCombat)
     local isStealthPanelActive = (panelConfig.requiredForm == "stealth" and isStealthed)
     if not isStealthPanelActive and GetIconValue(nil, panelConfig, "hideOOC", false) and not inCombat then return false end
 
@@ -1584,15 +1589,13 @@ function sfui.trackedicons.initialize()
         end
     end
 
-    local _lastCombatState = nil
-
     sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        _lastCombatState = false
+        _inCombat = false
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_ENABLED")
         MarkDirty(false)
     end)
     sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-        _lastCombatState = true
+        _inCombat = true
         sfui.trackedicons.OnVisibilityEvent(nil, "PLAYER_REGEN_DISABLED")
         MarkDirty(false)
     end)
@@ -1639,6 +1642,7 @@ function sfui.trackedicons.initialize()
     end)
 
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        _inCombat = (InCombatLockdown and InCombatLockdown()) and true or false
         sfui.common.ensure_panels_initialized()
         sfui.trackedicons.Update()
     end)
@@ -1703,6 +1707,9 @@ function sfui.trackedicons.initialize()
     end)
 
     local function OnIconAssetLoaded()
+        if entryHelper and entryHelper.HasAnyColdIcon and not entryHelper.HasAnyColdIcon() then
+            return
+        end
         local hasColdIcon = false
         for _, panel in pairs(panels) do
             if panel.icons then
@@ -1722,6 +1729,8 @@ function sfui.trackedicons.initialize()
         if hasColdIcon then
             entryHelper.BumpConfigRevision()
             _needsStateUpdate = true
+        elseif entryHelper and entryHelper.ClearAnyColdIcon then
+            entryHelper.ClearAnyColdIcon()
         end
     end
     sfui.events.RegisterEvent("SPELL_UPDATE_ICON", OnIconAssetLoaded)
@@ -1752,15 +1761,6 @@ function sfui.trackedicons.initialize()
     -- OnUpdate: only process when dirty (zero CPU/allocations when idle)
     local _lastStateUpdateTime = 0
     local function _OnTrackedIconsUpdate(elapsed)
-        local inCombat = is_in_combat()
-        if _lastCombatState == nil then
-            _lastCombatState = inCombat
-        elseif _lastCombatState ~= inCombat then
-            _lastCombatState = inCombat
-            sfui.trackedicons.OnVisibilityEvent(nil, inCombat and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED")
-            MarkDirty(false)
-        end
-
         if _layoutCooldown > 0 then
             _layoutCooldown = _layoutCooldown - elapsed
         end
@@ -1773,28 +1773,28 @@ function sfui.trackedicons.initialize()
             sfui.trackedicons.Update()
         elseif _needsStateUpdate then
             local now = GetTime()
-            if not is_in_combat() or (now - _lastStateUpdateTime) >= 0.20 then
+            if not _inCombat or (now - _lastStateUpdateTime) >= 0.20 then
                 _lastStateUpdateTime = now
                 _needsStateUpdate = false
                 UpdateAllIconStates()
             end
         elseif _activeGlowCount > 0 then
-            for _, panel in pairs(panels) do
-                if panel:IsShown() and panel.icons and panel.config then
-                    for _, icon in pairs(panel.icons) do
-                        if icon._glowActive then
-                            iconCooldown.UpdateGlow(
-                                icon,
-                                icon.entry and icon.entry.settings,
-                                panel.config,
-                                GetIconValue,
-                                true,
-                                icon._missingGlow == true,
-                                StartGlow,
-                                StopGlow
-                            )
-                        end
-                    end
+            for icon in pairs(_activeGlowingIcons) do
+                local p = icon.GetParent and icon:GetParent()
+                local panelCfg = icon._panelConfig or (p and p.config)
+                if icon._glowActive and icon:IsShown() and panelCfg and (not p or p:IsShown()) then
+                    iconCooldown.UpdateGlow(
+                        icon,
+                        icon.entry and icon.entry.settings,
+                        panelCfg,
+                        GetIconValue,
+                        true,
+                        icon._missingGlow == true,
+                        StartGlow,
+                        StopGlow
+                    )
+                else
+                    _activeGlowingIcons[icon] = nil
                 end
             end
         end

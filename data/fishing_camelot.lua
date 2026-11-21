@@ -507,91 +507,6 @@ D.ZONE_NAME_TO_ID = {
     ["teldrassil"] = 1438,
     ["temple of ahn'qiraj"] = 103428,
     ["temple of atal'hakkar"] = 101477,
-    ["the alcaz prison"] = 116620,
-    ["the alterac mountains"] = 1416,
-    ["the alterac valley"] = 1459,
-    ["the arathi highlands"] = 1417,
-    ["the ashenvale"] = 1440,
-    ["the azshara"] = 1447,
-    ["the badlands"] = 1418,
-    ["the barrens"] = 1413,
-    ["the blackfathom deeps"] = 100719,
-    ["the blackmaw hold"] = 116554,
-    ["the blackrock depths"] = 101584,
-    ["the blackrock spire"] = 101583,
-    ["the blackwing lair"] = 102677,
-    ["the blasted lands"] = 1419,
-    ["the burning steppes"] = 1428,
-    ["the city of dalaran"] = 116544,
-    ["the darkshore"] = 1439,
-    ["the darnassus"] = 1457,
-    ["the deadmines"] = 101581,
-    ["the deadwind pass"] = 1430,
-    ["the desolace"] = 1443,
-    ["the dire maul"] = 102557,
-    ["the drowned city"] = 116550,
-    ["the dun morogh"] = 1426,
-    ["the durotar"] = 1411,
-    ["the duskwood"] = 1431,
-    ["the dustwallow marsh"] = 1445,
-    ["the eastern plaguelands"] = 1423,
-    ["the elwynn forest"] = 1429,
-    ["the excavation site: wetlands"] = 116732,
-    ["the felwood"] = 1448,
-    ["the feralas"] = 1444,
-    ["the gnomeregan"] = 100721,
-    ["the hall of thanes"] = 116919,
-    ["the hillsbrad foothills"] = 1424,
-    ["the hinterlands"] = 1425,
-    ["the ironforge"] = 1455,
-    ["the krol'dok stronghold"] = 116842,
-    ["the loch modan"] = 1432,
-    ["the maraudon"] = 102100,
-    ["the molten core"] = 102717,
-    ["the moonglade"] = 1450,
-    ["the mount hyjal"] = 2482,
-    ["the mulgore"] = 1412,
-    ["the naxxramas"] = 103456,
-    ["the orgrimmar"] = 1454,
-    ["the ragefire chasm"] = 102437,
-    ["the razorfen downs"] = 100722,
-    ["the razorfen kraul"] = 100491,
-    ["the redridge mountains"] = 1433,
-    ["the riverglades"] = 2548,
-    ["the ruins of ahn'qiraj"] = 103429,
-    ["the ruins of lordaeron"] = 116611,
-    ["the scarlet monastery"] = 100796,
-    ["the scholomance"] = 102057,
-    ["the searing gorge"] = 1427,
-    ["the shadowfang keep"] = 100209,
-    ["the shen'dralas"] = 2652,
-    ["the silithus"] = 1451,
-    ["the silverpine forest"] = 1421,
-    ["the stockade"] = 100717,
-    ["the stonetalon mountains"] = 1442,
-    ["the stormwind city"] = 1453,
-    ["the stranglethorn vale"] = 1434,
-    ["the stratholme"] = 102017,
-    ["the sunken temple"] = 101477,
-    ["the swamp of sorrows"] = 1435,
-    ["the tanaris"] = 1446,
-    ["the teldrassil"] = 1438,
-    ["the temple of ahn'qiraj"] = 103428,
-    ["the temple of atal'hakkar"] = 101477,
-    ["the thousand needles"] = 1441,
-    ["the thunder bluff"] = 1456,
-    ["the tirisfal glades"] = 1420,
-    ["the uldaman"] = 101337,
-    ["the un'goro crater"] = 1449,
-    ["the undercity"] = 1458,
-    ["the wailing caverns"] = 100718,
-    ["the western plaguelands"] = 1422,
-    ["the westfall"] = 1436,
-    ["the wetlands"] = 1437,
-    ["the winterspring"] = 1452,
-    ["the zephras isle"] = 2521,
-    ["the zul'farrak"] = 101176,
-    ["the zul'gurub"] = 101977,
     ["thousand needles"] = 1441,
     ["thunder bluff"] = 1456,
     ["tirisfal glades"] = 1420,
@@ -781,8 +696,23 @@ local function BuildSpeciesCatalog()
     return speciesCatalog
 end
 
+local sortedSpeciesCache = nil
+local watersCache = nil
+local watersCacheRef = nil
+local watersCacheExtraCount = -1
+local watersCacheExtraSig = -1
+
+function D.InvalidateWatersCache()
+    watersCache = nil
+    watersCacheRef = nil
+    watersCacheExtraCount = -1
+    watersCacheExtraSig = -1
+end
+
 function D.InvalidateSpeciesCatalog()
     speciesCatalog = nil
+    sortedSpeciesCache = nil
+    D.InvalidateWatersCache()
 end
 
 -- ─── 5. Public Query API ─────────────────────────────────────────────────────
@@ -1013,23 +943,68 @@ function D.GetAllSpecies()
     return BuildSpeciesCatalog()
 end
 
+local function compareSpecies(a, b)
+    if a.minSkill ~= b.minSkill then return a.minSkill < b.minSkill end
+    return a.itemID < b.itemID
+end
+
+--- Returns cached sorted array of all cataloged species ordered by minSkill then itemID
+--- @return table
+function D.GetSortedSpecies()
+    local catalog = BuildSpeciesCatalog()
+    if sortedSpeciesCache then
+        return sortedSpeciesCache
+    end
+    local list = {}
+    if catalog then
+        for _, item in pairs(catalog) do
+            list[#list + 1] = item
+        end
+        table_sort(list, compareSpecies)
+    end
+    sortedSpeciesCache = list
+    return sortedSpeciesCache
+end
+
+local function compareWaters(a, b)
+    if a.reqSkill ~= b.reqSkill then
+        return a.reqSkill < b.reqSkill
+    end
+    return a.mapID < b.mapID
+end
+
 --- Returns all known fishing zones with their requirement and continent
 --- @return table array of { mapID, reqSkill, continent, sub }
 function D.GetAllWaters()
+    local savedZones = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.zones
+    local extraCount, extraSig = 0, 0
+    if type(savedZones) == "table" then
+        for mKey, zData in pairs(savedZones) do
+            local mID = tonumber(mKey)
+            if mID and mID > 0 and not D.ZONE_SKILL[mID] and type(zData) == "table" and (zData.catches or 0) > 0 then
+                extraCount = extraCount + 1
+                extraSig = extraSig + mID
+            end
+        end
+    end
+
+    if watersCache and watersCacheRef == savedZones
+        and watersCacheExtraCount == extraCount and watersCacheExtraSig == extraSig then
+        return watersCache
+    end
+
     local waters = {}
     local seen = {}
     for mapID, req in pairs(D.ZONE_SKILL) do
         seen[mapID] = true
-        local contKey = D.GetZoneContinent(mapID)
         waters[#waters + 1] = {
             mapID = mapID,
             reqSkill = req,
-            continent = contKey,
+            continent = D.GetZoneContinent(mapID),
             sub = D.ZONE_SKILL_PARTS[mapID],
         }
     end
-    local savedZones = _G.SfuiDB and _G.SfuiDB.fishing and _G.SfuiDB.fishing.zones
-    if type(savedZones) == "table" then
+    if type(savedZones) == "table" and extraCount > 0 then
         for mKey, zData in pairs(savedZones) do
             local mID = tonumber(mKey)
             if mID and mID > 0 and not seen[mID] and type(zData) == "table" and (zData.catches or 0) > 0 then
@@ -1042,12 +1017,11 @@ function D.GetAllWaters()
             end
         end
     end
-    table_sort(waters, function(a, b)
-        if a.reqSkill ~= b.reqSkill then
-            return a.reqSkill < b.reqSkill
-        end
-        return a.mapID < b.mapID
-    end)
+    table_sort(waters, compareWaters)
+    watersCache = waters
+    watersCacheRef = savedZones
+    watersCacheExtraCount = extraCount
+    watersCacheExtraSig = extraSig
     return waters
 end
 

@@ -483,7 +483,7 @@ function style.SkinButton(button)
         or (_G.NumberFontNormalSmallGray and _G.NumberFontNormalSmallGray:GetFont())
         or (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
         or "Fonts\\ARIALN.TTF"
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
     local modCfg = (sfui.db and sfui.db.Get and sfui.db.Get("actionbars")) or (sfui.config and sfui.config.actionbars) or {}
     local hotkeySize = modCfg.hotkeyFontSize or 10
 
@@ -636,7 +636,7 @@ function style.UpdateElements(button, cfg)
         or (_G.NumberFontNormalSmallGray and _G.NumberFontNormalSmallGray:GetFont())
         or (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
         or "Fonts\\ARIALN.TTF"
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file()) or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
     local hotkeySize = cfg.hotkeyFontSize or 10
 
     if button.HotKey then

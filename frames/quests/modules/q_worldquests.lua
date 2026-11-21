@@ -31,19 +31,58 @@ local GetQLState = sfui.questlog.GetState
 
 local function FormatTimeLeft(minutes)
     if not minutes or minutes <= 0 then return nil end
-    if minutes >= 1440 then
-        return string_format("%dd", math_floor(minutes / 1440))
-    elseif minutes >= 60 then
-        return string_format("%dh", math_floor(minutes / 60))
-    else
-        return string_format("%dm", minutes)
-    end
+    return sfui.common.format_duration(minutes * 60, "short")
 end
 
 local lastWQProgress = {}
 local initialWQScanDone = false
 
 local TryInsertQuestLink = QuestCommon.TryInsertQuestLink
+
+local function WorldQuest_OnClick(block, btn)
+    local b = block and block._bData
+    if not b then return end
+    local questID = b.questID
+    if not questID then return end
+
+    -- Shift-Click: Untrack or Insert Link into Chat
+    if IsShiftKeyDown and IsShiftKeyDown() then
+        if InCombatLockdown and InCombatLockdown() then return end
+        if TryInsertQuestLink(questID, nil, b.rawTitle) then
+            return
+        end
+        if QuestCommon and QuestCommon.UntrackQuest then
+            QuestCommon.UntrackQuest(questID)
+        else
+            if C_QuestLog and C_QuestLog.RemoveWorldQuestWatch then
+                C_QuestLog.RemoveWorldQuestWatch(questID)
+            end
+            if C_QuestLog and C_QuestLog.RemoveQuestWatch then
+                C_QuestLog.RemoveQuestWatch(questID)
+            end
+        end
+        sfui.tracker.RequestRefresh(0.05)
+        return
+    end
+
+    -- Right-Click: Toggle Objectives Collapse/Expand
+    if btn == "RightButton" then
+        local st = GetQLState()
+        st.expandedBlocks = st.expandedBlocks or {}
+        if b._expandKey then
+            st.expandedBlocks[b._expandKey] = not b.isExpanded
+        end
+        sfui.tracker.RequestRefresh(0.01)
+        return
+    end
+
+    -- Left-Click: Open details or map
+    if sfui.map and sfui.map.OpenToQuest then
+        sfui.map.OpenToQuest(questID, nil, true)
+    elseif sfui.map and sfui.map.ToggleWorldMap then
+        sfui.map.ToggleWorldMap()
+    end
+end
 
 local WorldQuestsModule = {
     id       = "worldquests",
@@ -202,45 +241,10 @@ function WorldQuestsModule:BuildBlocks(container)
                 timeLeftText   = timeStr,
                 canFindGroup   = canFindGroup,
                 isExpanded     = isExpanded,
+                _expandKey     = expandKey,
                 lines          = lines,
                 progressBar    = progressBar,
-                OnClick        = function(block, btn)
-                    -- Shift-Click: Untrack or Insert Link into Chat
-                    if IsShiftKeyDown and IsShiftKeyDown() then
-                        if InCombatLockdown and InCombatLockdown() then return end
-                        if TryInsertQuestLink(questID, nil, title) then
-                            return
-                        end
-                        if QuestCommon and QuestCommon.UntrackQuest then
-                            QuestCommon.UntrackQuest(questID)
-                        else
-                            if C_QuestLog and C_QuestLog.RemoveWorldQuestWatch then
-                                C_QuestLog.RemoveWorldQuestWatch(questID)
-                            end
-                            if C_QuestLog and C_QuestLog.RemoveQuestWatch then
-                                C_QuestLog.RemoveQuestWatch(questID)
-                            end
-                        end
-                        sfui.tracker.RequestRefresh(0.05)
-                        return
-                    end
-
-                    -- Right-Click: Toggle Objectives Collapse/Expand
-                    if btn == "RightButton" then
-                        local st = GetQLState()
-                        st.expandedBlocks = st.expandedBlocks or {}
-                        st.expandedBlocks[expandKey] = not isExpanded
-                        sfui.tracker.RequestRefresh(0.01)
-                        return
-                    end
-
-                    -- Left-Click: Open details or map
-                    if sfui.map and sfui.map.OpenToQuest then
-                        sfui.map.OpenToQuest(questID, nil, true)
-                    elseif sfui.map and sfui.map.ToggleWorldMap then
-                        sfui.map.ToggleWorldMap()
-                    end
-                end,
+                OnClick        = WorldQuest_OnClick,
             })
         end
     end

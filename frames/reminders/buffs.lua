@@ -114,7 +114,7 @@ local function CreateBuffIcon(index, parent)
     if _G.NumberFontNormalSmall then
         durationText:SetFontObject(_G.NumberFontNormalSmall)
     else
-        durationText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+        durationText:SetFont(sfui.common.get_font_file(), 11, "OUTLINE")
     end
     durationText:SetDrawLayer("OVERLAY", 7)
     durationText:SetPoint("BOTTOM", btn, "BOTTOM", 0, 1)
@@ -128,7 +128,7 @@ local function CreateBuffIcon(index, parent)
     if _G.NumberFontNormalSmall then
         countText:SetFontObject(_G.NumberFontNormalSmall)
     else
-        countText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        countText:SetFont(sfui.common.get_font_file(), 10, "OUTLINE")
     end
     countText:SetDrawLayer("OVERLAY", 7)
     countText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -1, -1)
@@ -142,7 +142,7 @@ local function CreateBuffIcon(index, parent)
     if _G.NumberFontNormalSmall then
         targetText:SetFontObject(_G.NumberFontNormalSmall)
     else
-        targetText:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
+        targetText:SetFont(sfui.common.get_font_file(), 9, "OUTLINE")
     end
     targetText:SetDrawLayer("OVERLAY", 7)
     targetText:SetPoint("TOP", btn, "TOP", 0, -2)
@@ -332,11 +332,19 @@ local function CountdownTick()
                     icon._lastDurationText = formatted
                     icon.durationText:SetText(formatted)
                 end
-                icon.durationText:Show()
+                if not icon._lastDurShown then
+                    icon._lastDurShown = true
+                    icon.durationText:Show()
+                end
             else
-                icon._lastDurationText = nil
-                icon.durationText:SetText("")
-                icon.durationText:Hide()
+                if icon._lastDurationText ~= "" then
+                    icon._lastDurationText = ""
+                    icon.durationText:SetText("")
+                end
+                if icon._lastDurShown ~= false then
+                    icon._lastDurShown = false
+                    icon.durationText:Hide()
+                end
                 if sfui.buffs.scan and sfui.buffs.scan.RequestScan then
                     sfui.buffs.scan.RequestScan()
                 end
@@ -568,8 +576,14 @@ function sfui.buffs.UpdateDisplay()
                 icon._lastDurationText = ""
                 icon.durationText:SetText("")
             end
-            icon.durationText:Hide()
-            icon:SetAlpha(1.0)
+            if icon._lastDurShown ~= false then
+                icon._lastDurShown = false
+                icon.durationText:Hide()
+            end
+            if icon._lastAlpha ~= 1.0 then
+                icon._lastAlpha = 1.0
+                icon:SetAlpha(1.0)
+            end
         elseif rec.isExpiring then
             if icon._lastStatus ~= "expiring" then
                 icon._lastStatus = "expiring"
@@ -585,15 +599,24 @@ function sfui.buffs.UpdateDisplay()
                     icon._lastDurationText = formatted
                     icon.durationText:SetText(formatted)
                 end
-                icon.durationText:Show()
+                if not icon._lastDurShown then
+                    icon._lastDurShown = true
+                    icon.durationText:Show()
+                end
             else
                 if icon._lastDurationText ~= "" then
                     icon._lastDurationText = ""
                     icon.durationText:SetText("")
                 end
-                icon.durationText:Hide()
+                if icon._lastDurShown ~= false then
+                    icon._lastDurShown = false
+                    icon.durationText:Hide()
+                end
             end
-            icon:SetAlpha(1.0)
+            if icon._lastAlpha ~= 1.0 then
+                icon._lastAlpha = 1.0
+                icon:SetAlpha(1.0)
+            end
         else
             if icon._lastStatus ~= "active" then
                 icon._lastStatus = "active"
@@ -605,8 +628,14 @@ function sfui.buffs.UpdateDisplay()
                 icon._lastDurationText = ""
                 icon.durationText:SetText("")
             end
-            icon.durationText:Hide()
-            icon:SetAlpha(1.0)
+            if icon._lastDurShown ~= false then
+                icon._lastDurShown = false
+                icon.durationText:Hide()
+            end
+            if icon._lastAlpha ~= 1.0 then
+                icon._lastAlpha = 1.0
+                icon:SetAlpha(1.0)
+            end
         end
 
         -- Charges / stack count (cached to avoid redundant SetText)
@@ -652,6 +681,7 @@ function sfui.buffs.UpdateDisplay()
             end
             icon:Show()
         else
+            icon._lastAlpha = 1.0
             icon:SetAlpha(1.0)
         end
     end
@@ -662,6 +692,7 @@ function sfui.buffs.UpdateDisplay()
             iconPool[i]:Hide()
             ApplyIconSecureAction(iconPool[i], nil, nil, nil, nil)
         else
+            iconPool[i]._lastAlpha = 0
             iconPool[i]:SetAlpha(0)
             iconPool[i]:EnableMouse(false)
         end

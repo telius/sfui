@@ -1,0 +1,10 @@
+## Interface: 120105, 16001, 11509
+## Title: |cff6600ffsf|rui dungeon maps
+## Author: teli
+## Version: v1.152
+## Notes: on-demand custom dungeon maps and classic map patches for sfui.
+## Dependencies: sfui
+## Group: sfui
+## LoadOnDemand: 1
+## IconTexture: Interface/AddOns/sfui/icon.png
+data/dungeon_maps_camelot.lua [AllowLoadGameType camelot, classic]

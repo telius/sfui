@@ -2067,7 +2067,7 @@ function sfui.theme.ApplyHeaderStyle(header, titleText)
 
     if not header.title then
         local title = header:CreateFontString(nil, "OVERLAY", sfui.config and sfui.config.font or "GameFontHighlight")
-        local fontPath = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+        local fontPath = sfui.common.get_font_file()
         title:SetFont(fontPath, 12, "")
         title:SetPoint("LEFT", header, "LEFT", 8, 0)
         title:SetJustifyH("LEFT")
@@ -2482,7 +2482,7 @@ function sfui.theme.ApplyCloseButtonStyle(btn)
         if (not fs or not fs.SetTextColor) and btn.CreateFontString then
             fs = btn:CreateFontString(nil, "OVERLAY", (sfui.config and sfui.config.font) or "GameFontNormal")
             fs:SetPoint("CENTER", 0, 0)
-            local fontFile = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+            local fontFile = sfui.common.get_font_file()
             local _, h = btn:GetSize()
             fs:SetFont(fontFile, math.max(10, math.floor((h or 22) * 0.5)), "")
             if btn.SetFontString then btn:SetFontString(fs) end

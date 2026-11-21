@@ -64,6 +64,7 @@ local marks            = {}
 local eventsWired      = false
 local moverRegistered  = false
 local tickRegistered   = false
+local externalDrive    = false
 local inEditMode       = false
 local themeApplied     = false
 local lastFacing       = nil
@@ -244,7 +245,7 @@ local function ensure_frames()
     stripFrame:SetClipsChildren(true)
     stripFrame:EnableMouse(false)
 
-    local fontPath = (sfui.config and sfui.config.fontFile) or "Fonts\\FRIZQT__.TTF"
+    local fontPath = sfui.common.get_font_file()
     for idx = 0, 15 do
         local deg = idx * 22.5
         local label = CARDINAL_LABELS[deg]
@@ -354,9 +355,12 @@ function compass:UpdatePosition()
     end
 end
 
-local function update_compass(force)
+local function update_compass(force, extFacing)
     if not stripFrame then return end
-    local f = GetPlayerFacing and GetPlayerFacing()
+    local f = extFacing
+    if f == nil then
+        f = GetPlayerFacing and GetPlayerFacing()
+    end
     if f == nil or is_secret(f) or type(f) ~= "number" then
         return
     end
@@ -398,13 +402,14 @@ local function update_compass(force)
 end
 
 local function on_compass_tick()
-    update_compass(false)
+    update_compass(false, nil)
 end
 
 local function sync_ticker(active)
-    if active == tickRegistered then return end
-    tickRegistered = active
-    if active then
+    local wantTick = (active and not externalDrive) and true or false
+    if wantTick == tickRegistered then return end
+    tickRegistered = wantTick
+    if wantTick then
         if sfui.events and sfui.events.RegisterUpdate then
             sfui.events.RegisterUpdate("MapOverlayCompass", 0.016, on_compass_tick)
         end
@@ -413,6 +418,19 @@ local function sync_ticker(active)
             sfui.events.UnregisterUpdate("MapOverlayCompass")
         end
     end
+end
+
+function compass:UpdateFacing(facing)
+    if not stripFrame or not (rootFrame and rootFrame:IsShown()) then return end
+    update_compass(false, facing)
+end
+
+function compass:SetExternalDrive(enabled)
+    local nextExt = enabled and true or false
+    if externalDrive == nextExt then return end
+    externalDrive = nextExt
+    local shown = rootFrame ~= nil and rootFrame:IsShown() == true
+    sync_ticker(shown)
 end
 
 local function ensure_events_wired()
@@ -519,8 +537,10 @@ function compass:SyncState()
 
         rootFrame:Show()
         update_compass(true)
+        externalDrive = (ovActive and not panelHidden and not moverUnlocked) and true or false
         sync_ticker(true)
     else
+        externalDrive = false
         sync_ticker(false)
         lastFacing = nil
         if rootFrame then

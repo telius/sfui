@@ -372,11 +372,13 @@ local function on_minimap_entering_world(event)
     sfui.minimap.UpdateMinimapTheme()
 
     -- Startup timer to catch late-loading buttons and clock
-    if SfuiDB and SfuiDB.minimap_collect_buttons then
-        C_Timer.NewTicker(2, function(self)
+    if SfuiDB and SfuiDB.minimap_collect_buttons and sfui.events and sfui.events.RegisterUpdate then
+        sfui.events.RegisterUpdate("SfuiMinimapStartupScan", 2.0, function()
             startup_scans = startup_scans + 1
             if startup_scans > 5 then
-                self:Cancel()
+                if sfui.events.UnregisterUpdate then
+                    sfui.events.UnregisterUpdate("SfuiMinimapStartupScan")
+                end
             else
                 local bm = sfui.minimap.ButtonManager
                 if bm and bm:collect_buttons() then

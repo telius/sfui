@@ -1036,8 +1036,25 @@ local CATEGORY_RANK = {
     sendHerbs = 6, sendCooking = 7, sendInscription = 8, sendGems = 9,
 }
 
-local reagentCounts   -- itemID -> { [catKey] = recipeCount }, built lazily (false = no db)
-local reagentSorted = {} -- itemID -> { catKey, ... } ordered by usage, memoized per item
+local REAGENT_SORTED_MAX = 1500
+local reagentCounts        -- fallback itemID -> { [catKey] = recipeCount }, built lazily if reagents.lua unavailable
+local reagentSorted = {}   -- itemID -> { catKey, ... } ordered by usage, memoized per item (false = none)
+local reagentSortedCount = 0
+local _reagentCatCounts = {}
+local _sortCounts = nil
+
+local function compareReagentCats(a, b)
+    local ca = _sortCounts[a]
+    local cb = _sortCounts[b]
+    if ca ~= cb then return ca > cb end
+    return CATEGORY_RANK[a] < CATEGORY_RANK[b]
+end
+
+local function wipeTable(t)
+    for k in pairs(t) do
+        t[k] = nil
+    end
+end
 
 local function BuildReagentCounts()
     reagentCounts = false
@@ -1072,20 +1089,51 @@ function mail.GetReagentCategories(itemID)
     local cached = reagentSorted[itemID]
     if cached ~= nil then return cached or nil end
 
-    if reagentCounts == nil then BuildReagentCounts() end
-    local c = reagentCounts and reagentCounts[itemID]
+    local c
+    local recipesNS = sfui.recipes
+    local getReagentRecipes = recipesNS and recipesNS.GetRecipesUsingReagent
+    local db = sfui.recipes_camelot
+    local raw = db and db._raw
+    if getReagentRecipes and type(raw) == "table" then
+        local sids = getReagentRecipes(itemID)
+        if sids then
+            wipeTable(_reagentCatCounts)
+            for i = 1, #sids do
+                local rec = raw[sids[i]]
+                local catKey = rec and SKILL_TO_CATEGORY[rec[2]]
+                if catKey then
+                    _reagentCatCounts[catKey] = (_reagentCatCounts[catKey] or 0) + 1
+                end
+            end
+            if next(_reagentCatCounts) ~= nil then
+                c = _reagentCatCounts
+            end
+        end
+    else
+        if reagentCounts == nil then BuildReagentCounts() end
+        c = reagentCounts and reagentCounts[itemID]
+    end
+
+    if reagentSortedCount >= REAGENT_SORTED_MAX then
+        wipeTable(reagentSorted)
+        reagentSortedCount = 0
+    end
+
     if not c then
         reagentSorted[itemID] = false
+        reagentSortedCount = reagentSortedCount + 1
         return nil
     end
 
     local list = {}
     for catKey in pairs(c) do list[#list + 1] = catKey end
-    table.sort(list, function(a, b)
-        if c[a] ~= c[b] then return c[a] > c[b] end
-        return CATEGORY_RANK[a] < CATEGORY_RANK[b]
-    end)
+    if #list > 1 then
+        _sortCounts = c
+        table.sort(list, compareReagentCats)
+        _sortCounts = nil
+    end
     reagentSorted[itemID] = list
+    reagentSortedCount = reagentSortedCount + 1
     return list
 end
 

@@ -30,6 +30,8 @@ local BreakUpLargeNumbers = _G.BreakUpLargeNumbers or tostring
 local C_PetInfo = _G.C_PetInfo
 local GameTooltip = sfui.common.get_tooltip()
 
+local base = sfui.experience.base
+local petBarObj = nil
 local petContainer = nil
 local petBar = nil
 local textFrame = nil
@@ -51,12 +53,7 @@ local PET_BAR_COLOR_TP = { 0.88, 0.62, 0.14, 1.0 }
 --- Update text visibility based on hover state and configuration
 --- @param isHovering boolean
 local function UpdateTextVisibility(isHovering)
-    local data = sfui.experience.data
-    local alpha = data and data.GetTextAlpha and data.GetTextAlpha(isHovering) or (isHovering and 1.0 or 0.0)
-
-    if textLeft then textLeft:SetAlpha(alpha) end
-    if textCenter then textCenter:SetAlpha(alpha) end
-    if textRight then textRight:SetAlpha(alpha) end
+    base.UpdateTextVisibility(petBarObj, isHovering)
     if portraitFrame then portraitFrame:SetAlpha(isHovering and 1.0 or 0.9) end
     if tpText then tpText:SetAlpha(isHovering and 1.0 or 0.9) end
 end
@@ -204,20 +201,16 @@ end
 --- Set status bar texture directly
 --- @param tex string|nil
 function petModule.SetBarTexture(tex)
-    if not petBar then return end
-    petBar:SetStatusBarTexture(sfui.common.get_bar_texture(tex))
+    base.SetBarTexture(petBarObj, tex)
 end
 
 --- Apply theme and styling
 function petModule.ApplyTheme()
-    if not petBar then return end
+    if not petBarObj then return end
 
-    petBar:SetStatusBarTexture(sfui.common.get_bar_texture())
+    base.ApplyTheme(petBarObj, "xp")
 
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
-        or (sfui.config and sfui.config.fontFile)
-        or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
-        or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
     local fontSize = 9
     if textLeft then
         textLeft:SetFont(fontFile, fontSize, "")
@@ -239,23 +232,6 @@ function petModule.ApplyTheme()
         tpText:SetShadowOffset(0, 0)
         tpText:SetShadowColor(0, 0, 0, 0)
     end
-
-    if petContainer then
-        if sfui.theme and sfui.theme.ApplyStatusBarStyle then
-            sfui.theme.ApplyStatusBarStyle(petContainer, "xp")
-        else
-            petContainer:SetBackdrop({
-                bgFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-                edgeFile = (sfui.config and sfui.config.textures and sfui.config.textures.white) or "Interface\\Buttons\\WHITE8x8",
-                tile = false,
-                tileSize = 0,
-                edgeSize = 1,
-                insets = { left = 0, right = 0, top = 0, bottom = 0 },
-            })
-            petContainer:SetBackdropColor(0.04, 0.04, 0.04, 0.85)
-            petContainer:SetBackdropBorderColor(0, 0, 0, 1)
-        end
-    end
 end
 
 --- Update layout and docking position relative to experience, reputation, and challenge bars
@@ -270,8 +246,10 @@ function petModule.UpdateLayout()
     petContainer:ClearAllPoints()
 
     local expBar = sfui.experience.bar and sfui.experience.bar.GetFrame and sfui.experience.bar.GetFrame()
-    local repBar = sfui.experience.reputation and sfui.experience.reputation.GetFrame and sfui.experience.reputation.GetFrame()
-    local chalBar = sfui.experience.challenges and sfui.experience.challenges.GetFrame and sfui.experience.challenges.GetFrame()
+    local repBar = sfui.experience.reputation and sfui.experience.reputation.GetFrame and
+        sfui.experience.reputation.GetFrame()
+    local chalBar = sfui.experience.challenges and sfui.experience.challenges.GetFrame and
+        sfui.experience.challenges.GetFrame()
 
     local isChalShown = chalBar and chalBar:IsShown() and chalBar:GetAlpha() > 0
     local isRepShown = repBar and repBar:IsShown() and repBar:GetAlpha() > 0
@@ -290,15 +268,13 @@ function petModule.UpdateLayout()
         petContainer:SetPoint("BOTTOMLEFT", anchorFrame, "TOPLEFT", 0, 2)
         petContainer:SetPoint("BOTTOMRIGHT", anchorFrame, "TOPRIGHT", 0, 2)
     else
-        local pos = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "pos", cfg.pos)) or cfg.pos or { point = "BOTTOM", x = 0, y = 4 }
-        petContainer:SetPoint(pos.point or "BOTTOM", _G.UIParent, pos.relativePoint or pos.point or "BOTTOM", pos.x or 0, pos.y or 4)
+        local pos = (sfui.db and sfui.db.Get and sfui.db.Get("experience", "pos", cfg.pos)) or cfg.pos or
+            { point = "BOTTOM", x = 0, y = 4 }
+        petContainer:SetPoint(pos.point or "BOTTOM", _G.UIParent, pos.relativePoint or pos.point or "BOTTOM", pos.x or 0,
+            pos.y or 4)
     end
 
-    if petBar then
-        petBar:ClearAllPoints()
-        petBar:SetPoint("TOPLEFT", petContainer, "TOPLEFT", 1, -1)
-        petBar:SetPoint("BOTTOMRIGHT", petContainer, "BOTTOMRIGHT", -1, 1)
-    end
+    base.AnchorSubBars(petBarObj)
 end
 
 --- Toggle the character sheet pet pane for Camelot, Classic, or Retail
@@ -367,8 +343,8 @@ local function OpenBeastTraining()
     end
     if not casted and _G.CastSpellByName then
         local spellName = (_G.C_Spell and _G.C_Spell.GetSpellInfo and _G.C_Spell.GetSpellInfo(5149) and _G.C_Spell.GetSpellInfo(5149).name)
-                          or (_G.GetSpellInfo and _G.GetSpellInfo(5149))
-                          or "Beast Training"
+            or (_G.GetSpellInfo and _G.GetSpellInfo(5149))
+            or "Beast Training"
         pcall(_G.CastSpellByName, spellName)
     end
 end
@@ -378,43 +354,28 @@ end
 function petModule.Create()
     if petContainer then return petContainer end
 
-    local parent = _G.UIParent
+    petBarObj = base.CreateTrackedBar({
+        globalName    = "SfuiPetExperienceBar",
+        frameLevel    = 22,
+        numSubBars    = 1,
+        hasTicks      = false,
+        textInset     = 4,
+        clicks        = "AnyUp",
+        movable       = false,
+        registerTheme = false,
+        leftR         = 0.9,
+        leftG         = 0.9,
+        leftB         = 0.9,
+        styleKey      = "xp",
+    })
 
-    petContainer = CreateFrame("Button", "SfuiPetExperienceBar", parent, "BackdropTemplate")
-    petContainer:SetFrameStrata("HIGH")
-    petContainer:SetFrameLevel(22)
-    petContainer:SetClampedToScreen(true)
-    petContainer:EnableMouse(true)
-    petContainer:RegisterForClicks("AnyUp")
-
-    petBar = CreateFrame("StatusBar", nil, petContainer)
-    petBar:SetFrameLevel(petContainer:GetFrameLevel() + 1)
-    petBar:SetPoint("TOPLEFT", petContainer, "TOPLEFT", 1, -1)
-    petBar:SetPoint("BOTTOMRIGHT", petContainer, "BOTTOMRIGHT", -1, 1)
-    petBar:EnableMouse(false)
-
-    textFrame = CreateFrame("Frame", nil, petContainer)
-    textFrame:SetFrameLevel(petContainer:GetFrameLevel() + 2)
-    textFrame:SetAllPoints(petContainer)
-    textFrame:EnableMouse(false)
-
-    local font = (sfui.config and sfui.config.font) or "GameFontHighlightSmall"
-
-    textLeft = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textLeft:SetPoint("LEFT", textFrame, "LEFT", 4, 0)
-    textLeft:SetJustifyH("LEFT")
-    textLeft:SetTextColor(0.9, 0.9, 0.9, 1.0)
-
-    textCenter = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textCenter:SetPoint("CENTER", textFrame, "CENTER", 0, 0)
-    textCenter:SetJustifyH("CENTER")
-    textCenter:SetTextColor(1.0, 1.0, 1.0, 1.0)
+    petContainer = petBarObj.container
+    petBar = petBarObj.mainBar
+    textFrame = petBarObj.textFrame
+    textLeft = petBarObj.textLeft
+    textCenter = petBarObj.textCenter
+    textRight = petBarObj.textRight
     textCenter:Hide()
-
-    textRight = textFrame:CreateFontString(nil, "OVERLAY", font)
-    textRight:SetPoint("RIGHT", textFrame, "RIGHT", -4, 0)
-    textRight:SetJustifyH("RIGHT")
-    textRight:SetTextColor(0.85, 0.85, 0.85, 1.0)
 
     -- Center pet portrait (twice the bar size, centered directly in the middle of the bar)
     portraitFrame = CreateFrame("Frame", "SfuiPetExpPortraitFrame", textFrame)
@@ -433,9 +394,7 @@ function petModule.Create()
     end
 
     -- Training points counter anchored immediately to the right of the portrait
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
-        or (_G.GameFontNormal and _G.GameFontNormal:GetFont())
-        or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
 
     tpText = textFrame:CreateFontString(nil, "OVERLAY")
     tpText:SetFont(fontFile, 10, "")
@@ -468,7 +427,8 @@ function petModule.Create()
         elseif data.loyaltyRate < 0 then
             loyaltyR, loyaltyG, loyaltyB = 0.9, 0.2, 0.2
         end
-        GameTooltip:AddDoubleLine("loyalty:", string_format("%s (rank %d of 6)", data.loyaltyName, data.loyaltyRank), 0.8, 0.8, 0.8, loyaltyR, loyaltyG, loyaltyB)
+        GameTooltip:AddDoubleLine("loyalty:", string_format("%s (rank %d of 6)", data.loyaltyName, data.loyaltyRank), 0.8,
+            0.8, 0.8, loyaltyR, loyaltyG, loyaltyB)
 
         if data.loyaltyRate > 0 then
             GameTooltip:AddDoubleLine("loyalty trend:", "gaining loyalty (keep pet happy)", 0.6, 0.6, 0.6, 0.2, 0.9, 0.2)
@@ -486,7 +446,8 @@ function petModule.Create()
             hapText = "unhappy"
             hapR, hapG, hapB = 0.95, 0.2, 0.2
         end
-        GameTooltip:AddDoubleLine("happiness:", string_format("%s (%d%% damage)", hapText, data.damagePct), 0.8, 0.8, 0.8, hapR, hapG, hapB)
+        GameTooltip:AddDoubleLine("happiness:", string_format("%s (%d%% damage)", hapText, data.damagePct), 0.8, 0.8, 0.8,
+            hapR, hapG, hapB)
 
         -- Diet
         if data.diet and #data.diet > 0 then
@@ -501,7 +462,9 @@ function petModule.Create()
         if data.isXpCapped then
             GameTooltip:AddDoubleLine("status:", "capped at player level", 0.8, 0.8, 0.8, 1, 0.82, 0.2)
         else
-            GameTooltip:AddDoubleLine("current xp:", string_format("%s / %s (%.1f%%)", BreakUpLargeNumbers(data.currentXP), BreakUpLargeNumbers(data.maxXP), data.percentXP), 0.8, 0.8, 0.8, 1, 1, 1)
+            GameTooltip:AddDoubleLine("current xp:",
+                string_format("%s / %s (%.1f%%)", BreakUpLargeNumbers(data.currentXP), BreakUpLargeNumbers(data.maxXP),
+                    data.percentXP), 0.8, 0.8, 0.8, 1, 1, 1)
             GameTooltip:AddDoubleLine("xp remaining:", BreakUpLargeNumbers(data.remainingXP), 0.8, 0.8, 0.8, 1, 0.82, 0.4)
             GameTooltip:AddDoubleLine("xp rule:", "kills within 5 levels of pet", 0.6, 0.6, 0.6, 0.7, 0.7, 0.7)
         end
@@ -511,13 +474,17 @@ function petModule.Create()
         -- Training points section
         GameTooltip:AddLine("pet training points", 0.88, 0.62, 0.14)
         if data.unspentTP > 0 then
-            GameTooltip:AddDoubleLine("unspent points:", string_format("%s tp available", BreakUpLargeNumbers(data.unspentTP)), 0.8, 0.8, 0.8, 0.2, 0.9, 0.2)
+            GameTooltip:AddDoubleLine("unspent points:",
+                string_format("%s tp available", BreakUpLargeNumbers(data.unspentTP)), 0.8, 0.8, 0.8, 0.2, 0.9, 0.2)
         elseif data.unspentTP < 0 then
-            GameTooltip:AddDoubleLine("points debt:", string_format("%s tp", BreakUpLargeNumbers(data.unspentTP)), 0.8, 0.8, 0.8, 0.95, 0.2, 0.2)
+            GameTooltip:AddDoubleLine("points debt:", string_format("%s tp", BreakUpLargeNumbers(data.unspentTP)), 0.8,
+                0.8, 0.8, 0.95, 0.2, 0.2)
         else
             GameTooltip:AddDoubleLine("unspent points:", "0 tp", 0.8, 0.8, 0.8, 0.7, 0.7, 0.7)
         end
-        GameTooltip:AddDoubleLine("points spent:", string_format("%s / %s tp", BreakUpLargeNumbers(data.usedTP), BreakUpLargeNumbers(data.totalTP)), 0.8, 0.8, 0.8, 1, 1, 1)
+        GameTooltip:AddDoubleLine("points spent:",
+            string_format("%s / %s tp", BreakUpLargeNumbers(data.usedTP), BreakUpLargeNumbers(data.totalTP)), 0.8, 0.8,
+            0.8, 1, 1, 1)
         GameTooltip:AddDoubleLine("formula:", "level x (loyalty rank - 1)", 0.6, 0.6, 0.6, 0.7, 0.7, 0.7)
 
         if data.unspentTP < 0 then
@@ -586,7 +553,8 @@ function petModule.UpdateValues()
             textLeft:SetText(string_format("%s (lv %d)", data.name:lower(), data.level))
         end
         if textRight then
-            textRight:SetText(string_format("%s / %s (%.1f%%)", BreakUpLargeNumbers(data.currentXP), BreakUpLargeNumbers(data.maxXP), data.percentXP))
+            textRight:SetText(string_format("%s / %s (%.1f%%)", BreakUpLargeNumbers(data.currentXP),
+                BreakUpLargeNumbers(data.maxXP), data.percentXP))
         end
     else
         -- Mode 2: Capped XP -> Training Points & Loyalty Tracking
@@ -600,7 +568,8 @@ function petModule.UpdateValues()
             textLeft:SetText(string_format("%s (lv %d - loyalty %d/6)", data.name:lower(), data.level, data.loyaltyRank))
         end
         if textRight then
-            textRight:SetText(string_format("%s / %s tp available", BreakUpLargeNumbers(availableTP), BreakUpLargeNumbers(maxPoints)))
+            textRight:SetText(string_format("%s / %s tp available", BreakUpLargeNumbers(availableTP),
+                BreakUpLargeNumbers(maxPoints)))
         end
     end
 

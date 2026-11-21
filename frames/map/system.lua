@@ -144,8 +144,8 @@ local function update_tooltip(btn)
                 end
                 combined[matchedGroup].mem = combined[matchedGroup].mem + mem
             else
-                local cleanTitle = title and title:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", "")
-                local displayName = (cleanTitle and cleanTitle ~= "") and cleanTitle or name
+                local cleanTitle = sfui.common.strip_colors(title, true)
+                local displayName = (cleanTitle ~= "") and cleanTitle or name
                 list[#list + 1] = { name = name, displayName = displayName, mem = mem }
             end
         end
@@ -219,23 +219,10 @@ local function on_click(self, button)
 end
 
 local function get_spec_color_hex()
-    if sfui.colors and sfui.colors.get_class_or_spec_color then
-        local c = sfui.colors.get_class_or_spec_color()
-        if c then
-            local r = math.floor((c[1] or c.r or 1) * 255 + 0.5)
-            local g = math.floor((c[2] or c.g or 1) * 255 + 0.5)
-            local b = math.floor((c[3] or c.b or 1) * 255 + 0.5)
-            return string.format("|cff%02x%02x%02x", r, g, b)
-        end
-    end
-    if sfui.common and sfui.common.get_class_or_spec_color then
-        local c = sfui.common.get_class_or_spec_color()
-        if c then
-            local r = math.floor((c[1] or c.r or 1) * 255 + 0.5)
-            local g = math.floor((c[2] or c.g or 1) * 255 + 0.5)
-            local b = math.floor((c[3] or c.b or 1) * 255 + 0.5)
-            return string.format("|cff%02x%02x%02x", r, g, b)
-        end
+    local c = (sfui.colors and sfui.colors.get_class_or_spec_color and sfui.colors.get_class_or_spec_color())
+        or (sfui.common and sfui.common.get_class_or_spec_color and sfui.common.get_class_or_spec_color())
+    if c and sfui.colors and sfui.colors.rgb_to_hex then
+        return "|cff" .. sfui.colors.rgb_to_hex(c)
     end
     return "|cff00e5ff"
 end
@@ -255,9 +242,7 @@ function sfui.minimap.init_system_button(parent)
     btn:RegisterForClicks("AnyUp")
     btn:SetHeight(20)
 
-    local fontFile = (sfui.common and sfui.common.get_font_file and sfui.common.get_font_file())
-        or (sfui.config and sfui.config.font)
-        or "Fonts\\FRIZQT__.TTF"
+    local fontFile = sfui.common.get_font_file()
 
     btn.text = btn:CreateFontString(nil, "OVERLAY")
     btn.text:SetFont(fontFile, 10, "")
@@ -309,9 +294,17 @@ function sfui.minimap.update_system_button(buttonBar)
     if not parent then return end
 
     local btn = sfui.minimap.init_system_button(parent)
-    btn:SetParent(parent)
-    btn:SetFrameStrata(parent:GetFrameStrata())
-    btn:SetFrameLevel(parent:GetFrameLevel() + 5)
+    if btn:GetParent() ~= parent then
+        btn:SetParent(parent)
+    end
+    local targetStrata = parent:GetFrameStrata()
+    if btn:GetFrameStrata() ~= targetStrata then
+        btn:SetFrameStrata(targetStrata)
+    end
+    local targetLevel = parent:GetFrameLevel() + 5
+    if btn:GetFrameLevel() ~= targetLevel then
+        btn:SetFrameLevel(targetLevel)
+    end
 
     local mode = sfui.minimap.get_system_mode()
     local displayStr = ""
@@ -323,14 +316,25 @@ function sfui.minimap.update_system_button(buttonBar)
         displayStr = string.format("%d %sfps|r  %d %sms|r", fps, specHex, ping, specHex)
     end
 
-    btn.text:SetText(displayStr)
-    local textW = (btn.text.GetStringWidth and btn.text:GetStringWidth()) or 44
-    local btnW = math.max(48, textW + 8)
-    btn:SetSize(btnW, 20)
+    if btn._lastDisplay ~= displayStr then
+        btn._lastDisplay = displayStr
+        btn.text:SetText(displayStr)
+        local textW = (btn.text.GetStringWidth and btn.text:GetStringWidth()) or 44
+        local btnW = math.max(48, textW + 8)
+        if btn._lastWidth ~= btnW then
+            btn._lastWidth = btnW
+            btn:SetSize(btnW, 20)
+        end
+    end
 
-    btn:ClearAllPoints()
-    btn:SetPoint("RIGHT", parent, "RIGHT", -8, 2)
-    btn:Show()
+    if btn._lastParent ~= parent then
+        btn._lastParent = parent
+        btn:ClearAllPoints()
+        btn:SetPoint("RIGHT", parent, "RIGHT", -8, 2)
+    end
+    if not btn:IsShown() then
+        btn:Show()
+    end
 
     local clock = _G.TimeManagerClockButton
     if clock and clock.Hide then

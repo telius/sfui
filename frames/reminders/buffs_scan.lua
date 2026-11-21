@@ -42,6 +42,11 @@ local dirty = true
 local throttleTimer = nil
 local lastResultCount = -1
 local prevResultKeys = {}
+local _hasColdIcon = false
+
+local function IsRemindersEnabled()
+    return not (_G.SfuiDB and _G.SfuiDB.buffReminders and _G.SfuiDB.buffReminders.enabled == false)
+end
 
 local function RefreshSpellKnowledge()
     if sfui.buffs.paladin and sfui.buffs.paladin.InvalidateCache then
@@ -428,16 +433,18 @@ local function GetActiveWeaponEnchantName(slot, enchantID)
         end
     end
 
-    local tip = sfui.tooltip or _G.SfuiGameTooltip
+    local tip = (sfui.common and sfui.common.get_scan_tooltip and sfui.common.get_scan_tooltip())
+        or sfui.tooltip or _G.SfuiGameTooltip
     if tip and tip.SetInventoryItem then
         if tip.SetOwner and _G.UIParent then
             tip:SetOwner(_G.UIParent, "ANCHOR_NONE")
         end
         tip:ClearLines()
         tip:SetInventoryItem("player", slot)
+        local tipName = (tip.GetName and tip:GetName()) or "SfuiScanTooltip"
         local numLines = tip:NumLines() or 0
         for i = 1, numLines do
-            local fsL = _G["SfuiGameTooltipTextLeft" .. i]
+            local fsL = _G[tipName .. "TextLeft" .. i]
             if fsL then
                 local txt = fsL:GetText()
                 if txt then
@@ -744,6 +751,7 @@ function sfui.buffs.scan.RunScan()
     local thresholdLong = (cfg and cfg.thresholdLong) or 300
     local thresholdShort = (cfg and cfg.thresholdShort) or 60
     local providers = sfui.buffs.providers
+    _hasColdIcon = false
 
     for i = 1, #entries do
         local entry = entries[i]
@@ -798,7 +806,12 @@ function sfui.buffs.scan.RunScan()
                 if not IsValidTexture(icon) then
                     icon = (entry.spellIDs and data.ResolveTexture(entry.spellIDs[1], entry.fallbackIcon)) or entry.fallbackIcon
                 end
-                rec.icon = IsValidTexture(icon) and icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+                if IsValidTexture(icon) then
+                    rec.icon = icon
+                else
+                    rec.icon = "Interface\\Icons\\INV_Misc_QuestionMark"
+                    _hasColdIcon = true
+                end
                 rec.activeEnchant = extraData
                 rec.unit = nil
                 rec.unitName = nil
@@ -866,8 +879,28 @@ function sfui.buffs.scan.GetResults()
     return activeResults
 end
 
+local function OnScanThrottleFired()
+    throttleTimer = nil
+    if not IsRemindersEnabled() then
+        dirty = true
+        return
+    end
+    if sfui.common.is_in_combat() or AreAurasSecret() then
+        dirty = true
+        return
+    end
+    sfui.buffs.scan.RunScan()
+    if sfui.buffs.UpdateDisplay then
+        sfui.buffs.UpdateDisplay()
+    end
+end
+
 --- Marks the scan state dirty and schedules a throttled update
 function sfui.buffs.scan.RequestScan()
+    if not IsRemindersEnabled() then
+        dirty = true
+        return
+    end
     if sfui.common.is_in_combat() or AreAurasSecret() then
         dirty = true
         return
@@ -878,17 +911,7 @@ function sfui.buffs.scan.RequestScan()
 
     -- C_Timer.After returns nil, so track the pending state with a flag
     throttleTimer = true
-    C_Timer.After(0.08, function()
-        throttleTimer = nil
-        if sfui.common.is_in_combat() or AreAurasSecret() then
-            dirty = true
-            return
-        end
-        sfui.buffs.scan.RunScan()
-        if sfui.buffs.UpdateDisplay then
-            sfui.buffs.UpdateDisplay()
-        end
-    end)
+    C_Timer.After(0.08, OnScanThrottleFired)
 end
 
 -- ─────────────────────────────────────────────────────────────
@@ -900,6 +923,12 @@ local function InitScanEvents()
     if not sfui.events then return end
 
     local function on_player_unit_change()
+        if not IsRemindersEnabled() then return end
+        sfui.buffs.scan.RequestScan()
+    end
+
+    local function on_asset_loaded()
+        if not _hasColdIcon or not IsRemindersEnabled() then return end
         sfui.buffs.scan.RequestScan()
     end
 
@@ -949,17 +978,17 @@ local function InitScanEvents()
         sfui.events.RegisterMessage("SFUI_ROLE_CONTEXT_CHANGED", on_knowledge_change)
     end
     sfui.events.RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED", on_player_unit_change)
-    sfui.events.RegisterEvent("SPELL_UPDATE_ICON", on_player_unit_change)
-    sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", on_player_unit_change)
-    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_player_unit_change)
+    sfui.events.RegisterEvent("SPELL_UPDATE_ICON", on_asset_loaded)
+    sfui.events.RegisterEvent("SPELL_DATA_LOAD_RESULT", on_asset_loaded)
+    sfui.events.RegisterEvent("GET_ITEM_INFO_RECEIVED", on_asset_loaded)
 
     -- Periodic safety refresh for temporary weapon enchants and time-expiring buffs
     local cTimer = _G.C_Timer
     if cTimer and cTimer.NewTicker then
         cTimer.NewTicker(3.0, function()
-            if not sfui.common.is_in_combat() then
-                sfui.buffs.scan.RequestScan()
-            end
+            if not IsRemindersEnabled() or sfui.common.is_in_combat() then return end
+            if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
+            sfui.buffs.scan.RequestScan()
         end)
     end
 

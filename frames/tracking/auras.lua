@@ -241,7 +241,9 @@ local BLIZZ_VIEWERS = {
 local function FindBlizzItem(cooldownID)
     if not cooldownID then return nil, false end
     local cached = _blizzItemByCooldownID[cooldownID]
-    if cached and cached.cooldownID == cooldownID then
+    if cached == false then
+        return nil, false
+    elseif cached and cached.cooldownID == cooldownID then
         return cached, _blizzItemIsAuraViewer[cooldownID] == true
     end
     for i = 1, #BLIZZ_VIEWERS do
@@ -258,11 +260,16 @@ local function FindBlizzItem(cooldownID)
             end
         end
     end
-    _blizzItemByCooldownID[cooldownID] = nil
+    _blizzItemByCooldownID[cooldownID] = false
     _blizzItemIsAuraViewer[cooldownID] = nil
     return nil, false
 end
 A.FindBlizzItem = FindBlizzItem
+
+function A.InvalidateBlizzItemCache()
+    wipe(_blizzItemByCooldownID)
+    wipe(_blizzItemIsAuraViewer)
+end
 
 function A.WantsAura(cdInfo, forceAura, linkedSpellIDs, spellID, cooldownID)
     local checkID = spellID or (cdInfo and (cdInfo.overrideSpellID or cdInfo.spellID))
@@ -689,8 +696,19 @@ end
 
 local function OnFullSyncEvent()
     if _watchCount == 0 then return end
+    wipe(_blizzItemByCooldownID)
     if SyncFullPlayerBuffs() then
         NotifyTrackingDirty()
+    end
+end
+
+local function OnBlizzViewerDataChanged()
+    wipe(_blizzItemByCooldownID)
+    wipe(_blizzItemIsAuraViewer)
+    if _watchCount > 0 then
+        if SyncFullPlayerBuffs() then
+            NotifyTrackingDirty()
+        end
     end
 end
 
@@ -698,6 +716,7 @@ local function OnAuraDataProviderSwitch(_event, useRealDataProvider)
     if _watchCount == 0 then return end
     wipe(_watchedByInstanceID)
     wipe(_lastBlizzHasInstance)
+    wipe(_blizzItemByCooldownID)
     if useRealDataProvider then
         SyncFullPlayerBuffs()
     end
@@ -709,16 +728,19 @@ local function UpdateEventSubscriptions(signatureChanged)
     if _watchCount > 0 then
         if not _eventsRegistered then
             _eventsRegistered = true
+            wipe(_blizzItemByCooldownID)
             sfui.events.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", OnUnitSpellCastSucceeded)
             sfui.events.RegisterUnitEvent("UNIT_AURA", "player", OnUnitAura)
             sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", OnFullSyncEvent)
             sfui.events.RegisterEvent("PLAYER_REGEN_DISABLED", OnFullSyncEvent)
             sfui.events.RegisterEvent("PLAYER_REGEN_ENABLED", OnFullSyncEvent)
             sfui.events.RegisterEvent("AURA_DATA_PROVIDER_SWITCH", OnAuraDataProviderSwitch)
+            sfui.events.RegisterEvent("COOLDOWN_VIEWER_DATA_LOADED", OnBlizzViewerDataChanged)
             if SyncFullPlayerBuffs() then
                 BumpRevision()
             end
         elseif signatureChanged then
+            wipe(_blizzItemByCooldownID)
             if SyncFullPlayerBuffs() then
                 BumpRevision()
             end
@@ -731,8 +753,11 @@ local function UpdateEventSubscriptions(signatureChanged)
         sfui.events.UnregisterEvent("PLAYER_REGEN_DISABLED", OnFullSyncEvent)
         sfui.events.UnregisterEvent("PLAYER_REGEN_ENABLED", OnFullSyncEvent)
         sfui.events.UnregisterEvent("AURA_DATA_PROVIDER_SWITCH", OnAuraDataProviderSwitch)
+        sfui.events.UnregisterEvent("COOLDOWN_VIEWER_DATA_LOADED", OnBlizzViewerDataChanged)
         wipe(_watchedByInstanceID)
         wipe(_lastBlizzHasInstance)
+        wipe(_blizzItemByCooldownID)
+        wipe(_blizzItemIsAuraViewer)
         for i = 1, #_castAurasList do
             local entry = _castAurasList[i]
             entry.active = false
