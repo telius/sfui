@@ -80,6 +80,10 @@ local function Header_OnEnter(self)
         tip:AddLine("|cff888888right-click: open achievements|r", 1, 1, 1)
     end
     tip:AddLine("|cff888888shift-click: untrack all " .. itemWord .. " in category|r", 1, 1, 1)
+    local layout = sfui.tracker and sfui.tracker.layout
+    if layout and layout.CanAbandonSection and layout.CanAbandonSection(self._sec) then
+        tip:AddLine("|cff888888ctrl-click: abandon all quests in section|r", 1, 1, 1)
+    end
     tip:Show()
 end
 
@@ -116,7 +120,19 @@ local function Header_OnClick(self, button)
         end
     end
 
+    local IsControlKeyDown = _G.IsControlKeyDown
     local IsShiftKeyDown = _G.IsShiftKeyDown
+    local IsAltKeyDown = _G.IsAltKeyDown
+    if button ~= "RightButton" and IsControlKeyDown and IsControlKeyDown()
+        and not (IsShiftKeyDown and IsShiftKeyDown())
+        and not (IsAltKeyDown and IsAltKeyDown()) then
+        local layout = sfui.tracker and sfui.tracker.layout
+        if layout and layout.AbandonSection then
+            layout.AbandonSection(currentSec)
+        end
+        return
+    end
+
     if IsShiftKeyDown and IsShiftKeyDown() then
         local layout = sfui.tracker and sfui.tracker.layout
         if layout and layout.UntrackSection then

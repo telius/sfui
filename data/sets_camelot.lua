@@ -159,7 +159,7 @@ M.sets = {
     { id = "bloodmail_regalia",           setID = 123,  name = "bloodmail regalia",            category = "dungeon", armor = "mail",    minLevel = 56, maxLevel = 60,                   dungeonID = "scholomance",                 pieces = { 14611, 14615, 14614, 14612, 14616 },                              slots = { "chest", "hands", "waist", "legs", "feet" } },
     { id = "deathbone_guardian",          setID = 124,  name = "deathbone guardian",           category = "dungeon", armor = "plate",   minLevel = 56, maxLevel = 60,                   dungeonID = "scholomance",                 pieces = { 14624, 14622, 14620, 14623, 14621 },                              slots = { "chest", "hands", "waist", "legs", "feet" } },
     { id = "dalrends_arms",               setID = 41,   name = "dal'rend's arms",              category = "dungeon", armor = "weapon",  minLevel = 58, maxLevel = 60,                   dungeonID = "upper_blackrock_spire",       pieces = { 12940, 12939 },                                                     slots = { "main hand", "off hand" } },
-    { id = "ironweave_battlesuit",        setID = 520,  name = "ironweave battlesuit",         category = "dungeon", armor = "cloth",   minLevel = 58, maxLevel = 60,                   dungeonID = "upper_blackrock_spire",       pieces = { 22302, 22305, 22301, 22313, 22304, 22306, 22303, 22311 },           slots = SLOT_ORDER },
+    { id = "ironweave_battlesuit",        setID = 520,  name = "ironweave battlesuit",         category = "dungeon", classes = { PRIEST = true, MAGE = true, WARLOCK = true }, armor = "cloth", minLevel = 58, maxLevel = 60, dungeonID = "upper_blackrock_spire", pieces = { 22302, 22305, 22301, 22313, 22304, 22306, 22303, 22311 }, slots = SLOT_ORDER },
 }
 
 -- Supplemental drop sources for trash BoEs, Rivendare/missing T0 bosses, Scarlet SM drops,
@@ -475,17 +475,38 @@ function M.GetPieceSources(itemID)
     return results
 end
 
+local PLATE_CLASSES = { WARRIOR = true, PALADIN = true }
+local MAIL_CLASSES = { WARRIOR = true, PALADIN = true, HUNTER = true, SHAMAN = true }
+local PHYSICAL_LEATHER_CLASSES = { WARRIOR = true, PALADIN = true, HUNTER = true, SHAMAN = true, ROGUE = true, DRUID = true }
+local CASTER_CLOTH_CLASSES = { PRIEST = true, MAGE = true, WARLOCK = true, DRUID = true, SHAMAN = true, PALADIN = true }
+local ALL_CLASSES = { WARRIOR = true, PALADIN = true, HUNTER = true, ROGUE = true, PRIEST = true, SHAMAN = true, MAGE = true, WARLOCK = true, DRUID = true }
+
 local ARMOR_PROFICIENCY = {
-    plate = { WARRIOR = true, PALADIN = true },
-    mail = { WARRIOR = true, PALADIN = true, HUNTER = true, SHAMAN = true },
-    leather = { WARRIOR = true, PALADIN = true, HUNTER = true, SHAMAN = true, ROGUE = true, DRUID = true },
-    cloth = { WARRIOR = true, PALADIN = true, HUNTER = true, SHAMAN = true, ROGUE = true, DRUID = true, PRIEST = true, MAGE = true, WARLOCK = true },
-    ring = { WARRIOR = true, PALADIN = true, HUNTER = true, SHAMAN = true, ROGUE = true, DRUID = true, PRIEST = true, MAGE = true, WARLOCK = true },
+    plate   = PLATE_CLASSES,
+    mail    = MAIL_CLASSES,
+    leather = PHYSICAL_LEATHER_CLASSES,
+    cloth   = CASTER_CLOTH_CLASSES,
+    ring    = ALL_CLASSES,
 }
 
-local WEAPON_SET_CLASSES = {
-    dalrends_arms = { WARRIOR = true, PALADIN = true, HUNTER = true, ROGUE = true, MAGE = true, WARLOCK = true }, -- 1h swords
-    spiders_kiss  = { WARRIOR = true, ROGUE = true, PRIEST = true, SHAMAN = true, DRUID = true }, -- 1h mace / dagger
+-- Audited per-set eligibility against WoW Forever DB2 ItemSparse/Item.db2 and Classic Dual Wield rules
+local SET_ALLOWED_CLASSES = {
+    dalrends_arms               = { WARRIOR = true, ROGUE = true, HUNTER = true }, -- 1h swords requiring dual wield (mh 12940 + oh 12939)
+    spiders_kiss                = { WARRIOR = true, ROGUE = true },                -- 1h mace 13183 + dagger 13218 requiring dual wield
+    partners_in_crime           = { WARRIOR = true, PALADIN = true, ROGUE = true, SHAMAN = true, DRUID = true }, -- melee sta/str/exp rings
+    embrace_of_the_viper        = { ROGUE = true, DRUID = true, HUNTER = true, SHAMAN = true }, -- lvl 18-24 hybrid leather set
+    rotmenders_raiment          = CASTER_CLOTH_CLASSES,
+    violet_sorcerers_vestments  = CASTER_CLOTH_CLASSES,
+    the_postmaster              = CASTER_CLOTH_CLASSES,
+    necropile_raiment           = CASTER_CLOTH_CLASSES,
+    defias_leather              = PHYSICAL_LEATHER_CLASSES,
+    defias_enforcers_garb       = PHYSICAL_LEATHER_CLASSES,
+    cadaverous_garb             = PHYSICAL_LEATHER_CLASSES,
+    chain_of_the_scarlet_crusade = MAIL_CLASSES,
+    the_gladiator               = MAIL_CLASSES,
+    bloodmail_regalia           = MAIL_CLASSES,
+    kroldok_battlegear          = PLATE_CLASSES,
+    deathbone_guardian          = PLATE_CLASSES,
 }
 
 function M.CanClassWearSet(set, classToken)
@@ -494,12 +515,27 @@ function M.CanClassWearSet(set, classToken)
     if set.class then
         return set.class == cls
     end
-    if WEAPON_SET_CLASSES[set.id] then
-        return WEAPON_SET_CLASSES[set.id][cls] == true
+    if set.classes then
+        return set.classes[cls] == true
+    end
+    if SET_ALLOWED_CLASSES[set.id] then
+        return SET_ALLOWED_CLASSES[set.id][cls] == true
     end
     local prof = ARMOR_PROFICIENCY[set.armor]
     if prof then
         return prof[cls] == true
     end
     return true
+end
+
+function M.FormatAllowedClasses(set)
+    if not set or not set.classes then return nil end
+    local out = {}
+    for _, cls in ipairs(M.CLASS_ORDER) do
+        if set.classes[cls] then
+            out[#out + 1] = cls:lower()
+        end
+    end
+    if #out == 0 then return nil end
+    return table_concat(out, "/")
 end

@@ -299,6 +299,38 @@ local function UntrackSection(sec)
 end
 Layout.UntrackSection = UntrackSection
 
+--- Check whether a tracker section contains any abandonable quests or defines a custom Ctrl-Click handler.
+--- @param sec table|nil Section table containing id and blocks
+--- @return boolean
+local function CanAbandonSection(sec)
+    if not sec or not sec.blocks or #sec.blocks == 0 then return false end
+    if sec.OnCtrlClick then return true end
+    local questCommon = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest
+    if questCommon and questCommon.HasAbandonableQuests then
+        return questCommon.HasAbandonableQuests(sec.blocks)
+    end
+    return false
+end
+Layout.CanAbandonSection = CanAbandonSection
+
+--- Prompt confirmation and abandon all abandonable quests in a given section.
+--- @param sec table|nil Section table containing id, title, and blocks
+--- @return boolean handled
+local function AbandonSection(sec)
+    if not sec then return false end
+    if InCombatLockdown and InCombatLockdown() then return false end
+    if sec.OnCtrlClick then
+        sec.OnCtrlClick()
+        return true
+    end
+    local questCommon = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest
+    if questCommon and questCommon.AbandonSectionQuests then
+        return questCommon.AbandonSectionQuests(sec)
+    end
+    return false
+end
+Layout.AbandonSection = AbandonSection
+
 --- Build the visual layout for a list of sections and their blocks
 --- @param container Frame The tracker container frame
 --- @param sections table Array of { id, title, color, count, blocks = { ... } }

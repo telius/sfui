@@ -65,6 +65,20 @@ local GetQualityColor    = dj.GetQualityColor
 local IsQuestCompleted   = dj.IsQuestCompleted
 local IsQuestInLog       = dj.IsQuestActive
 
+local function IsQuestShareable(questID, quest)
+    if quest and quest.shareable ~= nil then
+        return quest.shareable
+    end
+    if questID and IsQuestInLog(questID) then
+        if sfui.api and sfui.api.IsQuestPushable then
+            return sfui.api.IsQuestPushable(questID)
+        elseif _G.C_QuestLog and _G.C_QuestLog.IsPushableQuest then
+            return _G.C_QuestLog.IsPushableQuest(questID)
+        end
+    end
+    return nil
+end
+
 local function CanShareQuestNow(questID, quest)
     if not IsQuestInLog(questID) then return false end
     if sfui.api and sfui.api.IsQuestPushable then

@@ -15,11 +15,14 @@ local _G = _G
 local type = type
 local ipairs = ipairs
 local math_floor = math.floor
+local math_min = math.min
 local string_format = string.format
+local string_lower = string.lower
 local C_QuestLog = _G.C_QuestLog
 local InCombatLockdown = _G.InCombatLockdown
 local ChatFrameUtil = _G.ChatFrameUtil
 local GetQuestProgressBarPercent = _G.GetQuestProgressBarPercent
+local issecretvalue = sfui.common and sfui.common.issecretvalue
 
 --- formats progress indicators, inline objective counts, and completion tags for a quest.
 --- @param questID number
@@ -542,6 +545,383 @@ function QuestCommon.AbandonQuest(questID, questTitle, prepareSelection)
     else
         sfui.common.print("quest cannot be abandoned.")
     end
+end
+
+local function ResolveQuestLogIndexByID(questID)
+    if not questID or (issecretvalue and issecretvalue(questID)) or type(questID) ~= "number" or questID <= 0 then
+        return nil
+    end
+    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+        local idx = C_QuestLog.GetLogIndexForQuestID(questID)
+        if idx and (not issecretvalue or not issecretvalue(idx)) and type(idx) == "number" and idx > 0 then
+            return idx
+        end
+    end
+    if _G.GetQuestLogIndexByID then
+        local idx = _G.GetQuestLogIndexByID(questID)
+        if idx and (not issecretvalue or not issecretvalue(idx)) and type(idx) == "number" and idx > 0 then
+            return idx
+        end
+    end
+    if _G.GetNumQuestLogEntries and _G.GetQuestLogTitle then
+        local numEntries = _G.GetNumQuestLogEntries()
+        if type(numEntries) == "number" and numEntries > 0 then
+            for i = 1, numEntries do
+                local _, _, _, isHeader, _, _, _, qID = _G.GetQuestLogTitle(i)
+                if not isHeader and qID == questID then
+                    return i
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function CanAbandonQuestID(questID)
+    if not questID or (issecretvalue and issecretvalue(questID)) or type(questID) ~= "number" or questID <= 0 then
+        return false
+    end
+    if C_QuestLog and C_QuestLog.CanAbandonQuest then
+        return C_QuestLog.CanAbandonQuest(questID) == true
+    elseif _G.CanAbandonQuest then
+        return _G.CanAbandonQuest(questID) == true
+    end
+    local idx = ResolveQuestLogIndexByID(questID)
+    return idx ~= nil and idx > 0
+end
+QuestCommon.CanAbandonQuest = CanAbandonQuestID
+
+local function ExtractBlockQuestID(b)
+    if not b or b.isRemotePeerQuest or b.isWorldQuest or b._isAutoOffer then
+        return nil
+    end
+    local qID = b.questID or (b._isClickToComplete and b._popQuestID or nil)
+    if not qID or (issecretvalue and issecretvalue(qID)) or type(qID) ~= "number" or qID <= 0 then
+        return nil
+    end
+    return qID
+end
+
+--- Fast check for whether a tracker section contains at least one abandonable local quest.
+--- @param blocks table|nil
+--- @return boolean
+function QuestCommon.HasAbandonableQuests(blocks)
+    if not blocks then return false end
+    for _, b in ipairs(blocks) do
+        local qID = ExtractBlockQuestID(b)
+        if qID and CanAbandonQuestID(qID) then
+            return true
+        end
+    end
+    return false
+end
+
+--- Collect deduplicated abandonable quests and non-abandonable count for a tracker section.
+--- @param blocks table|nil
+--- @return table abandonable, number nonAbandonableCount, boolean hasLocalQuestBlocks
+function QuestCommon.GetAbandonableQuests(blocks)
+    local abandonable = {}
+    local nonAbandonableCount = 0
+    local hasLocalQuestBlocks = false
+    if not blocks then
+        return abandonable, nonAbandonableCount, hasLocalQuestBlocks
+    end
+
+    local seen = {}
+    for _, b in ipairs(blocks) do
+        local qID = ExtractBlockQuestID(b)
+        if qID and not seen[qID] then
+            seen[qID] = true
+            hasLocalQuestBlocks = true
+            if CanAbandonQuestID(qID) then
+                local rawTitle = b.rawTitle or b._popTitle
+                    or (C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(qID))
+                    or b.title
+                    or ("quest " .. tostring(qID))
+                local displayTitle = (sfui.common and sfui.common.strip_colors and sfui.common.strip_colors(rawTitle, true, true))
+                    or tostring(rawTitle)
+                if displayTitle == "" then
+                    displayTitle = "quest " .. tostring(qID)
+                end
+                table_insert(abandonable, {
+                    questID             = qID,
+                    rawTitle            = rawTitle,
+                    displayTitle        = displayTitle,
+                    isComplete          = (b.isComplete == true or b._isClickToComplete == true),
+                    isAutoCompletePopup = (b._isClickToComplete == true),
+                })
+            else
+                nonAbandonableCount = nonAbandonableCount + 1
+            end
+        end
+    end
+
+    return abandonable, nonAbandonableCount, hasLocalQuestBlocks
+end
+
+local function CollectDestroyedItemsForQuests(quests)
+    local items = {}
+    local itemSet = {}
+    if not quests or #quests == 0 then
+        return items
+    end
+
+    local function AddItemName(name)
+        if not name or (issecretvalue and issecretvalue(name)) or type(name) ~= "string" then
+            return
+        end
+        local trimmed = name:match("^%s*(.-)%s*$") or ""
+        if trimmed == "" then return end
+        local lowerName = string_lower(trimmed)
+        if not itemSet[lowerName] then
+            itemSet[lowerName] = true
+            table_insert(items, lowerName)
+        end
+    end
+
+    if C_QuestLog and C_QuestLog.SetSelectedQuest and C_QuestLog.SetAbandonQuest and C_QuestLog.GetAbandonQuestItems then
+        local oldSelected = C_QuestLog.GetSelectedQuest and C_QuestLog.GetSelectedQuest() or nil
+        for _, q in ipairs(quests) do
+            C_QuestLog.SetSelectedQuest(q.questID)
+            C_QuestLog.SetAbandonQuest()
+            if not C_QuestLog.GetAbandonQuest or C_QuestLog.GetAbandonQuest() == q.questID then
+                local itemIDs = C_QuestLog.GetAbandonQuestItems()
+                if type(itemIDs) == "table" then
+                    for _, itemID in ipairs(itemIDs) do
+                        local itemName = (_G.C_Item and _G.C_Item.GetItemNameByID and _G.C_Item.GetItemNameByID(itemID))
+                            or (_G.GetItemInfo and _G.GetItemInfo(itemID))
+                        AddItemName(itemName)
+                    end
+                end
+            end
+        end
+        if oldSelected and (not issecretvalue or not issecretvalue(oldSelected)) and type(oldSelected) == "number" and oldSelected > 0 then
+            C_QuestLog.SetSelectedQuest(oldSelected)
+        end
+    elseif _G.SelectQuestLogEntry and _G.SetAbandonQuest and _G.GetAbandonQuestItems then
+        local oldSelected = _G.GetQuestLogSelection and _G.GetQuestLogSelection() or nil
+        for _, q in ipairs(quests) do
+            local idx = ResolveQuestLogIndexByID(q.questID)
+            if idx and idx > 0 then
+                _G.SelectQuestLogEntry(idx)
+                _G.SetAbandonQuest()
+                local rawItems = _G.GetAbandonQuestItems()
+                if rawItems and (not issecretvalue or not issecretvalue(rawItems)) and type(rawItems) == "string" and rawItems ~= "" then
+                    for entry in rawItems:gmatch("[^,]+") do
+                        AddItemName(entry)
+                    end
+                end
+            end
+        end
+        if oldSelected and type(oldSelected) == "number" and oldSelected > 0 then
+            local numEntries = _G.GetNumQuestLogEntries and _G.GetNumQuestLogEntries()
+            if type(numEntries) == "number" and oldSelected <= numEntries then
+                _G.SelectQuestLogEntry(oldSelected)
+            end
+        end
+    end
+
+    return items
+end
+
+local function AbandonQuestBatch(quests, sectionLabel)
+    if InCombatLockdown and InCombatLockdown() then
+        if sfui.common and sfui.common.print then
+            sfui.common.print("cannot abandon quests in combat.")
+        end
+        return 0
+    end
+    if not quests or #quests == 0 then
+        return 0
+    end
+
+    local abandonedIDs = {}
+    local abandonedCount = 0
+
+    if C_QuestLog and C_QuestLog.SetSelectedQuest and C_QuestLog.SetAbandonQuest and C_QuestLog.AbandonQuest then
+        local oldSelected = C_QuestLog.GetSelectedQuest and C_QuestLog.GetSelectedQuest() or nil
+        for _, q in ipairs(quests) do
+            local qID = q.questID
+            local inLog = (not C_QuestLog.GetLogIndexForQuestID) or (C_QuestLog.GetLogIndexForQuestID(qID) ~= nil)
+            if inLog and CanAbandonQuestID(qID) then
+                C_QuestLog.SetSelectedQuest(qID)
+                C_QuestLog.SetAbandonQuest()
+                if not C_QuestLog.GetAbandonQuest or C_QuestLog.GetAbandonQuest() == qID then
+                    C_QuestLog.AbandonQuest()
+                    abandonedIDs[qID] = true
+                    abandonedCount = abandonedCount + 1
+                    sharedRecentlyWatched[qID] = nil
+                    if q.isAutoCompletePopup and _G.RemoveAutoQuestPopUp then
+                        _G.RemoveAutoQuestPopUp(qID)
+                    end
+                end
+            end
+        end
+        if oldSelected and (not issecretvalue or not issecretvalue(oldSelected))
+            and type(oldSelected) == "number" and oldSelected > 0
+            and not abandonedIDs[oldSelected]
+            and (not C_QuestLog.GetLogIndexForQuestID or C_QuestLog.GetLogIndexForQuestID(oldSelected) ~= nil) then
+            C_QuestLog.SetSelectedQuest(oldSelected)
+        end
+    elseif _G.SelectQuestLogEntry and _G.SetAbandonQuest and _G.AbandonQuest then
+        local oldSelected = _G.GetQuestLogSelection and _G.GetQuestLogSelection() or nil
+        for _, q in ipairs(quests) do
+            local idx = ResolveQuestLogIndexByID(q.questID)
+            if idx and idx > 0 and CanAbandonQuestID(q.questID) then
+                _G.SelectQuestLogEntry(idx)
+                _G.SetAbandonQuest()
+                local pendingName = _G.GetAbandonQuestName and _G.GetAbandonQuestName() or nil
+                if not pendingName or not q.rawTitle or pendingName == q.rawTitle then
+                    _G.AbandonQuest()
+                    abandonedIDs[q.questID] = true
+                    abandonedCount = abandonedCount + 1
+                    sharedRecentlyWatched[q.questID] = nil
+                end
+            end
+        end
+        if oldSelected and type(oldSelected) == "number" and oldSelected > 0 then
+            local numEntries = _G.GetNumQuestLogEntries and _G.GetNumQuestLogEntries()
+            if type(numEntries) == "number" and oldSelected <= numEntries then
+                _G.SelectQuestLogEntry(oldSelected)
+            end
+        end
+    end
+
+    if abandonedCount > 0 then
+        if _G.QuestLogPopupDetailFrame and _G.QuestLogPopupDetailFrame:IsShown() and _G.HideUIPanel then
+            _G.HideUIPanel(_G.QuestLogPopupDetailFrame)
+        end
+        if _G.StaticPopup_Hide then
+            _G.StaticPopup_Hide("ABANDON_QUEST")
+            _G.StaticPopup_Hide("ABANDON_QUEST_WITH_ITEMS")
+        end
+        if _G.PlaySound and _G.SOUNDKIT and _G.SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST then
+            _G.PlaySound(_G.SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST)
+        end
+
+        local curSuper = _G.C_SuperTrack and _G.C_SuperTrack.GetSuperTrackedQuestID and _G.C_SuperTrack.GetSuperTrackedQuestID()
+        if curSuper and abandonedIDs[curSuper] then
+            if sfui.map and sfui.map.SetSuperTrackedQuestID then
+                sfui.map.SetSuperTrackedQuestID(0)
+            elseif _G.C_SuperTrack and _G.C_SuperTrack.SetSuperTrackedQuestID then
+                _G.C_SuperTrack.SetSuperTrackedQuestID(0)
+            end
+        end
+
+        if sfui.tracker then
+            for _, mod in ipairs(sfui.tracker.modules or {}) do
+                if mod.MarkDirty then mod:MarkDirty() end
+            end
+            if sfui.tracker.RequestRefresh then
+                sfui.tracker.RequestRefresh(0.05)
+            end
+        end
+
+        local label = (type(sectionLabel) == "string" and sectionLabel ~= "") and string_lower(sectionLabel) or "section"
+        if sfui.common and sfui.common.print then
+            sfui.common.print(string_format("abandoned %d %s in %s.",
+                abandonedCount, (abandonedCount == 1) and "quest" or "quests", label))
+        end
+    end
+
+    return abandonedCount
+end
+
+if _G.StaticPopupDialogs then
+    _G.StaticPopupDialogs["SFUI_ABANDON_SECTION_QUESTS"] = {
+        text = "%s",
+        button1 = "abandon",
+        button2 = "cancel",
+        OnAccept = function(_, data)
+            if data and data.quests then
+                AbandonQuestBatch(data.quests, data.sectionLabel)
+            end
+        end,
+        timeout = 0,
+        whileDead = true,
+        exclusive = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+    }
+end
+
+--- Prompt confirmation and abandon all abandonable quests in a tracker section.
+--- @param sec table|nil Section table containing id, title, and blocks
+--- @return boolean handled
+function QuestCommon.AbandonSectionQuests(sec)
+    if InCombatLockdown and InCombatLockdown() then return false end
+    if not sec or not sec.blocks or #sec.blocks == 0 then return false end
+
+    local quests, skippedCount, hasLocalQuests = QuestCommon.GetAbandonableQuests(sec.blocks)
+    if not hasLocalQuests then
+        return false
+    end
+
+    local rawLabel = sec.title or sec.id or "section"
+    local cleanLabel = (sfui.common and sfui.common.strip_colors and sfui.common.strip_colors(tostring(rawLabel), true, true))
+        or tostring(rawLabel)
+    cleanLabel = string_lower(cleanLabel):gsub("%s*%[zone%]%s*$", "")
+    cleanLabel = cleanLabel:match("^%s*(.-)%s*$") or cleanLabel
+    if cleanLabel == "" then cleanLabel = "section" end
+
+    if #quests == 0 then
+        if sfui.common and sfui.common.print then
+            sfui.common.print("no abandonable quests in " .. cleanLabel .. ".")
+        end
+        return true
+    end
+
+    local parts = {
+        string_format("abandon %d %s in |cff00ffff%s|r?",
+            #quests, (#quests == 1) and "quest" or "quests", cleanLabel),
+        "",
+    }
+    local maxList = 8
+    local showCount = math_min(#quests, maxList)
+    for i = 1, showCount do
+        local q = quests[i]
+        local line = "- " .. string_lower(q.displayTitle)
+        if q.isComplete then
+            line = line .. " |cff33ff33(complete)|r"
+        end
+        table_insert(parts, line)
+    end
+    if #quests > maxList then
+        table_insert(parts, string_format("...and %d more", #quests - maxList))
+    end
+    if skippedCount > 0 then
+        table_insert(parts, "")
+        table_insert(parts, string_format("|cff888888(%d %s cannot be abandoned and will be kept)|r",
+            skippedCount, (skippedCount == 1) and "quest" or "quests"))
+    end
+
+    local destroyedItems = CollectDestroyedItemsForQuests(quests)
+    if #destroyedItems > 0 then
+        local itemLines = {}
+        local maxItems = 5
+        for i = 1, math_min(#destroyedItems, maxItems) do
+            table_insert(itemLines, destroyedItems[i])
+        end
+        local itemText = table_concat(itemLines, ", ")
+        if #destroyedItems > maxItems then
+            itemText = itemText .. string_format(" ...and %d more", #destroyedItems - maxItems)
+        end
+        table_insert(parts, "")
+        table_insert(parts, "|cffff6666destroys items:|r " .. itemText)
+    end
+
+    local msg = table_concat(parts, "\n")
+    if _G.StaticPopup_Hide then
+        _G.StaticPopup_Hide("ABANDON_QUEST")
+        _G.StaticPopup_Hide("ABANDON_QUEST_WITH_ITEMS")
+    end
+    if _G.StaticPopup_Show then
+        _G.StaticPopup_Show("SFUI_ABANDON_SECTION_QUESTS", msg, nil, {
+            quests = quests,
+            sectionLabel = cleanLabel,
+        })
+    end
+    return true
 end
 
 --- Share a quest with the player's group with combat & pushability guards.

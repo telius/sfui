@@ -28,7 +28,10 @@ local pairs, ipairs, type = _G.pairs, _G.ipairs, _G.type
 local tonumber, tostring = _G.tonumber, _G.tostring
 local math_floor, math_max, math_min = _G.math.floor, _G.math.max, _G.math.min
 local string_format = _G.string.format
-local table_sort, table_concat, table_wipe = _G.table.sort, _G.table.concat, _G.table.wipe
+local table_sort, table_concat = _G.table.sort, _G.table.concat
+local table_wipe = _G.wipe or _G.table.wipe or (sfui.common and sfui.common.wipe) or function(t)
+    for k in pairs(t) do t[k] = nil end
+end
 
 local common = sfui.common
 local theme = sfui.theme
@@ -90,7 +93,7 @@ end
 
 local function GetPlayerClassToken()
     if sfui.talents and sfui.talents.get_player_class then
-        local _, _, tok = sfui.talents.get_player_class()
+        local tok = sfui.talents.get_player_class()
         if type(tok) == "string" and tok ~= "" then
             return tok:upper()
         end
@@ -115,7 +118,7 @@ local function GetPlayerRole()
 end
 
 local function GetItemMeta(itemID)
-    local name, link, quality, icon
+    local name, link, quality, icon, _
     if common and common.get_item_info then
         name, link, quality, _, _, _, _, _, _, icon = common.get_item_info(itemID)
     elseif GetItemInfo then
@@ -664,6 +667,11 @@ local function SetMatchesSearch(set, q)
     if SafeLower(set.name):find(q, 1, true) then return true end
     if SafeLower(set.armor):find(q, 1, true) then return true end
     if set.class and SafeLower(set.class):find(q, 1, true) then return true end
+    if set.classes then
+        for cls in pairs(set.classes) do
+            if SafeLower(cls):find(q, 1, true) then return true end
+        end
+    end
     if set.role and SafeLower(set.role):find(q, 1, true) then return true end
 
     local sc = DATA()
@@ -888,6 +896,8 @@ local function ComputeFilteredSets()
         if targetClass then
             if s.class then
                 classOK = (s.class == targetClass)
+            elseif s.classes then
+                classOK = (s.classes[targetClass] == true)
             elseif db.wearableOnly then
                 classOK = sc.CanClassWearSet(s, targetClass)
             end
@@ -967,7 +977,14 @@ function S.Refresh()
             nameDisplay = "|cffffd100" .. nameDisplay .. "|r"
         end
         local roleStr = s.role and ("  |cff99bbff[" .. SafeLower(s.role) .. "]|r") or ""
-        local lvlStr = string_format("  |cff888899%s · lvl %d-%d|r", SafeLower(s.armor), s.minLevel or 1, s.maxLevel or 60)
+        local armorText = SafeLower(s.armor)
+        if s.classes and sc and sc.FormatAllowedClasses then
+            local clsStr = sc.FormatAllowedClasses(s)
+            if clsStr then
+                armorText = string_format("%s (%s)", armorText, clsStr)
+            end
+        end
+        local lvlStr = string_format("  |cff888899%s · lvl %d-%d|r", armorText, s.minLevel or 1, s.maxLevel or 60)
         local totalPieces = #(s.pieces or {})
         local countColor = (entry.ownedCount >= totalPieces) and "|cff44ee77" or "|cffdddddd"
         local progStr = string_format("  %s%d/%d|r", countColor, entry.ownedCount, totalPieces)
@@ -1159,7 +1176,7 @@ local function BuildPanelContents(container)
         d.wearableOnly = not d.wearableOnly
         S.Refresh()
     end)
-    wearableBtn.tooltip = "hide dungeon armor sets your class cannot equip"
+    wearableBtn.tooltip = "hide dungeon sets your class cannot equip or use"
     ui.wearableBtn = wearableBtn
 
     local missingBtn = common.create_flat_button(filterBar, "missing", 58, 20)
@@ -1303,14 +1320,19 @@ function S.ApplyFilterArg(arg)
     local db = DB()
     if low == "t0" or low == "t0.5" or low == "t05" or low == "dungeon" or low == "all" then
         db.category = (low == "t0.5") and "t05" or low
+        ui.filterText = ""
+        if ui.searchBox then ui.searchBox:SetText("") end
+        if ui.searchHolder then ui.searchHolder:SetShown(true) end
     elseif low == "scarlet" or low == "defias" or low == "gladiator" or low == "ironweave" then
         db.category = "dungeon"
         db.classFilter = "all"
         ui.filterText = low
         if ui.searchBox then ui.searchBox:SetText(low) end
+        if ui.searchHolder then ui.searchHolder:SetShown(false) end
     else
         ui.filterText = low
         if ui.searchBox then ui.searchBox:SetText(low) end
+        if ui.searchHolder then ui.searchHolder:SetShown(false) end
     end
 end
 
