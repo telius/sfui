@@ -43,6 +43,8 @@ local HIGH_PRIORITY_MSG_TYPES = {
     WANT                = true,
 }
 
+local TARGET_OFFLINE_RESULT = (_G.Enum and _G.Enum.SendAddonMessageResult and _G.Enum.SendAddonMessageResult.TargetOffline) or 12
+
 local function acquire_tbl()
     if sfui.pool and sfui.pool.acquire_table then
         return sfui.pool.acquire_table()
@@ -192,6 +194,8 @@ local lastSendTime = -SEND_INTERVAL
 local nextMsgSeq = 1
 local reassemblyBuffers = {}
 local recentWhispers = {}
+local lastAnyWhisperTime = 0
+local cancelMatchKeys = {}
 
 local function remove_matching_packets(q, predicate)
     for i = #q, 1, -1 do
@@ -203,41 +207,85 @@ local function remove_matching_packets(q, predicate)
     end
 end
 
-local function normalize_short_lower(name)
-    if type(name) ~= "string" then return nil end
-    local lower = name:lower()
-    return sfui.common.short_name(lower), lower
-end
-
-function codec.RecordWhisperTarget(target)
-    local shortName, fullName = normalize_short_lower(target)
-    if not shortName then return end
-    local now = (GetTime and GetTime()) or 0
-    recentWhispers[shortName] = now
-    recentWhispers[fullName] = now
-end
-
-function codec.WasRecentlyWhispered(target)
-    local shortName, fullName = normalize_short_lower(target)
-    if not shortName then return false end
-    local now = (GetTime and GetTime()) or 0
-    local ts = recentWhispers[fullName] or recentWhispers[shortName]
-    if ts and (now - ts) <= 10 then
-        return true
+local function for_each_name_key(name, fn)
+    if type(name) ~= "string" then return false end
+    local trimmed = name:match("^%s*(.-)%s*$")
+    if not trimmed or trimmed == "" then return false end
+    local lower = trimmed:lower()
+    if fn(lower) then return true end
+    local shortName = (sfui.common and sfui.common.short_name and sfui.common.short_name(lower))
+        or lower:gsub("%-.+$", "")
+    if shortName ~= "" and shortName ~= lower then
+        if fn(shortName) then return true end
+    end
+    local firstWord = shortName:match("^(%S+)")
+    if firstWord and firstWord ~= "" and firstWord ~= shortName and firstWord ~= lower then
+        if fn(firstWord) then return true end
+    end
+    local firstToken = lower:match("^([^%s%-]+)")
+    if firstToken and firstToken ~= "" and firstToken ~= firstWord and firstToken ~= shortName and firstToken ~= lower then
+        if fn(firstToken) then return true end
     end
     return false
 end
 
+function codec.RecordWhisperTarget(target, aliasName)
+    local now = (GetTime and GetTime()) or 0
+    local recorded = false
+    local function stamp(k)
+        recentWhispers[k] = now
+        recorded = true
+        return false
+    end
+    if target then for_each_name_key(target, stamp) end
+    if aliasName and aliasName ~= target then for_each_name_key(aliasName, stamp) end
+    if recorded then
+        lastAnyWhisperTime = now
+    end
+end
+
+function codec.WasRecentlyWhispered(target, windowSec)
+    local now = (GetTime and GetTime()) or 0
+    local win = windowSec or 15
+    return for_each_name_key(target, function(k)
+        local ts = recentWhispers[k]
+        return ts ~= nil and (now - ts) <= win
+    end)
+end
+
+function codec.HadRecentWhisper(windowSec)
+    if lastAnyWhisperTime <= 0 then return false end
+    local now = (GetTime and GetTime()) or 0
+    return (now - lastAnyWhisperTime) <= (windowSec or 15)
+end
+
 function codec.CancelWhispersToTarget(target)
-    local shortName, fullName = normalize_short_lower(target)
-    if not shortName then return end
+    if type(target) ~= "string" or target == "" then return end
+    for k in pairs(cancelMatchKeys) do cancelMatchKeys[k] = nil end
+    local any = false
+    for_each_name_key(target, function(k)
+        cancelMatchKeys[k] = true
+        any = true
+        return false
+    end)
+    if not any then return end
+
+    local function keyMatches(k)
+        return cancelMatchKeys[k] == true
+    end
     local function matchesWhisper(pkt)
-        if pkt.channel ~= "WHISPER" or not pkt.target then return false end
-        local pShort, pFull = normalize_short_lower(pkt.target)
-        return pShort == shortName or pFull == fullName
+        if pkt.channel ~= "WHISPER" then return false end
+        if pkt.target and for_each_name_key(pkt.target, keyMatches) then
+            return true
+        end
+        if pkt.alias and for_each_name_key(pkt.alias, keyMatches) then
+            return true
+        end
+        return false
     end
     remove_matching_packets(highPriorityQueue, matchesWhisper)
     remove_matching_packets(sendQueue, matchesWhisper)
+    for k in pairs(cancelMatchKeys) do cancelMatchKeys[k] = nil end
 end
 
 local IsInGroup = _G.IsInGroup
@@ -328,17 +376,35 @@ local function dispatch_raw_packet(pkt)
             return false
         end
     elseif pkt.channel == "WHISPER" and pkt.target then
-        codec.RecordWhisperTarget(pkt.target)
+        codec.RecordWhisperTarget(pkt.target, pkt.alias)
     end
 
+    local sent = false
+    local res = nil
     if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-        C_ChatInfo.SendAddonMessage(pkt.prefix, pkt.text, pkt.channel, pkt.target)
-        return true
+        res = C_ChatInfo.SendAddonMessage(pkt.prefix, pkt.text, pkt.channel, pkt.target)
+        sent = true
     elseif SendAddonMessageFallback then
-        SendAddonMessageFallback(pkt.prefix, pkt.text, pkt.channel, pkt.target)
-        return true
+        res = SendAddonMessageFallback(pkt.prefix, pkt.text, pkt.channel, pkt.target)
+        sent = true
     end
-    return false
+
+    if sent and pkt.channel == "WHISPER" and res == TARGET_OFFLINE_RESULT then
+        local targetName = pkt.target
+        local aliasName = pkt.alias
+        if targetName then
+            codec.CancelWhispersToTarget(targetName)
+        end
+        if aliasName and aliasName ~= targetName then
+            codec.CancelWhispersToTarget(aliasName)
+        end
+        if sfui.sync and sfui.sync.MarkPeerOffline then
+            sfui.sync.MarkPeerOffline(aliasName or targetName)
+        end
+        return false
+    end
+
+    return sent
 end
 
 local function stop_queue_ticker()
@@ -403,7 +469,7 @@ function codec.FlushQueue()
     end
 end
 
-function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAccount, highPriority)
+function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAccount, highPriority, whisperAlias)
     local env = acquire_tbl()
     env.t = msgType
     env.d = dataTable
@@ -422,6 +488,7 @@ function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAc
         pkt.text          = "0~" .. payload
         pkt.channel       = channel
         pkt.target        = target
+        pkt.alias         = whisperAlias
         pkt.bnetIDAccount = bnetIDAccount
         table_insert(targetQueue, pkt)
     else
@@ -438,6 +505,7 @@ function codec.SendMessage(prefix, msgType, dataTable, channel, target, bnetIDAc
             pkt.text          = header .. chunk
             pkt.channel       = channel
             pkt.target        = target
+            pkt.alias         = whisperAlias
             pkt.bnetIDAccount = bnetIDAccount
             table_insert(targetQueue, pkt)
         end

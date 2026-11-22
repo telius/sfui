@@ -7,6 +7,7 @@ sfui = sfui or {}
 sfui.merchant = sfui.merchant or {}
 
 local common = sfui.common
+local issecretvalue = sfui.common.issecretvalue
 local get_item_id = common.get_item_id_from_link
 local cfg = sfui.config.merchant
 local NUM_ROWS = cfg.grid.rows
@@ -45,6 +46,7 @@ sfui.merchant.mode = "merchant"   -- "merchant" or "buyback"
 sfui.merchant.filterKnown = 1     -- 0=show all, 1=hide known (char), 2=hide known (warband)
 sfui.merchant.scrollOffset = 0
 sfui.merchant.totalMerchantItems = 0
+sfui.merchant.searchText = ""
 
 -- Caches
 sfui.merchant.filteredIndices = sfui.merchant.filteredIndices or {}
@@ -336,10 +338,59 @@ sfui.events.RegisterEvent("UNIT_PET", function(event, unit)
     sfui.merchant.scan_pet_spellbook()
 end)
 
-function sfui.merchant.reset_scroll_and_rebuild()
+local function str_matches_query(val, query)
+    if type(val) ~= "string" or val == "" then return false end
+    if issecretvalue and issecretvalue(val) then return false end
+    return val:lower():find(query, 1, true) ~= nil
+end
+
+local function matches_search_query(query, mode, index, link, itemID, mInfo)
+    if not query or query == "" then return true end
+
+    if mInfo and str_matches_query(mInfo.name, query) then
+        return true
+    end
+    if mode == "buyback" and _G.GetBuybackItemInfo then
+        local bbName = _G.GetBuybackItemInfo(index)
+        if str_matches_query(bbName, query) then
+            return true
+        end
+    end
+
+    if link and (not issecretvalue or not issecretvalue(link)) and type(link) == "string" then
+        local linkName = link:match("%[(.-)%]")
+        if str_matches_query(linkName, query) then
+            return true
+        end
+        if common and common.get_item_info then
+            local infoName, _, _, _, _, itemType, itemSubType, _, equipLoc = common.get_item_info(link)
+            if str_matches_query(infoName, query)
+                or str_matches_query(itemType, query)
+                or str_matches_query(itemSubType, query) then
+                return true
+            end
+            if equipLoc and (not issecretvalue or not issecretvalue(equipLoc)) and equipLoc ~= "" then
+                local slotLabel = _G[equipLoc]
+                if str_matches_query(slotLabel, query) then
+                    return true
+                end
+            end
+        end
+    end
+
+    if itemID and str_matches_query(tostring(itemID), query) then
+        return true
+    end
+
+    return false
+end
+
+function sfui.merchant.reset_scroll_and_rebuild(keepCaches)
     sfui.merchant.scrollOffset = 0
-    wipe(sfui.merchant.lockCache)
-    wipe(sfui.merchant.decorXpCache)
+    if not keepCaches then
+        wipe(sfui.merchant.lockCache)
+        wipe(sfui.merchant.decorXpCache)
+    end
     local frame = sfui.merchant.frame
     if frame and frame.scrollBar then
         frame.scrollBar:SetValue(0)
@@ -350,19 +401,28 @@ end
 function sfui.merchant.build_item_list()
     local mode = sfui.merchant.mode
     local numItemsRaw = (mode == "buyback") and GetNumBuybackItems() or GetMerchantNumItems()
+    local rawSearch = sfui.merchant.searchText
+    local query = (type(rawSearch) == "string" and (not issecretvalue or not issecretvalue(rawSearch)))
+        and (rawSearch:match("^%s*(.-)%s*$") or ""):lower() or ""
 
     wipe(sfui.merchant.filteredIndices)
     releaseCache(sfui.merchant.currencyCache)
 
     for i = 1, numItemsRaw do
         local include, link = true, nil
+        local itemInfo = nil
         if mode == "merchant" then
-            link = GetMerchantItemLink(i)
+            itemInfo = sfui.api.GetMerchantItemInfo(i)
+            link = (itemInfo and itemInfo.hyperlink) or GetMerchantItemLink(i)
         else
             link = GetBuybackItemLink(i)
         end
 
         local itemID = get_item_id(link)
+        if include and query ~= "" then
+            include = matches_search_query(query, mode, i, link, itemID, itemInfo)
+        end
+
         if include and mode == "merchant" and sfui.merchant.filterKnown and sfui.merchant.filterKnown ~= 0 and link then
             local isKnown = false
             local isRecipe = itemID and sfui.recipes.IsRecipe(itemID)
@@ -407,7 +467,7 @@ function sfui.merchant.build_item_list()
 
         if include and mode == "merchant" and sfui.merchant.lootFilterState > 0 and link then
             local isClassMatch = true
-            local info = sfui.api.GetMerchantItemInfo(i)
+            local info = itemInfo or sfui.api.GetMerchantItemInfo(i)
             if not info or not info.isUsable then
                 isClassMatch = false
             else
@@ -446,7 +506,6 @@ function sfui.merchant.build_item_list()
 
         if include then table.insert(sfui.merchant.filteredIndices, i) end
         if mode == "merchant" then
-            local itemInfo = sfui.api.GetMerchantItemInfo(i)
             if itemInfo then
                 if itemInfo.price and itemInfo.price > 0 then
                     EnsureMoneyInCache()

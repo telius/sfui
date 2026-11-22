@@ -49,7 +49,7 @@ local C_Timer = _G.C_Timer
 local C_FriendList = _G.C_FriendList
 local BNGetNumFriends = _G.BNGetNumFriends
 local C_BattleNet = _G.C_BattleNet
-local ChatFrame_AddMessageEventFilter = _G.ChatFrame_AddMessageEventFilter
+local AddMessageEventFilter = (_G.ChatFrameUtil and _G.ChatFrameUtil.AddMessageEventFilter) or _G.ChatFrame_AddMessageEventFilter
 local issecretvalue = sfui.common.issecretvalue
 
 sync.stats = sync.stats or {
@@ -62,8 +62,13 @@ sync.stats = sync.stats or {
 }
 
 -- Session-scoped online/offline state for peer characters (keyed by lowercase short name)
-local onlinePeers  = {}
-local offlinePeers = {}
+local ONLINE_PEER_TTL     = 120 -- expire passive session online state if no packet or live social/group presence
+local OFFLINE_COOLDOWN    = 60  -- keep failed whisper targets suppressed even if BNet/Friends lags on logout
+local onlinePeers         = {}
+local offlinePeers        = {}
+local knownOfflineFriends = {}
+local bnetFriendCharByID  = {}
+local lastPartyPeerKeys   = {}
 
 local DEFAULT_SETTINGS = {
     enabled            = true,
@@ -538,6 +543,9 @@ local function is_same_wow_project(gameInfo)
     if not (gameInfo and gameInfo.isOnline and gameInfo.clientProgram == "WoW") then
         return false
     end
+    if gameInfo.isInCurrentRegion == false then
+        return false
+    end
     local curProject = _G.WOW_PROJECT_ID
     if curProject and gameInfo.wowProjectID and gameInfo.wowProjectID ~= curProject then
         return false
@@ -545,13 +553,37 @@ local function is_same_wow_project(gameInfo)
     return true
 end
 
-local function cache_bnet_title_whisper(friendIndex, charName)
+local function is_bnet_friend_whisperable(gameInfo)
+    if not (gameInfo and type(gameInfo.characterName) == "string" and gameInfo.characterName ~= "") then
+        return false
+    end
+    if not sfui.isRetail then
+        if gameInfo.factionName and gameInfo.factionName ~= "" and _G.UnitFactionGroup then
+            local myFaction = _G.UnitFactionGroup("player")
+            if myFaction and myFaction ~= "" and string_lower(gameInfo.factionName) ~= string_lower(myFaction) then
+                return false
+            end
+        end
+        if gameInfo.realmID and gameInfo.realmID > 0 and _G.GetRealmID then
+            local myRealmID = _G.GetRealmID()
+            if myRealmID and myRealmID > 0 and gameInfo.realmID ~= myRealmID then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+local function cache_bnet_title_whisper(friendIndex, charName, knownBnetID)
     if not charName or charName == "" then return end
-    if not (C_BattleNet and C_BattleNet.GetDefaultTitleWhisperTarget and C_BattleNet.GetFriendAccountInfo) then
+    if not (C_BattleNet and C_BattleNet.GetDefaultTitleWhisperTarget) then
         return
     end
-    local acct = C_BattleNet.GetFriendAccountInfo(friendIndex)
-    local bnetID = acct and acct.bnetAccountID
+    local bnetID = knownBnetID
+    if not bnetID and C_BattleNet.GetFriendAccountInfo then
+        local acct = C_BattleNet.GetFriendAccountInfo(friendIndex)
+        bnetID = acct and acct.bnetAccountID
+    end
     if not bnetID then return end
     local wt = C_BattleNet.GetDefaultTitleWhisperTarget(bnetID)
     if wt and not (issecretvalue and issecretvalue(wt)) and wt ~= "" then
@@ -781,53 +813,140 @@ end
 local liveOnlineCache = {}
 local liveOnlineCacheTime = 0
 
+local function first_token_lower(lowerName)
+    if sfui.isRetail or type(lowerName) ~= "string" then return nil end
+    local first = string_match(lowerName, "^(%S+)")
+    if first and first ~= "" and first ~= lowerName then
+        return first
+    end
+    return nil
+end
+
+local function is_key_offline(key, now)
+    if not key or key == "" then return false end
+    local ts = offlinePeers[key]
+    if not ts then return false end
+    local cur = now or (GetTime and GetTime()) or 0
+    if (cur - ts) < OFFLINE_COOLDOWN then
+        return true
+    end
+    offlinePeers[key] = nil
+    return false
+end
+
+local function clear_offline_keys_for(nameStr)
+    if type(nameStr) ~= "string" or nameStr == "" then return end
+    local _, shortName = normalize_peer_key(nameStr)
+    local lower = string_lower(shortName or nameStr)
+    offlinePeers[lower] = nil
+    knownOfflineFriends[lower] = nil
+    local first = first_token_lower(lower)
+    if first then
+        offlinePeers[first] = nil
+        knownOfflineFriends[first] = nil
+    end
+end
+
+local function is_peer_marked_offline(nameOrFull, peer, target, now)
+    local cur = now or (GetTime and GetTime()) or 0
+    local _, shortName = normalize_peer_key(nameOrFull or "")
+    local lowerShort = shortName and string_lower(shortName) or (type(nameOrFull) == "string" and string_lower(nameOrFull)) or nil
+    if lowerShort and (is_key_offline(lowerShort, cur) or is_key_offline(first_token_lower(lowerShort), cur)) then
+        return true
+    end
+    local peerLower = peer and peer.name and string_lower(peer.name) or nil
+    if peerLower and (is_key_offline(peerLower, cur) or is_key_offline(first_token_lower(peerLower), cur)) then
+        return true
+    end
+    if type(target) == "string" and target ~= "" then
+        local _, tShort = normalize_peer_key(target)
+        local tLower = string_lower(tShort or target)
+        if is_key_offline(tLower, cur) or is_key_offline(first_token_lower(tLower), cur) then
+            return true
+        end
+    end
+    return false
+end
+
 function sync.MarkPeerOnline(nameOrFull, peerAccountID)
     local _, shortName = normalize_peer_key(nameOrFull)
     if not shortName then return end
     local lowerShort = string_lower(shortName)
     local peer = sync.FindPeer(nameOrFull)
     local peerLower = (peer and peer.name and string_lower(peer.name)) or nil
+    local acctID = peerAccountID or (peer and peer.accountID)
     local now = (GetTime and GetTime()) or 0
 
     -- A single WoW account only has one character online at a time:
     -- clear online status of other alts on that same peer account
-    if peerAccountID and peerAccountID ~= "" then
+    if acctID and acctID ~= "" then
         local s = sync.GetSettings()
         for _, p in pairs(s.peers) do
-            if type(p) == "table" and p.accountID == peerAccountID and p.name then
+            if type(p) == "table" and p.accountID == acctID and p.name then
                 local pShort = string_lower(p.name)
                 if pShort ~= lowerShort and pShort ~= peerLower then
                     onlinePeers[pShort] = nil
+                    local pFirst = first_token_lower(pShort)
+                    if pFirst then onlinePeers[pFirst] = nil end
                 end
             end
         end
     end
 
     onlinePeers[lowerShort] = now
-    offlinePeers[lowerShort] = nil
+    clear_offline_keys_for(lowerShort)
     if peerLower and peerLower ~= lowerShort then
         onlinePeers[peerLower] = now
-        offlinePeers[peerLower] = nil
+        clear_offline_keys_for(peerLower)
     end
     liveOnlineCacheTime = 0
 end
 
 function sync.MarkPeerOffline(nameOrFull)
+    if type(nameOrFull) ~= "string" or nameOrFull == "" then return end
     local _, shortName = normalize_peer_key(nameOrFull)
-    if not shortName then return end
-    local lowerShort = string_lower(shortName)
+    local lowerShort = string_lower(shortName or nameOrFull)
     local peer = sync.FindPeer(nameOrFull)
     local peerLower = (peer and peer.name and string_lower(peer.name)) or nil
     local now = (GetTime and GetTime()) or 1
-    onlinePeers[lowerShort] = nil
-    offlinePeers[lowerShort] = now
-    if peerLower and peerLower ~= lowerShort then
-        onlinePeers[peerLower] = nil
-        offlinePeers[peerLower] = now
+
+    local function stampOffline(k)
+        if not k or k == "" then return end
+        onlinePeers[k] = nil
+        offlinePeers[k] = now
+        local first = first_token_lower(k)
+        if first then
+            onlinePeers[first] = nil
+            offlinePeers[first] = now
+        end
     end
+
+    stampOffline(lowerShort)
+    if peerLower and peerLower ~= lowerShort then
+        stampOffline(peerLower)
+    end
+    if peer and peer.accountID and peer.accountID ~= "" and peer.accountID ~= "peer-acct-default" then
+        local s = sync.GetSettings()
+        for _, p in pairs(s.peers) do
+            if type(p) == "table" and p.accountID == peer.accountID and p.name then
+                local pLow = string_lower(p.name)
+                onlinePeers[pLow] = nil
+                local pFirst = first_token_lower(pLow)
+                if pFirst then onlinePeers[pFirst] = nil end
+            end
+        end
+    end
+
     liveOnlineCacheTime = 0
     if codec and codec.CancelWhispersToTarget then
-        codec.CancelWhispersToTarget(shortName)
+        codec.CancelWhispersToTarget(shortName or nameOrFull)
+        if peer and peer.name and peer.name ~= (shortName or nameOrFull) then
+            codec.CancelWhispersToTarget(peer.name)
+        end
+        local wt = bnetWhisperTargets[lowerShort] or (peerLower and bnetWhisperTargets[peerLower])
+        if wt and wt ~= "" then
+            codec.CancelWhispersToTarget(wt)
+        end
     end
 end
 
@@ -840,10 +959,13 @@ local function build_live_online_map()
     liveOnlineCacheTime = now
     local map = liveOnlineCache
     wipe(map)
+    wipe(knownOfflineFriends)
 
     for k, ts in pairs(onlinePeers) do
-        if not offlinePeers[k] then
+        if type(ts) == "number" and (now - ts) <= ONLINE_PEER_TTL and not is_key_offline(k, now) then
             map[k] = ts
+        elseif type(ts) == "number" and (now - ts) > ONLINE_PEER_TTL then
+            onlinePeers[k] = nil
         end
     end
 
@@ -853,19 +975,27 @@ local function build_live_online_map()
         local prefixUnit = (IsInRaid and IsInRaid()) and "raid" or "party"
         for i = 1, n do
             local u = prefixUnit .. i
-            if UnitExists and UnitExists(u) and (not UnitIsConnected or UnitIsConnected(u)) then
+            if UnitExists and UnitExists(u) then
+                local connected = (not UnitIsConnected) or UnitIsConnected(u)
                 local full = sync.FullName(u)
-                if full and full ~= "" then
-                    local _, shortName = normalize_peer_key(full)
-                    local lowerFull = string_lower(shortName or full)
-                    map[lowerFull] = true
-                    offlinePeers[lowerFull] = nil
-                end
                 local uName = UnitName(u)
-                if uName and uName ~= "" then
-                    local lower = string_lower(uName)
-                    map[lower] = true
-                    offlinePeers[lower] = nil
+                if connected then
+                    if full and full ~= "" then
+                        local _, shortName = normalize_peer_key(full)
+                        local lowerFull = string_lower(shortName or full)
+                        if not is_key_offline(lowerFull, now) then
+                            map[lowerFull] = true
+                        end
+                    end
+                    if uName and uName ~= "" then
+                        local lower = string_lower(uName)
+                        if not is_key_offline(lower, now) then
+                            map[lower] = true
+                        end
+                    end
+                else
+                    if full and full ~= "" then sync.MarkPeerOffline(full) end
+                    if uName and uName ~= "" then sync.MarkPeerOffline(uName) end
                 end
             end
         end
@@ -876,11 +1006,20 @@ local function build_live_online_map()
         local numFriends = C_FriendList.GetNumFriends() or 0
         for i = 1, numFriends do
             local info = C_FriendList.GetFriendInfoByIndex(i)
-            if info and info.connected and info.name then
+            if info and info.name and info.name ~= "" then
                 local _, shortName = normalize_peer_key(info.name)
                 local lower = string_lower(shortName or info.name)
-                map[lower] = true
-                offlinePeers[lower] = nil
+                if info.connected then
+                    if not is_key_offline(lower, now) and not is_key_offline(first_token_lower(lower), now) then
+                        map[lower] = true
+                    end
+                else
+                    knownOfflineFriends[lower] = true
+                    local fLower = first_token_lower(lower)
+                    if fLower then knownOfflineFriends[fLower] = true end
+                    onlinePeers[lower] = nil
+                    if fLower then onlinePeers[fLower] = nil end
+                end
             end
         end
     end
@@ -889,15 +1028,21 @@ local function build_live_online_map()
     if C_BattleNet and C_BattleNet.GetFriendGameAccountInfo and BNGetNumFriends then
         local _, numOnline = BNGetNumFriends()
         for i = 1, (numOnline or 0) do
+            local acct = C_BattleNet.GetFriendAccountInfo and C_BattleNet.GetFriendAccountInfo(i)
+            local bnetID = acct and acct.bnetAccountID
             local numGameAccounts = (C_BattleNet.GetFriendNumGameAccounts and C_BattleNet.GetFriendNumGameAccounts(i)) or 0
             for j = 1, numGameAccounts do
                 local gameInfo = C_BattleNet.GetFriendGameAccountInfo(i, j)
-                if is_same_wow_project(gameInfo) and gameInfo.characterName then
-                    cache_bnet_title_whisper(i, gameInfo.characterName)
+                if is_same_wow_project(gameInfo) and is_bnet_friend_whisperable(gameInfo) then
+                    cache_bnet_title_whisper(i, gameInfo.characterName, bnetID)
+                    if bnetID then
+                        bnetFriendCharByID[bnetID] = gameInfo.characterName
+                    end
                     local _, shortName = normalize_peer_key(gameInfo.characterName)
                     local lower = string_lower(shortName or gameInfo.characterName)
-                    map[lower] = true
-                    offlinePeers[lower] = nil
+                    if not is_key_offline(lower, now) and not is_key_offline(first_token_lower(lower), now) then
+                        map[lower] = true
+                    end
                 end
             end
         end
@@ -912,8 +1057,9 @@ local function build_live_online_map()
             if online and fullName then
                 local _, shortName = normalize_peer_key(fullName)
                 local lower = string_lower(shortName or fullName)
-                map[lower] = true
-                offlinePeers[lower] = nil
+                if not is_key_offline(lower, now) and not is_key_offline(first_token_lower(lower), now) then
+                    map[lower] = true
+                end
             end
         end
     end
@@ -923,9 +1069,9 @@ local function build_live_online_map()
         for _, p in pairs(s.peers) do
             if type(p) == "table" and p.name then
                 local pLower = string_lower(p.name)
-                if not map[pLower] and not offlinePeers[pLower] then
-                    local fLower = string_match(pLower, "^(%S+)")
-                    if fLower and fLower ~= pLower and map[fLower] then
+                local fLower = first_token_lower(pLower)
+                if fLower and not map[pLower] and not is_key_offline(pLower, now) and not is_key_offline(fLower, now) then
+                    if map[fLower] then
                         map[pLower] = map[fLower]
                     end
                 end
@@ -938,16 +1084,19 @@ end
 
 function sync.IsPeerOnline(nameOrFull)
     if type(nameOrFull) ~= "string" or nameOrFull == "" then return false end
+    local now = (GetTime and GetTime()) or 0
     local _, shortName = normalize_peer_key(nameOrFull)
     local key = string_lower(shortName or nameOrFull)
-    if offlinePeers[key] then return false end
+    if is_key_offline(key, now) or is_key_offline(first_token_lower(key), now) then
+        return false
+    end
     local map = build_live_online_map()
     if map[key] ~= nil then return true end
     if not sfui.isRetail then
         local peer = sync.FindPeer(nameOrFull)
         if peer and peer.name then
             local pKey = string_lower(peer.name)
-            if not offlinePeers[pKey] and map[pKey] ~= nil then
+            if not is_key_offline(pKey, now) and not is_key_offline(first_token_lower(pKey), now) and map[pKey] ~= nil then
                 return true
             end
         end
@@ -1177,11 +1326,11 @@ local function send_to_peer(peerName, msgType, dataTable, replyChannel, bnetIDAc
     if peerName and peerName ~= "" and s.useWhisper then
         local peer = sync.FindPeer(peerName)
         local target = get_whisper_target(peerName, peer)
-        local _, shortName = normalize_peer_key(target)
-        if shortName and offlinePeers[string_lower(shortName)] then
+        local now = (GetTime and GetTime()) or 0
+        if is_peer_marked_offline(peerName, peer, target, now) then
             return false
         end
-        return codec.SendMessage(PREFIX, msgType, dataTable, "WHISPER", target)
+        return codec.SendMessage(PREFIX, msgType, dataTable, "WHISPER", target, nil, nil, (peer and peer.name) or peerName)
     end
     return false
 end
@@ -1207,21 +1356,34 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
     end
 
     local bnetSentNames = {}
+    local bnetSentAccounts = {}
     if s.useBNet and C_BattleNet and C_BattleNet.GetFriendGameAccountInfo and BNGetNumFriends then
         local _, numOnline = BNGetNumFriends()
         for i = 1, (numOnline or 0) do
+            local acct = C_BattleNet.GetFriendAccountInfo and C_BattleNet.GetFriendAccountInfo(i)
+            local bnetID = acct and acct.bnetAccountID
             local numGameAccounts = (C_BattleNet.GetFriendNumGameAccounts and C_BattleNet.GetFriendNumGameAccounts(i)) or 0
             for j = 1, numGameAccounts do
                 local gameInfo = C_BattleNet.GetFriendGameAccountInfo(i, j)
-                if is_same_wow_project(gameInfo) and gameInfo.gameAccountID then
-                    cache_bnet_title_whisper(i, gameInfo.characterName)
+                if is_same_wow_project(gameInfo) and gameInfo.gameAccountID
+                    and type(gameInfo.characterName) == "string" and gameInfo.characterName ~= "" then
+                    cache_bnet_title_whisper(i, gameInfo.characterName, bnetID)
                     local charName = gameInfo.characterName
-                    local peer = charName and not is_self_character(charName) and sync.FindPeer(charName)
+                    local peer = not is_self_character(charName) and sync.FindPeer(charName)
                     if peer then
                         codec.SendMessage(PREFIX, msgType, dataTable, "BNET", nil, gameInfo.gameAccountID)
-                        bnetSentNames[string_lower(charName)] = true
+                        local cLow = string_lower(charName)
+                        bnetSentNames[cLow] = true
+                        local cFirst = first_token_lower(cLow)
+                        if cFirst then bnetSentNames[cFirst] = true end
                         if peer.name then
-                            bnetSentNames[string_lower(peer.name)] = true
+                            local pLow = string_lower(peer.name)
+                            bnetSentNames[pLow] = true
+                            local pFirst = first_token_lower(pLow)
+                            if pFirst then bnetSentNames[pFirst] = true end
+                        end
+                        if peer.accountID and peer.accountID ~= "" and peer.accountID ~= "peer-acct-default" then
+                            bnetSentAccounts[peer.accountID] = true
                         end
                     end
                 end
@@ -1249,6 +1411,7 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
         end
 
         local liveOnline = build_live_online_map()
+        local now = (GetTime and GetTime()) or 0
 
         -- Group all linked characters by their peer account so we never whisper multiple alts on the same account
         local accounts = {}
@@ -1260,7 +1423,7 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
                 local group = accounts[acctKey]
                 if not group then
                     group = {
-                        alreadyReached = false,
+                        alreadyReached = bnetSentAccounts[acctKey] == true,
                         onlinePeer     = nil,
                         bestFallback   = nil,
                     }
@@ -1269,15 +1432,19 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
 
                 local peerDisp = sync.GetPeerDisplayName(peer)
                 local lowerName = string_lower(peerDisp)
-                local firstLower = not sfui.isRetail and string_match(lowerName, "^(%S+)") or nil
+                local firstLower = first_token_lower(lowerName)
+                local markedOff = is_peer_marked_offline(peerDisp, peer, nil, now)
                 if partyNames[lowerName] or bnetSentNames[lowerName]
                     or (firstLower and (partyNames[firstLower] or bnetSentNames[firstLower])) then
                     group.alreadyReached = true
-                elseif liveOnline[lowerName] then
+                elseif (liveOnline[lowerName] or (firstLower and liveOnline[firstLower])) and not markedOff then
                     if not group.onlinePeer or ((tonumber(peer.lastSeen) or 0) > (tonumber(group.onlinePeer.lastSeen) or 0)) then
                         group.onlinePeer = peer
                     end
-                elseif forceProbe and not offlinePeers[lowerName] and (tonumber(peer.lastSeen) or 0) > 0 then
+                elseif forceProbe and not markedOff
+                    and not knownOfflineFriends[lowerName]
+                    and (not firstLower or not knownOfflineFriends[firstLower])
+                    and (tonumber(peer.lastSeen) or 0) > 0 then
                     if not group.bestFallback or ((tonumber(peer.lastSeen) or 0) > (tonumber(group.bestFallback.lastSeen) or 0)) then
                         group.bestFallback = peer
                     end
@@ -1290,7 +1457,9 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
                 local chosen = group.onlinePeer or (forceProbe and group.bestFallback) or nil
                 if chosen then
                     local target = get_whisper_target(chosen.name, chosen)
-                    codec.SendMessage(PREFIX, msgType, dataTable, "WHISPER", target)
+                    if not is_peer_marked_offline(chosen.name, chosen, target, now) then
+                        codec.SendMessage(PREFIX, msgType, dataTable, "WHISPER", target, nil, nil, chosen.name)
+                    end
                 end
             end
         end
@@ -1387,10 +1556,7 @@ function sync.SendHelloToPeer(peerName, channel, bnetIDAccount)
     if sfui.alts and sfui.alts.PerformSync then
         sfui.alts.PerformSync(false)
     end
-    local _, shortName = normalize_peer_key(peerName)
-    if shortName then
-        offlinePeers[string_lower(shortName)] = nil
-    end
+    clear_offline_keys_for(peerName)
     local manifest = merge.BuildManifest(s)
     send_to_peer(peerName, "HELLO", manifest, channel or "WHISPER", bnetIDAccount)
 end
@@ -1577,10 +1743,7 @@ function sync.PairWithCharacter(targetName)
     if sfui.alts and sfui.alts.PerformSync then
         sfui.alts.PerformSync(false)
     end
-    local _, shortName = normalize_peer_key(targetName)
-    if shortName then
-        offlinePeers[string_lower(shortName)] = nil
-    end
+    clear_offline_keys_for(targetName)
     mark_pending_outgoing_pair(targetName)
     local existingPeer = sync.FindPeer(targetName)
     local manifest = merge.BuildManifest(s)
@@ -1591,7 +1754,7 @@ function sync.PairWithCharacter(targetName)
         accountLabel = s.accountLabel or "",
         roster       = manifest.roster,
         manifest     = manifest,
-    }, "WHISPER", whisperTarget)
+    }, "WHISPER", whisperTarget, nil, nil, targetName)
     sfui.common.print("sync: sent pair request to |cff00ffff" .. whisperTarget:lower() .. "|r (awaiting confirmation)...")
     return true
 end
@@ -2071,8 +2234,23 @@ local function has_active_quest_sync_target()
     if get_active_group_channel(false) ~= nil then
         return true
     end
+    local s = sync.GetSettings()
+    if not s.enabled or type(s.peers) ~= "table" or not next(s.peers) then
+        return false
+    end
+    local now = (GetTime and GetTime()) or 0
     local live = build_live_online_map()
-    return live ~= nil and next(live) ~= nil
+    for _, peer in pairs(s.peers) do
+        if type(peer) == "table" and peer.trusted and peer.name and not is_self_character(peer.name) then
+            local disp = sync.GetPeerDisplayName(peer)
+            local lower = string_lower(disp)
+            local first = first_token_lower(lower)
+            if (live[lower] or (first and live[first])) and not is_peer_marked_offline(disp, peer, nil, now) then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 local function request_peer_quests_throttled(peerName, guid, channel, bnetIDAccount)
@@ -2101,6 +2279,14 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
     if not sender or is_self_character(sender) then return end
     local s = sync.GetSettings()
     if not s.enabled then return end
+
+    if msgType == "GOODBYE" then
+        sync.MarkPeerOffline(sender)
+        if sfui.events and sfui.events.SendMessage then
+            sfui.events.SendMessage("SFUI_SYNC_STATUS_UPDATED", "OFFLINE")
+        end
+        return
+    end
 
     local now = (GetServerTime and GetServerTime()) or time()
     local peer = sync.FindPeer(sender)
@@ -2335,20 +2521,27 @@ end
 
 -- ── Offline Whisper Error Filter (`ERR_CHAT_PLAYER_NOT_FOUND_S`) ──────────────
 local errPlayerNotFoundPattern = nil
+local FALLBACK_NOT_FOUND_PATTERN = "^No player named ['\"](.+)['\"] is currently playing%.?$"
 local function get_not_found_pattern()
     if errPlayerNotFoundPattern then return errPlayerNotFoundPattern end
     local fmt = _G.ERR_CHAT_PLAYER_NOT_FOUND_S or 'No player named "%s" is currently playing.'
     local escaped = fmt:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
-    errPlayerNotFoundPattern = "^" .. escaped:gsub("%%%%s", "(.+)") .. "$"
+    escaped = escaped:gsub("%%%%1%%%$s", "(.+)"):gsub("%%%%s", "(.+)")
+    errPlayerNotFoundPattern = "^" .. escaped .. "$"
     return errPlayerNotFoundPattern
 end
 
-if ChatFrame_AddMessageEventFilter then
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, msg)
+if AddMessageEventFilter then
+    AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, msg)
+        if issecretvalue and issecretvalue(msg) then return false end
         if type(msg) ~= "string" then return false end
-        local pat = get_not_found_pattern()
-        local failedName = string_match(msg, pat)
-        if failedName and codec and codec.WasRecentlyWhispered and codec.WasRecentlyWhispered(failedName) then
+        local failedName = string_match(msg, get_not_found_pattern()) or string_match(msg, FALLBACK_NOT_FOUND_PATTERN)
+        if not failedName then return false end
+        failedName = failedName:match("^%s*(.-)%s*$")
+        if failedName == "" then return false end
+        local recentTarget = codec and codec.WasRecentlyWhispered and codec.WasRecentlyWhispered(failedName, 15)
+        local recentPeer = sync.FindPeer(failedName) ~= nil and codec and codec.HadRecentWhisper and codec.HadRecentWhisper(15)
+        if recentTarget or recentPeer then
             sync.MarkPeerOffline(failedName)
             return true
         end
@@ -2610,12 +2803,14 @@ on_local_quests_updated = function(event, arg1, arg2)
                         local unitToken = arg1
                         C_Timer.After(1.0, function()
                             pendingPartyPull[rawGUID] = nil
+                            if UnitExists and not UnitExists(unitToken) then return end
+                            if UnitIsConnected and not UnitIsConnected(unitToken) then return end
                             local lastRx = lastPeerQuestRx[rawGUID]
                             if not lastRx or lastRx < triggeredAt then
                                 local rawName = UnitName and UnitName(unitToken)
                                 local peerName = (not issecretvalue(rawName) and type(rawName) == "string") and rawName or nil
                                 local ch = get_active_group_channel(false)
-                                if peerName or ch then
+                                if ch or (peerName and sync.IsPeerOnline(peerName)) then
                                     request_peer_quests_throttled(peerName, rawGUID, ch, nil)
                                 end
                             end
@@ -3389,7 +3584,7 @@ local function on_entering_world()
                     end
                     if s.autoSyncOnLogin then
                         local manifest = merge.BuildManifest(s)
-                        sync.Broadcast("HELLO", manifest, true, true)
+                        sync.Broadcast("HELLO", manifest, true, false)
                     end
                     if sfui.tracker and sfui.tracker.RequestRefresh then
                         sfui.tracker.RequestRefresh(0.1)
@@ -3412,10 +3607,128 @@ local function on_entering_world()
     end
 end
 
+local curPartyKeysScratch = {}
+local activeBnetIDsScratch = {}
+
+local function on_player_logout()
+    local s = sync.GetSettings()
+    if not s.enabled then return end
+    local payload = { accountID = s.accountID }
+    sync.Broadcast("GOODBYE", payload, true, false)
+    if codec and codec.FlushQueue then
+        codec.FlushQueue()
+    end
+end
+
+local function on_bnet_friend_offline(_, friendId)
+    liveOnlineCacheTime = 0
+    local prevChar = friendId and bnetFriendCharByID[friendId]
+    if prevChar and prevChar ~= "" then
+        bnetFriendCharByID[friendId] = nil
+        sync.MarkPeerOffline(prevChar)
+    end
+end
+
+local function on_bnet_friend_info_changed()
+    liveOnlineCacheTime = 0
+    if not (C_BattleNet and C_BattleNet.GetFriendGameAccountInfo and BNGetNumFriends) then
+        return
+    end
+    wipe(activeBnetIDsScratch)
+    local _, numOnline = BNGetNumFriends()
+    for i = 1, (numOnline or 0) do
+        local acct = C_BattleNet.GetFriendAccountInfo and C_BattleNet.GetFriendAccountInfo(i)
+        local bnetID = acct and acct.bnetAccountID
+        if bnetID then
+            local numGameAccounts = (C_BattleNet.GetFriendNumGameAccounts and C_BattleNet.GetFriendNumGameAccounts(i)) or 0
+            for j = 1, numGameAccounts do
+                local gameInfo = C_BattleNet.GetFriendGameAccountInfo(i, j)
+                if is_same_wow_project(gameInfo) and is_bnet_friend_whisperable(gameInfo) then
+                    activeBnetIDsScratch[bnetID] = gameInfo.characterName
+                    break
+                end
+            end
+        end
+    end
+    for bnetID, prevChar in pairs(bnetFriendCharByID) do
+        local curChar = activeBnetIDsScratch[bnetID]
+        if not curChar or string_lower(curChar) ~= string_lower(prevChar) then
+            bnetFriendCharByID[bnetID] = curChar
+            sync.MarkPeerOffline(prevChar)
+        end
+    end
+    for bnetID, curChar in pairs(activeBnetIDsScratch) do
+        bnetFriendCharByID[bnetID] = curChar
+    end
+    wipe(activeBnetIDsScratch)
+end
+
+local function on_friendlist_update()
+    liveOnlineCacheTime = 0
+    if not (C_FriendList and C_FriendList.GetNumFriends and C_FriendList.GetFriendInfoByIndex) then
+        return
+    end
+    local numFriends = C_FriendList.GetNumFriends() or 0
+    for i = 1, numFriends do
+        local info = C_FriendList.GetFriendInfoByIndex(i)
+        if info and info.name and info.name ~= "" and not info.connected then
+            local _, shortName = normalize_peer_key(info.name)
+            local lower = string_lower(shortName or info.name)
+            knownOfflineFriends[lower] = true
+            local fLower = first_token_lower(lower)
+            if fLower then knownOfflineFriends[fLower] = true end
+            local peer = sync.FindPeer(info.name)
+            local peerLower = peer and peer.name and string_lower(peer.name) or nil
+            if onlinePeers[lower] or (fLower and onlinePeers[fLower]) or (peerLower and onlinePeers[peerLower]) then
+                sync.MarkPeerOffline(info.name)
+            end
+        end
+    end
+end
+
 local groupRosterPending = false
 local function on_group_roster_update()
     partyMapCacheTime = 0
     liveOnlineCacheTime = 0
+    wipe(curPartyKeysScratch)
+    if IsInGroup and IsInGroup() and GetNumGroupMembers then
+        local n = GetNumGroupMembers()
+        local prefixUnit = (IsInRaid and IsInRaid()) and "raid" or "party"
+        for i = 1, n do
+            local u = prefixUnit .. i
+            if UnitExists and UnitExists(u) then
+                local connected = (not UnitIsConnected) or UnitIsConnected(u)
+                local full = sync.FullName(u)
+                local uName = UnitName(u)
+                if not connected then
+                    if full and full ~= "" then sync.MarkPeerOffline(full) end
+                    if uName and uName ~= "" then sync.MarkPeerOffline(uName) end
+                else
+                    if full and full ~= "" then
+                        local _, shortName = normalize_peer_key(full)
+                        local lf = string_lower(shortName or full)
+                        curPartyKeysScratch[lf] = true
+                        local ff = first_token_lower(lf)
+                        if ff then curPartyKeysScratch[ff] = true end
+                    end
+                    if uName and uName ~= "" then
+                        curPartyKeysScratch[string_lower(uName)] = true
+                    end
+                end
+            end
+        end
+    end
+    for k in pairs(lastPartyPeerKeys) do
+        if not curPartyKeysScratch[k] then
+            onlinePeers[k] = nil
+        end
+    end
+    wipe(lastPartyPeerKeys)
+    for k in pairs(curPartyKeysScratch) do
+        lastPartyPeerKeys[k] = true
+    end
+    wipe(curPartyKeysScratch)
+
     if sfui.tracker and sfui.tracker.RequestRefresh then
         sfui.tracker.RequestRefresh(0.1)
     end
@@ -3633,8 +3946,12 @@ end
 -- ── Register Events ───────────────────────────────────────────────────────────
 if sfui.events and sfui.events.RegisterEvent then
     sfui.events.RegisterEvent("PLAYER_ENTERING_WORLD", on_entering_world)
+    sfui.events.RegisterEvent("PLAYER_LOGOUT", on_player_logout)
     sfui.events.RegisterEvent("CHAT_MSG_ADDON", on_chat_msg_addon)
     sfui.events.RegisterEvent("BN_CHAT_MSG_ADDON", on_bn_chat_msg_addon)
+    sfui.events.RegisterEvent("BN_FRIEND_ACCOUNT_OFFLINE", on_bnet_friend_offline)
+    sfui.events.RegisterEvent("BN_FRIEND_INFO_CHANGED", on_bnet_friend_info_changed)
+    sfui.events.RegisterEvent("FRIENDLIST_UPDATE", on_friendlist_update)
     sfui.events.RegisterEvent("GROUP_ROSTER_UPDATE", on_group_roster_update)
     sfui.events.RegisterEvent("QUEST_ACCEPTED", on_local_quests_updated)
     sfui.events.RegisterEvent("QUEST_TURNED_IN", on_local_quests_updated)

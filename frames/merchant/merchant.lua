@@ -31,7 +31,7 @@ end
 -- Main Merchant Window & Header (Lazy Creation)
 --------------------------------------------------------------------------------
 
-local frame, headerFrame, closeBtn, filterDropdownBtn, scrollBar
+local frame, headerFrame, closeBtn, filterDropdownBtn, searchBox, scrollBar
 local buttons = {}
 sfui.merchant.buttons = buttons
 
@@ -47,8 +47,23 @@ local function refresh_frame_levels()
     if filterDropdownBtn then
         filterDropdownBtn:SetFrameLevel(base + 20)
     end
+    if searchBox then
+        searchBox:SetFrameLevel(base + 20)
+    end
     if closeBtn then
         closeBtn:SetFrameLevel(base + 20)
+    end
+end
+
+function sfui.merchant.clear_search()
+    sfui.merchant.searchText = ""
+    if searchBox then
+        if searchBox.GetText and (searchBox:GetText() or "") ~= "" and searchBox.SetText then
+            searchBox:SetText("")
+        end
+        if searchBox.ClearFocus then searchBox:ClearFocus() end
+        if searchBox.placeholder then searchBox.placeholder:Show() end
+        if searchBox.clearBtn then searchBox.clearBtn:Hide() end
     end
 end
 
@@ -236,6 +251,61 @@ local function ensure_merchant_frame()
     filterDropdownBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
     frame.filterDropdownBtn = filterDropdownBtn
 
+    searchBox = CreateFrame("EditBox", "SfuiMerchantSearchBox", frame, "BackdropTemplate")
+    searchBox:SetSize(145, 20)
+    searchBox:SetPoint("RIGHT", filterDropdownBtn, "LEFT", -6, 0)
+    searchBox:SetFrameLevel((frame:GetFrameLevel() or 1) + 20)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetFontObject("GameFontHighlightSmall")
+    if searchBox.SetTextInsets then searchBox:SetTextInsets(6, 18, 0, 0) end
+    if sfui.theme and sfui.theme.ApplyInputStyle then
+        sfui.theme.ApplyInputStyle(searchBox)
+    elseif common and common.apply_flat_backdrop then
+        common.apply_flat_backdrop(searchBox, { 0.05, 0.05, 0.07, 0.9 }, { 0.22, 0.22, 0.28, 1 })
+    end
+
+    local placeholder = searchBox:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    placeholder:SetPoint("LEFT", searchBox, "LEFT", 6, 0)
+    placeholder:SetText("search...")
+    searchBox.placeholder = placeholder
+
+    local clearBtn = CreateFlatButton(searchBox, "x", 16, 16)
+    clearBtn:SetPoint("RIGHT", searchBox, "RIGHT", -2, 0)
+    clearBtn:SetFrameLevel((searchBox:GetFrameLevel() or 1) + 5)
+    clearBtn:Hide()
+    clearBtn:SetScript("OnClick", function()
+        sfui.merchant.searchText = ""
+        searchBox:SetText("")
+        searchBox:ClearFocus()
+        placeholder:Show()
+        clearBtn:Hide()
+        sfui.merchant.reset_scroll_and_rebuild(true)
+    end)
+    searchBox.clearBtn = clearBtn
+
+    searchBox:SetScript("OnTextChanged", function(self)
+        local raw = self:GetText() or ""
+        local hasRaw = (raw ~= "")
+        placeholder:SetShown(not hasRaw)
+        clearBtn:SetShown(hasRaw)
+        local txt = (raw:match("^%s*(.-)%s*$") or ""):lower()
+        if txt ~= (sfui.merchant.searchText or "") then
+            sfui.merchant.searchText = txt
+            sfui.merchant.reset_scroll_and_rebuild(true)
+        end
+    end)
+    searchBox:SetScript("OnEscapePressed", function(self)
+        if (self:GetText() or "") ~= "" then
+            self:SetText("")
+        end
+        self:ClearFocus()
+    end)
+    searchBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+    end)
+    frame.searchBox = searchBox
+    sfui.merchant.searchBox = searchBox
+
     frame:HookScript("OnShow", refresh_frame_levels)
 
     sfui.theme.ApplyWindowStyle(frame)
@@ -243,6 +313,9 @@ local function ensure_merchant_frame()
         refresh_frame_levels()
         if f.merchantName then
             f.merchantName:SetTextColor(pal.headerColor[1], pal.headerColor[2], pal.headerColor[3])
+        end
+        if f.searchBox and sfui.theme and sfui.theme.ApplyInputStyle then
+            sfui.theme.ApplyInputStyle(f.searchBox)
         end
     end)
 
@@ -259,11 +332,15 @@ local function ensure_merchant_frame()
 
     frame.merchantName = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     frame.merchantName:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 80, -6)
+    frame.merchantName:SetPoint("RIGHT", searchBox, "LEFT", -8, 0)
     frame.merchantName:SetJustifyH("LEFT")
+    if frame.merchantName.SetWordWrap then frame.merchantName:SetWordWrap(false) end
 
     frame.merchantTitle = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     frame.merchantTitle:SetPoint("TOPLEFT", frame.merchantName, "BOTTOMLEFT", 0, -2)
+    frame.merchantTitle:SetPoint("RIGHT", searchBox, "LEFT", -8, 0)
     frame.merchantTitle:SetJustifyH("LEFT")
+    if frame.merchantTitle.SetWordWrap then frame.merchantTitle:SetWordWrap(false) end
 
     filterDropdownBtn:SetScript("OnClick", function(self)
         MenuUtil.CreateContextMenu(self, function(_, rootDescription)
@@ -356,6 +433,12 @@ local function ensure_merchant_frame()
     end)
 
     frame.utilityBar = sfui.merchant.create_utility_bar(frame)
+
+    local emptyText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    emptyText:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    emptyText:SetText("no matching items")
+    emptyText:Hide()
+    frame.emptyText = emptyText
 
     frame:HookScript("OnHide", function()
         if not frame._closingFromEvent and _G.CloseMerchant then
@@ -483,6 +566,9 @@ sfui.merchant.update_merchant = function()
             btn.check:Hide(); btn.unknownDecor:Hide(); btn:Hide()
         end
     end
+    if frame and frame.emptyText then
+        frame.emptyText:SetShown(#indices == 0)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -576,6 +662,7 @@ sfui.events.RegisterEvent("MERCHANT_SHOW", function()
     if not (SfuiDB and SfuiDB.enableMerchant) then return end
     ensure_merchant_frame()
     wipe(sfui.merchant.lockCache)
+    sfui.merchant.clear_search()
     update_header()
     sfui.merchant.reset_scroll_and_rebuild()
     frame:Show()
@@ -603,6 +690,9 @@ end)
 sfui.events.RegisterEvent("MERCHANT_CLOSED", function()
     if sfui.events and sfui.events.UnregisterEvent then
         sfui.events.UnregisterEvent("GET_ITEM_INFO_RECEIVED", on_merchant_update)
+    end
+    if sfui.merchant.clear_search then
+        sfui.merchant.clear_search()
     end
     wipe(sfui.merchant.lockCache)
     if sfui.merchant.decorXpCache then
