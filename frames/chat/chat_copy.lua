@@ -22,6 +22,8 @@ local type = _G.type
 local tostring = _G.tostring
 local table_concat = table.concat
 local string_format = string.format
+local math_max = math.max
+local math_floor = math.floor
 
 local issecretvalue = chat.issecretvalue
 local LINKS_OWNER = "sfui_chat_links"
@@ -52,6 +54,7 @@ local TOOLTIP_LINK_TYPES = {
     keystone     = true,
     mawpower     = true,
     mount        = true,
+    nonbattlepet = true,
     quest        = true,
     spell        = true,
     talent       = true,
@@ -62,6 +65,7 @@ local copyFrame = nil
 local urlFrame = nil
 local currentCopyTarget = nil
 local currentText = ""
+local copyCloseToken = 0
 local filtersInstalled = false
 local setItemRefHooked = false
 local hoverCallbacksRegistered = false
@@ -378,8 +382,26 @@ end
 --  Chat Copy Window
 -- ─────────────────────────────────────────────────────────────────────────────
 
+function chat.GetChatWindowLabel(cf)
+    cf = cf or (chat.GetActiveChatFrame and chat.GetActiveChatFrame()) or _G.ChatFrame1
+    if cf and not cf.isTemporary and cf.GetID and _G.GetChatWindowInfo then
+        local name = _G.GetChatWindowInfo(cf:GetID())
+        if name and not issecretvalue(name) and type(name) == "string" and name ~= "" then
+            return name:lower()
+        end
+    elseif cf and cf.isTemporary then
+        local target = cf.chatTarget
+        if target and not issecretvalue(target) and type(target) == "string" and target ~= "" then
+            return target:lower()
+        end
+        return "whisper"
+    end
+    return "chat"
+end
+
 local function populate_copy_window(cf)
     if not copyFrame then return end
+    copyCloseToken = copyCloseToken + 1
     cf = cf or currentCopyTarget or (chat.GetActiveChatFrame and chat.GetActiveChatFrame()) or _G.ChatFrame1
     currentCopyTarget = cf
 
@@ -387,25 +409,18 @@ local function populate_copy_window(cf)
     local text, lineCount, skippedSecret = chat.ReadChatLines(cf, keepColors)
     currentText = (lineCount > 0 and text) or "no chat lines found"
 
+    if copyFrame._colorsCb and copyFrame._colorsCb.SetChecked then
+        copyFrame._colorsCb:SetChecked(keepColors)
+    end
+
     if copyFrame._title then
-        local titleStr = "chat copy"
-        if cf and not cf.isTemporary and cf.GetID and _G.GetChatWindowInfo then
-            local name = _G.GetChatWindowInfo(cf:GetID())
-            if name and not issecretvalue(name) and type(name) == "string" and name ~= "" then
-                titleStr = "chat copy - " .. name:lower()
-            end
-        elseif cf and cf.isTemporary then
-            local target = cf.chatTarget
-            if target and not issecretvalue(target) and type(target) == "string" and target ~= "" then
-                titleStr = "chat copy - " .. target:lower()
-            else
-                titleStr = "chat copy - whisper"
-            end
-        end
+        local label = chat.GetChatWindowLabel(cf)
+        local titleStr = (label ~= "" and label ~= "chat") and ("chat copy - " .. label) or "chat copy"
         copyFrame._title:SetText(titleStr)
     end
 
     if copyFrame._status then
+        copyFrame._status:SetTextColor(0.65, 0.65, 0.68, 1)
         if skippedSecret > 0 then
             copyFrame._status:SetText(string_format("%d lines (%d restricted omitted) | ctrl+c to copy, esc to close", lineCount, skippedSecret))
         else
@@ -456,6 +471,9 @@ local function apply_copy_window_theme(useTheme, colors)
         if copyFrame._scrollBar and theme.ApplyScrollBarStyle then
             theme.ApplyScrollBarStyle(copyFrame._scrollBar)
         end
+        if copyFrame._selectAllBtn and theme.ApplyButtonStyle then
+            theme.ApplyButtonStyle(copyFrame._selectAllBtn, false)
+        end
         if copyFrame._title then
             local pal = theme.GetPalette and theme.GetPalette()
             local hc = (pal and pal.headerColor) or colors.tabActiveText
@@ -470,14 +488,38 @@ local function apply_copy_window_theme(useTheme, colors)
             if copyFrame._scrollBar then
                 theme.ClearFrameThemeLayers(copyFrame._scrollBar)
             end
+            if copyFrame._selectAllBtn then
+                theme.ClearFrameThemeLayers(copyFrame._selectAllBtn)
+            end
         end
         apply_flat(copyFrame, { colors.bg[1], colors.bg[2], colors.bg[3], 0.94 }, colors.border)
         if copyFrame._boxBg then
             apply_flat(copyFrame._boxBg, { colors.ebBg[1], colors.ebBg[2], colors.ebBg[3], 0.92 }, colors.innerBorder)
         end
+        if copyFrame._selectAllBtn then
+            apply_flat(copyFrame._selectAllBtn, colors.tabActiveBg, colors.innerBorder)
+        end
         if copyFrame._title then
             copyFrame._title:SetTextColor(colors.tabActiveText[1], colors.tabActiveText[2], colors.tabActiveText[3], 1)
         end
+    end
+end
+
+local function trigger_copy_feedback(f)
+    if not f then return end
+    copyCloseToken = copyCloseToken + 1
+    local token = copyCloseToken
+    if f._status then
+        local c = chat.GetColors()
+        f._status:SetText("copied to clipboard!")
+        f._status:SetTextColor(c.accent[1], c.accent[2], c.accent[3], 1)
+    end
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.22, function()
+            if copyCloseToken == token and f:IsShown() then
+                f:Hide()
+            end
+        end)
     end
 end
 
@@ -547,6 +589,8 @@ local function build_copy_window()
         selectAllBtn:SetSize(72, 18)
     end
     selectAllBtn:SetPoint("RIGHT", closeBtn, "LEFT", -6, 0)
+    f._closeBtn = closeBtn
+    f._selectAllBtn = selectAllBtn
 
     local colorsCb
     if sfui.widgets and sfui.widgets.create_checkbox then
@@ -557,11 +601,13 @@ local function build_copy_window()
             populate_copy_window(currentCopyTarget)
         end, "preserve wow color escape codes when copying chat.")
         colorsCb:SetSize(16, 16)
-        colorsCb:SetPoint("RIGHT", selectAllBtn, "LEFT", -56, 0)
         if colorsCb.text then
             colorsCb.text:SetFont(fontFile, 11, "")
         end
+        local labelW = (colorsCb.text and colorsCb.text.GetStringWidth and colorsCb.text:GetStringWidth()) or 36
+        colorsCb:SetPoint("RIGHT", selectAllBtn, "LEFT", -math_max(46, math_floor(labelW + 16)), 0)
     end
+    f._colorsCb = colorsCb
 
     local boxBg = CreateFrame("Frame", nil, f, "BackdropTemplate")
     boxBg:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -34)
@@ -577,6 +623,13 @@ local function build_copy_window()
         if eb.HookScript then
             eb:HookScript("OnChar", function(self)
                 if self._sfuiCopying then return end
+                self._sfuiCopying = true
+                self:SetText(currentText)
+                self:HighlightText()
+                self._sfuiCopying = nil
+            end)
+            eb:HookScript("OnTextChanged", function(self, isUserInput)
+                if not isUserInput or self._sfuiCopying then return end
                 self._sfuiCopying = true
                 self:SetText(currentText)
                 self:HighlightText()
@@ -600,8 +653,8 @@ local function build_copy_window()
                 f:Hide()
             end)
             scrollEdit:RegisterCallback("OnKeyDown", function(_, _, key)
-                if key == "C" and IsControlKeyDown and IsControlKeyDown() and C_Timer and C_Timer.After then
-                    C_Timer.After(0.05, function() f:Hide() end)
+                if key == "C" and IsControlKeyDown and IsControlKeyDown() then
+                    trigger_copy_feedback(f)
                 end
             end)
         end
@@ -621,17 +674,17 @@ local function build_copy_window()
         eb:SetMultiLine(true)
         eb:SetPoint("TOPLEFT", sc, "TOPLEFT", 0, 0)
         eb:SetWidth(504)
-        bind_readonly_keys(eb)
         eb:SetScript("OnEscapePressed", function() f:Hide() end)
         eb:SetScript("OnKeyDown", function(_, key)
-            if key == "C" and IsControlKeyDown and IsControlKeyDown() and C_Timer and C_Timer.After then
-                C_Timer.After(0.05, function() f:Hide() end)
+            if key == "C" and IsControlKeyDown and IsControlKeyDown() then
+                trigger_copy_feedback(f)
             end
         end)
         eb:SetScript("OnTextChanged", function(self)
             local h = math_max(260, (self:GetStringHeight() or 260) + 20)
             sc:SetHeight(h)
         end)
+        bind_readonly_keys(eb)
         f._scrollFrame = sf
         f._editBox = eb
     end
@@ -643,16 +696,31 @@ local function build_copy_window()
     status:SetText("press ctrl+c to copy, esc to close")
     f._status = status
 
+    f:SetScript("OnShow", function()
+        if chat.WakeIdleFade then chat.WakeIdleFade() end
+        if chat.RefreshCornerControls then chat.RefreshCornerControls() end
+    end)
+
     f:SetScript("OnHide", function()
+        copyCloseToken = copyCloseToken + 1
         if colorsCb and colorsCb.SetChecked then
             colorsCb:SetChecked(chat.Get("copy_keep_colors", false) == true)
         end
+        if chat.RefreshCornerControls then chat.RefreshCornerControls() end
     end)
 
     f:Hide()
     copyFrame = f
     chat.ApplyCopyTheme()
     return f
+end
+
+function chat.IsCopyWindowOpen()
+    return (copyFrame and copyFrame.IsShown and copyFrame:IsShown()) and true or false
+end
+
+function chat.GetCopyWindowTarget()
+    return chat.IsCopyWindowOpen() and currentCopyTarget or nil
 end
 
 function chat.OpenCopyWindow(cf)
@@ -665,6 +733,22 @@ function chat.OpenCopyWindow(cf)
     build_copy_window()
     populate_copy_window(cf)
     copyFrame:Show()
+end
+
+function chat.ToggleCopyWindow(cf)
+    if not sfui.IsModuleEnabled("chat") then
+        if sfui.common and sfui.common.print then
+            sfui.common.print("chat module is disabled.")
+        end
+        return false
+    end
+    local target = cf or (chat.GetActiveChatFrame and chat.GetActiveChatFrame()) or _G.ChatFrame1
+    if chat.IsCopyWindowOpen() and currentCopyTarget == target then
+        copyFrame:Hide()
+        return false
+    end
+    chat.OpenCopyWindow(target)
+    return true
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────

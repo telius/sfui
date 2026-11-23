@@ -412,6 +412,7 @@ local DEFAULT_TAXONOMY = {
 
     -- automation
     automation     = { category = "automation", client = "all", order = 10 },
+    autoquest      = { category = "automation", client = "all", order = 15 },
     fishing        = { category = "automation", client = "all", order = 20 },
     merchant       = { category = "automation", client = "all", order = 30 },
     triage         = { category = "automation", client = "all", order = 40 },

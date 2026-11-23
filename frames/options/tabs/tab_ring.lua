@@ -491,6 +491,15 @@ sfui.options.RegisterTab({
         )
         cb_animations:SetPoint("TOPLEFT", cb_sounds, "BOTTOMLEFT", 0, -4)
 
+        local cb_remember_last = sfui.widgets.create_checkbox(
+            p,
+            "remember last action (session)",
+            function() return sfui.db.Get("ring", "remember_last", true) end,
+            function(val) sfui.db.Set("ring", "remember_last", val) end,
+            "pre-selects the last used action when opening a ring again so tapping the keybind repeats it. resets on reload/logout."
+        )
+        cb_remember_last:SetPoint("TOPLEFT", cb_animations, "BOTTOMLEFT", 0, -4)
+
         local slider_radius = sfui.widgets.create_slider_input(
             p,
             "ring radius",
@@ -500,7 +509,7 @@ sfui.options.RegisterTab({
             "distance of slot icons from the ring center.",
             220
         )
-        slider_radius:SetPoint("TOPLEFT", cb_animations, "BOTTOMLEFT", 0, -12)
+        slider_radius:SetPoint("TOPLEFT", cb_remember_last, "BOTTOMLEFT", 0, -12)
 
         local slider_deadzone = sfui.widgets.create_slider_input(
             p,
@@ -508,7 +517,7 @@ sfui.options.RegisterTab({
             function() return sfui.db.Get("ring", "deadzone", 28) end,
             15, 60, 2,
             function(val) sfui.db.Set("ring", "deadzone", val) end,
-            "minimum cursor travel before a slice is highlighted. releasing inside cancels.",
+            "minimum cursor travel before a slice is highlighted. releasing inside repeats the last action (or cancels if none).",
             220
         )
         slider_deadzone:SetPoint("TOPLEFT", slider_radius, "BOTTOMLEFT", 0, -12)
@@ -604,7 +613,8 @@ sfui.options.RegisterTab({
         tips_text:SetJustifyH("LEFT")
         tips_text:SetText(
             "• |cffffffffhold & release|r: press and hold the key to open the ring at your cursor. flick toward any slice and let go of the key to cast.\n\n" ..
-            "• |cffffffffdeadzone cancel|r: release inside the center circle or press escape to cancel without performing an action.\n\n" ..
+            "• |cffffffffrepeat last action|r: pressing the keybind again pre-selects your last action for the current session; quick-tap to repeat it (not saved between sessions).\n\n" ..
+            "• |cffffffffescape cancel|r: press escape while holding a ring to cancel without performing an action.\n\n" ..
             "• |cffffffffcombat safe|r: bindings and slices are securely cached so the ring works seamlessly during combat."
         )
 

@@ -77,9 +77,40 @@ sfui.options.RegisterTab({
             last_general_anchor = auto_alt_ids_cb
         end
 
-        -- ── 2. Bag Triage (Inventory Overflow) ────────────────────────────────
+        -- ── 2. Quest Automation ───────────────────────────────────────────────
+        if SfuiDB.autoQuest == nil then SfuiDB.autoQuest = false end
+        if SfuiDB.autoQuestReward == nil then SfuiDB.autoQuestReward = false end
+        if SfuiDB.questRewardAdvisor == nil then SfuiDB.questRewardAdvisor = true end
+
+        local quest_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
+        quest_header:SetPoint("TOPLEFT", last_general_anchor, "BOTTOMLEFT", 0, -SECTION_GAP)
+        quest_header:SetTextColor(white[1], white[2], white[3])
+        quest_header:SetText("quest automation (hold shift to bypass)")
+
+        local auto_quest_cb = create_checkbox(automation_panel, "auto-accept & turn-in quests", "autoQuest", function()
+            if sfui.autoquest and sfui.autoquest.OnSettingsChanged then
+                sfui.autoquest.OnSettingsChanged()
+            end
+        end, "automatically accepts quests, turns in quests without item rewards (or all quests when smart reward picking is enabled), and selects safe single-option gossip. works solo and in any group. hold shift to bypass.")
+        auto_quest_cb:SetPoint("TOPLEFT", quest_header, "BOTTOMLEFT", 0, -10)
+
+        local auto_quest_reward_cb = create_checkbox(automation_panel, "auto-complete & pick best reward", "autoQuestReward", function()
+            if sfui.autoquest and sfui.autoquest.OnSettingsChanged then
+                sfui.autoquest.OnSettingsChanged()
+            end
+        end, "automatically completes quests with item rewards: grabs the highest equippable upgrade for your current spec, or the best gold reward if none upgrade. works solo and in any group. hold shift to cancel and choose manually.")
+        auto_quest_reward_cb:SetPoint("LEFT", auto_quest_cb, "LEFT", COL_OFFSET_X, 0)
+
+        local quest_advisor_cb = create_checkbox(automation_panel, "quest reward advisor badges", "questRewardAdvisor", function()
+            if sfui.autoquest and sfui.autoquest.RefreshBadges then
+                sfui.autoquest.RefreshBadges()
+            end
+        end, "shows upgrade (+x% upg / +x% off) and best gold badges on quest rewards in blizzard quest frames and dialogueui.")
+        quest_advisor_cb:SetPoint("TOPLEFT", auto_quest_cb, "BOTTOMLEFT", 0, -10)
+
+        -- ── 3. Bag Triage (Inventory Overflow) ────────────────────────────────
         local triage_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
-        triage_header:SetPoint("TOPLEFT", last_general_anchor, "BOTTOMLEFT", 0, -SECTION_GAP)
+        triage_header:SetPoint("TOPLEFT", quest_advisor_cb, "BOTTOMLEFT", 0, -SECTION_GAP)
         triage_header:SetTextColor(white[1], white[2], white[3])
         triage_header:SetText("bag triage & inventory overflow")
 
@@ -140,7 +171,7 @@ sfui.options.RegisterTab({
             end
         end)
 
-        -- ── 3. Dungeons, Raids & Grouping ─────────────────────────────────────
+        -- ── 4. Dungeons, Raids & Grouping ─────────────────────────────────────
         local dungeon_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
         dungeon_header:SetPoint("TOPLEFT", test_triage_btn, "BOTTOMLEFT", 0, -28)
         dungeon_header:SetTextColor(white[1], white[2], white[3])
@@ -290,7 +321,7 @@ sfui.options.RegisterTab({
             last_dungeon_anchor = reset_portal_pos_btn
         end
 
-        -- ── 3. Master's Hammer Settings (Retail Only) ─────────────────────────
+        -- ── 5. Master's Hammer Settings (Retail Only) ─────────────────────────
         if not isClassic then
             local hammer_header = automation_panel:CreateFontString(nil, "OVERLAY", g.font)
             hammer_header:SetPoint("TOPLEFT", last_dungeon_anchor, "BOTTOMLEFT", 0, -SECTION_GAP)
@@ -419,6 +450,6 @@ sfui.options.RegisterTab({
             end)
         end
 
-        automation_panel.customContentHeight = 855
+        automation_panel.customContentHeight = isClassic and 580 or 960
     end,
 })

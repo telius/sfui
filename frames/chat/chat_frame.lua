@@ -41,9 +41,19 @@ local rawSetPoint = chat.rawSetPoint
 
 local EB_OWNER = "sfui_chat_eb"
 local CHROME_UPDATE_KEY = "sfui_chat_chrome"
+local CHROME_UPDATE_INTERVAL = 0.05
 local TAB_FADE_DELAY = 1.5
 local TAB_FADE_IN_SPEED = 6.0
 local TAB_FADE_OUT_SPEED = 1.6
+local COPY_FADE_DELAY = 0.6
+local COPY_FADE_IN_SPEED = 7.0
+local COPY_FADE_OUT_SPEED = 2.4
+local COPY_ALWAYS_REST_ALPHA = 0.38
+local COPY_ALWAYS_PANEL_ALPHA = 0.78
+local COPY_HOVER_PANEL_ALPHA = 0.82
+local CORNER_BTN_SIZE = 20
+local CORNER_BTN_RIGHT_OFFSET = -12
+local CORNER_BTN_GAP = 4
 
 local EDITBOX_TEXTURE_SUFFIXES = { "Left", "Mid", "Right", "FocusLeft", "FocusMid", "FocusRight" }
 
@@ -60,6 +70,13 @@ local currentChromeAlpha = 1.0
 local lastTabActivityTime = 0
 local currentTabAlpha = 1.0
 local isPanelHovered = false
+local currentCopyAlpha = 0.0
+local lastCopyActivityTime = 0
+local isCopyBtnHovered = false
+local isScrollBtnHovered = false
+local lastCopyAnchorY = nil
+local lastScrollAnchorY = nil
+local lastResizeShown = false
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  Shared Backdrop & Theme Application Helpers
@@ -325,46 +342,204 @@ local function restore_chat_chrome(cf, d)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
---  Slim 3px Flat Scrollbar (Shown Only While Scrolled Up)
+--  Slim 3px Flat Scrollbar & Smooth Corner Micro-Buttons
 -- ─────────────────────────────────────────────────────────────────────────────
 
-local function update_corner_buttons()
+local function is_mouse_over_safe(f)
+    if not (f and f.IsShown and f:IsShown() and MouseIsOver) then return false end
+    local over = MouseIsOver(f)
+    if issecretvalue(over) then return false end
+    return over and true or false
+end
+
+local function is_active_chat_scrolled()
+    local activeCF = chat.GetActiveChatFrame and chat.GetActiveChatFrame()
+    if activeCF and activeCF.GetScrollOffset then
+        local off = activeCF:GetScrollOffset()
+        if not issecretvalue(off) and type(off) == "number" and off > 0 then
+            return true
+        end
+    end
+    return false
+end
+
+local function is_resize_button_shown()
+    local cf1 = _G.ChatFrame1
+    local rb = cf1 and cf1.ResizeButton
+    return (rb and rb.IsShown and rb:IsShown()) and true or false
+end
+
+local function is_copy_open()
+    return (chat.IsCopyWindowOpen and chat.IsCopyWindowOpen()) and true or false
+end
+
+local function step_alpha(cur, target, dt, inSpeed, outSpeed)
+    if cur < target then
+        return math_min(target, cur + dt * inSpeed)
+    elseif cur > target then
+        return math_max(target, cur - dt * outSpeed)
+    end
+    return cur
+end
+
+local function tint_copy_icon(btn, r, g, b, a)
+    if not (btn and btn._iconParts) then return end
+    local baseA = a or 1
+    for i = 1, #btn._iconParts do
+        local p = btn._iconParts[i]
+        p.tex:SetColorTexture(r, g, b, baseA * p.relAlpha)
+    end
+end
+
+local function style_micro_button(btn, hovered, active)
+    if not btn then return end
+    if not btn._sfuiBypassTheme and sfui.theme and sfui.theme.ClearFrameThemeLayers then
+        sfui.theme.ClearFrameThemeLayers(btn)
+    end
+    local colors = chat.GetColors()
+    local bg = (hovered or active) and colors.tabActiveBg or colors.tabBg
+    local bgA = (hovered or active) and 0.92 or 0.72
+    local border
+    if hovered then
+        border = { colors.accent[1], colors.accent[2], colors.accent[3], 0.95 }
+    elseif active then
+        border = { colors.accent[1], colors.accent[2], colors.accent[3], 0.80 }
+    else
+        border = { colors.innerBorder[1], colors.innerBorder[2], colors.innerBorder[3], 0.35 }
+    end
+    apply_flat(btn, { bg[1], bg[2], bg[3], bgA }, border)
+
+    if btn._activeGlow then
+        if active then
+            btn._activeGlow:SetColorTexture(colors.accent[1], colors.accent[2], colors.accent[3], hovered and 0.22 or 0.14)
+            btn._activeGlow:Show()
+        else
+            btn._activeGlow:Hide()
+        end
+    end
+end
+
+local function apply_copy_button_visual(hovered, active)
+    if not copyBtn then return end
+    style_micro_button(copyBtn, hovered, active)
+    local colors = chat.GetColors()
+    local tc, ta
+    if active and hovered then
+        tc, ta = colors.tabActiveText, 1.0
+    elseif hovered or active then
+        tc, ta = colors.accent, 1.0
+    else
+        tc, ta = colors.tabText, 0.92
+    end
+    tint_copy_icon(copyBtn, tc[1], tc[2], tc[3], ta)
+end
+
+local function apply_scroll_button_visual(hovered)
+    if not scrollBtn then return end
+    style_micro_button(scrollBtn, hovered, false)
+    local colors = chat.GetColors()
+    local tc = hovered and colors.tabActiveText or colors.accent
+    local ta = hovered and 1.0 or 0.92
+    if scrollBtn.arrow then
+        scrollBtn.arrow:SetVertexColor(tc[1], tc[2], tc[3], ta)
+    elseif scrollBtn.label then
+        scrollBtn.label:SetTextColor(tc[1], tc[2], tc[3], ta)
+    end
+end
+
+local function update_corner_buttons(dt)
     if not (copyBtn or scrollBtn) then return end
     if not sfui.IsModuleEnabled("chat") then
-        if copyBtn then copyBtn:Hide() end
-        if scrollBtn then scrollBtn:Hide() end
+        currentCopyAlpha = 0
+        isCopyBtnHovered = false
+        isScrollBtnHovered = false
+        if copyBtn then
+            copyBtn:SetAlpha(0)
+            copyBtn:Hide()
+        end
+        if scrollBtn then
+            scrollBtn:Hide()
+        end
         return
     end
 
-    local mode = chat.Get("copy_button", "hover")
-    if copyBtn then
-        if mode == "hidden" then
-            copyBtn:Hide()
-        elseif mode == "always" then
-            copyBtn:Show()
-            local btnOver = MouseIsOver and MouseIsOver(copyBtn)
-            copyBtn:SetAlpha((isPanelHovered or btnOver) and 1.0 or 0.55)
-        else -- "hover"
-            local btnOver = copyBtn:IsShown() and MouseIsOver and MouseIsOver(copyBtn)
-            if isPanelHovered or btnOver then
-                copyBtn:Show()
-                copyBtn:SetAlpha(btnOver and 1.0 or 0.85)
-            else
-                copyBtn:Hide()
-            end
-        end
-    end
+    local scrolled = is_active_chat_scrolled()
+    local resizeShown = is_resize_button_shown()
+    lastResizeShown = resizeShown
+    local baseY = resizeShown and 26 or 5
 
     if scrollBtn then
-        local activeCF = chat.GetActiveChatFrame()
-        local scrolled = false
-        if activeCF and activeCF.GetScrollOffset then
-            local off = activeCF:GetScrollOffset()
-            if not issecretvalue(off) and type(off) == "number" and off > 0 then
-                scrolled = true
-            end
+        if mainPanel and lastScrollAnchorY ~= baseY then
+            scrollBtn:ClearAllPoints()
+            scrollBtn:SetPoint("BOTTOMRIGHT", mainPanel, "BOTTOMRIGHT", CORNER_BTN_RIGHT_OFFSET, baseY)
+            lastScrollAnchorY = baseY
         end
         scrollBtn:SetShown(scrolled)
+        apply_scroll_button_visual(isScrollBtnHovered)
+    end
+
+    if copyBtn then
+        local targetY = scrolled and (baseY + CORNER_BTN_SIZE + CORNER_BTN_GAP) or baseY
+        if mainPanel and lastCopyAnchorY ~= targetY then
+            copyBtn:ClearAllPoints()
+            copyBtn:SetPoint("BOTTOMRIGHT", mainPanel, "BOTTOMRIGHT", CORNER_BTN_RIGHT_OFFSET, targetY)
+            lastCopyAnchorY = targetY
+        end
+
+        local mode = chat.Get("copy_button", "hover")
+        local copyOpen = is_copy_open()
+        local btnOver = (copyBtn:IsShown() and (isCopyBtnHovered or is_mouse_over_safe(copyBtn))) and true or false
+        local moversUnlocked = (sfui.movers and sfui.movers.isUnlocked) and true or false
+        local now = (GetTime and GetTime()) or 0
+
+        if mode == "hidden" then
+            currentCopyAlpha = 0
+            copyBtn:SetAlpha(0)
+            copyBtn:Hide()
+        elseif mode == "always" then
+            local target = (btnOver or copyOpen or moversUnlocked) and 1.0
+                or (isPanelHovered and COPY_ALWAYS_PANEL_ALPHA or COPY_ALWAYS_REST_ALPHA)
+            if dt and dt > 0 then
+                currentCopyAlpha = step_alpha(currentCopyAlpha, target, dt, COPY_FADE_IN_SPEED, COPY_FADE_OUT_SPEED)
+            else
+                currentCopyAlpha = target
+            end
+            copyBtn:SetAlpha(currentCopyAlpha)
+            copyBtn:Show()
+        else -- "hover"
+            local active = isPanelHovered or btnOver or copyOpen or moversUnlocked
+            if active then
+                lastCopyActivityTime = now
+                local target = (btnOver or copyOpen) and 1.0 or COPY_HOVER_PANEL_ALPHA
+                if dt and dt > 0 then
+                    currentCopyAlpha = step_alpha(currentCopyAlpha, target, dt, COPY_FADE_IN_SPEED, COPY_FADE_OUT_SPEED)
+                else
+                    currentCopyAlpha = (btnOver or copyOpen) and 1.0 or math_max(currentCopyAlpha, COPY_HOVER_PANEL_ALPHA)
+                end
+                copyBtn:SetAlpha(currentCopyAlpha)
+                copyBtn:Show()
+            else
+                if dt and dt > 0 then
+                    if (now - lastCopyActivityTime) >= COPY_FADE_DELAY and currentCopyAlpha > 0 then
+                        currentCopyAlpha = math_max(0, currentCopyAlpha - dt * COPY_FADE_OUT_SPEED)
+                    end
+                    if currentCopyAlpha <= 0.01 then
+                        currentCopyAlpha = 0
+                        copyBtn:SetAlpha(0)
+                        copyBtn:Hide()
+                    else
+                        copyBtn:SetAlpha(currentCopyAlpha)
+                        copyBtn:Show()
+                    end
+                elseif currentCopyAlpha <= 0.01 then
+                    currentCopyAlpha = 0
+                    copyBtn:SetAlpha(0)
+                    copyBtn:Hide()
+                end
+            end
+        end
+
+        apply_copy_button_visual(btnOver, copyOpen)
     end
 end
 
@@ -553,113 +728,192 @@ local function ensure_wheel_boost(cf, d)
     end)
 end
 
+local function add_icon_rect(parent, parts, x, y, w, h, relAlpha)
+    local t = parent:CreateTexture(nil, "OVERLAY")
+    t._sfuiOwned = true
+    if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(true) end
+    if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    t:SetColorTexture(1, 1, 1, 1)
+    t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
+    t:SetSize(w, h)
+    parts[#parts + 1] = { tex = t, relAlpha = relAlpha or 1.0 }
+    return t
+end
+
+local function create_copy_icon(btn)
+    local iconHost = CreateFrame("Frame", nil, btn)
+    iconHost:SetSize(12, 12)
+    iconHost:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    if iconHost.EnableMouse then iconHost:EnableMouse(false) end
+
+    local parts = {}
+    -- Back sheet
+    add_icon_rect(iconHost, parts, 1, 0, 7, 1, 0.72)
+    add_icon_rect(iconHost, parts, 1, 0, 1, 8, 0.72)
+    add_icon_rect(iconHost, parts, 7, 1, 1, 2, 0.72)
+    add_icon_rect(iconHost, parts, 1, 7, 3, 1, 0.72)
+    -- Front sheet
+    add_icon_rect(iconHost, parts, 4, 3, 7, 1, 1.0)
+    add_icon_rect(iconHost, parts, 4, 11, 7, 1, 1.0)
+    add_icon_rect(iconHost, parts, 4, 3, 1, 9, 1.0)
+    add_icon_rect(iconHost, parts, 10, 3, 1, 9, 1.0)
+    -- Inner lines
+    add_icon_rect(iconHost, parts, 6, 5, 3, 1, 0.68)
+    add_icon_rect(iconHost, parts, 6, 7, 3, 1, 0.68)
+    add_icon_rect(iconHost, parts, 6, 9, 2, 1, 0.68)
+
+    btn._iconHost = iconHost
+    btn._iconParts = parts
+end
+
+local function populate_copy_tooltip(self, tip)
+    local activeCF = (chat.GetActiveChatFrame and chat.GetActiveChatFrame()) or _G.ChatFrame1
+    local label = (chat.GetChatWindowLabel and chat.GetChatWindowLabel(activeCF)) or "chat"
+    local isSameOpen = (chat.GetCopyWindowTarget and chat.GetCopyWindowTarget() == activeCF) and true or false
+    local keepColors = chat.Get("copy_keep_colors", false) == true
+
+    tip:SetText("copy chat · " .. label, 1, 0.82, 0)
+    tip:AddLine(isSameOpen and "left-click: close copy window" or "left-click: open copy window", 0.85, 0.85, 0.85, true)
+    tip:AddLine("right-click: toggle color codes (" .. (keepColors and "on" or "off") .. ")", 0.85, 0.85, 0.85, true)
+    tip:AddLine("slash: /copy", 0.65, 0.65, 0.70, true)
+end
+
 local function style_corner_buttons()
-    local colors = chat.GetColors()
-    local useTheme = chat.Get("use_theme", true) == true
-    local hasButtonTheme = useTheme and sfui.theme and sfui.theme.ApplyButtonStyle
-
-    if copyBtn then
-        if hasButtonTheme then
-            sfui.theme.ApplyButtonStyle(copyBtn, false)
-        else
-            if sfui.theme and sfui.theme.ClearFrameThemeLayers then
-                sfui.theme.ClearFrameThemeLayers(copyBtn)
-            end
-            apply_flat(copyBtn, colors.tabBg, { 0, 0, 0, 0.85 })
-            if copyBtn.fs then
-                copyBtn.fs:SetTextColor(colors.tabText[1], colors.tabText[2], colors.tabText[3], 1)
-            end
-        end
+    if copyBtn and sfui.theme and sfui.theme.ClearFrameThemeLayers then
+        sfui.theme.ClearFrameThemeLayers(copyBtn)
     end
-
-    if scrollBtn then
-        if hasButtonTheme then
-            sfui.theme.ApplyButtonStyle(scrollBtn, false)
-        else
-            if sfui.theme and sfui.theme.ClearFrameThemeLayers then
-                sfui.theme.ClearFrameThemeLayers(scrollBtn)
-            end
-            apply_flat(scrollBtn, colors.tabActiveBg, { 0, 0, 0, 0.85 })
-        end
-        if scrollBtn.arrow then
-            scrollBtn.arrow:SetVertexColor(colors.accent[1], colors.accent[2], colors.accent[3], 1)
-        elseif scrollBtn.label then
-            scrollBtn.label:SetTextColor(colors.accent[1], colors.accent[2], colors.accent[3], 1)
-        end
+    if scrollBtn and sfui.theme and sfui.theme.ClearFrameThemeLayers then
+        sfui.theme.ClearFrameThemeLayers(scrollBtn)
     end
-
     update_corner_buttons()
 end
 
 local function ensure_corner_buttons(panel1)
     if not panel1 or copyBtn then return end
-    local colors = chat.GetColors()
     local fontFile = sfui.common.get_font_file()
 
     copyBtn = CreateFrame("Button", "SfuiChatCopyButton", panel1, "BackdropTemplate")
-    copyBtn:SetSize(38, 18)
-    copyBtn:SetPoint("TOPRIGHT", panel1, "TOPRIGHT", -5, -5)
+    copyBtn:SetSize(CORNER_BTN_SIZE, CORNER_BTN_SIZE)
     copyBtn:SetFrameStrata("MEDIUM")
     copyBtn:SetFrameLevel(math_max(20, (panel1:GetFrameLevel() or 5) + 10))
+    copyBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-    local cfs = copyBtn:CreateFontString(nil, "OVERLAY")
-    cfs:SetFont(fontFile, 10, "")
-    cfs:SetPoint("CENTER", 0, 0)
-    cfs:SetTextColor(colors.tabText[1], colors.tabText[2], colors.tabText[3], 1)
-    cfs:SetText("copy")
-    copyBtn.fs = cfs
-    copyBtn.label = cfs
+    local copyGlow = copyBtn:CreateTexture(nil, "ARTWORK")
+    copyGlow._sfuiOwned = true
+    copyGlow:SetPoint("TOPLEFT", copyBtn, "TOPLEFT", 1, -1)
+    copyGlow:SetPoint("BOTTOMRIGHT", copyBtn, "BOTTOMRIGHT", -1, 1)
+    copyGlow:Hide()
+    copyBtn._activeGlow = copyGlow
 
-    copyBtn:SetScript("OnClick", function()
-        if chat.OpenCopyWindow then
-            chat.OpenCopyWindow()
+    create_copy_icon(copyBtn)
+
+    copyBtn:SetScript("OnMouseDown", function(self)
+        if self._iconHost then
+            self._iconHost:ClearAllPoints()
+            self._iconHost:SetPoint("CENTER", self, "CENTER", 1, -1)
         end
     end)
-    copyBtn:HookScript("OnEnter", function(self)
-        self:SetAlpha(1.0)
-        if not (chat.Get("use_theme", true) and sfui.theme and sfui.theme.ApplyButtonStyle) then
-            local c = chat.GetColors()
-            self:SetBackdropBorderColor(c.accent[1], c.accent[2], c.accent[3], 1)
-            if self.fs then
-                self.fs:SetTextColor(c.accent[1], c.accent[2], c.accent[3], 1)
+    copyBtn:SetScript("OnMouseUp", function(self)
+        if self._iconHost then
+            self._iconHost:ClearAllPoints()
+            self._iconHost:SetPoint("CENTER", self, "CENTER", 0, 0)
+        end
+    end)
+    copyBtn:SetScript("OnHide", function(self)
+        isCopyBtnHovered = false
+        if self._iconHost then
+            self._iconHost:ClearAllPoints()
+            self._iconHost:SetPoint("CENTER", self, "CENTER", 0, 0)
+        end
+    end)
+
+    copyBtn:SetScript("OnClick", function(self, button)
+        local activeCF = (chat.GetActiveChatFrame and chat.GetActiveChatFrame()) or _G.ChatFrame1
+        if button == "RightButton" then
+            local nextColors = (chat.Get("copy_keep_colors", false) ~= true)
+            chat.Set("copy_keep_colors", nextColors)
+            if chat.OpenCopyWindow then
+                chat.OpenCopyWindow(activeCF)
+            end
+        else
+            if chat.ToggleCopyWindow then
+                chat.ToggleCopyWindow(activeCF)
+            elseif chat.OpenCopyWindow then
+                chat.OpenCopyWindow(activeCF)
+            end
+        end
+        if isCopyBtnHovered and sfui.common and sfui.common.get_tooltip then
+            local tip = sfui.common.get_tooltip()
+            if tip and tip.IsShown and tip:IsShown() and tip.GetOwner and tip:GetOwner() == self then
+                tip:SetOwner(self, self.sfuiTipAnchor or "ANCHOR_RIGHT")
+                populate_copy_tooltip(self, tip)
+                tip:Show()
             end
         end
     end)
-    copyBtn:HookScript("OnLeave", function(self)
-        if not (chat.Get("use_theme", true) and sfui.theme and sfui.theme.ApplyButtonStyle) then
-            local c = chat.GetColors()
-            self:SetBackdropBorderColor(0, 0, 0, 0.85)
-            if self.fs then
-                self.fs:SetTextColor(c.tabText[1], c.tabText[2], c.tabText[3], 1)
-            end
-        end
+    copyBtn:SetScript("OnEnter", function()
+        isCopyBtnHovered = true
+        lastCopyActivityTime = (GetTime and GetTime()) or 0
+        update_corner_buttons()
+    end)
+    copyBtn:SetScript("OnLeave", function()
+        isCopyBtnHovered = false
+        lastCopyActivityTime = (GetTime and GetTime()) or 0
         update_corner_buttons()
     end)
 
     if sfui.widgets and sfui.widgets.attach_tooltip then
-        sfui.widgets.attach_tooltip(copyBtn, "copy chat", { "click to copy active chat tab", "slash command: /copy" }, "ANCHOR_TOP")
+        sfui.widgets.attach_tooltip(copyBtn, populate_copy_tooltip, nil, "ANCHOR_RIGHT")
     end
 
     scrollBtn = CreateFrame("Button", "SfuiChatScrollBottomButton", panel1, "BackdropTemplate")
-    scrollBtn:SetSize(18, 18)
-    scrollBtn:SetPoint("BOTTOMRIGHT", panel1, "BOTTOMRIGHT", -10, 5)
+    scrollBtn:SetSize(CORNER_BTN_SIZE, CORNER_BTN_SIZE)
     scrollBtn:SetFrameStrata("MEDIUM")
     scrollBtn:SetFrameLevel(math_max(20, (panel1:GetFrameLevel() or 5) + 10))
-    scrollBtn.customOnLeave = true
+
+    local scrollGlow = scrollBtn:CreateTexture(nil, "ARTWORK")
+    scrollGlow._sfuiOwned = true
+    scrollGlow:SetPoint("TOPLEFT", scrollBtn, "TOPLEFT", 1, -1)
+    scrollGlow:SetPoint("BOTTOMRIGHT", scrollBtn, "BOTTOMRIGHT", -1, 1)
+    scrollGlow:Hide()
+    scrollBtn._activeGlow = scrollGlow
 
     if sfui.theme and sfui.theme.HasAtlas and sfui.theme.HasAtlas("minimal-scrollbar-arrow-returntobottom") then
         local arrow = scrollBtn:CreateTexture(nil, "OVERLAY")
-        arrow:SetSize(11, 11)
-        arrow:SetPoint("CENTER", 0, 0)
+        arrow:SetSize(12, 12)
+        arrow:SetPoint("CENTER", scrollBtn, "CENTER", 0, 0)
         arrow:SetAtlas("minimal-scrollbar-arrow-returntobottom")
         scrollBtn.arrow = arrow
     else
         local sfs = scrollBtn:CreateFontString(nil, "OVERLAY")
         sfs:SetFont(fontFile, 11, "")
-        sfs:SetPoint("CENTER", 0, 0)
+        sfs:SetPoint("CENTER", scrollBtn, "CENTER", 0, 0)
         sfs:SetText("v")
         scrollBtn.label = sfs
     end
+
+    scrollBtn:SetScript("OnMouseDown", function(self)
+        local target = self.arrow or self.label
+        if target then
+            target:ClearAllPoints()
+            target:SetPoint("CENTER", self, "CENTER", 1, -1)
+        end
+    end)
+    scrollBtn:SetScript("OnMouseUp", function(self)
+        local target = self.arrow or self.label
+        if target then
+            target:ClearAllPoints()
+            target:SetPoint("CENTER", self, "CENTER", 0, 0)
+        end
+    end)
+    scrollBtn:SetScript("OnHide", function(self)
+        isScrollBtnHovered = false
+        local target = self.arrow or self.label
+        if target then
+            target:ClearAllPoints()
+            target:SetPoint("CENTER", self, "CENTER", 0, 0)
+        end
+    end)
 
     scrollBtn:SetScript("OnClick", function()
         local acf = chat.GetActiveChatFrame()
@@ -669,22 +923,21 @@ local function ensure_corner_buttons(panel1)
             update_corner_buttons()
         end
     end)
-    scrollBtn:HookScript("OnEnter", function(self)
-        if not (chat.Get("use_theme", true) and sfui.theme and sfui.theme.ApplyButtonStyle) then
-            local c = chat.GetColors()
-            self:SetBackdropBorderColor(c.accent[1], c.accent[2], c.accent[3], 1)
-        end
+    scrollBtn:SetScript("OnEnter", function()
+        isScrollBtnHovered = true
+        apply_scroll_button_visual(true)
     end)
-    scrollBtn:HookScript("OnLeave", function(self)
-        if not (chat.Get("use_theme", true) and sfui.theme and sfui.theme.ApplyButtonStyle) then
-            self:SetBackdropBorderColor(0, 0, 0, 0.85)
-        end
+    scrollBtn:SetScript("OnLeave", function()
+        isScrollBtnHovered = false
+        apply_scroll_button_visual(false)
     end)
 
     if sfui.widgets and sfui.widgets.attach_tooltip then
-        sfui.widgets.attach_tooltip(scrollBtn, "scroll to bottom", "jump to latest messages", "ANCHOR_LEFT")
+        sfui.widgets.attach_tooltip(scrollBtn, "scroll to bottom", "jump to latest messages", "ANCHOR_RIGHT")
     end
 
+    copyBtn:SetAlpha(0)
+    copyBtn:Hide()
     scrollBtn:Hide()
     style_corner_buttons()
 end
@@ -1318,24 +1571,6 @@ local function is_any_editbox_shown()
     return false
 end
 
-local function is_mouse_over_safe(f)
-    if not (f and f.IsShown and f:IsShown() and MouseIsOver) then return false end
-    local over = MouseIsOver(f)
-    if issecretvalue(over) then return false end
-    return over and true or false
-end
-
-local function is_active_chat_scrolled()
-    local activeCF = chat.GetActiveChatFrame()
-    if activeCF and activeCF.GetScrollOffset then
-        local off = activeCF:GetScrollOffset()
-        if not issecretvalue(off) and type(off) == "number" and off > 0 then
-            return true
-        end
-    end
-    return false
-end
-
 local function on_chrome_tick(elapsed)
     if not sfui.IsModuleEnabled("chat") then return end
     local strip = chat.GetTabStrip and chat.GetTabStrip()
@@ -1348,16 +1583,38 @@ local function on_chrome_tick(elapsed)
         or false
 
     local scrolledNow = scrollBtn and is_active_chat_scrolled() or false
-    local copyBtnOver = copyBtn and copyBtn:IsShown() and is_mouse_over_safe(copyBtn) or false
+    local copyBtnOver = copyBtn and copyBtn:IsShown() and (isCopyBtnHovered or is_mouse_over_safe(copyBtn)) or false
+    local resizeNow = is_resize_button_shown()
+    local copyOpen = is_copy_open()
+    local moversUnlocked = (sfui.movers and sfui.movers.isUnlocked) and true or false
     local hoverChanged = (hoverNow ~= isPanelHovered)
     local scrollChanged = (scrolledNow ~= lastScrolledState)
     local copyOverChanged = (copyBtnOver ~= lastCopyBtnOver)
+    local resizeChanged = (resizeNow ~= lastResizeShown)
 
-    if hoverChanged or scrollChanged or copyOverChanged then
+    local copyMode = chat.Get("copy_button", "hover")
+    local copyAnimating = false
+    if copyBtn and copyMode ~= "hidden" then
+        if copyMode == "always" then
+            local targetAlways = (copyBtnOver or copyOpen or moversUnlocked) and 1.0
+                or (hoverNow and COPY_ALWAYS_PANEL_ALPHA or COPY_ALWAYS_REST_ALPHA)
+            copyAnimating = math_abs(currentCopyAlpha - targetAlways) > 0.005
+        else
+            if hoverNow or copyBtnOver or copyOpen or moversUnlocked then
+                local targetHover = (copyBtnOver or copyOpen) and 1.0 or COPY_HOVER_PANEL_ALPHA
+                copyAnimating = math_abs(currentCopyAlpha - targetHover) > 0.005
+            elseif currentCopyAlpha > 0 then
+                copyAnimating = true
+            end
+        end
+    end
+
+    if hoverChanged or scrollChanged or copyOverChanged or resizeChanged or copyAnimating then
         isPanelHovered = hoverNow
         lastScrolledState = scrolledNow
         lastCopyBtnOver = copyBtnOver
-        update_corner_buttons()
+        lastResizeShown = resizeNow
+        update_corner_buttons(elapsed or CHROME_UPDATE_INTERVAL)
     end
 
     local idleFade = chat.Get("idle_fade", false)
@@ -1369,12 +1626,11 @@ local function on_chrome_tick(elapsed)
     end
 
     local now = GetTime and GetTime() or 0
-    local dt = elapsed or 0.1
+    local dt = elapsed or CHROME_UPDATE_INTERVAL
     local editFocused = (not hoverNow) and is_any_editbox_shown() or false
-    local moversUnlocked = (sfui.movers and sfui.movers.isUnlocked) and true or false
 
     if idleFade then
-        local active = hoverNow or editFocused or moversUnlocked
+        local active = hoverNow or editFocused or moversUnlocked or copyOpen
         if active then
             chat.WakeIdleFade()
         else
@@ -1420,12 +1676,12 @@ end
 local function sync_chrome_tick_registration()
     if not (sfui.events and sfui.events.RegisterUpdate and sfui.events.UnregisterUpdate) then return end
     local needTick = sfui.IsModuleEnabled("chat") and (
-        chat.Get("copy_button", "hover") == "hover"
+        chat.Get("copy_button", "hover") ~= "hidden"
         or chat.Get("idle_fade", false) == true
         or chat.Get("tab_autofade", true) == true
     )
     if needTick then
-        sfui.events.RegisterUpdate(CHROME_UPDATE_KEY, 0.10, on_chrome_tick)
+        sfui.events.RegisterUpdate(CHROME_UPDATE_KEY, CHROME_UPDATE_INTERVAL, on_chrome_tick)
     else
         sfui.events.UnregisterUpdate(CHROME_UPDATE_KEY)
         isPanelHovered = false
@@ -1745,7 +2001,15 @@ function chat.DisableFrame()
         apply_font_to_frame(cf, d, id)
     end)
 
-    if copyBtn then copyBtn:Hide() end
+    currentCopyAlpha = 0
+    isCopyBtnHovered = false
+    isScrollBtnHovered = false
+    lastCopyAnchorY = nil
+    lastScrollAnchorY = nil
+    if copyBtn then
+        copyBtn:SetAlpha(0)
+        copyBtn:Hide()
+    end
     if scrollBtn then scrollBtn:Hide() end
     if _G.QuickJoinToastButton then
         _G.QuickJoinToastButton:SetAlpha(1)

@@ -793,6 +793,9 @@ sfui.config = {
         auto_sign_lfg = true,
         tooltip_alt_ids = true,
         train_all_button = true,
+        auto_quest = false,
+        auto_quest_reward = false,
+        quest_reward_advisor = true,
     },
 
 

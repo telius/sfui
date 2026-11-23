@@ -117,6 +117,7 @@ frames/alts/mail_engine.lua
 frames/alts/mail_ui.lua
 frames/alts/mail_mailbox.lua
 frames/automation/automation.lua
+frames/automation/quests.lua
 frames/automation/currency.lua
 frames/automation/fishing.lua
 frames/automation/location.lua

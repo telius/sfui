@@ -13,7 +13,9 @@ local SetOverrideBindingClick = _G.SetOverrideBindingClick
 local SecureHandlerSetFrameRef = _G.SecureHandlerSetFrameRef
 local SecureHandlerWrapScript  = _G.SecureHandlerWrapScript
 local tonumber                = _G.tonumber
+local tostring                = _G.tostring
 local pairs                   = _G.pairs
+local next                    = _G.next
 local type                    = _G.type
 local pcall                   = _G.pcall
 
@@ -101,14 +103,29 @@ local function ensure_secure_header()
     return secureHeader
 end
 
+local SNIPPET_CANCEL_PRE = [==[
+    self:ClearBindings()
+    local h = self:GetFrameRef("header") or control
+    if h then
+        h:SetAttribute("sfui_cancelled", 1)
+        h:SetAttribute("sfui_open_ring", nil)
+        h:CallMethod("CloseLiveRing")
+    end
+    return false
+]==]
+
 local function ensure_cancel_button()
     if not cancelButton then
+        local header = ensure_secure_header()
         cancelButton = CreateFrame("Button", "SfuiRingCancelButton", UIParent, "SecureActionButtonTemplate")
+        cancelButton:RegisterForClicks("AnyDown")
         cancelButton:EnableMouse(false)
         cancelButton:SetSize(1, 1)
         cancelButton:SetAlpha(0)
         cancelButton:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -700, 100)
         cancelButton:Show()
+        SecureHandlerSetFrameRef(cancelButton, "header", header)
+        SecureHandlerWrapScript(cancelButton, "OnClick", header, SNIPPET_CANCEL_PRE)
         cancelButton:SetScript("PostClick", function()
             if sfui.ring.live and sfui.ring.live.is_open and sfui.ring.live.is_open() then
                 sfui.ring.live.close()
@@ -118,10 +135,17 @@ local function ensure_cancel_button()
     return cancelButton
 end
 
+function secure.clear_cancel_bindings()
+    if cancelButton and not (InCombatLockdown and InCombatLockdown()) then
+        ClearOverrideBindings(cancelButton)
+    end
+end
+
 local SNIPPET_PRE = [==[
     local ui = self:GetFrameRef("ui")
     local cancel = self:GetFrameRef("cancel")
     local h = self:GetFrameRef("header") or control
+    local ringID = self:GetAttribute("sfui_ring_id")
 
     if down then
         self:SetAttribute("type", nil)
@@ -140,13 +164,65 @@ local SNIPPET_PRE = [==[
         end
 
         if h then
-            h:CallMethod("OpenLiveRing", self:GetAttribute("sfui_ring_id"))
+            h:SetAttribute("sfui_cancelled", nil)
+            h:CallMethod("OpenLiveRing", ringID)
+        end
+
+        local numSlots = tonumber(self:GetAttribute("sfui_num_slots")) or 0
+        if numSlots > 0 and self:GetAttribute("sfui_enabled") ~= 0 then
+            if h then
+                h:SetAttribute("sfui_open_ring", ringID)
+            end
+            if cancel then
+                cancel:ClearBindings()
+                cancel:SetBindingClick(true, "ESCAPE", cancel, "LeftButton")
+                cancel:SetBindingClick(true, "ALT-ESCAPE", cancel, "LeftButton")
+                cancel:SetBindingClick(true, "CTRL-ESCAPE", cancel, "LeftButton")
+                cancel:SetBindingClick(true, "SHIFT-ESCAPE", cancel, "LeftButton")
+                cancel:SetBindingClick(true, "ALT-CTRL-ESCAPE", cancel, "LeftButton")
+                cancel:SetBindingClick(true, "ALT-SHIFT-ESCAPE", cancel, "LeftButton")
+                cancel:SetBindingClick(true, "CTRL-SHIFT-ESCAPE", cancel, "LeftButton")
+                cancel:SetBindingClick(true, "ALT-CTRL-SHIFT-ESCAPE", cancel, "LeftButton")
+            end
         end
 
         return false
     end
 
     -- key up (release)
+    local openRing = h and h:GetAttribute("sfui_open_ring") or nil
+    local wasCancelled = h and (h:GetAttribute("sfui_cancelled") == 1) or false
+    if wasCancelled or (openRing and openRing ~= ringID) then
+        if cancel and (not openRing or openRing == ringID) then
+            cancel:ClearBindings()
+        end
+        if h and openRing == ringID then
+            h:SetAttribute("sfui_open_ring", nil)
+        end
+        self:SetAttribute("type", nil)
+        self:SetAttribute("typerelease", nil)
+        self:SetAttribute("sfui_idx", nil)
+        self:SetAttribute("sfui_why", "cancelled")
+        return false
+    end
+
+    if cancel then
+        cancel:ClearBindings()
+    end
+    if h then
+        h:SetAttribute("sfui_open_ring", nil)
+    end
+
+    if self:GetAttribute("sfui_enabled") == 0 then
+        self:SetAttribute("type", nil)
+        self:SetAttribute("typerelease", nil)
+        self:SetAttribute("sfui_why", "disabled")
+        if h then
+            h:CallMethod("CloseLiveRing")
+        end
+        return false
+    end
+
     local ox = tonumber(self:GetAttribute("sfui_ox"))
     local oy = tonumber(self:GetAttribute("sfui_oy"))
     local numSlots = tonumber(self:GetAttribute("sfui_num_slots")) or 0
@@ -177,24 +253,31 @@ local SNIPPET_PRE = [==[
     local dx, dy = cx - ox, cy - oy
     local dist = (dx * dx + dy * dy) ^ 0.5
 
+    local idx
     if dist < deadzone then
-        self:SetAttribute("type", nil)
-        self:SetAttribute("typerelease", nil)
-        self:SetAttribute("sfui_idx", nil)
-        self:SetAttribute("sfui_why", "deadzone")
-        if h then
-            h:CallMethod("CloseLiveRing")
+        local remember = self:GetAttribute("sfui_remember_last")
+        local lastIdx = (remember ~= 0) and tonumber(self:GetAttribute("sfui_last_idx")) or nil
+        if lastIdx and lastIdx >= 1 and lastIdx <= numSlots then
+            idx = lastIdx
+        else
+            self:SetAttribute("type", nil)
+            self:SetAttribute("typerelease", nil)
+            self:SetAttribute("sfui_idx", nil)
+            self:SetAttribute("sfui_why", "deadzone")
+            if h then
+                h:CallMethod("CloseLiveRing")
+            end
+            return false
         end
-        return false
+    else
+        local theta = atan2(dx, dy)
+        if theta < 0 then theta = theta + 360 end
+
+        local step = 360 / numSlots
+        local rel = (theta + step * 0.5) % 360
+        idx = floor(rel / step) + 1
+        if idx > numSlots then idx = 1 end
     end
-
-    local theta = atan2(dx, dy)
-    if theta < 0 then theta = theta + 360 end
-
-    local step = 360 / numSlots
-    local rel = (theta + step * 0.5) % 360
-    local idx = floor(rel / step) + 1
-    if idx > numSlots then idx = 1 end
 
     self:SetAttribute("sfui_idx", idx)
 
@@ -209,6 +292,9 @@ local SNIPPET_PRE = [==[
         end
         return false
     end
+
+    self:SetAttribute("sfui_last_idx", idx)
+    self:SetAttribute("sfui_last_id", self:GetAttribute("slot" .. idx .. "-id"))
 
     if isInsecure then
         self:SetAttribute("sfui_is_insecure", "1")
@@ -323,8 +409,23 @@ local function apply_slots_to_button(btn, slots)
     local deadzone = (sfui.db and sfui.db.Get("ring", "deadzone", 28)) or 28
     btn:SetAttribute("sfui_deadzone", deadzone)
 
+    local enabled = (sfui.db and sfui.db.Get("ring", "enabled", true)) ~= false
+    btn:SetAttribute("sfui_enabled", enabled and 1 or 0)
+
+    local rememberLast = (sfui.db and sfui.db.Get("ring", "remember_last", true)) ~= false
+    btn:SetAttribute("sfui_remember_last", rememberLast and 1 or 0)
+
+    local prevLastID = btn:GetAttribute("sfui_last_id")
+    local remappedLastIdx = nil
+
     for i = 1, num do
         local slot = slots[i]
+        local slotID = (slot.id ~= nil) and tostring(slot.id) or tostring(i)
+        btn:SetAttribute("slot" .. i .. "-id", slotID)
+        if prevLastID and slotID == prevLastID and not remappedLastIdx then
+            remappedLastIdx = i
+        end
+
         local attrs = slot.attrs or {}
         btn:SetAttribute("slot" .. i .. "-type", attrs.type)
         btn:SetAttribute("slot" .. i .. "-insecure", (slot.insecure_func and true) or nil)
@@ -349,6 +450,7 @@ local function apply_slots_to_button(btn, slots)
     local prevNum = tonumber(btn:GetAttribute("sfui_prev_slots")) or 0
     if prevNum > num then
         for i = num + 1, prevNum do
+            btn:SetAttribute("slot" .. i .. "-id", nil)
             btn:SetAttribute("slot" .. i .. "-type", nil)
             btn:SetAttribute("slot" .. i .. "-insecure", nil)
             for j = 1, 3 do
@@ -358,6 +460,42 @@ local function apply_slots_to_button(btn, slots)
         end
     end
     btn:SetAttribute("sfui_prev_slots", num)
+
+    if prevLastID then
+        btn:SetAttribute("sfui_last_idx", remappedLastIdx)
+        if not remappedLastIdx then
+            btn:SetAttribute("sfui_last_id", nil)
+        end
+    else
+        btn:SetAttribute("sfui_last_idx", nil)
+    end
+
+    if sfui.ring.live and sfui.ring.live.sync_default_slot then
+        sfui.ring.live.sync_default_slot(btn._ringID, remappedLastIdx)
+    end
+end
+
+function secure.get_last_slot_index(ringID)
+    if sfui.db and sfui.db.Get("ring", "remember_last", true) == false then
+        return nil
+    end
+    local btn = secureButtons[ringID]
+    if not btn then return nil end
+    local num = tonumber(btn:GetAttribute("sfui_num_slots")) or 0
+    local idx = tonumber(btn:GetAttribute("sfui_last_idx"))
+    if idx and idx >= 1 and idx <= num then
+        return idx
+    end
+    return nil
+end
+
+function secure.clear_last_slot(ringID)
+    if InCombatLockdown and InCombatLockdown() then return false end
+    local btn = secureButtons[ringID]
+    if not btn then return false end
+    btn:SetAttribute("sfui_last_idx", nil)
+    btn:SetAttribute("sfui_last_id", nil)
+    return true
 end
 
 --- push configured slot definitions to the secure button.

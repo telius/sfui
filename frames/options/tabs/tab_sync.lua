@@ -229,13 +229,13 @@ sfui.options.RegisterTab({
         local cb_mb_quest = create_checkbox(panel, "auto-quest, abandon & dialog sync",
             function() return sync.GetSettings().mbAutoQuest ~= false end,
             function(v) set_sync_setting("mbAutoQuest", v) end,
-            "auto-accepts quests, turns in quests without item rewards (or all quests when auto-pick reward is enabled), syncs quest abandon, mirrors lead gossip/dialog choices, and notifies when a peer completes a quest.")
+            "when in a synced party (synced across linked accounts), auto-accepts quests, turns in quests without item rewards (or all quests when auto-pick reward is enabled), syncs quest abandon, mirrors lead gossip/dialog choices, and notifies when a peer completes a quest. for solo play, use the automation tab.")
         cb_mb_quest:SetPoint("TOPLEFT", cb_mb_follow, "BOTTOMLEFT", 0, -6)
 
         local cb_mb_quest_reward = create_checkbox(panel, "auto-complete & pick best reward",
             function() return sync.GetSettings().mbAutoQuestReward == true end,
             function(v) set_sync_setting("mbAutoQuestReward", v) end,
-            "when auto-quest is active, automatically completes quests with rewards: grabs the highest equippable upgrade for your current spec, or the best gold reward if none upgrade (hold shift to cancel and choose manually).")
+            "when in a synced party (synced across linked accounts), automatically completes quests with rewards: grabs the highest equippable upgrade for your current spec, or the best gold reward if none upgrade (hold shift to cancel and choose manually). for solo play, use the automation tab.")
         cb_mb_quest_reward:SetPoint("LEFT", cb_mb_quest, "LEFT", COL_OFFSET_X, 0)
 
         local cb_mb_taxi = create_checkbox(panel, "sync flight master destinations",

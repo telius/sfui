@@ -564,7 +564,16 @@ local function is_bnet_friend_whisperable(gameInfo)
                 return false
             end
         end
-        if gameInfo.realmID and gameInfo.realmID > 0 and _G.GetRealmID then
+        if gameInfo.hasRealmInfo == false then
+            return false
+        end
+        if C_BattleNet and C_BattleNet.IsGameAccountOnSameRealm
+            and type(gameInfo.gameAccountID) == "number"
+            and not (issecretvalue and issecretvalue(gameInfo.gameAccountID)) then
+            if not C_BattleNet.IsGameAccountOnSameRealm(gameInfo.gameAccountID) then
+                return false
+            end
+        elseif gameInfo.realmID and gameInfo.realmID > 0 and _G.GetRealmID then
             local myRealmID = _G.GetRealmID()
             if myRealmID and myRealmID > 0 and gameInfo.realmID ~= myRealmID then
                 return false

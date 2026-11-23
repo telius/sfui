@@ -28,6 +28,7 @@ local originX = 0
 local originY = 0
 local activeRingID = nil
 local activeSlots = nil
+local defaultSlotIndex = nil
 local lastHoveredIndex = nil
 local lastScaledX = -9999
 local lastScaledY = -9999
@@ -78,7 +79,8 @@ local function on_live_update(self, elapsed)
                 local total = #activeSlots
                 local deadzone = (sfui.db and sfui.db.Get("ring", "deadzone", 28)) or 28
 
-                local idx = geom.point_to_slot(dx, dy, total, deadzone)
+                local rawIdx = geom.point_to_slot(dx, dy, total, deadzone)
+                local idx = rawIdx or defaultSlotIndex
 
                 if idx ~= lastHoveredIndex then
                     lastHoveredIndex = idx
@@ -105,9 +107,16 @@ function live.open(ringID)
     local slots, title = sfui.ring.get_ring_slots(ringID)
     if not slots or #slots == 0 then return end
 
+    local sec = sfui.ring.secure
+    local defIdx = (sec and sec.get_last_slot_index and sec.get_last_slot_index(ringID)) or nil
+    if defIdx and (defIdx < 1 or defIdx > #slots) then
+        defIdx = nil
+    end
+
     activeRingID = ringID
     activeSlots = slots
-    lastHoveredIndex = nil
+    defaultSlotIndex = defIdx
+    lastHoveredIndex = defIdx
     isOpen = true
     updateThrottle = 0
     cdThrottle = 0
@@ -122,10 +131,19 @@ function live.open(ringID)
     frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", originX, originY)
 
     view.render_ring(ringID, slots, title)
-    view.set_active_slot(nil)
+    view.set_active_slot(defaultSlotIndex)
 
     frame:Show()
     frame:SetScript("OnUpdate", on_live_update)
+end
+
+function live.sync_default_slot(ringID, idx)
+    if not isOpen or activeRingID ~= ringID then return end
+    local remember = (sfui.db and sfui.db.Get("ring", "remember_last", true)) ~= false
+    if not remember or not activeSlots or not idx or idx < 1 or idx > #activeSlots then
+        idx = nil
+    end
+    defaultSlotIndex = idx
 end
 
 --- close the radial ring and stop the cursor tracking loop.
@@ -133,11 +151,16 @@ function live.close()
     isOpen = false
     activeRingID = nil
     activeSlots = nil
+    defaultSlotIndex = nil
     lastHoveredIndex = nil
     lastScaledX = -9999
     lastScaledY = -9999
     updateThrottle = 0
     cdThrottle = 0
+
+    if sfui.ring.secure and sfui.ring.secure.clear_cancel_bindings then
+        sfui.ring.secure.clear_cancel_bindings()
+    end
 
     local frame = view.get_frame()
     if frame then
