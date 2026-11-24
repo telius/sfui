@@ -69,6 +69,20 @@ local offlinePeers        = {}
 local knownOfflineFriends = {}
 local bnetFriendCharByID  = {}
 local lastPartyPeerKeys   = {}
+local lastBroadcastAltSig = {}
+local contactsSyncState   = {
+    pendingDeltas = {},
+    deltaCount    = 0,
+    needsFull     = false,
+}
+local rosterSyncState     = {
+    lastPartyGUIDs     = {},
+    curPartyGUIDs      = {},
+    lastGroupHelloTime = 0,
+    lastGroupChannel   = nil,
+    pendingNewMember   = false,
+    pendingNewSynced   = false,
+}
 
 local DEFAULT_SETTINGS = {
     enabled            = true,
@@ -776,7 +790,7 @@ local function sync_machine_store()
                     local lRev = tonumber(cData.rev) or 0
                     local mRev = (type(ex) == "table" and tonumber(ex.rev)) or 0
                     if not ex or lRev >= mRev then
-                        local payload = merge.BuildFishingCharPayload and merge.BuildFishingCharPayload(fGuid)
+                        local payload = merge.BuildFishingCharPayload and merge.BuildFishingCharPayload(fGuid, true)
                         if payload and payload.data then
                             ms.fishing_chars[fGuid] = payload.data
                         end
@@ -1346,22 +1360,75 @@ end
 
 function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
     local s = sync.GetSettings()
-    if not s.enabled then return end
+    if not s.enabled then return 0 end
+
+    local encodedPayload, encodedCompressed, coalesceSubKey
+    local hasEncoded = false
+    local sentCount = 0
+
+    local function send_encoded(channel, target, bnetIDAccount, whisperAlias)
+        if not hasEncoded then
+            hasEncoded = true
+            if codec.EncodeEnvelope then
+                encodedPayload, encodedCompressed = codec.EncodeEnvelope(msgType, dataTable)
+                coalesceSubKey = codec.GetCoalesceSubKey and codec.GetCoalesceSubKey(msgType, dataTable)
+            end
+        end
+        local ok
+        if encodedPayload and encodedPayload ~= "" and codec.SendEncoded then
+            ok = codec.SendEncoded(PREFIX, msgType, encodedPayload, encodedCompressed, channel, target, bnetIDAccount, nil,
+                whisperAlias, coalesceSubKey)
+        else
+            ok = codec.SendMessage(PREFIX, msgType, dataTable, channel, target, bnetIDAccount, nil, whisperAlias)
+        end
+        if ok then
+            sentCount = sentCount + 1
+        end
+        return ok
+    end
 
     local sentGroup = false
     if s.useParty then
         local allowDiscovery = (msgType == "HELLO") and (s.passcode and s.passcode ~= "")
         local ch = get_active_group_channel(allowDiscovery)
         if ch then
-            codec.SendMessage(PREFIX, msgType, dataTable, ch)
+            send_encoded(ch)
             sentGroup = true
         end
     end
 
     local sentGuild = false
     if s.useGuild and IsInGuild and IsInGuild() then
-        codec.SendMessage(PREFIX, msgType, dataTable, "GUILD")
+        send_encoded("GUILD")
         sentGuild = true
+    end
+
+    local partyNames = {}
+    local partyGUIDs = {}
+    if sentGroup and GetNumGroupMembers then
+        local n = GetNumGroupMembers()
+        local prefixUnit = (IsInRaid and IsInRaid()) and "raid" or "party"
+        for i = 1, n do
+            local u = prefixUnit .. i
+            if UnitExists and UnitExists(u) then
+                local g = UnitGUID and UnitGUID(u)
+                if g and not (issecretvalue and issecretvalue(g)) and g ~= "" then
+                    partyGUIDs[g] = true
+                end
+                local full = sync.FullName(u)
+                if full and full ~= "" then
+                    local _, shortName = normalize_peer_key(full)
+                    local lf = string_lower(shortName or full)
+                    partyNames[lf] = true
+                    local ff = first_token_lower(lf)
+                    if ff then partyNames[ff] = true end
+                end
+                local uName = UnitName(u)
+                if uName and not (issecretvalue and issecretvalue(uName)) then
+                    partyNames[string_lower(uName)] = true
+                end
+            end
+        end
     end
 
     local bnetSentNames = {}
@@ -1380,17 +1447,24 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
                     local charName = gameInfo.characterName
                     local peer = not is_self_character(charName) and sync.FindPeer(charName)
                     if peer then
-                        codec.SendMessage(PREFIX, msgType, dataTable, "BNET", nil, gameInfo.gameAccountID)
                         local cLow = string_lower(charName)
-                        bnetSentNames[cLow] = true
                         local cFirst = first_token_lower(cLow)
-                        if cFirst then bnetSentNames[cFirst] = true end
-                        if peer.name then
-                            local pLow = string_lower(peer.name)
-                            bnetSentNames[pLow] = true
-                            local pFirst = first_token_lower(pLow)
-                            if pFirst then bnetSentNames[pFirst] = true end
+                        local pLow = peer.name and string_lower(peer.name) or nil
+                        local pFirst = pLow and first_token_lower(pLow) or nil
+                        local inPartyViaGroup = sentGroup and (
+                            (peer.guid and partyGUIDs[peer.guid])
+                            or partyNames[cLow]
+                            or (cFirst and partyNames[cFirst])
+                            or (pLow and partyNames[pLow])
+                            or (pFirst and partyNames[pFirst])
+                        )
+                        if not inPartyViaGroup then
+                            send_encoded("BNET", nil, gameInfo.gameAccountID)
                         end
+                        bnetSentNames[cLow] = true
+                        if cFirst then bnetSentNames[cFirst] = true end
+                        if pLow then bnetSentNames[pLow] = true end
+                        if pFirst then bnetSentNames[pFirst] = true end
                         if peer.accountID and peer.accountID ~= "" and peer.accountID ~= "peer-acct-default" then
                             bnetSentAccounts[peer.accountID] = true
                         end
@@ -1401,24 +1475,6 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
     end
 
     if includeWhisperPeers and s.useWhisper and not sentGuild then
-        local partyNames = {}
-        if sentGroup and GetNumGroupMembers then
-            local n = GetNumGroupMembers()
-            local prefixUnit = (IsInRaid and IsInRaid()) and "raid" or "party"
-            for i = 1, n do
-                local u = prefixUnit .. i
-                if UnitExists and UnitExists(u) then
-                    local full = sync.FullName(u)
-                    if full and full ~= "" then
-                        local _, shortName = normalize_peer_key(full)
-                        partyNames[string_lower(shortName or full)] = true
-                    end
-                    local uName = UnitName(u)
-                    if uName then partyNames[string_lower(uName)] = true end
-                end
-            end
-        end
-
         local liveOnline = build_live_online_map()
         local now = (GetTime and GetTime()) or 0
 
@@ -1467,12 +1523,14 @@ function sync.Broadcast(msgType, dataTable, includeWhisperPeers, forceProbe)
                 if chosen then
                     local target = get_whisper_target(chosen.name, chosen)
                     if not is_peer_marked_offline(chosen.name, chosen, target, now) then
-                        codec.SendMessage(PREFIX, msgType, dataTable, "WHISPER", target, nil, nil, chosen.name)
+                        send_encoded("WHISPER", target, nil, chosen.name)
                     end
                 end
             end
         end
     end
+
+    return sentCount
 end
 
 local SHARED_SETTING_KEYS = {
@@ -1848,6 +1906,7 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
     end
 
     local want = {
+        manifest   = true,
         alts       = {},
         quests     = {},
         recipes    = {},
@@ -1925,22 +1984,41 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
                     end
                 end
 
-                local wantThis = (not locAlt)
-                    or (rRev > locRev)
+                local needFullQuests = (not locAlt)
+                    or (rDone ~= nil and rDone > locDone)
+                    or (rDone == nil and rRev > locRev)
+                local needActiveQuests = (not needFullQuests) and (
+                    (rRev > locRev)
                     or hasPartial
-                    or (rRev == locRev and ((rActive and rActive ~= locActive) or (rDone and rDone > locDone)))
-                local pushThis = (not wantThis) and (
+                    or (rRev == locRev and rActive ~= nil and rActive ~= locActive)
+                )
+                local pushFullQuests = (not needFullQuests) and (not needActiveQuests) and (
+                    (rDone ~= nil and locDone > rDone)
+                    or (rDone == nil and locRev > rRev)
+                )
+                local pushActiveQuests = (not needFullQuests) and (not needActiveQuests) and (not pushFullQuests) and (
                     (locRev > rRev)
-                    or (locRev == rRev and not hasPartial and ((rActive and locActive > rActive) or (rDone and locDone > rDone)))
+                    or (locRev == rRev and not hasPartial and rActive ~= nil and locActive > rActive)
                 )
 
-                if wantThis then
+                if needFullQuests then
                     table_insert(want.quests, guid)
                     hasWant = true
-                elseif pushThis then
+                elseif needActiveQuests then
+                    want.activeQuests = want.activeQuests or {}
+                    table_insert(want.activeQuests, guid)
+                    hasWant = true
+                elseif pushFullQuests then
                     local payload = merge.BuildQuestsPayload(guid)
                     if payload then
                         send_to_peer(sender, "DATA_QUESTS", payload, replyChannel, bnetIDAccount)
+                    end
+                elseif pushActiveQuests then
+                    local payload = (merge.BuildActiveQuestsPayload and merge.BuildActiveQuestsPayload(guid))
+                        or merge.BuildQuestsPayload(guid)
+                    if payload then
+                        local outType = merge.BuildActiveQuestsPayload and "DATA_ACTIVE_QUESTS" or "DATA_QUESTS"
+                        send_to_peer(sender, outType, payload, replyChannel, bnetIDAccount)
                     end
                 end
             end
@@ -2071,11 +2149,32 @@ local function handle_manifest_from_peer(sender, peer, remoteManifest, replyChan
         end
     end
 
-    -- 5. Push Mail Routes if enabled
+    -- 5. Reconcile Mail Routes
     if s.syncMail then
-        local mailPayload = merge.BuildMailPayload()
-        if mailPayload and (next(mailPayload.routes or {}) ~= nil or next(mailPayload.ignoredItems or {}) ~= nil) then
-            send_to_peer(sender, "DATA_MAIL", mailPayload, replyChannel, bnetIDAccount)
+        local locMail = (merge.GetMailManifestSummary and merge.GetMailManifestSummary()) or nil
+        local shouldPushMail = false
+        if type(remoteManifest.mail) == "table" and locMail then
+            local remH = tonumber(remoteManifest.mail.h) or 0
+            local remN = tonumber(remoteManifest.mail.n) or 0
+            if remH ~= (locMail.h or 0) then
+                if remN > 0 then
+                    want.mail = true
+                    hasWant = true
+                end
+                if (locMail.n or 0) > 0 then
+                    shouldPushMail = true
+                end
+            end
+        else
+            shouldPushMail = true
+        end
+        if shouldPushMail then
+            local mailPayload = merge.BuildMailPayload()
+            if mailPayload and (next(mailPayload.routes or {}) ~= nil
+                or next(mailPayload.ignoredItems or {}) ~= nil
+                or mailPayload.disenchanterGUID) then
+                send_to_peer(sender, "DATA_MAIL", mailPayload, replyChannel, bnetIDAccount)
+            end
         end
     end
 
@@ -2112,6 +2211,15 @@ local function handle_want_from_peer(sender, want, replyChannel, bnetIDAccount)
             local payload = merge.BuildQuestsPayload(guid)
             if payload then
                 send_to_peer(sender, "DATA_QUESTS", payload, replyChannel, bnetIDAccount)
+            end
+        end
+    end
+
+    if s.syncQuests and type(want.activeQuests) == "table" and merge.BuildActiveQuestsPayload then
+        for _, guid in ipairs(want.activeQuests) do
+            local payload = merge.BuildActiveQuestsPayload(guid)
+            if payload then
+                send_to_peer(sender, "DATA_ACTIVE_QUESTS", payload, replyChannel, bnetIDAccount)
             end
         end
     end
@@ -2157,11 +2265,13 @@ local function handle_want_from_peer(sender, want, replyChannel, bnetIDAccount)
         end
     end
 
-    if sfui.camelot_skills and sfui.camelot_skills.BroadcastTrackedSkills then
-        sfui.camelot_skills.BroadcastTrackedSkills(true)
-    end
-    if sfui.recipes and sfui.recipes.BroadcastPinnedRecipes then
-        sfui.recipes.BroadcastPinnedRecipes(true)
+    if want.manifest then
+        if sfui.camelot_skills and sfui.camelot_skills.BroadcastTrackedSkills then
+            sfui.camelot_skills.BroadcastTrackedSkills(true)
+        end
+        if sfui.recipes and sfui.recipes.BroadcastPinnedRecipes then
+            sfui.recipes.BroadcastPinnedRecipes(true)
+        end
     end
 end
 
@@ -2262,15 +2372,17 @@ local function has_active_quest_sync_target()
     return false
 end
 
-local function request_peer_quests_throttled(peerName, guid, channel, bnetIDAccount)
+local function request_peer_quests_throttled(peerName, guid, channel, bnetIDAccount, activeOnly)
     if type(guid) ~= "string" or guid == "" then return false end
+    local throttleKey = guid .. (activeOnly and ":a" or ":f")
     local now = (GetTime and GetTime()) or 0
-    local lastWant = lastPeerQuestWant[guid]
+    local lastWant = lastPeerQuestWant[throttleKey]
     if lastWant and (now - lastWant) < 4.0 then
         return false
     end
-    lastPeerQuestWant[guid] = now
-    return send_to_peer(peerName, "WANT", { quests = { guid } }, channel, bnetIDAccount)
+    lastPeerQuestWant[throttleKey] = now
+    local wantPayload = activeOnly and { activeQuests = { guid } } or { quests = { guid } }
+    return send_to_peer(peerName, "WANT", wantPayload, channel, bnetIDAccount)
 end
 
 local function send_quest_digest_to_group()
@@ -2402,6 +2514,19 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
                 on_local_quests_updated("PEER_QUEST_SYNC")
             end
         end
+    elseif msgType == "DATA_ACTIVE_QUESTS" and s.syncQuests and type(data) == "table" then
+        if merge.MergeActiveQuests then
+            local merged, localCompChanged = merge.MergeActiveQuests(data.guid, data)
+            if merged then
+                peer.lastSync = now
+                if type(data.guid) == "string" and data.guid ~= "" then
+                    lastPeerQuestRx[data.guid] = (GetTime and GetTime()) or 0
+                end
+                if localCompChanged and on_local_quests_updated then
+                    on_local_quests_updated("PEER_QUEST_SYNC")
+                end
+            end
+        end
     elseif msgType == "DELTA_QUEST_PROG" and s.syncQuests and type(data) == "table" then
         if merge.MergeQuestProgDelta then
             local merged, missingDetails, localCompChanged, completedEvents = merge.MergeQuestProgDelta(data)
@@ -2414,7 +2539,7 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
                     notify_peer_quest_completed(sender, data.g, completedEvents)
                 end
                 if missingDetails and type(data.g) == "string" and data.g ~= "" then
-                    request_peer_quests_throttled(sender, data.g, channel, bnetIDAccount)
+                    request_peer_quests_throttled(sender, data.g, channel, bnetIDAccount, true)
                 end
                 if localCompChanged and on_local_quests_updated then
                     on_local_quests_updated("PEER_QUEST_SYNC")
@@ -2440,8 +2565,12 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
             local rRev = tonumber(data.r) or 0
             local rHash = tonumber(data.h)
             local locHash = (locAlt and merge.ComputeActiveQuestsDigest) and merge.ComputeActiveQuestsDigest(locAlt) or nil
-            if not locAlt or hasPartial or rRev > locRev or (rHash ~= nil and locHash ~= nil and rHash ~= locHash) then
-                request_peer_quests_throttled(sender, data.g, channel, bnetIDAccount)
+            local locCC = (locAlt and merge.CountCompletedQuests) and merge.CountCompletedQuests(locAlt) or nil
+            local rCC = tonumber(data.cc)
+            if not locAlt or (rCC ~= nil and locCC ~= nil and rCC > locCC) then
+                request_peer_quests_throttled(sender, data.g, channel, bnetIDAccount, false)
+            elseif hasPartial or rRev > locRev or (rHash ~= nil and locHash ~= nil and rHash ~= locHash) then
+                request_peer_quests_throttled(sender, data.g, channel, bnetIDAccount, true)
             end
         end
     elseif msgType == "DATA_DJ_WISHLIST" and s.syncQuests and type(data) == "table" then
@@ -2477,6 +2606,10 @@ local function on_decoded_message(sender, msgType, data, channel, bnetIDAccount)
         end
     elseif msgType == "DATA_CONTACTS" and s.syncContacts and type(data) == "table" then
         if merge.MergeContacts(data) > 0 then
+            peer.lastSync = now
+        end
+    elseif msgType == "DELTA_CONTACT" and s.syncContacts and type(data) == "table" then
+        if merge.MergeContactDelta and merge.MergeContactDelta(data) > 0 then
             peer.lastSync = now
         end
     elseif msgType == "DATA_FISHING" and s.syncFishing and type(data) == "table" then
@@ -2564,7 +2697,7 @@ local function on_chat_msg_addon(event, prefix, text, channel, sender)
     if sender and not is_self_character(sender) then
         sync.MarkPeerOnline(sender)
     end
-    local msgType, data = codec.FeedChunk(sender, text)
+    local msgType, data = codec.FeedChunk(sender, text, channel)
     if msgType then
         on_decoded_message(sender, msgType, data, channel, nil)
     end
@@ -2580,7 +2713,7 @@ local function on_bn_chat_msg_addon(event, prefix, text, channel, senderBnetID)
             sync.MarkPeerOnline(senderName)
         end
     end
-    local msgType, data = codec.FeedChunk(senderName, text)
+    local msgType, data = codec.FeedChunk(senderName, text, "BNET")
     if msgType then
         on_decoded_message(senderName, msgType, data, "BNET", senderBnetID)
     end
@@ -2616,10 +2749,22 @@ local function on_local_alt_synced(event, guid, isLogout)
                 schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
                 return
             end
-            local myGUID = guid or (UnitGUID and UnitGUID("player"))
+            local myGUID = guid
+                or (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+                or (UnitGUID and UnitGUID("player"))
+            if not myGUID then return end
+            local inSyncParty = (sync.multibox and sync.multibox.IsActiveSyncParty and sync.multibox.IsActiveSyncParty())
+                and true or false
+            local sig = merge.ComputeAltSyncSignature and merge.ComputeAltSyncSignature(myGUID, inSyncParty) or nil
+            if sig ~= nil and lastBroadcastAltSig[myGUID] == sig then
+                return
+            end
             local payload = merge.BuildAltPayload(myGUID)
             if payload then
-                sync.Broadcast("DATA_ALT", payload, true, false)
+                local sent = sync.Broadcast("DATA_ALT", payload, true, false)
+                if sig ~= nil and (sent == nil or sent > 0) then
+                    lastBroadcastAltSig[myGUID] = sig
+                end
             end
         end)
     else
@@ -2675,7 +2820,53 @@ local function on_local_recipe_batch_updated(event, realm, guid)
 end
 
 local contactsBroadcastPending = false
-local function on_local_contacts_updated()
+local function flush_pending_contacts()
+    if contactsSyncState.needsFull or not merge.BuildContactDeltaPayload then
+        contactsSyncState.needsFull  = false
+        contactsSyncState.deltaCount = 0
+        wipe(contactsSyncState.pendingDeltas)
+        local payload = merge.BuildContactsPayload()
+        if payload then
+            sync.Broadcast("DATA_CONTACTS", payload, true, false)
+        end
+        return
+    end
+
+    if contactsSyncState.deltaCount <= 0 then
+        return
+    end
+
+    local toSend = {}
+    for dk, item in pairs(contactsSyncState.pendingDeltas) do
+        toSend[#toSend + 1] = item
+        contactsSyncState.pendingDeltas[dk] = nil
+    end
+    contactsSyncState.deltaCount = 0
+    contactsSyncState.needsFull  = false
+
+    for i = 1, #toSend do
+        local item = toSend[i]
+        local delta = merge.BuildContactDeltaPayload(item.kind, item.key)
+        if delta then
+            sync.Broadcast("DELTA_CONTACT", delta, true, false)
+        end
+    end
+end
+
+local function on_local_contacts_updated(_, kind, key)
+    if type(kind) == "string" and key ~= nil then
+        local dk = kind .. ":" .. tostring(key)
+        if not contactsSyncState.pendingDeltas[dk] then
+            contactsSyncState.pendingDeltas[dk] = { kind = kind, key = key }
+            contactsSyncState.deltaCount = contactsSyncState.deltaCount + 1
+            if contactsSyncState.deltaCount > 8 then
+                contactsSyncState.needsFull = true
+            end
+        end
+    elseif contactsSyncState.deltaCount == 0 then
+        contactsSyncState.needsFull = true
+    end
+
     local s = sync.GetSettings()
     if not s.enabled or not s.syncContacts then return end
     if InCombatLockdown and InCombatLockdown() then
@@ -2686,20 +2877,18 @@ local function on_local_contacts_updated()
     if contactsBroadcastPending then return end
     contactsBroadcastPending = true
     if C_Timer and C_Timer.After then
-        C_Timer.After(5.0, function()
+        C_Timer.After(1.5, function()
             contactsBroadcastPending = false
             if InCombatLockdown and InCombatLockdown() then
                 deferredAfterCombat.contacts = true
                 schedule_combat_flush(sfui.safety and sfui.safety.OOC_P2)
                 return
             end
-            local payload = merge.BuildContactsPayload()
-            if payload then
-                sync.Broadcast("DATA_CONTACTS", payload, true, false)
-            end
+            flush_pending_contacts()
         end)
     else
         contactsBroadcastPending = false
+        flush_pending_contacts()
     end
 end
 
@@ -2804,7 +2993,8 @@ on_local_quests_updated = function(event, arg1, arg2)
                 local rawGUID = UnitGUID(arg1)
                 if not issecretvalue(rawGUID) and type(rawGUID) == "string" and rawGUID ~= "" then
                     local alts = SfuiDB and SfuiDB.alts
-                    local isSyncedAlt = (type(alts) == "table" and alts[rawGUID] ~= nil)
+                    local hasAltRec = (type(alts) == "table" and alts[rawGUID] ~= nil)
+                    local isSyncedAlt = hasAltRec
                         or (sync.multibox and sync.multibox.IsSyncedCharacter and sync.multibox.IsSyncedCharacter(rawGUID))
                     if isSyncedAlt and not pendingPartyPull[rawGUID] then
                         pendingPartyPull[rawGUID] = true
@@ -2820,7 +3010,7 @@ on_local_quests_updated = function(event, arg1, arg2)
                                 local peerName = (not issecretvalue(rawName) and type(rawName) == "string") and rawName or nil
                                 local ch = get_active_group_channel(false)
                                 if ch or (peerName and sync.IsPeerOnline(peerName)) then
-                                    request_peer_quests_throttled(peerName, rawGUID, ch, nil)
+                                    request_peer_quests_throttled(peerName, rawGUID, ch, nil, hasAltRec)
                                 end
                             end
                         end)
@@ -2864,23 +3054,33 @@ on_local_quests_updated = function(event, arg1, arg2)
                 or (UnitGUID and UnitGUID("player"))
             if not myGUID or issecretvalue(myGUID) then return end
             local anyChanged = false
+            local anyFullNeeded = false
             if merge.ScanLocalQuestsAndDJ then
                 local scanned = false
                 for qid in pairs(pendingTurnedInQuests) do
-                    local _, chg = merge.ScanLocalQuestsAndDJ(qid, pendingAcceptedQuests)
+                    local _, chg, needFull = merge.ScanLocalQuestsAndDJ(qid, pendingAcceptedQuests)
                     if chg then anyChanged = true end
+                    if needFull then anyFullNeeded = true end
                     pendingTurnedInQuests[qid] = nil
                     scanned = true
                 end
                 if not scanned then
-                    local _, chg = merge.ScanLocalQuestsAndDJ(nil, pendingAcceptedQuests)
+                    local _, chg, needFull = merge.ScanLocalQuestsAndDJ(nil, pendingAcceptedQuests)
                     if chg then anyChanged = true end
+                    if needFull then anyFullNeeded = true end
                 end
             end
             if not anyChanged then return end
-            local payload = merge.BuildQuestsPayload and merge.BuildQuestsPayload(myGUID)
-            if payload then
-                sync.Broadcast("DATA_QUESTS", payload, true, false)
+            if anyFullNeeded then
+                local payload = merge.BuildQuestsPayload and merge.BuildQuestsPayload(myGUID)
+                if payload then
+                    sync.Broadcast("DATA_QUESTS", payload, true, false)
+                end
+            elseif merge.BuildActiveQuestsPayload then
+                local payload = merge.BuildActiveQuestsPayload(myGUID)
+                if payload then
+                    sync.Broadcast("DATA_ACTIVE_QUESTS", payload, true, false)
+                end
             end
         end)
     else
@@ -3314,6 +3514,10 @@ function sync.GetQuestPeerStatusesFromSnapshot(snapshot, questID, includeAllAlts
                                 unfinishedObjs[#unfinishedObjs + 1] = oTxt
                             end
                         end
+                        if not unfinishedObjs or #unfinishedObjs == 0 then
+                            status = "ready"
+                            hasProgress = true
+                        end
                     end
                 end
             elseif (alt.djQuests and alt.djQuests[questID] == 1) or is_party_unit_on_quest(entry.partyUnit, questID) then
@@ -3550,13 +3754,17 @@ end
 
 local function on_quest_sync_tick()
     local s = sync.GetSettings()
-    if not s.enabled or s.syncQuests == false or not has_active_quest_sync_target() then
+    if not s.enabled or s.syncQuests == false then
         return
     end
-    run_fast_quest_delta_scan()
     questSyncTickCount = questSyncTickCount + 1
-    if (questSyncTickCount % 3) == 0 then
-        send_quest_digest_to_group()
+    if get_active_group_channel(false) ~= nil then
+        run_fast_quest_delta_scan()
+        if (questSyncTickCount % 3) == 0 then
+            send_quest_digest_to_group()
+        end
+    elseif (questSyncTickCount % 4) == 0 and has_active_quest_sync_target() then
+        run_fast_quest_delta_scan()
     end
 end
 
@@ -3700,6 +3908,9 @@ local function on_group_roster_update()
     partyMapCacheTime = 0
     liveOnlineCacheTime = 0
     wipe(curPartyKeysScratch)
+    wipe(rosterSyncState.curPartyGUIDs)
+    local hasNewMember = false
+    local hasNewSyncedPeer = false
     if IsInGroup and IsInGroup() and GetNumGroupMembers then
         local n = GetNumGroupMembers()
         local prefixUnit = (IsInRaid and IsInRaid()) and "raid" or "party"
@@ -3709,19 +3920,47 @@ local function on_group_roster_update()
                 local connected = (not UnitIsConnected) or UnitIsConnected(u)
                 local full = sync.FullName(u)
                 local uName = UnitName(u)
+                if uName and issecretvalue and issecretvalue(uName) then
+                    uName = nil
+                end
                 if not connected then
                     if full and full ~= "" then sync.MarkPeerOffline(full) end
                     if uName and uName ~= "" then sync.MarkPeerOffline(uName) end
                 else
+                    local isSelf = (UnitIsUnit and UnitIsUnit(u, "player")) and true or false
+                    local lf = nil
                     if full and full ~= "" then
                         local _, shortName = normalize_peer_key(full)
-                        local lf = string_lower(shortName or full)
+                        lf = string_lower(shortName or full)
                         curPartyKeysScratch[lf] = true
                         local ff = first_token_lower(lf)
                         if ff then curPartyKeysScratch[ff] = true end
                     end
                     if uName and uName ~= "" then
                         curPartyKeysScratch[string_lower(uName)] = true
+                    end
+                    if not isSelf then
+                        local rawG = UnitGUID and UnitGUID(u)
+                        local g = (rawG and not (issecretvalue and issecretvalue(rawG))
+                            and type(rawG) == "string" and rawG ~= "") and rawG or nil
+                        local isNew = false
+                        if g then
+                            rosterSyncState.curPartyGUIDs[g] = true
+                            isNew = (rosterSyncState.lastPartyGUIDs[g] == nil)
+                        elseif lf then
+                            isNew = (lastPartyPeerKeys[lf] == nil)
+                        end
+                        if isNew then
+                            hasNewMember = true
+                            local matchedPeer = (full and sync.FindPeer(full)) or (uName and sync.FindPeer(uName))
+                            local isKnownSynced = (matchedPeer and matchedPeer.trusted == true)
+                                or (g and SfuiDB and SfuiDB.alts and SfuiDB.alts[g] ~= nil)
+                                or (g and sync.multibox and sync.multibox.IsSyncedCharacter
+                                    and sync.multibox.IsSyncedCharacter(g))
+                            if isKnownSynced then
+                                hasNewSyncedPeer = true
+                            end
+                        end
                     end
                 end
             end
@@ -3738,32 +3977,92 @@ local function on_group_roster_update()
     end
     wipe(curPartyKeysScratch)
 
+    wipe(rosterSyncState.lastPartyGUIDs)
+    for g in pairs(rosterSyncState.curPartyGUIDs) do
+        rosterSyncState.lastPartyGUIDs[g] = true
+    end
+    wipe(rosterSyncState.curPartyGUIDs)
+
     if sfui.tracker and sfui.tracker.RequestRefresh then
         sfui.tracker.RequestRefresh(0.1)
     end
     if not (codec and codec.ResolveGroupChannel and codec.ResolveGroupChannel()) then
+        rosterSyncState.lastGroupChannel = nil
+        rosterSyncState.pendingNewMember = false
+        rosterSyncState.pendingNewSynced = false
         if codec and codec.PurgeGroupQueue then
             codec.PurgeGroupQueue()
         end
         return
     end
-    if groupRosterPending then return end
     local s = sync.GetSettings()
     if not s.enabled or not s.useParty then return end
     local allowDiscovery = (s.passcode and s.passcode ~= "")
-    if not get_active_group_channel(allowDiscovery) then return end
+    local ch = get_active_group_channel(allowDiscovery)
+    if not ch then return end
+    local channelChanged = (ch ~= rosterSyncState.lastGroupChannel)
+    if not hasNewMember and not channelChanged then
+        return
+    end
+    rosterSyncState.pendingNewMember = rosterSyncState.pendingNewMember or hasNewMember or channelChanged
+    rosterSyncState.pendingNewSynced = rosterSyncState.pendingNewSynced or hasNewSyncedPeer
+    if groupRosterPending then return end
     groupRosterPending = true
     if C_Timer and C_Timer.After then
-        C_Timer.After(1.2, function()
+        C_Timer.After(0.6, function()
             groupRosterPending = false
-            local ch = get_active_group_channel(allowDiscovery)
-            if ch then
-                if s.syncQuests ~= false and merge.ScanLocalQuestsAndDJ then
-                    merge.ScanLocalQuestsAndDJ()
+            local doHello = rosterSyncState.pendingNewMember
+            local pushLive = rosterSyncState.pendingNewSynced
+            rosterSyncState.pendingNewMember = false
+            rosterSyncState.pendingNewSynced = false
+
+            local curS = sync.GetSettings()
+            if not curS.enabled or not curS.useParty then return end
+            local curAllowDiscovery = (curS.passcode and curS.passcode ~= "")
+            local liveCh = get_active_group_channel(curAllowDiscovery)
+            local syncedCh = get_active_group_channel(false)
+            local liveChannelChanged = (liveCh ~= nil and liveCh ~= rosterSyncState.lastGroupChannel)
+            local didQuestScan = false
+
+            if syncedCh and (pushLive or liveChannelChanged) then
+                if curS.syncQuests ~= false then
+                    if merge.ScanLocalQuestsAndDJ then
+                        merge.ScanLocalQuestsAndDJ()
+                        didQuestScan = true
+                    end
+                    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID
+                            and sfui.alts.GetCurrentCharacterGUID())
+                        or (UnitGUID and UnitGUID("player"))
+                    if myGUID and merge.BuildActiveQuestsPayload then
+                        local activePayload = merge.BuildActiveQuestsPayload(myGUID)
+                        if activePayload then
+                            codec.SendMessage(PREFIX, "DATA_ACTIVE_QUESTS", activePayload, syncedCh)
+                        end
+                    end
                 end
-                local manifest = merge.BuildManifest(s)
-                codec.SendMessage(PREFIX, "HELLO", manifest, ch)
+                if sync.hud and sync.hud.BroadcastStatsNow then
+                    sync.hud.BroadcastStatsNow(true)
+                end
             end
+
+            if liveCh and doHello then
+                local nowGt = (GetTime and GetTime()) or 0
+                if rosterSyncState.lastGroupHelloTime == 0
+                    or liveChannelChanged
+                    or (nowGt - rosterSyncState.lastGroupHelloTime) >= 8.0
+                    or pushLive then
+                    rosterSyncState.lastGroupHelloTime = nowGt
+                    rosterSyncState.lastGroupChannel   = liveCh
+                    if not didQuestScan and curS.syncQuests ~= false and merge.ScanLocalQuestsAndDJ then
+                        merge.ScanLocalQuestsAndDJ()
+                    end
+                    local manifest = merge.BuildManifest(curS)
+                    codec.SendMessage(PREFIX, "HELLO", manifest, liveCh)
+                end
+            elseif liveCh then
+                rosterSyncState.lastGroupChannel = liveCh
+            end
+
             if sfui.tracker and sfui.tracker.RequestRefresh then
                 sfui.tracker.RequestRefresh(0.1)
             end

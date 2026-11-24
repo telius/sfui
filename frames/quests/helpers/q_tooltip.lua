@@ -641,7 +641,7 @@ local function BuildSyncedPeerSummary(peerStatuses, reqClass, isRemotePeerQuest,
                 if hasObjTable and #unfinished == 0 then
                     readyPeers[#readyPeers + 1] = pLabel
                     if peer.inParty then partyReady = partyReady + 1 end
-                elseif #unfinished == 0 or (not isRemotePeerQuest and not peerHasProgress) then
+                elseif #unfinished == 0 or (not isRemotePeerQuest and not localIsComplete and not peerHasProgress) then
                     inLogPeers[#inLogPeers + 1] = pLabel
                 else
                     for _, oTxt in ipairs(unfinished) do
@@ -847,6 +847,8 @@ local PARTY_UNIT_TOKENS = { "player", "party1", "party2", "party3", "party4" }
 local function BuildPartyUnitCache()
     local byFull = {}
     local byFirst = {}
+    local byFirstCounts = {}
+    local byGuid = {}
     local localName = nil
     local unitExists = _G.UnitExists
     local unitNameFn = _G.UnitName
@@ -857,8 +859,16 @@ local function BuildPartyUnitCache()
         for _, unit in ipairs(PARTY_UNIT_TOKENS) do
             local exists = unitExists(unit)
             if not issecretvalue(exists) and exists then
-                local rawName = unitNameFn(unit)
-                if IsSafeVal(rawName) and type(rawName) == "string" and rawName ~= "" then
+                local rawFirst = unitNameFn(unit)
+                if not IsSafeVal(rawFirst) or type(rawFirst) ~= "string" then
+                    rawFirst = nil
+                end
+                local syncFull = (sfui.sync and sfui.sync.FullName and sfui.sync.FullName(unit)) or nil
+                if not IsSafeVal(syncFull) or type(syncFull) ~= "string" or syncFull == "" then
+                    syncFull = nil
+                end
+                local canonicalName = syncFull or rawFirst
+                if canonicalName and canonicalName ~= "" then
                     local guid = unitGuidFn and unitGuidFn(unit) or nil
                     if issecretvalue(guid) then guid = nil end
                     local classFile = nil
@@ -868,18 +878,31 @@ local function BuildPartyUnitCache()
                             classFile = cls
                         end
                     end
-                    local fullLower, firstLower = SplitCharacterName(rawName)
+                    local fullLower, firstLower = SplitCharacterName(canonicalName)
                     if fullLower ~= "" then
                         local info = {
-                            unit    = unit,
-                            guid    = guid,
-                            class   = classFile,
-                            isLocal = (unit == "player"),
+                            unit         = unit,
+                            guid         = guid,
+                            class        = classFile,
+                            isLocal      = (unit == "player"),
+                            canonicalKey = fullLower,
+                            rawName      = canonicalName,
                         }
                         if not byFull[fullLower] then byFull[fullLower] = info end
-                        if not byFirst[firstLower] then byFirst[firstLower] = info end
+                        if rawFirst and rawFirst ~= "" then
+                            local rFull, rFirst = SplitCharacterName(rawFirst)
+                            if rFull ~= "" and not byFull[rFull] then byFull[rFull] = info end
+                            if rFirst ~= "" and not byFirst[rFirst] then byFirst[rFirst] = info end
+                        end
+                        if firstLower ~= "" then
+                            byFirstCounts[firstLower] = (byFirstCounts[firstLower] or 0) + 1
+                            if not byFirst[firstLower] then byFirst[firstLower] = info end
+                        end
+                        if guid and guid ~= "" and not byGuid[guid] then
+                            byGuid[guid] = info
+                        end
                         if unit == "player" then
-                            localName = rawName
+                            localName = canonicalName
                         end
                     end
                 end
@@ -888,10 +911,25 @@ local function BuildPartyUnitCache()
     end
 
     return {
-        byFull    = byFull,
-        byFirst   = byFirst,
-        localName = localName,
+        byFull        = byFull,
+        byFirst       = byFirst,
+        byFirstCounts = byFirstCounts,
+        byGuid        = byGuid,
+        localName     = localName,
     }
+end
+
+local function LookupPartyUnit(fullLower, firstLower, partyCache)
+    if not partyCache then return nil end
+    if partyCache.byFull and fullLower and partyCache.byFull[fullLower] then
+        return partyCache.byFull[fullLower]
+    end
+    if fullLower and firstLower and fullLower == firstLower and partyCache.byFirst and partyCache.byFirst[firstLower] then
+        if not partyCache.byFirstCounts or (partyCache.byFirstCounts[firstLower] or 0) <= 1 then
+            return partyCache.byFirst[firstLower]
+        end
+    end
+    return nil
 end
 
 local function FindAltByName(fullLower, firstLower)
@@ -925,7 +963,7 @@ end
 
 local function ResolvePlayerSpecHex(rawName, partyCache)
     local fullLower, firstLower = SplitCharacterName(rawName)
-    local unitInfo = partyCache and ((partyCache.byFull and partyCache.byFull[fullLower]) or (partyCache.byFirst and partyCache.byFirst[firstLower]))
+    local unitInfo = LookupPartyUnit(fullLower, firstLower, partyCache)
     local getSpecColor = sfui.colors and sfui.colors.get_spec_color_table
     local getClassColor = (sfui.colors and sfui.colors.get_class_color) or (sfui.common and sfui.common.get_class_color)
 
@@ -965,10 +1003,168 @@ local function IsPartyPlayerLineFallback(cleanText, nextLine, partyCache, LINE_Q
         return true
     end
     local fullLower, firstLower = SplitCharacterName(cleanText)
-    if partyCache and ((partyCache.byFull and partyCache.byFull[fullLower]) or (partyCache.byFirst and partyCache.byFirst[firstLower])) then
+    if LookupPartyUnit(fullLower, firstLower, partyCache) then
         return true
     end
     return false
+end
+
+local function NormalizeQuestTitleLookupKey(rawTitle)
+    if type(rawTitle) ~= "string" then return nil end
+    local t = string_lower(StripColorCodes(rawTitle))
+    t = string_gsub(t, "^%[.-%]%s*", "")
+    t = string_gsub(t, "%s*%(%s*complete%s*%)%s*$", "")
+    t = string_gsub(t, "^%s+", "")
+    t = string_gsub(t, "%s+$", "")
+    return t ~= "" and t or nil
+end
+
+local function MatchActiveQuestsMapByTitle(activeMap, targetKey)
+    if type(activeMap) ~= "table" then return nil end
+    for rawQID, qEntry in pairs(activeMap) do
+        local qID = tonumber(rawQID)
+        if qID and qID > 0 and type(qEntry) == "table" and type(qEntry.t) == "string" then
+            if NormalizeQuestTitleLookupKey(qEntry.t) == targetKey then
+                return qID
+            end
+        end
+    end
+    return nil
+end
+
+local function ResolveQuestIDByTitle(rawTitle, partyCache)
+    local targetKey = NormalizeQuestTitleLookupKey(rawTitle)
+    if not targetKey then return nil end
+
+    local alts = _G.SfuiDB and _G.SfuiDB.alts
+    local myGUID = (sfui.alts and sfui.alts.GetCurrentCharacterGUID and sfui.alts.GetCurrentCharacterGUID())
+        or (_G.UnitGUID and _G.UnitGUID("player"))
+    if issecretvalue(myGUID) then myGUID = nil end
+
+    if type(alts) == "table" and myGUID and type(alts[myGUID]) == "table" then
+        local hit = MatchActiveQuestsMapByTitle(alts[myGUID].activeQuests, targetKey)
+        if hit then return hit end
+    end
+
+    if _G.C_QuestLog and _G.C_QuestLog.GetNumQuestLogEntries and _G.C_QuestLog.GetInfo then
+        local num = _G.C_QuestLog.GetNumQuestLogEntries()
+        if IsSafeVal(num) and type(num) == "number" then
+            for i = 1, num do
+                local info = _G.C_QuestLog.GetInfo(i)
+                if info and not info.isHeader and IsSafeVal(info.questID) and IsSafeVal(info.title) then
+                    if NormalizeQuestTitleLookupKey(info.title) == targetKey then
+                        return info.questID
+                    end
+                end
+            end
+        end
+    elseif _G.GetNumQuestLogEntries and _G.GetQuestLogTitle then
+        local num = _G.GetNumQuestLogEntries()
+        if IsSafeVal(num) and type(num) == "number" then
+            for i = 1, num do
+                local qTitle, _, _, isHeader, _, _, _, qID = _G.GetQuestLogTitle(i)
+                if not isHeader and IsSafeVal(qID) and qID and qID > 0 and IsSafeVal(qTitle) then
+                    if NormalizeQuestTitleLookupKey(qTitle) == targetKey then
+                        return qID
+                    end
+                end
+            end
+        end
+    end
+
+    if type(alts) == "table" and partyCache and type(partyCache.byGuid) == "table" then
+        for pGuid, info in pairs(partyCache.byGuid) do
+            if not (info and info.isLocal) and type(alts[pGuid]) == "table" then
+                local hit = MatchActiveQuestsMapByTitle(alts[pGuid].activeQuests, targetKey)
+                if hit then return hit end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function CheckLocalQuestObjectiveDone(questID, targetObjKey)
+    if not questID or not targetObjKey then return false, nil end
+
+    if _G.C_QuestLog and _G.C_QuestLog.IsComplete then
+        local comp = _G.C_QuestLog.IsComplete(questID)
+        if not issecretvalue(comp) and comp == true then
+            return true, nil
+        end
+    end
+    if sfui.common and sfui.common.is_quest_completed then
+        local done = sfui.common.is_quest_completed(questID)
+        if not issecretvalue(done) and done == true then
+            return true, nil
+        end
+    end
+
+    if _G.C_QuestLog and _G.C_QuestLog.GetQuestObjectives then
+        local objs = _G.C_QuestLog.GetQuestObjectives(questID)
+        if not issecretvalue(objs) and type(objs) == "table" then
+            for _, obj in ipairs(objs) do
+                if type(obj) == "table" and IsSafeVal(obj.text) and obj.text ~= "" then
+                    local parsed = ParseObjectiveProgress(obj.text)
+                    if parsed and parsed.key == targetObjKey then
+                        local fin = not issecretvalue(obj.finished) and obj.finished == true
+                        if IsObjectiveFinished(obj.text, fin) then
+                            return true, parsed
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local qIdx = ResolveQuestLogIndex(questID, nil)
+    if qIdx and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
+        local num = _G.GetNumQuestLeaderBoards(qIdx)
+        if IsSafeVal(num) and type(num) == "number" then
+            for objIdx = 1, num do
+                local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIdx, qIdx)
+                if IsSafeVal(desc) and desc ~= "" then
+                    local parsed = ParseObjectiveProgress(desc)
+                    if parsed and parsed.key == targetObjKey then
+                        local fin = not issecretvalue(isFinished) and (isFinished == true or isFinished == 1)
+                        if IsObjectiveFinished(desc, fin) then
+                            return true, parsed
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return false, nil
+end
+
+local function MakeSyntheticFinishedParsed(group)
+    if group.kind == "fraction" and group.max then
+        return {
+            key       = group.key,
+            label     = group.label,
+            kind      = "fraction",
+            cur       = group.max,
+            max       = group.max,
+            valueText = tostring(group.max) .. "/" .. tostring(group.max),
+            shortVal  = tostring(group.max),
+        }
+    elseif group.kind == "percent" then
+        return {
+            key       = group.key,
+            label     = group.label,
+            kind      = "percent",
+            cur       = 100,
+            valueText = "100%",
+            shortVal  = "100%",
+        }
+    end
+    return {
+        key   = group.key,
+        label = group.label,
+        kind  = group.kind or "plain",
+    }
 end
 
 local function ParseUnitQuestLines(lines, partyCache)
@@ -986,6 +1182,8 @@ local function ParseUnitQuestLines(lines, partyCache)
     local playerByKey = {}
     local objGroups = {}
     local objGroupByKey = {}
+    local quests = {}
+    local currentQuestRec = nil
     local questSeq = 0
     local inQuestBlock = false
     local hasQuestPlayer = false
@@ -994,15 +1192,26 @@ local function ParseUnitQuestLines(lines, partyCache)
         currentPlayer = "player"
     end
 
-    local function ensurePlayer(rawName)
-        local fullLower, firstLower, secondLower = SplitCharacterName(rawName)
-        local pKey = fullLower ~= "" and fullLower or string_lower(tostring(rawName or "?"))
+    local function resolveCanonicalPlayer(rawName, knownGuid)
+        local fullLower, firstLower = SplitCharacterName(rawName)
+        local unitInfo = (partyCache and knownGuid and partyCache.byGuid and partyCache.byGuid[knownGuid])
+            or LookupPartyUnit(fullLower, firstLower, partyCache)
+        local canonRaw = (unitInfo and unitInfo.rawName) or rawName
+        local cFull, cFirst, cSecond = SplitCharacterName(canonRaw)
+        local pKey = (unitInfo and unitInfo.canonicalKey)
+            or (cFull ~= "" and cFull)
+            or string_lower(tostring(canonRaw or "?"))
+        return pKey, canonRaw, (cFirst ~= "" and cFirst or pKey), cSecond
+    end
+
+    local function ensurePlayer(rawName, knownGuid)
+        local pKey, canonRaw, cFirst, cSecond = resolveCanonicalPlayer(rawName, knownGuid)
         if not playerByKey[pKey] then
             local rec = {
                 key    = pKey,
-                raw    = rawName,
-                first  = firstLower ~= "" and firstLower or pKey,
-                second = secondLower,
+                raw    = canonRaw,
+                first  = cFirst,
+                second = cSecond,
             }
             playerByKey[pKey] = rec
             players[#players + 1] = rec
@@ -1010,9 +1219,9 @@ local function ParseUnitQuestLines(lines, partyCache)
         return pKey
     end
 
-    local function addObjEntry(pKey, parsed, isDone)
+    local function addObjEntry(pKey, parsed, isDone, targetSeq, questRec)
         if not parsed or parsed.key == "" then return end
-        local gKey = tostring(questSeq) .. "|" .. parsed.key
+        local gKey = tostring(targetSeq or questSeq) .. "|" .. parsed.key
         local g = objGroupByKey[gKey]
         if not g then
             g = {
@@ -1028,6 +1237,10 @@ local function ParseUnitQuestLines(lines, partyCache)
             }
             objGroupByKey[gKey] = g
             objGroups[#objGroups + 1] = g
+            local rec = questRec or currentQuestRec
+            if rec then
+                rec.groups[#rec.groups + 1] = g
+            end
         elseif not g.seenPlayers[pKey] then
             if g.kind ~= parsed.kind then
                 g.kind = "mixed"
@@ -1070,6 +1283,12 @@ local function ParseUnitQuestLines(lines, partyCache)
                 if ltype == LINE_QUEST_TITLE then
                     questSeq = questSeq + 1
                     inQuestBlock = true
+                    currentQuestRec = {
+                        seq    = questSeq,
+                        title  = cleanText,
+                        groups = {},
+                    }
+                    quests[#quests + 1] = currentQuestRec
                     currentPlayer = (partyCache and partyCache.localName) or currentPlayer
                     consumed[line] = true
                 elseif inQuestBlock then
@@ -1090,9 +1309,83 @@ local function ParseUnitQuestLines(lines, partyCache)
                             consumed[line] = true
                         else
                             inQuestBlock = false
+                            currentQuestRec = nil
                         end
                     else
                         inQuestBlock = false
+                        currentQuestRec = nil
+                    end
+                end
+            end
+        end
+    end
+
+    if #objGroups == 0 then
+        return nil
+    end
+
+    -- Fill in synced in-party peers (and local player) who already finished an objective
+    -- when Blizzard omits their QuestPlayer line from the mob/object tooltip.
+    if sfui.sync and (sfui.sync.GetQuestPeerStatusesFromSnapshot or sfui.sync.GetQuestPeerStatuses) then
+        local localRaw = (partyCache and partyCache.localName) or (_G.UnitName and _G.UnitName("player")) or nil
+        if issecretvalue(localRaw) or type(localRaw) ~= "string" or localRaw == "" then
+            localRaw = nil
+        end
+        local localPKey = localRaw and resolveCanonicalPlayer(localRaw, nil) or nil
+        local peerSnapshot = (sfui.sync.CreateQuestPeerSnapshot and sfui.sync.CreateQuestPeerSnapshot()) or nil
+
+        for _, qRec in ipairs(quests) do
+            if #qRec.groups > 0 then
+                local questID = ResolveQuestIDByTitle(qRec.title, partyCache)
+                if questID then
+                    local peerStatuses
+                    if peerSnapshot and sfui.sync.GetQuestPeerStatusesFromSnapshot then
+                        peerStatuses = sfui.sync.GetQuestPeerStatusesFromSnapshot(peerSnapshot, questID, false)
+                    elseif sfui.sync.GetQuestPeerStatuses then
+                        peerStatuses = sfui.sync.GetQuestPeerStatuses(questID, false)
+                    end
+                    for _, g in ipairs(qRec.groups) do
+                        if type(peerStatuses) == "table" then
+                            for _, peer in ipairs(peerStatuses) do
+                                if peer.inParty then
+                                    local peerPKey = resolveCanonicalPlayer(peer.name or "?", peer.guid)
+                                    if not g.seenPlayers[peerPKey] then
+                                        local matchedParsed = nil
+                                        local isPeerDone = false
+                                        if peer.status == "ready" or peer.status == "completed" then
+                                            isPeerDone = true
+                                            matchedParsed = MakeSyntheticFinishedParsed(g)
+                                        elseif type(peer.objs) == "table" then
+                                            for oIdx, oTxt in ipairs(peer.objs) do
+                                                local parsedPeer = ParseObjectiveProgress(oTxt)
+                                                if parsedPeer and parsedPeer.key == g.key then
+                                                    local finFlag = type(peer.objFinished) == "table" and peer.objFinished[oIdx] or nil
+                                                    if IsObjectiveFinished(oTxt, finFlag) then
+                                                        isPeerDone = true
+                                                        matchedParsed = parsedPeer
+                                                    end
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        if isPeerDone and matchedParsed then
+                                            ensurePlayer(peer.name or "?", peer.guid)
+                                            addObjEntry(peerPKey, matchedParsed, true, qRec.seq, qRec)
+                                            hasQuestPlayer = true
+                                        end
+                                    end
+                                end
+                            end
+                        end
+
+                        if localRaw and localPKey and not g.seenPlayers[localPKey] then
+                            local localDone, localParsed = CheckLocalQuestObjectiveDone(questID, g.key)
+                            if localDone then
+                                ensurePlayer(localRaw, nil)
+                                addObjEntry(localPKey, localParsed or MakeSyntheticFinishedParsed(g), true, qRec.seq, qRec)
+                                hasQuestPlayer = true
+                            end
+                        end
                     end
                 end
             end
@@ -1402,6 +1695,13 @@ function Tooltip.ShowBlockTooltip(owner, bData)
         local isComplete = bData.isComplete
         if isComplete == nil and _G.C_QuestLog and _G.C_QuestLog.IsComplete then
             isComplete = _G.C_QuestLog.IsComplete(bData.questID)
+        end
+        if not isComplete then
+            local qHelper = sfui.tracker and sfui.tracker.helpers and sfui.tracker.helpers.quest
+            if qHelper and qHelper.AreAllLocalObjectivesFinished
+                and qHelper.AreAllLocalObjectivesFinished(bData.questID, bData.questLogIndex, nil) then
+                isComplete = true
+            end
         end
 
         local titleText = bData.rawTitle or bData.title or (_G.C_QuestLog and _G.C_QuestLog.GetTitleForQuestID and _G.C_QuestLog.GetTitleForQuestID(bData.questID)) or "Quest"

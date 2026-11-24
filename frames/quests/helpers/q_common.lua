@@ -381,17 +381,71 @@ function QuestCommon.IsObjectiveTextFinished(txt, isFinFlag)
     return false
 end
 
-function QuestCommon.GetSyncedQuestTrackerInfo(questID, requiredClass)
-    if not questID or not (sfui.sync and sfui.sync.GetQuestPeerStatuses) then
+function QuestCommon.AreAllLocalObjectivesFinished(questID, questLogIndex, objs)
+    if objs == nil and questID and C_QuestLog and C_QuestLog.GetQuestObjectives then
+        objs = C_QuestLog.GetQuestObjectives(questID)
+    end
+    if type(objs) == "table" and #objs > 0 then
+        local sawObj = false
+        for _, obj in ipairs(objs) do
+            if type(obj) == "table" then
+                if obj.type == "progressbar" or obj.type == 8 then
+                    return false
+                end
+                if obj.text and obj.text ~= "" then
+                    sawObj = true
+                    if not obj.finished then
+                        return false
+                    end
+                end
+            end
+        end
+        return sawObj
+    end
+    if questLogIndex and _G.GetNumQuestLeaderBoards and _G.GetQuestLogLeaderBoard then
+        local num = _G.GetNumQuestLeaderBoards(questLogIndex) or 0
+        if num > 0 then
+            local sawObj = false
+            for objIndex = 1, num do
+                local desc, _, isFinished = _G.GetQuestLogLeaderBoard(objIndex, questLogIndex)
+                if desc and desc ~= "" then
+                    sawObj = true
+                    if not isFinished then
+                        return false
+                    end
+                end
+            end
+            return sawObj
+        end
+    end
+    return false
+end
+
+function QuestCommon.FormatCollapsedCompleteTag(canClickToComplete, syncInfo)
+    local color = canClickToComplete and "|cffff00ff" or "|cff33ff33"
+    if syncInfo and syncInfo.allPeersReady then
+        return " " .. color .. "(all complete)|r"
+    end
+    return " " .. color .. "(Complete)|r"
+end
+
+function QuestCommon.GetSyncedQuestTrackerInfo(questID, requiredClass, peerSnapshot)
+    if not questID or not sfui.sync then
         return nil
     end
-    local peerStatuses = sfui.sync.GetQuestPeerStatuses(questID, false)
+    local peerStatuses
+    if peerSnapshot and sfui.sync.GetQuestPeerStatusesFromSnapshot then
+        peerStatuses = sfui.sync.GetQuestPeerStatusesFromSnapshot(peerSnapshot, questID, false)
+    elseif sfui.sync.GetQuestPeerStatuses then
+        peerStatuses = sfui.sync.GetQuestPeerStatuses(questID, false)
+    end
     if not peerStatuses or #peerStatuses == 0 then
         return nil
     end
 
     local missingPeers = nil
     local readyPeers = nil
+    local donePeers = nil
     local objOrder = nil
     local objByKey = nil
     local hasProgress = false
@@ -426,35 +480,54 @@ function QuestCommon.GetSyncedQuestTrackerInfo(questID, requiredClass)
             end
         elseif peer.status == "active" then
             hasActivePeers = true
-            hasIncompletePeers = true
-            if peer.hasProgress then
-                hasProgress = true
-            end
             local list = peer.unfinishedObjs
+            local addedUnfinished = false
             if type(list) == "table" and #list > 0 then
                 for _, oTxt in ipairs(list) do
-                    add_peer_obj(pLabel, oTxt)
+                    if not QuestCommon.IsObjectiveTextFinished(oTxt, nil) then
+                        add_peer_obj(pLabel, oTxt)
+                        addedUnfinished = true
+                    end
                 end
             elseif type(peer.objs) == "table" and #peer.objs > 0 then
                 for idx, oTxt in ipairs(peer.objs) do
                     local finFlag = type(peer.objFinished) == "table" and peer.objFinished[idx] or nil
                     if not QuestCommon.IsObjectiveTextFinished(oTxt, finFlag) then
                         add_peer_obj(pLabel, oTxt)
+                        addedUnfinished = true
                     end
                 end
             else
                 add_peer_obj(pLabel, "in progress")
+                addedUnfinished = true
+            end
+            if addedUnfinished then
+                hasIncompletePeers = true
+                if peer.hasProgress then
+                    hasProgress = true
+                end
+            elseif type(peer.objs) == "table" and #peer.objs > 0 then
+                hasProgress = true
+                readyPeers = readyPeers or {}
+                readyPeers[#readyPeers + 1] = pLabel
             end
         elseif peer.status == "ready" then
             hasActivePeers = true
             hasProgress = true
             readyPeers = readyPeers or {}
             readyPeers[#readyPeers + 1] = pLabel
+        elseif peer.status == "completed" then
+            hasActivePeers = true
+            hasProgress = true
+            donePeers = donePeers or {}
+            donePeers[#donePeers + 1] = pLabel
         end
     end
 
     local hasMissingParty = (missingPeers ~= nil and #missingPeers > 0)
-    if not hasMissingParty and not objOrder and not readyPeers then
+    local allPeersReady = (not hasIncompletePeers) and (not hasMissingParty)
+        and ((readyPeers ~= nil and #readyPeers > 0) or (donePeers ~= nil and #donePeers > 0))
+    if not hasMissingParty and not objOrder and not readyPeers and not donePeers then
         return nil
     end
 
@@ -463,9 +536,11 @@ function QuestCommon.GetSyncedQuestTrackerInfo(questID, requiredClass)
         hasMissingParty    = hasMissingParty,
         peerObjLines       = objOrder,
         readyPeers         = readyPeers,
+        donePeers          = donePeers,
         hasIncompletePeers = hasIncompletePeers,
         hasActivePeers     = hasActivePeers,
         hasProgress        = hasProgress,
+        allPeersReady      = allPeersReady,
     }
 end
 
@@ -496,6 +571,14 @@ function QuestCommon.AppendSyncedQuestLines(lines, syncInfo)
             text      = "ready: " .. table_concat(syncInfo.readyPeers, ", "),
             completed = true,
             color     = { 0.35, 0.95, 0.35, 1 },
+            isSynced  = true,
+        })
+    end
+    if syncInfo.donePeers and #syncInfo.donePeers > 0 then
+        table_insert(lines, {
+            text      = "done: " .. table_concat(syncInfo.donePeers, ", "),
+            completed = true,
+            color     = { 0.40, 0.85, 0.45, 1 },
             isSynced  = true,
         })
     end

@@ -381,6 +381,7 @@ function CamelotClassQuestsModule:BuildBlocks(container)
     local localQuestIDs = {}
     local blocks = {}
     local currentHeaderTitle = "Miscellaneous"
+    local peerSnapshot = (sfui.sync and sfui.sync.CreateQuestPeerSnapshot and sfui.sync.CreateQuestPeerSnapshot()) or nil
 
     for i = 1, numEntries do
         local questID = nil
@@ -473,10 +474,15 @@ function CamelotClassQuestsModule:BuildBlocks(container)
                 end
 
                 local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID)
+                if not isComplete and QuestCommon and QuestCommon.AreAllLocalObjectivesFinished and QuestCommon.AreAllLocalObjectivesFinished(questID, i, objs) then
+                    isComplete = true
+                    canClickToComplete = isComplete and isAutoComplete
+                end
 
                 local qClassToken = (QuestCommon and QuestCommon.GetQuestClassToken and QuestCommon.GetQuestClassToken(questID, i, currentHeaderTitle)) or myClassToken
                 local hasProgress, inlineTag = GetQuestProgressDetails(questID, i, isComplete, objs, canClickToComplete)
-                local syncInfo = QuestCommon and QuestCommon.GetSyncedQuestTrackerInfo and QuestCommon.GetSyncedQuestTrackerInfo(questID, qClassToken)
+                local syncInfo = QuestCommon and QuestCommon.GetSyncedQuestTrackerInfo
+                    and QuestCommon.GetSyncedQuestTrackerInfo(questID, qClassToken, peerSnapshot)
                 local hasMissingParty = (syncInfo and syncInfo.hasMissingParty) or false
                 local hasIncompletePeers = (syncInfo and syncInfo.hasIncompletePeers) or false
                 local hasSyncProgress = (syncInfo and syncInfo.hasProgress) or false
@@ -494,8 +500,12 @@ function CamelotClassQuestsModule:BuildBlocks(container)
                     isExpanded = defaultExpanded
                 end
 
-                if not isExpanded and inlineTag ~= "" then
-                    displayTitle = displayTitle .. inlineTag
+                if not isExpanded then
+                    if isComplete and syncInfo and syncInfo.allPeersReady and QuestCommon and QuestCommon.FormatCollapsedCompleteTag then
+                        displayTitle = displayTitle .. QuestCommon.FormatCollapsedCompleteTag(canClickToComplete, syncInfo)
+                    elseif inlineTag ~= "" then
+                        displayTitle = displayTitle .. inlineTag
+                    end
                 end
                 if hasMissingParty then
                     displayTitle = displayTitle .. " |cffff5555[!party]|r"

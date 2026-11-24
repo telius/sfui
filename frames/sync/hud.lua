@@ -902,6 +902,11 @@ function hud.HandleSyncMessage(sender, msgType, data)
     hud.RefreshStatsOnly()
 end
 
+function hud.BroadcastStatsNow(force)
+    if not isActive then return end
+    broadcast_local_stats(force == true)
+end
+
 local function on_player_regen_enabled()
     if pendingRefresh then
         pendingRefresh = false
