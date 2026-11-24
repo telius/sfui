@@ -394,12 +394,30 @@ function sfui.highest.ScoreItem(itm, slotID, specID, rule, pweights, statWeights
             local _, _, _, _, _, _, subclassID = common.get_item_instant_info(itm.link)
             local optimalArmor = rule.armor
             if subclassID and optimalArmor then
-                if optimalArmor == 4 then -- Warrior/Paladin: Mail (3) > Leather (2) > Cloth (1)
-                    score = score + (subclassID * 50)
-                elseif optimalArmor == 3 then -- Hunter/Shaman: Leather (2) > Cloth (1)
-                    score = score + ((subclassID == 3 and 150) or (subclassID == 2 and 100) or 50)
-                elseif optimalArmor == 2 then -- Rogue/Druid: Leather (2) > Cloth (1)
-                    score = score + ((subclassID == 2 and 100) or 50)
+                if optimalArmor == 4 then
+                    if isHeal or isClassicCaster then
+                        -- Holy Paladin (no armor restrictions): pure tiebreaker so healing/spell stats win
+                        score = score + (subclassID * 2)
+                    elseif isTank then
+                        -- Tanks already score real Armor (ITEM_MOD_ARMOR_SHORT); small tiebreaker avoids double-dipping
+                        score = score + (subclassID * 10)
+                    else
+                        -- Melee DPS (Ret / Arms / Fury): modest bias (~2.5 Str) favors Plate on near-equal items
+                        -- while letting genuine Mail upgrades win cleanly during the 40-50 overlap
+                        score = score + (subclassID * 25)
+                    end
+                elseif optimalArmor == 3 then
+                    if isHeal or isClassicCaster then
+                        score = score + (subclassID * 2)
+                    else
+                        score = score + (subclassID * 25)
+                    end
+                elseif optimalArmor == 2 then
+                    if isHeal or isClassicCaster then
+                        score = score + (subclassID * 2)
+                    else
+                        score = score + ((subclassID == 2 and 50) or 25)
+                    end
                 end
             end
         end

@@ -50,11 +50,9 @@ def get_bugjar_paths():
         os.path.expanduser("~/Games/World of Warcraft/_forever_/WTF/Account/*/SavedVariables/!BugJar.lua"),
         os.path.expanduser("~/Games/World of Warcraft/_retail_/WTF/Account/*/SavedVariables/!BugJar.lua"),
         os.path.expanduser("~/Games/World of Warcraft/_*/WTF/Account/*/SavedVariables/!BugJar.lua"),
-        os.path.expanduser("~/.var/app/*/Games/World of Warcraft/_*/WTF/Account/*/SavedVariables/!BugJar.lua"),
-        os.path.expanduser("~/.wine/drive_c/**/World of Warcraft/_*/WTF/Account/*/SavedVariables/!BugJar.lua"),
     ]
     for pat in search_patterns:
-        for m in glob.glob(pat, recursive=True):
+        for m in glob.glob(pat):
             if "/_classic_beta_/" in m:
                 continue
             if m not in paths and not m.endswith(".bak"):

@@ -72,20 +72,64 @@ sfui.highest.ClearValidationCache = sfui.highest.ClearCache
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Item Usability (Red text scan for unmet weapon skill / class / level)
 -- ══════════════════════════════════════════════════════════════════════════════
+local function getFutureArmorSubclassName(itemLink, itemID)
+    if sfui.isRetail then return nil end
+    local itemRef = itemLink or itemID
+    if not itemRef or not (common and common.get_item_instant_info) then return nil end
+    local _, _, _, _, _, itemClassID, itemSubClassID = common.get_item_instant_info(itemRef)
+    if itemClassID ~= 4 or not itemSubClassID then return nil end
+    local pClass
+    if sfui.talents and sfui.talents.get_player_class then
+        pClass = sfui.talents.get_player_class()
+    elseif UnitClass then
+        _, pClass = UnitClass("player")
+    end
+    local isFutureArmor = ((pClass == "PALADIN" or pClass == "WARRIOR") and itemSubClassID == 4)
+        or ((pClass == "HUNTER" or pClass == "SHAMAN") and itemSubClassID == 3)
+    if not isFutureArmor then return nil end
+    if _G.C_Item and _G.C_Item.GetItemSubClassInfo then
+        return _G.C_Item.GetItemSubClassInfo(4, itemSubClassID)
+    elseif _G.GetItemSubClassInfo then
+        return _G.GetItemSubClassInfo(4, itemSubClassID)
+    end
+    return nil
+end
+
+local function isRedTooltipLineExempt(txt, ignorePlayerLevel, futureArmorSubName)
+    if type(txt) ~= "string" then return false end
+    if common and common.issecretvalue and common.issecretvalue(txt) then return false end
+    if txt:find("Durability") or txt:find("Haltbarkeit") or (_G.ITEM_DURABILITY and txt:find(_G.ITEM_DURABILITY, 1, true)) then
+        return true
+    end
+    if ignorePlayerLevel then
+        if txt:find("Level") or (_G.ITEM_MIN_LEVEL and txt:find(_G.ITEM_MIN_LEVEL:match("%%d") and _G.ITEM_MIN_LEVEL:gsub("%%d", "") or "Level", 1, true)) then
+            return true
+        end
+        if futureArmorSubName then
+            local cleanTxt = (common and common.strip_colors and common.strip_colors(txt, true)) or txt
+            if cleanTxt == futureArmorSubName then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function CanPlayerUseItem(itemLink, itemID, ignorePlayerLevel)
     if not itemLink and not itemID then return true end
     if not itemID and itemLink then
         itemID = common.get_item_id(itemLink)
     end
 
-    if itemID and C_PlayerInfo and C_PlayerInfo.CanPlayerUseItem then
-        local canUse = C_PlayerInfo.CanPlayerUseItem(itemID)
+    if not sfui.isRetail and not ignorePlayerLevel and itemID and C_PlayerInfo and C_PlayerInfo.CanUseItem then
+        local canUse = C_PlayerInfo.CanUseItem(itemID)
         if canUse == false then
             return false
         end
     end
 
     if itemLink then
+        local futureArmorSubName = (ignorePlayerLevel and not sfui.isRetail) and getFutureArmorSubclassName(itemLink, itemID) or nil
         if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
             local tData = C_TooltipInfo.GetHyperlink(itemLink)
             if tData and tData.lines then
@@ -96,10 +140,7 @@ local function CanPlayerUseItem(itemLink, itemID, ignorePlayerLevel)
                     local clr = line.leftColor
                     if clr and clr.r and clr.g and clr.b then
                         if clr.r > 0.85 and clr.g < 0.25 and clr.b < 0.25 then
-                            local txt = line.leftText
-                            local isDurability = txt and (type(txt) == "string") and (txt:find("Durability") or txt:find("Haltbarkeit") or (_G.ITEM_DURABILITY and txt:find(_G.ITEM_DURABILITY, 1, true)))
-                            local isLevelReq = ignorePlayerLevel and txt and (type(txt) == "string") and (txt:find("Level") or (_G.ITEM_MIN_LEVEL and txt:find(_G.ITEM_MIN_LEVEL:match("%%d") and _G.ITEM_MIN_LEVEL:gsub("%%d", "") or "Level", 1, true)))
-                            if not isDurability and not isLevelReq then
+                            if not isRedTooltipLineExempt(line.leftText, ignorePlayerLevel, futureArmorSubName) then
                                 return false
                             end
                         end
@@ -107,10 +148,7 @@ local function CanPlayerUseItem(itemLink, itemID, ignorePlayerLevel)
                     local rclr = line.rightColor
                     if rclr and rclr.r and rclr.g and rclr.b then
                         if rclr.r > 0.85 and rclr.g < 0.25 and rclr.b < 0.25 then
-                            local txt = line.rightText
-                            local isDurability = txt and (type(txt) == "string") and (txt:find("Durability") or txt:find("Haltbarkeit") or (_G.ITEM_DURABILITY and txt:find(_G.ITEM_DURABILITY, 1, true)))
-                            local isLevelReq = ignorePlayerLevel and txt and (type(txt) == "string") and (txt:find("Level") or (_G.ITEM_MIN_LEVEL and txt:find(_G.ITEM_MIN_LEVEL:match("%%d") and _G.ITEM_MIN_LEVEL:gsub("%%d", "") or "Level", 1, true)))
-                            if not isDurability and not isLevelReq then
+                            if not isRedTooltipLineExempt(line.rightText, ignorePlayerLevel, futureArmorSubName) then
                                 return false
                             end
                         end
@@ -127,10 +165,7 @@ local function CanPlayerUseItem(itemLink, itemID, ignorePlayerLevel)
                     if fsL then
                         local r, g, b = fsL:GetTextColor()
                         if r and g and b and r > 0.85 and g < 0.25 and b < 0.25 then
-                            local txt = fsL:GetText()
-                            local isDurability = txt and (txt:find("Durability") or txt:find("Haltbarkeit") or (_G.ITEM_DURABILITY and txt:find(_G.ITEM_DURABILITY, 1, true)))
-                            local isLevelReq = ignorePlayerLevel and txt and (txt:find("Level") or (_G.ITEM_MIN_LEVEL and txt:find(_G.ITEM_MIN_LEVEL:match("%%d") and _G.ITEM_MIN_LEVEL:gsub("%%d", "") or "Level", 1, true)))
-                            if not isDurability and not isLevelReq then
+                            if not isRedTooltipLineExempt(fsL:GetText(), ignorePlayerLevel, futureArmorSubName) then
                                 return false
                             end
                         end
@@ -139,10 +174,7 @@ local function CanPlayerUseItem(itemLink, itemID, ignorePlayerLevel)
                     if fsR then
                         local r, g, b = fsR:GetTextColor()
                         if r and g and b and r > 0.85 and g < 0.25 and b < 0.25 then
-                            local txt = fsR:GetText()
-                            local isDurability = txt and (txt:find("Durability") or txt:find("Haltbarkeit") or (_G.ITEM_DURABILITY and txt:find(_G.ITEM_DURABILITY, 1, true)))
-                            local isLevelReq = ignorePlayerLevel and txt and (txt:find("Level") or (_G.ITEM_MIN_LEVEL and txt:find(_G.ITEM_MIN_LEVEL:match("%%d") and _G.ITEM_MIN_LEVEL:gsub("%%d", "") or "Level", 1, true)))
-                            if not isDurability and not isLevelReq then
+                            if not isRedTooltipLineExempt(fsR:GetText(), ignorePlayerLevel, futureArmorSubName) then
                                 return false
                             end
                         end

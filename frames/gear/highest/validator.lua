@@ -310,6 +310,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
 
     -- Classic Role Weapon & Stat Override: Warrior/Paladin tanks & Paladin/Shaman/Druid/Priest healers
     local isTank = false
+    local isHeal = false
     if isClassic then
         local b = sfui.talents.SPEC_BRIDGE[specID]
         local specDB = SfuiDB and SfuiDB.gear and (SfuiDB.gear[specID] or (b and b.camelotID and SfuiDB.gear[b.camelotID]) or (b and b.classID and SfuiDB.gear[b.classID]))
@@ -318,7 +319,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
         isTank = (specDB and (specDB.is_tank or specDB.armor_ilvl_prio))
             or (cRoleLower == "tank" or cRoleLower == "bear" or cRoleLower == "prot")
             or (sfui.gear and sfui.gear.IsTankSpec and sfui.gear.IsTankSpec(specID, specDB)) or false
-        local isHeal = (specDB and specDB.is_healer)
+        isHeal = (specDB and specDB.is_healer)
             or (cRoleLower == "heal" or cRoleLower == "resto" or cRoleLower == "holy" or cRoleLower == "disc")
             or (sfui.gear and sfui.gear.IsHealerSpec and sfui.gear.IsHealerSpec(specID, specDB)) or false
 
@@ -436,12 +437,20 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
                 if subclassID ~= 5 then
                     if optimalArmor == 4 then
                         -- Paladins/Warriors in Vanilla:
-                        -- Level < 40: Wear Mail, Leather, and at low levels (<20) starting Cloth.
-                        -- Level >= 40: Plate, Mail, Leather (Tanks prefer Plate at 50+)
+                        -- Holy Paladin: no armor restrictions (Cloth/Leather/Mail/Plate up to maxSubclass).
+                        -- Ret/Prot Paladin & Warrior:
+                        -- Level < 20: Cloth/Leather/Mail; 20-39: Leather/Mail (or Plate if lookahead);
+                        -- Level >= 40: floored to Mail/Plate (no hard level-50 Plate-only cliff).
                         local maxSubclass = (playerLvl < 40 and not ignorePlayerLevel) and 3 or 4
-                        local minSubclass = (playerLvl < 20 or ignorePlayerLevel) and 1 or 2
-                        if isTank and playerLvl >= 50 and not ignorePlayerLevel then
-                            minSubclass = 4
+                        local minSubclass
+                        if isPaladin and isHeal then
+                            minSubclass = 1
+                        elseif playerLvl >= 40 then
+                            minSubclass = 3
+                        elseif playerLvl >= 20 then
+                            minSubclass = 2
+                        else
+                            minSubclass = 1
                         end
                         if subclassID > maxSubclass or subclassID < minSubclass then return false end
                     elseif optimalArmor == 3 then
@@ -449,7 +458,7 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
                         -- Level < 40: Wear Leather, and at low levels (<20) starting Cloth.
                         -- Level >= 40: Mail and Leather
                         local maxSubclass = (playerLvl < 40 and not ignorePlayerLevel) and 2 or 3
-                        local minSubclass = (playerLvl < 20 or ignorePlayerLevel) and 1 or 2
+                        local minSubclass = (playerLvl < 20) and 1 or 2
                         if subclassID > maxSubclass or subclassID < minSubclass then return false end
                     elseif optimalArmor == 2 then
                         -- Rogues/Druids in Vanilla: Leather (and starting Cloth at low levels)
@@ -526,7 +535,8 @@ local function IsItemValidForSpec_Internal(itemLink, specID, ignorePlayerLevel, 
 end
 
 function sfui.highest.IsItemValidForSpec(itemLink, specID, ignorePlayerLevel, ignoreTalents)
-    local playerLvlKey = ignorePlayerLevel and "ign" or tostring(UnitLevel("player") or 1)
+    local curLvl = tostring(UnitLevel("player") or 1)
+    local playerLvlKey = ignorePlayerLevel and ("ign:" .. curLvl) or curLvl
     local isClassic = isClassicOrVanilla()
     local roleKey = ""
     if isClassic then

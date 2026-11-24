@@ -1755,22 +1755,40 @@ def build_outdoor(
 
 def composite_wmo_pieces(
     casc: LocalCASC,
-    pieces: list[tuple[int, float, float, float, float, float, float]],
+    pieces: list[tuple[int, float, float, float, float, float, float]]
+    | list[tuple[int, float, float, float, float, float, float, bool]],
     wx_max: float,
     wy_max: float,
     width: int,
     height: int,
     px_per_yard: float,
+    blp_cache: dict[tuple[int, bool], np.ndarray] | None = None,
 ) -> Image.Image:
     """Composite WMO minimap textures matching OpenMap Close.lua TexCoord+Rotation semantics."""
     canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    cache: dict[tuple[int, float, float, int], np.ndarray] = {}
+    cache: dict[tuple[int, bool, float, float, int], np.ndarray] = {}
+    mend_dir = ADDONS_DIR / "OpenMap/Media/Textures/Forever/MapCaveMend"
 
-    for fid, cx, cy, side, rot, u1, v0 in pieces:
+    for piece in pieces:
+        fid, cx, cy, side, rot, u1, v0 = piece[:7]
+        use_mend = bool(piece[7]) if len(piece) > 7 else False
         px_side = max(4, int(round(side * px_per_yard)))
-        key = (fid, u1, v0, px_side)
+        key = (fid, use_mend, u1, v0, px_side)
         if key not in cache:
-            src = np.array(casc.read_blp_rgba(fid))
+            src_key = (fid, use_mend)
+            if blp_cache is not None and src_key in blp_cache:
+                src = blp_cache[src_key]
+            else:
+                mend_path = mend_dir / f"{fid}.tga"
+                if use_mend and mend_path.exists():
+                    with Image.open(mend_path) as mim:
+                        src = np.array(mim.convert("RGBA"))
+                else:
+                    src = np.array(casc.read_blp_rgba(fid))
+                if blp_cache is not None:
+                    if len(blp_cache) > 512:
+                        blp_cache.clear()
+                    blp_cache[src_key] = src
             bh, bw = src.shape[:2]
             gs = (np.arange(px_side, dtype=np.float32) + 0.5) / px_side
             ux = gs * u1
@@ -1791,15 +1809,23 @@ def composite_wmo_pieces(
             )
         dst_x = int(round((wy_max - cy) * px_per_yard - piece_im.width * 0.5))
         dst_y = int(round((wx_max - cx) * px_per_yard - piece_im.height * 0.5))
-        canvas.alpha_composite(piece_im, (dst_x, dst_y))
+        sx0 = max(0, -dst_x)
+        sy0 = max(0, -dst_y)
+        dx0 = max(0, dst_x)
+        dy0 = max(0, dst_y)
+        sx1 = min(piece_im.width, width - dst_x)
+        sy1 = min(piece_im.height, height - dst_y)
+        if sx1 > sx0 and sy1 > sy0:
+            canvas.alpha_composite(piece_im, (dx0, dy0), (sx0, sy0, sx1, sy1))
     return canvas
 
 
-def parse_wmo_pieces_string(pics_str: str) -> list[tuple[int, float, float, float, float, float, float]]:
+def parse_wmo_pieces_string(pics_str: str) -> list[tuple[int, float, float, float, float, float, float, bool]]:
     toks = [t.strip() for t in pics_str.split(",") if t.strip()]
     out = []
     for i in range(0, len(toks), 7):
         fid_tok = toks[i]
+        use_mend = fid_tok.startswith("M")
         m = re.search(r"(\d+)", fid_tok)
         assert m, f"Bad FID token {fid_tok!r}"
         out.append(
@@ -1811,6 +1837,7 @@ def parse_wmo_pieces_string(pics_str: str) -> list[tuple[int, float, float, floa
                 float(toks[i + 4]),
                 float(toks[i + 5]),
                 float(toks[i + 6]),
+                use_mend,
             )
         )
     return out
@@ -2155,6 +2182,14 @@ CURATED_WMO_CAVES = {
 }
 
 
+def _clean_caveminimap_label(comment: str) -> str:
+    raw = comment.split(",", 1)[0].strip()
+    if re.fullmatch(r"\d+", raw):
+        return f"forever cave {raw}"
+    lbl = re.sub(r"^(?:md|kz|az|nd)_", "", raw.lower()).replace("_", " ").strip()
+    return lbl or "cave"
+
+
 def build_caves(
     casc: LocalCASC,
     maid_azeroth: bytes,
@@ -2163,10 +2198,12 @@ def build_caves(
     tile_jobs: list[tuple[Path, np.ndarray]] | None = None,
     *,
     poc_only: bool = False,
-) -> tuple[list[dict[str, object]], dict[int, np.ndarray]]:
-    """Build 3D WMO crypts + all OpenMap Forever Blizzard cave micro-maps (1x1 or 2x2 BLP2)."""
+    cave_minimap_txt: str = "",
+) -> tuple[list[dict[str, object]], dict[object, object]]:
+    """Build 3D WMO crypts, Blizzard Caves.lua micro-maps, and OpenMap CaveMinimap.lua open-world interiors."""
     caves_out: list[dict[str, object]] = []
-    cave_previews: dict[int, np.ndarray] = {}
+    cave_previews: dict[object, object] = {}
+    stage2_boxes: list[tuple[int, float, float, float, float]] = []
     ss = SS_FACTOR
     hi_tile = tile_px * ss
 
@@ -2420,8 +2457,186 @@ def build_caves(
 
         if uimap_id in (33, 55, 11):
             cave_previews[uimap_id] = rgba
+        stage2_boxes.append((cont, min_x, max_x, min_y, max_y))
 
-    print(f"Built {len(caves_out)} cave/crypt/pre-instance entries (3D WMO + Caves.lua)")
+    # 3. All unmapped open-world WMO caves, tunnels, hives & Forever caves from CaveMinimap.lua
+    cm_added = 0
+    cm_skipped = 0
+    if cave_minimap_txt:
+        cm_pat = re.compile(
+            r"^\t\{\s*(\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*\{([^}]+)\}\s*\},?\s*--\s*(.+)$",
+            re.M,
+        )
+        curated_boxes = [(v[3], v[4][0], v[4][1], v[4][2], v[4][3]) for v in CURATED_WMO_CAVES.values()]
+        blp_cache: dict[tuple[int, bool], np.ndarray] = {}
+
+        for m in cm_pat.finditer(cave_minimap_txt):
+            cont = int(m.group(1))
+            min_x, min_y = float(m.group(2)), float(m.group(3))
+            max_x, max_y = float(m.group(4)), float(m.group(5))
+            pics_str = m.group(6)
+            cmt = m.group(7).strip()
+
+            cx = (min_x + max_x) * 0.5
+            cy = (min_y + max_y) * 0.5
+            if any(
+                bc == cont and (bx0 - 20.0) <= cx <= (bx1 + 20.0) and (by0 - 20.0) <= cy <= (by1 + 20.0)
+                for bc, bx0, bx1, by0, by1 in curated_boxes
+            ):
+                cm_skipped += 1
+                continue
+            if any(
+                bc == cont and bx0 <= cx <= bx1 and by0 <= cy <= by1
+                for bc, bx0, bx1, by0, by1 in stage2_boxes
+            ):
+                cm_skipped += 1
+                continue
+
+            pieces = parse_wmo_pieces_string(pics_str)
+            if not pieces:
+                continue
+
+            w_yd = max_y - min_y
+            h_yd = max_x - min_x
+            max_dim = max(w_yd, h_yd)
+            if max_dim <= 1.0:
+                continue
+
+            raw_span = max_dim + 40.0
+            if max_dim <= 140.0:
+                n_grid = 1
+                out_tile_px = 256
+                step = float(math.ceil(raw_span / 16.0) * 16.0)
+                wall_t, halo_t, max_hatch, island_max = 2, 4, 96.0, 2500
+            elif max_dim <= 360.0:
+                n_grid = 1
+                out_tile_px = tile_px
+                step = float(math.ceil(raw_span / 16.0) * 16.0)
+                wall_t, halo_t, max_hatch, island_max = 3, 6, 140.0, 9000
+            elif max_dim <= 720.0:
+                n_grid = 2
+                out_tile_px = tile_px
+                step = float(math.ceil((raw_span * 0.5) / 16.0) * 16.0)
+                wall_t, halo_t, max_hatch, island_max = 3, 6, 140.0, 9000
+            else:
+                n_grid = 3
+                out_tile_px = tile_px
+                step = float(math.ceil((raw_span / 3.0) / 16.0) * 16.0)
+                wall_t, halo_t, max_hatch, island_max = 3, 6, 140.0, 9000
+
+            total_span = n_grid * step
+            hi_sz = n_grid * out_tile_px * ss
+            px_per_yd = hi_sz / total_span
+            gx_max, gx_min = cx + total_span * 0.5, cx - total_span * 0.5
+            gy_max, gy_min = cy + total_span * 0.5, cy - total_span * 0.5
+
+            comp_im = composite_wmo_pieces(
+                casc, pieces, gx_max, gy_max, hi_sz, hi_sz, px_per_yd, blp_cache=blp_cache
+            )
+            arr = np.array(comp_im)
+            walkable = (
+                cv2.morphologyEx(
+                    (arr[:, :, 3] > 26).astype(np.uint8),
+                    cv2.MORPH_CLOSE,
+                    np.ones((3, 3), dtype=np.uint8),
+                )
+                > 0
+            )
+            walkable = remove_small_components(walkable, 24)
+            if not walkable.any():
+                continue
+
+            rgb_f = arr[:, :, :3].astype(np.float32)
+            lum = 0.299 * rgb_f[:, :, 0] + 0.587 * rgb_f[:, :, 1] + 0.114 * rgb_f[:, :, 2]
+            eroded = cv2.erode(walkable.astype(np.uint8), np.ones((5, 5), dtype=np.uint8)) > 0
+            interior_lines = np.zeros((hi_sz, hi_sz), dtype=np.float32)
+            if eroded.any():
+                local_base = cv2.GaussianBlur(lum, (0, 0), sigmaX=7.0)
+                dark_diff = np.clip((local_base - lum - 8.0) / 36.0, 0.0, 1.0)
+                interior_lines = dark_diff * eroded.astype(np.float32) * 0.55
+
+            rgba = render_architectural_map(
+                walkable,
+                interior_lines=interior_lines,
+                canal_mask=None,
+                downsample=ss,
+                max_hatch_dist=max_hatch,
+                wall_thickness=wall_t,
+                halo_thickness=halo_t,
+                island_max_area=island_max,
+            )
+
+            cm_added += 1
+            cid = f"cm{cm_added}"
+            label = _clean_caveminimap_label(cmt)
+            trig_minx, trig_maxx = min_x - 6.0, max_x + 6.0
+            trig_miny, trig_maxy = min_y - 6.0, max_y + 6.0
+
+            if n_grid == 1:
+                fname = f"cave_{cid}.blp"
+                if tile_jobs is not None:
+                    tile_jobs.append((MEDIA_OUT / fname, np.array(rgba, copy=True)))
+                else:
+                    save_blp2_dxt5(MEDIA_OUT / fname, rgba)
+                entry: dict[str, object] = {
+                    "id": cid,
+                    "name": label,
+                    "cont": cont,
+                    "uiMapID": None,
+                    "minX": trig_minx,
+                    "maxX": trig_maxx,
+                    "minY": trig_miny,
+                    "maxY": trig_maxy,
+                    "texMinX": gx_min,
+                    "texMaxX": gx_max,
+                    "texMinY": gy_min,
+                    "texMaxY": gy_max,
+                    "tex": fname,
+                }
+            else:
+                tiles_map: dict[tuple[int, int], str] = {}
+                for row_i in range(n_grid):
+                    for col_i in range(n_grid):
+                        sub = rgba[
+                            row_i * out_tile_px : (row_i + 1) * out_tile_px,
+                            col_i * out_tile_px : (col_i + 1) * out_tile_px,
+                        ]
+                        if sub[:, :, 3].max() > 0:
+                            fname = f"cave_{cid}_{col_i}_{row_i}.blp"
+                            if tile_jobs is not None:
+                                tile_jobs.append((MEDIA_OUT / fname, np.array(sub, copy=True)))
+                            else:
+                                save_blp2_dxt5(MEDIA_OUT / fname, sub)
+                            tiles_map[(col_i, row_i)] = fname
+                entry = {
+                    "id": cid,
+                    "name": label,
+                    "cont": cont,
+                    "uiMapID": None,
+                    "minX": trig_minx,
+                    "maxX": trig_maxx,
+                    "minY": trig_miny,
+                    "maxY": trig_maxy,
+                    "gridMaxX": gx_max,
+                    "gridMaxY": gy_max,
+                    "cols": n_grid,
+                    "rows": n_grid,
+                    "stepYards": step,
+                    "tiles": tiles_map,
+                }
+
+            caves_out.append(entry)
+            if "md_timbermawhold" in cmt:
+                cave_previews["timbermaw"] = (entry, rgba, cmt)
+            elif "kz_gnomeragon" in cmt:
+                cave_previews["gnomeregan_ent"] = (entry, rgba, cmt)
+            elif cmt == "21067":
+                cave_previews["forever_21067"] = (entry, rgba, cmt)
+
+    print(
+        f"Built {len(caves_out)} cave/crypt/pre-instance entries "
+        f"(3D WMO + Caves.lua + {cm_added} CaveMinimap.lua; skipped {cm_skipped} overlaps)"
+    )
     return caves_out, cave_previews
 
 
@@ -2728,8 +2943,68 @@ def load_forever_area_map() -> dict[int, int]:
     return resolved
 
 
+def _load_existing_continents_and_cities(
+    lua_path: Path,
+) -> tuple[dict[int, dict[tuple[int, int], object]], dict[int, dict[str, object]]]:
+    """Parse preserved `continents` and `cities` tables from existing overlay_maps_camelot.lua."""
+    if not lua_path.exists():
+        raise RuntimeError(f"Cannot run --caves-only: missing existing manifest {lua_path}")
+    src = lua_path.read_text(encoding="utf-8")
+    cont_block = src[src.index("continents = {") : src.index("cities = {")]
+    continents: dict[int, dict[tuple[int, int], object]] = {}
+    for cid in (0, 1):
+        m = re.search(rf"^\s+\[{cid}\]\s*=\s*\{{(.*?)\n\s{{8}}\}},", cont_block, re.S | re.M)
+        if not m:
+            continue
+        tiles: dict[tuple[int, int], object] = {}
+        for km in re.finditer(r"\[(\d+)\]\s*=\s*(true|\"[^\"]+\")", m.group(1)):
+            idx = int(km.group(1))
+            val: object = True if km.group(2) == "true" else km.group(2).strip('"')
+            tiles[(idx // 64, idx % 64)] = val
+        continents[cid] = tiles
+
+    cities_block = src[src.index("cities = {") : src.index("instances = {")]
+    cities: dict[int, dict[str, object]] = {}
+    for cm in re.finditer(r"^\s+\[(\d+)\]\s*=\s*\{(.*?)\n\s{8}\},", cities_block, re.S | re.M):
+        mid = int(cm.group(1))
+        body = cm.group(2)
+        cont_m = re.search(r"\bcont\s*=\s*(\d+)", body)
+        name_m = re.search(r'\bname\s*=\s*"([^"]+)"', body)
+        maxx_m = re.search(r"\bmaxX\s*=\s*(-?[\d.]+)", body)
+        minx_m = re.search(r"\bminX\s*=\s*(-?[\d.]+)", body)
+        maxy_m = re.search(r"\bmaxY\s*=\s*(-?[\d.]+)", body)
+        miny_m = re.search(r"\bminY\s*=\s*(-?[\d.]+)", body)
+        cols_m = re.search(r"\bcols\s*=\s*(\d+)", body)
+        rows_m = re.search(r"\brows\s*=\s*(\d+)", body)
+        step_m = re.search(r"\bstepYards\s*=\s*(-?[\d.]+)", body)
+        assert cont_m and name_m and maxx_m and minx_m and maxy_m and miny_m and cols_m and rows_m and step_m, (
+            f"Incomplete city block [{mid}] in {lua_path}"
+        )
+        tiles_section = body[body.index("tiles = {") :]
+        ctiles: dict[tuple[int, int], str] = {}
+        for tm in re.finditer(r'\[(\d+)\]\s*=\s*"([^"]+)"', tiles_section):
+            idx = int(tm.group(1))
+            ctiles[(idx // 16, idx % 16)] = tm.group(2)
+        cities[mid] = {
+            "uiMapID": mid,
+            "cont": int(cont_m.group(1)),
+            "name": name_m.group(1),
+            "maxX": float(maxx_m.group(1)),
+            "minX": float(minx_m.group(1)),
+            "maxY": float(maxy_m.group(1)),
+            "minY": float(miny_m.group(1)),
+            "cols": int(cols_m.group(1)),
+            "rows": int(rows_m.group(1)),
+            "stepYards": float(step_m.group(1)),
+            "tiles": ctiles,
+        }
+    assert len(continents.get(0, {})) > 0 and len(continents.get(1, {})) > 0, "Missing continent tiles in manifest"
+    assert set(cities.keys()) == {1455, 1458}, f"Unexpected preserved cities: {sorted(cities.keys())}"
+    return continents, cities
+
+
 def write_lua_manifest(
-    continents: dict[int, dict[tuple[int, int], str]],
+    continents: dict[int, dict[tuple[int, int], object]],
     cities: dict[int, dict[str, object]],
     caves: list[dict[str, object]],
     sm_meta: dict[str, object] | None,
@@ -2746,12 +3021,13 @@ def write_lua_manifest(
         "sfui.overlay_maps_data = {",
         '    texBase = "Interface\\\\AddOns\\\\sfui_overlay_maps\\\\media\\\\",',
         f"    tileYards = {TILE_YARDS:.10f},",
+        '    continentPrefixes = { [0] = "ek", [1] = "kal" },',
         "    continents = {",
     ]
     for cont_id in sorted(continents):
         lines.append(f"        [{cont_id}] = {{")
-        for (tx, ty), fname in sorted(continents[cont_id].items()):
-            lines.append(f'            [{tx * 64 + ty}] = "{fname}",')
+        for (tx, ty) in sorted(continents[cont_id].keys()):
+            lines.append(f"            [{tx * 64 + ty}] = true,")
         lines.append("        },")
     lines.extend(["    },", "    cities = {"])
     for mid, cmeta in sorted(cities.items()):
@@ -3053,6 +3329,11 @@ def main() -> None:
         help="Generate fast Tirisfal/Undercity PoC subset instead of the entire Forever world.",
     )
     parser.add_argument(
+        "--caves-only",
+        action="store_true",
+        help="Rebuild only cave BLPs + manifest entries while preserving existing outdoor EK/Kalimdor and city BLPs.",
+    )
+    parser.add_argument(
         "--include-instances",
         action="store_true",
         help="Also generate Scarlet Monastery instance wing tiles (unreachable on Forever without UnitPosition).",
@@ -3105,13 +3386,18 @@ def main() -> None:
 
     OVERLAY_UI_MEDIA.mkdir(parents=True, exist_ok=True)
     MEDIA_OUT.mkdir(parents=True, exist_ok=True)
-    for pat in (
-        "ek_*.tga", "kal_*.tga", "city_*.tga", "uc_*.tga", "cave_*.tga", "sm_*.tga",
-        "ek_*.png", "kal_*.png", "city_*.png", "uc_*.png", "cave_*.png", "sm_*.png",
-        "ek_*.blp", "kal_*.blp", "city_*.blp", "uc_*.blp", "cave_*.blp", "sm_*.blp",
-    ):
-        for old_f in MEDIA_OUT.glob(pat):
-            old_f.unlink()
+    if args.caves_only:
+        for pat in ("cave_*.tga", "cave_*.png", "cave_*.blp"):
+            for old_f in MEDIA_OUT.glob(pat):
+                old_f.unlink()
+    else:
+        for pat in (
+            "ek_*.tga", "kal_*.tga", "city_*.tga", "uc_*.tga", "cave_*.tga", "sm_*.tga",
+            "ek_*.png", "kal_*.png", "city_*.png", "uc_*.png", "cave_*.png", "sm_*.png",
+            "ek_*.blp", "kal_*.blp", "city_*.blp", "uc_*.blp", "cave_*.blp", "sm_*.blp",
+        ):
+            for old_f in MEDIA_OUT.glob(pat):
+                old_f.unlink()
 
     generate_radial_mask(OVERLAY_UI_MEDIA / "radial_mask.tga", size=256)
     generate_chevron_texture(OVERLAY_UI_MEDIA / "chevron_arrow.tga", size=64)
@@ -3210,6 +3496,71 @@ def main() -> None:
             uimap_bounds=uimap_bounds,
             title="tirisfal glades (brill) :: wmo walls + contours + questiedb",
         )
+    elif args.caves_only:
+        preserved_continents, preserved_cities = _load_existing_continents_and_cities(DATA_OUT)
+        print(
+            f"Preserved {len(preserved_continents[0])} EK tiles, "
+            f"{len(preserved_continents[1])} Kalimdor tiles, "
+            f"and {len(preserved_cities)} cities from {DATA_OUT}"
+        )
+        caves, cave_previews = build_caves(
+            casc,
+            maid_azeroth,
+            caves_lua_txt,
+            tile_px=TILE_PX,
+            tile_jobs=tile_jobs,
+            poc_only=False,
+            cave_minimap_txt=cave_txt,
+        )
+        with ThreadPoolExecutor(max_workers=io_workers) as pool:
+            list(pool.map(lambda job: save_blp2_dxt5(job[0], job[1], magick_threads=1), tile_jobs))
+        print(f"Encoded {len(tile_jobs)} cave BLP2 DXT5 tiles into {MEDIA_OUT}")
+
+        subzone_map = load_forever_area_map()
+        write_lua_manifest(
+            preserved_continents,
+            preserved_cities,
+            caves,
+            sm_meta,
+            vestibule_pins,
+            subzone_map,
+        )
+        print(f"Wrote {DATA_OUT}")
+
+        preview_specs = [
+            ("timbermaw", ARTIFACT_DIR / "cave_preview_timbermaw.png", "timbermaw hold :: caveminimap contours"),
+            ("gnomeregan_ent", ARTIFACT_DIR / "cave_preview_gnomeregan.png", "gnomeregan entrance :: caveminimap contours"),
+            ("forever_21067", ARTIFACT_DIR / "cave_preview_forever_21067.png", "forever cave 21067 :: caveminimap contours"),
+        ]
+        for pkey, out_png, ptitle in preview_specs:
+            item = cave_previews.get(pkey)
+            if not isinstance(item, tuple):
+                continue
+            ce, rgba, _cmt = item
+            if "tiles" in ce:
+                c_wx_max = float(ce["gridMaxX"])
+                c_wy_max = float(ce["gridMaxY"])
+                c_wx_min = c_wx_max - float(ce["rows"]) * float(ce["stepYards"])
+                c_wy_min = c_wy_max - float(ce["cols"]) * float(ce["stepYards"])
+            else:
+                c_wx_max = float(ce["texMaxX"])
+                c_wx_min = float(ce["texMinX"])
+                c_wy_max = float(ce["texMaxY"])
+                c_wy_min = float(ce["texMinY"])
+            render_preview(
+                out_png,
+                rgba,
+                c_wx_max,
+                c_wx_min,
+                c_wy_max,
+                c_wy_min,
+                center_wx=(float(ce["minX"]) + float(ce["maxX"])) * 0.5,
+                center_wy=(float(ce["minY"]) + float(ce["maxY"])) * 0.5,
+                view_radius=min(360.0, (c_wx_max - c_wx_min) * 0.48),
+                pins=[],
+                uimap_bounds={},
+                title=ptitle,
+            )
     else:
         wdt_kal = casc.read_fid(KALIMDOR_WDT_FID)
         maid_kal = wdt_kal[wdt_kal.index(b"DIAM") + 8 :]
@@ -3234,7 +3585,7 @@ def main() -> None:
             casc, cave_txt, maid_azeroth, city_ids=(1455, 1458), tile_px=TILE_PX, tile_jobs=tile_jobs
         )
         caves, cave_previews = build_caves(
-            casc, maid_azeroth, caves_lua_txt, tile_px=TILE_PX, tile_jobs=tile_jobs, poc_only=False
+            casc, maid_azeroth, caves_lua_txt, tile_px=TILE_PX, tile_jobs=tile_jobs, poc_only=False, cave_minimap_txt=cave_txt
         )
 
         with ThreadPoolExecutor(max_workers=io_workers) as pool:

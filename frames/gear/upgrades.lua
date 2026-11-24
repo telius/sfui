@@ -4263,7 +4263,8 @@ local function OnGameEvent(event, arg1, arg2)
     end
 
     if event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_LEVEL_UP"
-        or event == "QUEST_TURNED_IN" or event == "PLAYER_TALENT_UPDATE" then
+        or event == "QUEST_TURNED_IN" or event == "PLAYER_TALENT_UPDATE"
+        or event == "SKILL_LINES_CHANGED" then
         U.MarkDirty()
     end
 end
@@ -4274,6 +4275,7 @@ if sfui.events then
         sfui.events.RegisterEvent("PLAYER_LEVEL_UP", OnGameEvent)
         sfui.events.RegisterEvent("QUEST_TURNED_IN", OnGameEvent)
         sfui.events.RegisterEvent("PLAYER_TALENT_UPDATE", OnGameEvent)
+        sfui.events.RegisterEvent("SKILL_LINES_CHANGED", OnGameEvent)
         sfui.events.RegisterEvent("ITEM_DATA_LOAD_RESULT", OnGameEvent)
     end
     if sfui.events.RegisterUnitEvent then

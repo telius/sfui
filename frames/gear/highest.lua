@@ -477,19 +477,28 @@ if sfui.events then
             sfui.highest.InvalidateResistSummaryCache()
         end
     end
+    local function onValidityContextChanged()
+        if sfui.highest.ClearValidationCache then
+            sfui.highest.ClearValidationCache()
+        else
+            onGearContextChanged()
+        end
+    end
     if sfui.events.RegisterMessage then
         sfui.events.RegisterMessage("SFUI_EQUIPMENT_DELTA", onGearContextChanged)
-        sfui.events.RegisterMessage("SFUI_ROLE_CONTEXT_CHANGED", onGearContextChanged)
+        sfui.events.RegisterMessage("SFUI_ROLE_CONTEXT_CHANGED", onValidityContextChanged)
     end
     if sfui.events.RegisterEvent then
         sfui.events.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", onGearContextChanged)
-        sfui.events.RegisterEvent("PLAYER_LEVEL_UP", onGearContextChanged)
+        sfui.events.RegisterEvent("PLAYER_LEVEL_UP", onValidityContextChanged)
         if sfui.isRetail then
-            sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", onGearContextChanged)
-            sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", onGearContextChanged)
+            sfui.events.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", onValidityContextChanged)
+            sfui.events.RegisterEvent("TRAIT_CONFIG_UPDATED", onValidityContextChanged)
         else
-            sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", onGearContextChanged)
-            sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onGearContextChanged)
+            sfui.events.RegisterEvent("CHARACTER_POINTS_CHANGED", onValidityContextChanged)
+            sfui.events.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onValidityContextChanged)
+            sfui.events.RegisterEvent("SKILL_LINES_CHANGED", onValidityContextChanged)
+            sfui.events.RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onValidityContextChanged)
         end
     end
 end

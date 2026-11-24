@@ -38,6 +38,7 @@ local IsInInstance     = _G.IsInInstance
 local GetInstanceInfo  = _G.GetInstanceInfo
 local GetTime          = _G.GetTime
 local wipe             = _G.wipe or table.wipe
+local table_sort       = table.sort
 
 local math_abs   = math.abs
 local math_sin   = math.sin
@@ -338,6 +339,12 @@ local function get_map_data()
     return sfui.overlay_maps_data or sfui.overlay_poc_data
 end
 
+local function cmp_cave_area(a, b)
+    local aa = ((a.maxX or 0) - (a.minX or 0)) * ((a.maxY or 0) - (a.minY or 0))
+    local ab = ((b.maxX or 0) - (b.minX or 0)) * ((b.maxY or 0) - (b.minY or 0))
+    return aa < ab
+end
+
 local function ensure_data_indices(data)
     if not data or data._indexed then return end
     data._indexed = true
@@ -356,6 +363,11 @@ local function ensure_data_indices(data)
                 end
                 bucket[#bucket + 1] = cave
             end
+        end
+    end
+    for _, bucket in pairs(unmappedByCont) do
+        if #bucket > 1 then
+            table_sort(bucket, cmp_cave_area)
         end
     end
     data._cavesByMapID = byMap
